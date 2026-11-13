@@ -3,6 +3,17 @@ import Synchronization
 import Testing
 @testable import CreatorMCP
 
+/// A door a handler waits at until the test opens it, so no sleep stands in for "long enough". Polls by recursion, never a loop.
+final class Gate: Sendable {
+    private let state = Mutex(false)
+    func open() { state.withLock { $0 = true } }
+    func wait() async {
+        if state.withLock({ $0 }) || Task.isCancelled { return }
+        try? await Task.sleep(for: .milliseconds(5))
+        await wait()
+    }
+}
+
 final class Flags: Sendable {
     private let states = Mutex<[Bool]>([])
     func add(_ value: Bool) { states.withLock { $0.append(value) } }
@@ -10,20 +21,17 @@ final class Flags: Sendable {
     func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
 
     /// Polls by recursion (a loop holding locals across an `await` crashes the Windows compiler) and sleeps with `Task.sleep`, so the
-    /// cooperative thread that runs the test is free for the listener's handler tasks. The wait only matters on failure, so it is long.
-    func waitFor(_ value: Bool, count: Int = 1, timeout: TimeInterval = 30) async -> Bool {
-        await waitFor(value, count: count, until: Date().addingTimeInterval(timeout))
-    }
-
-    private func waitFor(_ value: Bool, count: Int, until deadline: Date) async -> Bool {
+    /// cooperative thread that runs the test is free for the listener's handler tasks. It has no wall-clock deadline of its own
+    /// (a loaded runner decides nothing here): it stops when the test is cancelled, which the suites' time limit does.
+    func waitFor(_ value: Bool, count: Int = 1) async -> Bool {
         if all.filter({ $0 == value }).count >= count { return true }
-        guard Date() < deadline else { return false }
+        guard !Task.isCancelled else { return false }
         try? await Task.sleep(for: .milliseconds(10))
-        return await waitFor(value, count: count, until: deadline)
+        return await waitFor(value, count: count)
     }
 }
 
-/// A test client over the real socket; every wait has a timeout.
+/// A test client over the real socket; its waits end when the test is cancelled by the suite's time limit.
 struct Client {
     let socket: LocalSocket
     var reader = LineReader()
@@ -34,23 +42,19 @@ struct Client {
 
     /// The next line, `nil` on a timeout, `""` on a closed connection. It never blocks a cooperative thread: it polls without waiting
     /// and sleeps with `Task.sleep` between polls, because the server's handlers are tasks on that same pool (a test that blocked
-    /// the pool starved them on a CI runner with two cores). The default timeout is long: it matters only when a test fails.
-    mutating func line(timeout: TimeInterval = 30) async -> String? {
-        await line(until: Date().addingTimeInterval(timeout))
-    }
-
-    private mutating func line(until deadline: Date) async -> String? {
+    /// the pool starved them on a CI runner with two cores). It has no wall-clock deadline: it gives up only when the test is cancelled.
+    mutating func line() async -> String? {
         if case .line(let data)? = reader.nextLine() { return String(bytes: data, encoding: .utf8) ?? "" }
         if socket.waitReadable(milliseconds: 0) {
             var buffer = [UInt8](repeating: 0, count: 4096)
             let count = socket.read(into: &buffer)
             if count <= 0 { return "" }
             reader.append(buffer[0..<count])
-            return await line(until: deadline)
+            return await line()
         }
-        guard Date() < deadline else { return nil }
+        guard !Task.isCancelled else { return nil }
         try? await Task.sleep(for: .milliseconds(5))
-        return await line(until: deadline)
+        return await line()
     }
 }
 
@@ -70,14 +74,14 @@ func makeListener(
 }
 
 /// Waits (without blocking the pool) until the listener's accept loops are down to `count`.
-func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
+func loops(of listener: MCPListener, atMost count: Int) async -> Bool {
     if listener.runningLoops <= count { return true }
-    guard Date() < deadline else { return false }
+    guard !Task.isCancelled else { return false }
     try? await Task.sleep(for: .milliseconds(10))
-    return await loops(of: listener, atMost: count, until: deadline)
+    return await loops(of: listener, atMost: count)
 }
 
-@Suite(.serialized) struct TransportTests {
+@Suite(.serialized, .timeLimit(.minutes(5))) struct TransportTests {
     @Test func roundTripOverARealSocket() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -162,7 +166,7 @@ func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = D
         #expect(await flags.waitFor(false), "the stalled connection is dropped")
         var next = try Client(url)
         #expect(next.send("x\n"))
-        #expect(await next.line(timeout: 5) != nil, "the next client is served")
+        #expect(await next.line() != nil, "the next client is served")
     }
 
     @Test func aBoundedConnectFindsALiveListenerAndRefusesAStaleFile() async throws {
@@ -304,8 +308,9 @@ func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = D
     @Test func probeLeavesABusyListenersFileAlone() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let gate = Gate()
         let listener = makeListener(at: url) { line, send in
-            if line == Data("slow".utf8) { try? await Task.sleep(for: .milliseconds(600)) }
+            if line == Data("slow".utf8) { await gate.wait() }
             send(line + Data("\n".utf8))
         }
         #expect(try listener.start() == .listening)
@@ -317,6 +322,7 @@ func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = D
         let second = makeListener(at: url)
         #expect(try second.start() == .inUse)
         #expect(LocalSocket.fileExists(at: url))
+        gate.open()
         #expect(await busy.line() == "slow")
         busy.socket.close()
         #expect(await queued.line() == "queued")

@@ -11,6 +11,7 @@ import Testing
 
 /// The AI server's view of the open document: the rules about when an edit may run, and the files.
 @MainActor
+@Suite(.timeLimit(.minutes(20)))
 struct AppDocumentSessionTests {
     func rig(_ graph: Graph = Graph()) async -> (AppModel, AppDocumentSession, MCPServerCore) {
         let app = await makeApp(graph)

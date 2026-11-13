@@ -48,8 +48,8 @@ extension AppDocumentSessionTests {
     }
 
     private func waitUntil(_ condition: @MainActor () -> Bool) async throws {
-        for _ in 0..<2000 where !condition() { try await Task.sleep(for: .milliseconds(5)) }
-        #expect(condition())
+        // No wall-clock deadline: it ends when the suite's time limit cancels the test (a sleep then throws).
+        while !condition() { try await Task.sleep(for: .milliseconds(5)) }
     }
 
     private static let exportSentence =
