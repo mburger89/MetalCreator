@@ -158,7 +158,7 @@ import Testing
         let wire = operation("connect", ["from": .string("Second.profile"), "to": .string("Extrude.profile")])
         let (_, isError) = try await fixture.call("batch", .object(["operations": .array([add, wire])]))
         #expect(!isError)
-        #expect(fixture.document.undoName == "Add Rectangle")
+        #expect(fixture.document.undoName == "Build")
         #expect(fixture.document.graph.nodes.values.contains { $0.name == "Second" })
         fixture.document.undo()
         #expect(!fixture.document.graph.nodes.values.contains { $0.name == "Second" })
@@ -185,6 +185,19 @@ import Testing
         #expect(positions.count == 2)
         let first = positions[0], second = positions[1]
         #expect(abs(first.x - second.x) >= 224 || abs(first.y - second.y) >= 1)
+    }
+
+    @Test func changedEntriesCarryOutputs() async throws {
+        let fixture = try await SessionFixture()
+        let (result, _) = try await fixture.call("set_inputs", .object([
+            "node": .string("Extrude"), "values": .object(["distance": .int(20)]),
+        ]))
+        let changed = try #require(result["changed"]?.array)
+        let entry = try #require(changed.first { $0["name"]?.string == "Extrude" })
+        #expect(entry["outputs"]?["solid"]?.string == "solid: 6 faces, 12 edges, bounds (-10, -5, 0) to (10, 5, 20) mm")
+        let (moved, _) = try await fixture.call("add_node", .object(["type": .string("creator.number")]))
+        let numberEntry = try #require(moved["changed"]?.array?.first)
+        #expect(numberEntry["outputs"]?.object?["solid"] == nil)
     }
 
     @Test func clientEditsNeverCoalesce() async throws {

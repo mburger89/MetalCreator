@@ -140,6 +140,7 @@ enum ValueSummary {
         case .number(let number): "number \(format(number))"
         case .integer(let integer): "integer \(integer)"
         case .bool(let flag): "bool \(flag)"
+        case .solid(let solid): SolidFacts(solid).text
         default: name(scalar.type)
         }
     }

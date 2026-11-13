@@ -93,15 +93,22 @@ import Foundation
     private static let batchTool = MCPTool(
         name: "batch",
         description: "Applies several edit operations as one undo step, or none if any is refused. Each operation is {tool, arguments}.",
-        inputSchema: schema(["operations": property("array", "Edit tool calls, in order; later ones may use nodes earlier ones add.")],
-                            required: ["operations"])
+        inputSchema: schema([
+            "operations": property("array", "Edit tool calls, in order; later ones may use nodes earlier ones add."),
+            "step_name": property("string", "One of Build, Rewire, Rearrange, Clean Up, Delete, Edit Graph; omit to choose for you."),
+        ], required: ["operations"])
     ) { arguments, session, _ in
+        let explicitName: String?
+        switch stepName(in: arguments) {
+        case .failure(let refusal): return .refused(refusal.sentence)
+        case .success(let name): explicitName = name
+        }
         guard let operations = arguments["operations"]?.array, !operations.isEmpty else {
             return .refused("Say which operations to apply.")
         }
         var scratch = session.content.graph
         var commands: [GraphCommand] = []
-        var stepName: String?
+        var plans: [Plan] = []
         for (index, operation) in operations.enumerated() {
             let prefix = "Operation \(index + 1): "
             guard let tool = operation["tool"]?.string, let entry = planners.first(where: { $0.name == tool }) else {
@@ -111,10 +118,10 @@ import Foundation
             switch entry.plan(operation["arguments"] ?? .object([:]), &scratch, session) {
             case .failure(let refusal): return .refused(prefix + refusal.sentence)
             case .success(let plan):
-                stepName = stepName ?? plan.name
+                plans.append(plan)
                 commands += plan.commands
             }
         }
-        return await EditOutcome.run(session: session, name: stepName ?? UndoName.edit, commands: commands)
+        return await EditOutcome.run(session: session, name: explicitName ?? batchName(for: plans), commands: commands)
     }
 }

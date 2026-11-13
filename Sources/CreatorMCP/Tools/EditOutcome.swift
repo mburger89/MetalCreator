@@ -19,13 +19,16 @@ import Foundation
     private struct Snapshot: Equatable {
         var state: String
         var message: String?
+        /// The output summaries, so a node whose geometry changed is reported though its state stayed "ok".
+        var outputs: [String: JSONValue]
     }
 
     private static func snapshot(_ session: any DocumentSession) -> [NodeID: Snapshot] {
         var taken: [NodeID: Snapshot] = [:]
         for id in session.content.graph.nodes.keys {
             let (state, message) = ReadTools.stateText(session.results[id]?.state)
-            taken[id] = Snapshot(state: state, message: message)
+            let outputs = session.content.graph.nodes[id].map { ReadTools.outputSummaries(of: $0, session) } ?? [:]
+            taken[id] = Snapshot(state: state, message: message, outputs: outputs)
         }
         return taken
     }
@@ -69,6 +72,7 @@ import Foundation
                 "id": .string(node.id.rawValue.uuidString), "name": .string(node.name), "state": .string(now.state),
             ]
             if let text = now.message { fields["message"] = .string(text) }
+            if !now.outputs.isEmpty { fields["outputs"] = .object(now.outputs) }
             changed.append(.object(fields))
         }
         let added = commands.compactMap { command -> JSONValue? in

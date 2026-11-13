@@ -65,8 +65,8 @@ uses another. A request in flight when the app quits is answered "MetalCreator c
 
 Reading (works in every mode):
 - `get_document`: the open document's nodes (each with its state, whether it is an Output (`is_output`) and a one-line summary of
-  each output socket under `outputs`), links, parameters and groups, 200 nodes at a time.
-- `get_node`: one node's inputs (value or wire), output summaries (`outputs`), `is_output`, state and settings.
+  each output socket under `outputs`; a solid reads "solid: 6 faces, 12 edges, bounds (0, 0, 0) to (60, 40, 5) mm", a list of solids "3 solids"), links, parameters and groups, 200 nodes at a time.
+- `get_node`: one node's inputs (each with `source`: `wired`, `set` (stored, even if equal to the default), `default` or `unset`, and its `value`), outputs (summary, and for solids a `solids` array of `{faces, edges, bounds_min, bounds_max}`, the first 20, with `solids_total` when more), `is_output`, state and settings.
 - `list_node_types`: the node types you can add, optionally of a category or matching a search.
 - `describe_node_type`: a type's inputs with defaults, units, ranges and options, its outputs and settings.
 
@@ -77,7 +77,9 @@ Editing (each call is one named undo step):
 - `remove_nodes`: delete nodes and their wires.
 - `rename_node`, `set_output` (mark or unmark an Output), `move_node`.
 - `set_file`: set the file of an Image Field (a picture) or an Import Mesh node (STL or 3MF), linked or embedded.
-- `batch`: several edit operations as one undo step, or none if any is refused.
+- `batch`: several edit operations as one undo step, or none if any is refused. The step is named "Build" (it adds a node), "Delete", "Rewire", "Rearrange" or "Edit Graph", or after its one operation; an optional `step_name` picks one of Build, Rewire, Rearrange, Clean Up, Delete or Edit Graph (no other text).
+
+Edit results list each `changed` node (state or outputs changed) with its `outputs` summaries.
 
 History:
 - `undo` / `redo`: take back or re-apply the client's own last step.

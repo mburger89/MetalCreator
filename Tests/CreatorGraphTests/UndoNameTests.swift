@@ -116,8 +116,8 @@ struct UndoNameTests {
     }
 
     @Test func newUndoNamesHaveNoNumbers() {
-        let names = [UndoName.changeInputs, UndoName.renameNode, UndoName.setOutput]
-        #expect(names == ["Change Inputs", "Rename Node", "Set Output"])
+        let names = [UndoName.changeInputs, UndoName.renameNode, UndoName.setOutput] + UndoName.clientBatchNames
+        #expect(names == ["Change Inputs", "Rename Node", "Set Output", "Build", "Rewire", "Rearrange", "Clean Up", "Delete", "Edit Graph"])
         #expect(names.allSatisfy { !$0.contains(where: \.isNumber) })
     }
 }
