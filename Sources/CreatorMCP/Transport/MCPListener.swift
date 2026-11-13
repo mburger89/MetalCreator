@@ -31,6 +31,9 @@ public final class MCPListener: Sendable {
     private let failed: @Sendable (String) -> Void
     private let writeTimeoutMilliseconds: Int
     private let busyGraceMilliseconds: Int
+    /// How many connections may wait for the slot at once (the one being served is not counted). A connection beyond it is closed
+    /// at once, so a client that keeps connecting cannot pile up threads each waiting out the grace.
+    static let maximumWaiting = 8
     /// Held by the connection being served.
     private let slot = Mutex(false)
     private let admitting = Mutex(0)
@@ -106,7 +109,15 @@ public final class MCPListener: Sendable {
         while !run.isStopped {
             do {
                 guard let connection = try listening.accept(timeoutMilliseconds: 100) else { continue }
-                admitting.withLock { $0 += 1 }
+                let admitted = admitting.withLock { count -> Bool in
+                    guard count <= Self.maximumWaiting else { return false }
+                    count += 1
+                    return true
+                }
+                guard admitted else {
+                    connection.close()
+                    continue
+                }
                 let thread = Thread { [self] in
                     admit(connection, run)
                     admitting.withLock { $0 -= 1 }
