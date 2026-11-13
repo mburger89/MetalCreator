@@ -58,11 +58,15 @@ import Testing
     @Test func aRefusedBridgeWhoseHandshakeIsTwoLinesStillGetsTheBusySentence() async throws {
         let url = bridgeSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-        let harness = Harness(socket: url)
+        // The watcher must not retry on its own: with the app's socket up, a retry that lands before `raw` below is served would
+        // take the slot, and the bridge, not `raw`, would be the client the app serves (and answers, not refuses).
+        let harness = Harness(socket: url, retryInterval: .seconds(3600))
         harness.send(Self.initializeLine)
         harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
         #expect(await harness.received.wait(count: 1))
+        let seen = Lines()
         let app = MCPListener(path: url, handle: { line, send in
+            seen.add(String(bytes: line, encoding: .utf8) ?? "")
             guard let message = try? JSONValue.parse(line), let id = message["id"] else { return }
             send(JSONRPC.result(id: id, .object(["from": .string("app")])))
         }, connectionChanged: { _ in }, busyGraceMilliseconds: 50)
@@ -71,6 +75,8 @@ import Testing
         let raw = try LocalSocket.connect(to: url)
         defer { raw.close() }
         #expect(raw.write(Data("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n".utf8)))
+        // Only once the app has served `raw`'s line does it hold the slot; then the bridge's connect is the one refused.
+        #expect(await seen.wait(count: 1))
         // The watcher's replay is two writes; the app refuses it and the bridge says why.
         harness.send(#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"x"}}"#)
         #expect(await harness.received.wait(count: 2))
