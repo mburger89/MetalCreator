@@ -31,8 +31,8 @@ public final class MCPService {
     @ObservationIgnored private var switchedOffThisSession = false
     /// Bumped by every start and stop, so a late callback of an older listener changes nothing.
     @ObservationIgnored private var generation = 0
-    /// The number of the newest connection event applied for this listener.
-    @ObservationIgnored private var lastEvent = 0
+    /// The number of the newest connection event applied for this listener (a test reads it: connected is 1, dropped 2).
+    @ObservationIgnored private(set) var lastEvent = 0
 
     public init(model: AppModel, preference: any MCPPreference, launchFlag: Bool = false, path: URL = SocketPath.default(),
                 writeTimeoutMilliseconds: Int = 10_000) {

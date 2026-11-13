@@ -150,8 +150,10 @@ struct MCPServiceTests {
         let request = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
             + "\"params\":{\"name\":\"get_document\",\"arguments\":{}}}\n"
         #expect(client.write(Data(request.utf8)))
-        #expect(await waitUntil { service.isClientConnected })
-        #expect(await waitUntil { !service.isClientConnected }, "the stalled connection is dropped")
+        // Waits for the second connection event (the drop), not for `isClientConnected` to be seen true and then false: the connected
+        // window lasts only the write timeout and can pass between two polls on a main actor the whole suite shares.
+        #expect(await waitUntil { service.lastEvent >= 2 }, "the stalled connection is dropped")
+        #expect(!service.isClientConnected)
     }
 
     @Test func aSecondWindowShowsInUseAndRetriesWhenChosen() async {
