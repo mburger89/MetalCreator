@@ -35,9 +35,7 @@ struct ZebraAppTests {
         #expect(app.document.zebra?.isOn == true && app.viewport.zebra != nil)
 
         let window = try await AppWindow.open()
-        let toggle = try #require(try window.window.elements { $0.label == "Zebra" && $0.role != .staticText }.first)
-        try window.window.click(toggle)
-        try await window.window.runUntilIdle()
+        try await window.chooseAnalysis("Zebra")
         #expect(window.model.document.zebra?.isOn == true)
         #expect(try window.window.elements { $0.role == .button && $0.label == "Done" }.count == 1)
     }
@@ -177,10 +175,9 @@ struct ZebraAppTests {
         let source = try #require(window.model.producer(of: solid))
         window.model.pick = PickSession(solid: solid, source: source, rule: nil, consumer: nil, picked: [])
         try await window.window.runUntilIdle()
-        func toggle(_ name: String) throws -> TestElement {
-            try #require(try window.window.elements { $0.label == name && $0.role != .staticText }.first)
-        }
-        #expect(try toggle("Measure").isEnabled == false)
-        #expect(try toggle("Zebra").isEnabled == true)
+        let items = try window.openAnalysisMenu()
+        #expect(items.first { $0.title == "Measure" }?.isEnabled == false)
+        #expect(items.first { $0.title == "Zebra" }?.isEnabled == true)
+        try window.window.dismissMenu()
     }
 }

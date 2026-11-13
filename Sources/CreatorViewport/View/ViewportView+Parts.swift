@@ -150,23 +150,13 @@ extension ViewportView {
         .allowsHitTesting(false)
     }
 
-    /// The view cube's arrow and home buttons, and its View menu (spec §6.3: projection, shading and home view),
-    /// just below the cube.
+    /// The view cube's home button and its View menu (spec §6.3: projection, shading and home view),
+    /// in one row just below the cube.
     @MainActor
     static func cubeControls(model: ViewportModel) -> some Element {
-        VStack(alignment: .leading, spacing: Pixels(4)) {
-            HStack(spacing: Pixels(4)) {
-                Button("◀") { model.perform(.rotate(.left)) }
-                    .help("Rotate to the face on the left")
-                Button("▲") { model.perform(.rotate(.up)) }
-                    .help("Rotate to the face above")
-                Button("▼") { model.perform(.rotate(.down)) }
-                    .help("Rotate to the face below")
-                Button("▶") { model.perform(.rotate(.right)) }
-                    .help("Rotate to the face on the right")
-                Button("⌂") { model.perform(.home) }
-                    .help("Home view")
-            }
+        HStack(spacing: Pixels(4)) {
+            Button("⌂") { model.perform(.home) }
+                .help("Home view")
             Menu("View") {
                 Button("Perspective") { model.perform(.projection(.perspective)) }
                 Button("Orthographic") { model.perform(.projection(.orthographic)) }
