@@ -1,5 +1,6 @@
 import Foundation
 import MetalUI
+import Observation
 
 /// Counts the document's file panels (open, save, import, choose or relink a picture, export destination) that are up, so the
 /// MCP server can refuse edits while one is (MCP-1b R5). The theme editor's panels aren't counted: they cannot change the document.
