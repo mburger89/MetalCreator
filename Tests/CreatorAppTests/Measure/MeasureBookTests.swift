@@ -95,6 +95,7 @@ struct MeasureBookTests {
     @Test func aNewerRefreshDropsAnOlderDistance() async throws {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
+        defer { gate.release() }
         await kernel.setMeasureHook { gate.enter() }
         let fixture = try await Fixture.open(kernel: kernel)
         let app = fixture.app
@@ -112,6 +113,7 @@ struct MeasureBookTests {
     @Test func anUnchangedRefreshLetsTheRunningDistanceFinish() async throws {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
+        defer { gate.release() }
         let calls = Mutex(0)
         await kernel.setMeasureHook {
             calls.withLock { $0 += 1 }
@@ -131,6 +133,7 @@ struct MeasureBookTests {
     @Test func removingAnEntryWhileItMeasuresDropsTheLateResult() async throws {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
+        defer { gate.release() }
         await kernel.setMeasureHook { gate.enter() }
         let fixture = try await Fixture.open(kernel: kernel)
         fixture.book.add(fixture.measurement)
