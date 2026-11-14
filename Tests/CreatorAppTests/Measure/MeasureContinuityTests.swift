@@ -169,6 +169,7 @@ struct MeasureContinuityTests {
     @Test func aStaleContinuityNeverShows() async throws {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
+        defer { gate.release() }
         await kernel.setContinuityHook { gate.enter() }
         let fixture = await MeasureAppFixture.open(kernel: kernel)
         fixture.app.setMeasure(true)

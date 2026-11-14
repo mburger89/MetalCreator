@@ -56,7 +56,13 @@ struct MeasureAppFixture {
     }
 }
 
-/// Lets exactly one caller through a hook later: the first call waits for `release()`.
+/// Lets exactly one caller through a hook later: the first call waits for `release()`. Each test releases the gate when it
+/// ends (`defer { gate.release() }`), so a test that fails before its own `release()` never leaves the call held.
+///
+/// Neither wait has a deadline: on Windows every test of the suite starts at once and then waits its turn for the main actor,
+/// so a test can be minutes from its next step (`measuringShowsWhileTheDistanceIsHeld` ran 1,064 s in CI and its one-minute
+/// wait for the kernel lapsed before the measurement had even started). A test that really hangs is the CI job's timeout to
+/// catch.
 final class FirstCallGate: Sendable {
     private let calls = Mutex(0)
     private let semaphore = DispatchSemaphore(value: 0)
@@ -66,17 +72,14 @@ final class FirstCallGate: Sendable {
             count += 1
             return count == 1
         }
-        // Long enough that a loaded machine (a full suite, a build) never lets the hold lapse before the test has looked; a test
-        // that fails before `release()` waits this long, not forever.
-        if first { _ = semaphore.wait(timeout: .now() + 600) }
+        if first { semaphore.wait() }
     }
 
     func release() { semaphore.signal() }
 
-    /// Waits until the first call is inside the gate (so the work it holds is really held), up to a minute.
+    /// Waits until the first call is inside the gate (so the work it holds is really held); false only if the test is cancelled.
     func waitUntilEntered() async -> Bool {
-        let deadline = ContinuousClock.now + .seconds(60)
-        while calls.withLock({ $0 }) == 0, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+        while calls.withLock({ $0 }) == 0, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(5)) }
         return calls.withLock { $0 } > 0
     }
 }

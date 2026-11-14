@@ -84,6 +84,7 @@ struct MeasurePanelTests {
 
     @Test func measuringShowsWhileTheDistanceIsHeld() async throws {
         let gate = FirstCallGate()
+        defer { gate.release() }
         let kernel = FakeKernel()
         await kernel.setMeasureHook { gate.enter() }
         var builder = GraphBuilder()
