@@ -11,7 +11,7 @@ M6 (app shell) code is done; its human checks (group M6) are pending.
 MetalUI C8 (the app shell: close and quit veto, window title and edited dot, open-document events) is
 adopted, with the hidden title bar (gap M6-c) and MetalUI C22's window drag (gap C8-a; plan `docs/superpowers/plans/2026-10-12-adopt-c22.md`); its human checks (group AS; the drag is AS-5) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
-Toolbar icons (`toolbar-icons`, MetalUI #277's bundled symbols, CI pin `ad09c33a`: the top bar's Undo, Redo and Export, the graph header's Add, Library, zoom, dock switch (a segmented `Picker` of two `Image`s) and Hide, and the view cube's Home and View menu are borderless icon buttons; each passes its own `.accessibilityLabel` and `.help`, since the glyphs carry none, and the header's words are `HeaderText`; Add is a `plus`, bundled by MetalUI #290) code is done; its human checks (group TI) are pending.
+Toolbar icons (`toolbar-icons`, MetalUI #277's bundled symbols, CI pin `ad09c33a`: the top bar's Undo, Redo and Export, the graph header's Add, Library, zoom, dock switch (a segmented `Picker` of two `Image`s) and Hide, and the view cube's Home and View menu are borderless icon buttons; each passes its own short `.accessibilityLabel` ("Add node", "Zoom out") and a `.help` with the full words and shortcut, since the glyphs carry none, and the header's words are `HeaderText`; every icon is a `ToolbarIcon` (`CreatorStyle`), a fixed 24 x 24 hit box so a near miss never reaches the viewport or SDL's window drag; Add is a `plus`, bundled by MetalUI #290) code is done; its human checks (group TI) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
 Multi-select polish (sub-project A of `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md`) code is
 done; its human checks (group MS) are pending.
@@ -274,7 +274,7 @@ Module boundaries (dependency order):
     `EditorModel.edit` require `name:`), which `AppModel.storeSketch`
     passes through `UndoName.sketch(_:)`; `SketchCommit.description` ("Rename d1 to Plate width") holds typed text and
     numbers and is never a name. `DocumentModel.undoName` and `redoName` feed `AppModel.undoTitle` and `redoTitle`, which
-    the Edit menu (`AppCommands`) and the top bar (`TopBar`) show as "Undo <name>" and "Redo <name>" (plain "Undo"/"Redo"
+    the Edit menu (`AppCommands`) shows "Undo <name>" and "Redo <name>" and the top bar (`TopBar`) shows the name as the Undo and Redo icons' tooltip and accessibility label (plain "Undo"/"Redo"
     with nothing to take back). Names are in memory only and not part of `.mcgraph`. Tests: `UndoNameTests`,
     `EditorUndoNameTests`, `SketchStepNameTests`, `AppUndoNameTests`, `UndoTitleTests`.
   - Groups (`Sources/CreatorGraph/Groups`): `GroupDefinition`s live in `GraphContent.definitions` beside the top-level

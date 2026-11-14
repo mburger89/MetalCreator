@@ -192,13 +192,14 @@ struct SDLChromeWindowTests {
 
     /// The frames the bar had before S1, read from master (8a943eb) with the traffic lights' insets (left 69, top 32):
     /// the name, then Preview, Analysis, Undo, Redo and Export, as x, y, width, height. Since the icon buttons (toolbar-icons) Undo, Redo and
-    /// Export are glyphs (16 x 14, 16 x 14 and 27 x 18, the Export menu keeping its chrome), so Preview and Analysis move right.
+    /// Export are icons in 24-point boxes (`ToolbarIcon`; Export keeps its chevron and drops its chrome, so it is 35 wide), so
+    /// Preview and Analysis move right.
     @Test func macLayoutIsWhatItWas() async throws {
         let app = try await AppWindow.open()
         app.setTitleBarInsets(AppWindow.standardButtonInsets)
         #if canImport(Metal)
         let expected: [[Float]] = [
-            [77, 26, 52, 16], [1110, 22, 123, 24], [1243, 22, 86, 24], [1339, 27, 16, 14], [1365, 27, 16, 14], [1391, 25, 27, 18]
+            [77, 26, 52, 16], [1086, 22, 123, 24], [1219, 22, 86, 24], [1315, 22, 24, 24], [1349, 22, 24, 24], [1383, 22, 35, 24]
         ]
         let found = try [app.topBarLabel()] + app.topBarControls().sorted { $0.frame.origin.x.value < $1.frame.origin.x.value }
         #expect(found.map { [$0.frame.origin.x.value, $0.frame.origin.y.value, $0.frame.size.width.value, $0.frame.size.height.value] }

@@ -1,3 +1,4 @@
+import CreatorStyle
 import MetalUI
 
 extension ViewportView {
@@ -155,7 +156,7 @@ extension ViewportView {
     @MainActor
     static func cubeControls(model: ViewportModel) -> some Element {
         HStack(spacing: Pixels(4)) {
-            Button { model.perform(.home) } label: { Image(systemName: "house") }
+            Button { model.perform(.home) } label: { ToolbarIcon.image("house") }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Home view")
                 .help("Home view")
@@ -168,7 +169,7 @@ extension ViewportView {
                 }
                 Divider()
                 Button("Set Home View") { model.perform(.setHome) }
-            }, label: { Image(systemName: "camera") })
+            }, label: { ToolbarIcon.image("camera") })
             .buttonStyle(.borderless)
             .accessibilityLabel("View options")
             .help("View options")

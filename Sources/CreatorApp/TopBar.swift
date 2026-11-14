@@ -48,13 +48,13 @@ struct TopBar: Component {
                     // one none, so a press on it would orbit the viewport under the bar's padding.
                     // Icons, one borderless style: the step's title is the tooltip and the accessibility label (the bundled
                     // glyphs carry none of their own).
-                    Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                    Button { model.undo() } label: { ToolbarIcon.image("arrow.uturn.backward") }
                         .buttonStyle(.borderless)
                         .accessibilityLabel(model.undoTitle)
                         .help(model.undoTitle)
                         .disabled(!model.document.canUndo)
                         .absorbsPointer()
-                    Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                    Button { model.redo() } label: { ToolbarIcon.image("arrow.uturn.forward") }
                         .buttonStyle(.borderless)
                         .accessibilityLabel(model.redoTitle)
                         .help(model.redoTitle)
@@ -63,7 +63,7 @@ struct TopBar: Component {
                     Menu(content: {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
                         Button("STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
-                    }, label: { Image(systemName: "square.and.arrow.up") })
+                    }, label: { ToolbarIcon.image("square.and.arrow.up") })
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Export")
                     .help("Export")

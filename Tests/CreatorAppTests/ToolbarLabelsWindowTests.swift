@@ -8,8 +8,8 @@ import Testing
 /// and when the panel is dragged wider, and a narrow row truncates the breadcrumbs, never a control.
 @MainActor
 struct ToolbarLabelsWindowTests {
-    static let labels = [HeaderText.add, HeaderText.showLibrary, HeaderText.zoomOut, HeaderText.zoomIn,
-                         HeaderText.dockLeftName, HeaderText.dockBottomName, HeaderText.hide,
+    static let labels = [HeaderText.addName, HeaderText.libraryName, HeaderText.zoomOutName, HeaderText.zoomInName,
+                         HeaderText.dockLeftName, HeaderText.dockBottomName, HeaderText.hideName,
     ]
 
     func frames(_ app: AppWindow) throws -> [String: (minX: Double, maxX: Double)] {
