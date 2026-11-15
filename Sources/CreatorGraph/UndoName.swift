@@ -28,6 +28,13 @@ public enum UndoName {
     /// An AI client set several inputs of a node in one call; one input is named by `changeInput`.
     public static let changeInputs = "Change Inputs"
     public static let renameNode = "Rename Node"
+    // An AI client's batch is named from this fixed list, never from text it sends (so none carries typed text or a number).
+    public static let build = "Build"
+    public static let rewire = "Rewire"
+    public static let rearrange = "Rearrange"
+    public static let cleanUp = "Clean Up"
+    public static let editGraph = "Edit Graph"
+    public static let clientBatchNames = [build, rewire, rearrange, cleanUp, delete, editGraph]
     public static let setOutput = "Set Output"
 
     // MARK: Images (fields spec §4)

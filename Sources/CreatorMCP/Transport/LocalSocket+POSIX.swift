@@ -205,6 +205,9 @@ public final class LocalSocket: Sendable {
         }
     }
 
+    /// Ends this side's sending (the peer reads what was sent, then the end of the stream) while this side can still read.
+    public func shutdownWrite() { _ = shutdown(descriptor, Int32(SHUT_WR)) }
+
     public func close() { systemClose(descriptor) }
 }
 

@@ -130,10 +130,18 @@ Linux `$XDG_RUNTIME_DIR/metalcreator/mcp.sock` else `/tmp/metalcreator-<uid>/mcp
 file 0600 where the platform has permissions. Clients start the bridge product `metalcreator-mcp` (target `MetalCreatorMCPBridge`,
 `Sources/metalcreator-mcp`; shipped beside `MetalCreator` in the app bundle's `Contents/MacOS`, the Linux tarball and AppImage and the Windows
 zip, and checked by `scripts/verify-app.sh`), which answers by itself when the app isn't reachable, retries before each request and announces
-`notifications/tools/list_changed` once it connects. Rules: numbers are stored units (mm, degrees); a client's edits are refused while sketching,
-picking, adding a model dimension, an alert is up, a slider or handle is dragged or something is moved on the canvas (a pending typed value is
+`notifications/tools/list_changed` once it connects. Rules: numbers are stored units (mm, degrees); a client's edits are refused while an alert is up, the export sheet or a document file panel (`FilePanelActivity`, `AppModel.tracked(_:)`) is up, results are held, sketching,
+picking, adding a model dimension, a slider or handle is dragged or something is moved on the canvas (a pending typed value is
 committed first); each edit is one named undo step that never coalesces, and the client's `undo`/`redo` take back only its own steps (in-memory
 serials on undo entries, nothing saved); nothing MCP is in `.mcgraph`; no edge or face picks yet.
+MCP-1b (plan `docs/superpowers/plans/2026-11-13-mcp-1b-followups.md`) code is done; its human checks (MCP-8 to MCP-13) are pending:
+the bridge connects at its client's first request (never at start) and a watcher retries every second, announcing `list_changed` when the app
+appears or returns; a second client gets JSON-RPC error `-32001` "MetalCreator is already connected to another AI client. Disconnect that one,
+then try again." (the listener waits a 1 s grace for the slot); "Turn Off AI Connections" shows in the `.inUse` and `.failed` states (also under
+`--mcp`); edits are refused behind the export sheet, a file panel and held results; a solid's output summary reads "solid: N faces, M edges,
+bounds (…) to (…) mm" and `get_node` inputs carry `source` (wired, set, default, unset) and outputs a `solids` array; `batch` takes a
+`step_name` from the fixed `UndoName.clientBatchNames` and otherwise names itself from its contents; `GraphError.message`, `SocketLabel` and
+`CanvasMetrics.nodeWidth` live in `CreatorGraph`; `package-linux.sh` scans and bundles the bridge's libraries too.
 
 Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
 `docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and

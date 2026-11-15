@@ -73,6 +73,8 @@ public final class AppModel {
     public var alert: AppAlert?
     /// The export in progress, shown in the export sheet, or `nil` (implicit spec §5.3).
     public internal(set) var exportRun: ExportRun?
+    /// The document's file panels that are up (MCP-1b R5).
+    public let filePanels = FilePanelActivity()
     /// A test seam: awaited by a streamed export, with its sheet showing, before any work is done. A test holds the export there so it
     /// cannot finish before the test is done with the sheet; cancelling the export makes the wait throw.
     @ObservationIgnored var exportHold: (@MainActor () async throws -> Void)?
