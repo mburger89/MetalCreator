@@ -63,6 +63,7 @@ struct MeasureSessionTests {
     @Test func aStaleDistanceIsDropped() async throws {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
+        defer { gate.release() }
         await kernel.setMeasureHook { gate.enter() }
         let fixture = await MeasureAppFixture.open(kernel: kernel)
         fixture.app.setMeasure(true)

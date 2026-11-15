@@ -309,14 +309,21 @@ func loops(of listener: MCPListener, atMost count: Int) async -> Bool {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let gate = Gate()
-        let listener = makeListener(at: url) { line, send in
-            if line == Data("slow".utf8) { await gate.wait() }
+        let started = Lines()
+        // A long grace: `queued` waits for the slot through the gate and the probe, however loaded the machine is.
+        let listener = makeListener(at: url, graceMilliseconds: 60_000) { line, send in
+            if line == Data("slow".utf8) {
+                started.add("slow")
+                await gate.wait()
+            }
             send(line + Data("\n".utf8))
         }
         #expect(try listener.start() == .listening)
         defer { listener.stop() }
         var busy = try Client(url)
         #expect(busy.send("slow\n"))
+        // Each connection is admitted on its own thread, so `queued` could win the slot if it connected before `busy` held it.
+        #expect(await started.wait(count: 1))
         var queued = try Client(url)
         #expect(queued.send("queued\n"))
         let second = makeListener(at: url)
