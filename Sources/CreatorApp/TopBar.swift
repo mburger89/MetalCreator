@@ -5,7 +5,7 @@ import CreatorStyle
 import MetalUI
 
 /// The glass top bar (spec §6.1): the document's name, the Preview menu, the Analysis menu (checkable Section, Measure and Zebra,
-/// which can be on together), Undo, Redo (each titled by its step, `AppModel.undoTitle`) and Export. While a sketch is open it holds the sketch toolbar instead (sketcher spec §8:
+/// which can be on together), Undo and Redo (icon buttons, each titled by its step, `AppModel.undoTitle`, in its tooltip and accessibility label) and Export (an icon menu). While a sketch is open it holds the sketch toolbar instead (sketcher spec §8:
 /// "Toolbar (glass, top)"), in chrome opaque to the pointer. The name and the gap beside the controls are window drag
 /// handles (gap M6-c, `WindowDragHandle`): the window has no title bar to drag it by.
 struct TopBar: Component {
@@ -46,19 +46,27 @@ struct TopBar: Component {
                     }
                     // Only a control that can be disabled needs the backdrop: an enabled one registers its own hitbox, a disabled
                     // one none, so a press on it would orbit the viewport under the bar's padding.
-                    // The step titles give way first: one line each, cut short before any control loses its width.
-                    Button(model.undoTitle) { model.undo() }
-                        .lineLimit(1)
+                    // Icons, one borderless style: the step's title is the tooltip and the accessibility label (the bundled
+                    // glyphs carry none of their own).
+                    Button { model.undo() } label: { ToolbarIcon.image("arrow.uturn.backward") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(model.undoTitle)
+                        .help(model.undoTitle)
                         .disabled(!model.document.canUndo)
                         .absorbsPointer()
-                    Button(model.redoTitle) { model.redo() }
-                        .lineLimit(1)
+                    Button { model.redo() } label: { ToolbarIcon.image("arrow.uturn.forward") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(model.redoTitle)
+                        .help(model.redoTitle)
                         .disabled(!model.document.canRedo)
                         .absorbsPointer()
-                    Menu("Export") {
+                    Menu(content: {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
                         Button("STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
-                    }
+                    }, label: { ToolbarIcon.image("square.and.arrow.up") })
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Export")
+                    .help("Export")
                 }
                 .padding(clearButtons)
             }

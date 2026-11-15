@@ -56,7 +56,7 @@ struct ShaderToolchainTests {
     /// shadercross by `METALUI_SHADERCROSS`.
     @Test func theWorkflowAndTheLinuxScriptReachShadercrossForThePlugin() throws {
         let workflow = try Self.text(".github/workflows/xp.yml")
-        #expect(workflow.contains("METALUI_COMMIT: c4cbbc08c0ddfc7c856cffd2d985ed37bac6f746"))
+        #expect(workflow.contains("METALUI_COMMIT: ad09c33a8221228db7827cea9e8dff32f4fccdb6"))
         #expect(workflow.contains(#"METALUI_SHADERCROSS=$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"#),
                 "the Windows job names shadercross for the plugin")
         let script = try Self.text("scripts/linux-test.sh")

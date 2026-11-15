@@ -46,10 +46,10 @@ drags print to the terminal.
   - Clicking FRONT animates (about 250 ms, smooth) to a straight-on orthographic view.
   - Clicking an edge or corner gives a 45° or isometric view in the current projection.
   - Dragging the cube orbits.
-  - ⌂ goes home (the cube's arrow buttons are gone, 2026-11-13: click a face, edge or corner instead).
-  - The View menu switches Perspective and Orthographic, Shaded and Shaded + Edges, and Set Home View makes ⌂ return there.
+  - The house icon goes home (the cube's arrow buttons are gone, 2026-11-13: click a face, edge or corner instead).
+  - The View menu switches Perspective and Orthographic, Shaded and Shaded + Edges, and Set Home View makes the house icon return there.
 
-  Pinned: `ViewCubeTests`, `clickingTheCubeLooksAtTheRegionUnderThePointer`, `arrowsAndHomeAnimate`. Observed: 2026-10-07: the painted face labels sit on the faces, turn with the cube and read well (user). Animation, edge/corner views, cube drag, arrows, ⌂ and the View menu not yet confirmed.
+  Pinned: `ViewCubeTests`, `clickingTheCubeLooksAtTheRegionUnderThePointer`, `arrowsAndHomeAnimate`. Observed: 2026-10-07: the painted face labels sit on the faces, turn with the cube and read well (user). Animation, edge/corner views, cube drag, the house icon and the camera menu not yet confirmed.
 - [ ] **V6 Face menu.** Right-click a face: Look At, Select Edges of Face and Show Producing Node, for the face under
   the right press (VC5 checks that after the camera moves).
   - Look At animates to face that face, orthographic, framed on it.
@@ -279,7 +279,7 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   it's accepted as manifold. Set Width to 90 and Hole count to 6: the fillet and chamfer stay on the intended edges, no
   badge turns yellow or red, and both exports work again. Pinned: `expectExports`. **Observed:**
 - [ ] **M6-3 Files.** Save (⌘S) asks where for a new document, then the top bar reads the file's name. Change a value:
-  "— Edited" appears; Save clears it. Orbit and press ⌂ ▸ Set Home View, save, quit, and reopen the file
+  "— Edited" appears; Save clears it. Orbit and choose the camera menu ▸ Set Home View, save, quit, and reopen the file
   (`swift run MetalCreatorApp file.mcgraph` and File ▸ Open…): the same graph, camera and home view come back. With
   unsaved changes, New and Open ask "Discard unsaved changes?"; Cancel keeps the document, and a later New asks again.
   Pinned: `AppModelFileTests`.
@@ -700,8 +700,8 @@ that into an Output. Select the Sketch.
   follows the pointer under the panels, and the view doesn't zoom. Choose Select, select a line and click a gap in the
   toolbar: the selection stays. Right-click a ghosted face: no menu opens (Look At would turn the camera, S5-9).
   **Observed:**
-- [ ] **S5-9 The camera stays on the sketch plane.** While sketching: the view cube, its ◀ ▲ ▼ ▶ ⌂ buttons and its
-  View menu are gone. Drag on empty space (any tool), right-drag and middle-drag: each pans, the view never turns.
+- [ ] **S5-9 The camera stays on the sketch plane.** While sketching: the view cube, its house icon and its
+  camera menu are gone. Drag on empty space (any tool), right-drag and middle-drag: each pans, the view never turns.
   Scroll and pinch zoom toward the pointer. A click where the cube was draws there. With Select, a drag on a point
   still moves the point. Pan away and press F: the sketch is framed again, still face-on (a lone circle away from the
   origin is framed whole). Press Edit sketch and scroll at once, during the turn: the view still ends face-on. In a new
@@ -1122,10 +1122,11 @@ saved bracket.
 - [ ] **NU-1 Edit menu.** Open the Edit menu with nothing edited: the items read "Undo" and "Redo", both greyed. Press
   Cmd+Shift+N (Add Note) and open Edit again: "Undo Add Note" is enabled and "Redo" is greyed. Press Cmd+Z and open Edit:
   "Undo" greyed, "Redo Add Note" enabled. Pinned: `theTitlesNameTheStepsAndFollowUndoAndRedo`. **Observed:**
-- [ ] **NU-2 Top bar.** The top bar's buttons read the same as the menu at every step of NU-1 ("Undo Add Note", then
-  "Redo Add Note"), and the row stays on one line at the default window width, with the name not clipped. Make the
-  window narrower: **record what the bar does when "Undo Resize" and "Redo Delete" no longer fit.** Pinned:
-  `theTopBarDrawsTheTitle`. **Observed:**
+- [ ] **NU-2 Top bar.** The top bar's Undo and Redo icons carry the step's name as their tooltip and accessibility label
+  and it reads the same as the menu at every step of NU-1 ("Undo Add Note", then "Redo Add Note"), and the row stays on
+  one line at the default window width, with the name not clipped. Make the window narrower: **record what the bar does
+  when the label of "Undo Resize" and "Redo Delete" no longer fits** (the icons are fixed 24-point boxes, so it should
+  be the name that gives way). Pinned: `ToolbarIconsWindowTests.undoAndRedoFollowTheirStepTitles`. **Observed:**
 - [ ] **NU-3 Each kind of edit.** After each edit below, the Edit menu reads as given. Add a node from the palette: "Undo Add
   <the node's type>". Drag a node: "Undo Move". Press an arrow key a few times: "Undo Move" (one step). Wire two sockets:
   "Undo Connect"; drag the wire off its input: "Undo Disconnect". Change an inspector slider by dragging it: "Undo Change
@@ -2449,3 +2450,11 @@ the Output selected so the part is shown.
 - [ ] **MCP-11 Switch off from an error state.** Run two MetalCreator windows (or a second instance): the second's menu reads "AI Connections: in use by another window" with "Turn Off AI Connections" under it; choosing it clears the state and the item reads "Allow AI Connections"; the first window's connection is unaffected.
 - [ ] **MCP-12 Refused behind the export window and file panels.** Start an export (File ▸ Export… and keep the destination panel open, then confirm into a slow export if available) and ask Claude to add a node while the panel and then the sheet are up: it is refused with the matching sentence each time; after dismissing, the same request works. Repeat with File ▸ Open… and Choose Image….
 - [ ] **MCP-13 Names and facts.** Ask Claude to build the plate with holes in one batch: the bar and Edit menu read "Undo Build" (not "Undo Add Rectangle"); ask "how big is the plate?" and Claude answers from the Extrude's face count and bounds without a second tool.
+
+## Group TI — Toolbar icons
+
+- [ ] **TI-1 Top bar and graph header icons.** On macOS and on Linux or Windows (SDL): the top bar shows Undo and Redo as arrow icons and Export as a share icon, all borderless; hovering each shows its tooltip ("Undo Add Note", "Redo", "Export"); a disabled Undo or Redo is dimmed. The Export icon opens a menu with STEP… and STL…. The graph panel's header shows, right of the path, borderless icons in three groups: Add (a plus icon) and Library (a sidebar icon, lit while the library shows), the two zoom magnifiers, and the dock switch (two segments, left and bottom half-filled panels, with the current one selected) beside Hide (an eye with a slash). Each has its tooltip; the row stays one line at the default width and the path truncates first when the panel is narrow.
+- [ ] **TI-2 The dock switch.** Click the bottom-panel segment: the graph docks at the bottom and the segment shows selected; click the left one: it returns. After Hide, neither segment is selected and Tab brings the graph back. The segments read clearly on screen (no clipped glyph, no stray border). Hovering the whole of a segment, not only the glyph, shows its tooltip ("Dock left: the graph flows down"); if only the glyph does, record "tooltip over the glyph".
+- [ ] **TI-3 View cube icons.** Under the view cube a house icon (Home view) and a camera icon (View options, a menu with Perspective, Orthographic, the shading modes and Set Home View) sit in one row; the house still returns to the home view.
+- [ ] **TI-4 Hit boxes.** Every icon is a 24 x 24 target: press just above, below or beside a glyph (inside the 24-point square) on Undo, Redo, Export, each header icon and the cube's house and camera: the control acts (or opens its menu), the viewport does not orbit or pick, and on Linux or Windows the window does not start to drag. A press just outside the square is the viewport's again. Pinned: `ToolbarIconsWindowTests` (Undo and Home).
+- [ ] **TI-5 App menu order.** Check on screen that the app menu keeps its order with Services and Settings (MetalUI #276 and #278). **Observed:**
