@@ -17,20 +17,15 @@ struct SectionWindowTests {
         return try await AppWindow.open(builder.graph)
     }
 
-    func toggles(in app: AppWindow) throws -> [TestElement] {
-        try app.window.elements { $0.label == "Section" && $0.role != .staticText }
-    }
-
     @Test func theTopBarToggleSectionsTheViewportOnEveryPlatform() async throws {
         let app = try await open()
-        let toggle = try #require(try toggles(in: app).first)
         #expect(app.model.viewport.clip == nil)
-        try app.window.click(toggle)
+        try await app.chooseAnalysis("Section")
         try await app.window.runUntilIdle()
         #expect(app.model.document.section?.isOn == true && app.model.viewport.clip != nil)
         #expect(app.model.viewport.handles.contains { $0.id == SectionModel.handleID })
         #expect(try offsetFields(in: app).count == 1, "the panel is shown")
-        try app.window.click(try #require(try toggles(in: app).first))
+        try await app.chooseAnalysis("Section")
         try await app.window.runUntilIdle()
         #expect(app.model.document.section?.isOn == false && app.model.viewport.clip == nil)
         #expect(try offsetFields(in: app).isEmpty, "and gone with the section")
@@ -46,7 +41,7 @@ struct SectionWindowTests {
 
     func sectionOn() async throws -> AppWindow {
         let app = try await open()
-        try app.window.click(try #require(try toggles(in: app).first))
+        try await app.chooseAnalysis("Section")
         try await app.window.runUntilIdle()
         return app
     }
@@ -93,7 +88,7 @@ struct SectionWindowTests {
         var builder = GraphBuilder()
         let box = builder.sketchedBox(rectangleSketch(on: .xz))
         let app = try await AppWindow.open(builder.graph)
-        try app.window.click(try #require(try toggles(in: app).first))
+        try await app.chooseAnalysis("Section")
         try await app.window.runUntilIdle()
         #expect(try offsetFields(in: app).count == 1)
         app.editor.selection = [box.sketch.id]

@@ -4,8 +4,8 @@ import CreatorSketchEditor
 import CreatorStyle
 import MetalUI
 
-/// The glass top bar (spec §6.1): the document's name, the Preview menu, Undo, Redo (each titled by its step,
-/// `AppModel.undoTitle`) and Export. While a sketch is open it holds the sketch toolbar instead (sketcher spec §8:
+/// The glass top bar (spec §6.1): the document's name, the Preview menu, the Analysis menu (checkable Section, Measure and Zebra,
+/// which can be on together), Undo, Redo (each titled by its step, `AppModel.undoTitle`) and Export. While a sketch is open it holds the sketch toolbar instead (sketcher spec §8:
 /// "Toolbar (glass, top)"), in chrome opaque to the pointer. The name and the gap beside the controls are window drag
 /// handles (gap M6-c, `WindowDragHandle`): the window has no title bar to drag it by.
 struct TopBar: Component {
@@ -38,11 +38,12 @@ struct TopBar: Component {
                     }
                     .pickerStyle(.menu)
                     .layoutPriority(2)
-                    Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
-                    Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
-                        .disabled(model.pick != nil)
-                        .absorbsPointer()
-                    Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
+                    Menu("Analysis") {
+                        Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
+                        Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
+                            .disabled(model.pick != nil)
+                        Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
+                    }
                     // Only a control that can be disabled needs the backdrop: an enabled one registers its own hitbox, a disabled
                     // one none, so a press on it would orbit the viewport under the bar's padding.
                     // The step titles give way first: one line each, cut short before any control loses its width.

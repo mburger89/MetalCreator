@@ -46,7 +46,7 @@ drags print to the terminal.
   - Clicking FRONT animates (about 250 ms, smooth) to a straight-on orthographic view.
   - Clicking an edge or corner gives a 45° or isometric view in the current projection.
   - Dragging the cube orbits.
-  - ◀ ▲ ▼ ▶ rotate 90° to the adjacent face, and ⌂ goes home.
+  - ⌂ goes home (the cube's arrow buttons are gone, 2026-11-13: click a face, edge or corner instead).
   - The View menu switches Perspective and Orthographic, Shaded and Shaded + Edges, and Set Home View makes ⌂ return there.
 
   Pinned: `ViewCubeTests`, `clickingTheCubeLooksAtTheRegionUnderThePointer`, `arrowsAndHomeAnimate`. Observed: 2026-10-07: the painted face labels sit on the faces, turn with the cube and read well (user). Animation, edge/corner views, cube drag, arrows, ⌂ and the View menu not yet confirmed.
@@ -124,7 +124,7 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
 - [ ] **VC8 Framing in the model area (app).** Open a saved bracket with no saved camera (or press F): the part sits
   in the middle of the area right of the graph panel and left of the inspector, not under either. Dock the panel at
   the bottom and press F: the part is centred above the panel. Right-click a face ▸ Look At: the face is centred in
-  the same area. With either dock, after F click ▶, then ▲, then a cube face and a cube corner, then drag the cube:
+  the same area. With either dock, after F click a cube face and a cube corner, then drag the cube:
   the part turns in place, centred in the area, never swinging under the inspector or the bottom panel. With the
   pointer off the window (over the menu bar), press + and −: the part stays centred. Pinned:
   `ModelAreaFramingTests`. Observed: 2026-10-09 PASS (user, release MetalCreatorApp).

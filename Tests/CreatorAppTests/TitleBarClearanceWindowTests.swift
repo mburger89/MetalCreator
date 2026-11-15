@@ -58,7 +58,7 @@ struct TitleBarClearanceWindowTests {
         app.window.resize(to: Size(width: Pixels(1000), height: Pixels(640)))
         let label = try app.topBarLabel()
         let controls = try app.topBarControls().sorted { $0.frame.origin.x.value < $1.frame.origin.x.value }
-        #expect(controls.count == 4)
+        #expect(controls.count == 5)
         var edge = label.frame.origin.x.value + label.frame.size.width.value
         for control in controls {
             #expect(control.frame.origin.x.value >= edge, "\(control.label ?? "a control") starts after what is left of it")

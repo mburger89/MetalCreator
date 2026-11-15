@@ -35,7 +35,7 @@ struct WindowDragWindowTests {
     @Test func aPressDragOnABarControlNeverAsks() async throws {
         let app = try await AppWindow.open()
         let controls = try app.topBarControls()
-        #expect(controls.count == 4, "Preview, Undo, Redo and Export")
+        #expect(controls.count == 5, "Preview, Analysis, Undo, Redo and Export")
         for control in controls {
             #expect(app.windowDragRequests(draggingFrom: app.centre(of: control)) == 0, "\(control.label ?? "a control")")
         }
