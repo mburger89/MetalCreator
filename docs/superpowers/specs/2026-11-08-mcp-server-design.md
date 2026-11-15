@@ -193,3 +193,5 @@ MCP-1 (protocol, server, bridge, the tools of §4, the switch and the chip, docs
   `umask` is not touched.
 
 - 2026-11-10 (sketch refusal wording): the sketch toolbar's button is labelled Finish, not Done, so the refusal in §Modes now reads "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then try again." (the line above is amended to match).
+
+- 2026-11-13 (MCP-1b follow-ups): the bridge connects to the app at its client's first request, not at start, and retries in the background (R1, R2 of plan 2026-11-13-mcp-1b-followups); the listener refuses a second client with JSON-RPC error -32001 and a sentence; the menu can turn the server off from the failed and in-use states; edits are also refused during the export sheet, a file panel and held results (§Modes amended); output summaries of a solid read "solid: N faces, M edges, bounds (…) to (…) mm"; get_node inputs say whether a value is wired, set, default or unset; batch accepts a step_name from a fixed list (no free text, per the undo-name rules) and otherwise names itself from its contents; GraphError.message, the socket label rule and the node width are shared from CreatorGraph.

@@ -1,5 +1,3 @@
-import CreatorGraph
-
 extension GraphError {
     /// Plain-language text for a refused edit.
     public var message: String {

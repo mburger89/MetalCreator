@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorKernel
 
 extension ReadTools {
     /// An integral number as `.int`, so `3` doesn't print as `3.0`.
@@ -35,6 +36,26 @@ extension ReadTools {
         switch reference {
         case .embedded: .object(["kind": .string("embedded")])
         case .linked(_, let path): .object(["kind": .string("linked"), "path": .string(path)])
+        }
+    }
+}
+
+extension ReadTools {
+    /// A node's outputs for `get_node`: summary, and the facts of up to 20 solids.
+    static func outputsJSON(of node: Node, _ session: any DocumentSession) -> [JSONValue] {
+        session.registry.outputs(for: node).map { spec in
+            var fields: [String: JSONValue] = [
+                "name": .string(spec.name.rawValue), "type": .string(spec.type.rawValue),
+                "summary": .string(session.outputSummary(of: node.id, socket: spec.name) ?? "No result yet"),
+            ]
+            let solids = (session.results[node.id]?.outputs?[spec.name]?.items ?? []).compactMap { scalar -> Solid? in
+                if case .solid(let solid) = scalar { solid } else { nil }
+            }
+            if !solids.isEmpty {
+                fields["solids"] = .array(solids.prefix(20).map { SolidFacts($0).json })
+                if solids.count > 20 { fields["solids_total"] = .int(solids.count) }
+            }
+            return .object(fields)
         }
     }
 }

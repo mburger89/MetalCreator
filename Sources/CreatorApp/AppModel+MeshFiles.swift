@@ -30,6 +30,7 @@ extension AppModel {
     /// A choice is refused only when the path isn't a regular file; a file that isn't a usable mesh is chosen, and the node says what
     /// is wrong with it.
     public func performMeshFile(_ action: InspectorAction, on node: NodeID, using picker: any FilePicker) async {
+        let picker = tracked(picker)
         let failure = await withFileAction(on: node) { target in
             switch action {
             case .chooseMeshFile: try await chooseMeshFile(target, using: picker, named: UndoName.chooseMeshFile)
@@ -46,6 +47,7 @@ extension AppModel {
     /// wired to it, as one undo step. Inside a group the node goes in alone (an Output node can't live in a group). Does nothing
     /// while a sketch or a pick is running.
     public func importMesh(using picker: any FilePicker) async {
+        let picker = tracked(picker)
         guard canImportMesh, !imageActionDocuments.contains(ObjectIdentifier(document)) else { return }
         editor.commitPendingEntry()
         let (document, levels, path) = (self.document, editor.levelPath, editor.graphPath)

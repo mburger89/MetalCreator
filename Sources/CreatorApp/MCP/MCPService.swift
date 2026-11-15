@@ -18,8 +18,8 @@ public final class MCPService {
     public private(set) var state = State.off
     /// True while an AI client has the socket open.
     public private(set) var isClientConnected = false
-    /// The preference or the launch flag.
-    public var isOn: Bool { preference.allowsAIConnections || launchFlag }
+    /// The preference or the launch flag, unless the person turned it off from an error state this session.
+    public var isOn: Bool { (preference.allowsAIConnections || launchFlag) && !switchedOffThisSession }
 
     @ObservationIgnored private let model: AppModel
     @ObservationIgnored private let preference: any MCPPreference
@@ -27,10 +27,12 @@ public final class MCPService {
     @ObservationIgnored private let path: URL
     @ObservationIgnored private let writeTimeoutMilliseconds: Int
     @ObservationIgnored private var listener: MCPListener?
+    /// Set by `turnOff()`, so the choice beats `--mcp` for the rest of the session; a later "on" clears it.
+    @ObservationIgnored private var switchedOffThisSession = false
     /// Bumped by every start and stop, so a late callback of an older listener changes nothing.
     @ObservationIgnored private var generation = 0
-    /// The number of the newest connection event applied for this listener.
-    @ObservationIgnored private var lastEvent = 0
+    /// The number of the newest connection event applied for this listener (a test reads it: connected is 1, dropped 2).
+    @ObservationIgnored private(set) var lastEvent = 0
 
     public init(model: AppModel, preference: any MCPPreference, launchFlag: Bool = false, path: URL = SocketPath.default(),
                 writeTimeoutMilliseconds: Int = 10_000) {
@@ -45,6 +47,7 @@ public final class MCPService {
     public func setOn(_ on: Bool) {
         preference.allowsAIConnections = on
         if on {
+            switchedOffThisSession = false
             start()
         } else if !launchFlag {
             stop()
@@ -112,9 +115,22 @@ public final class MCPService {
         }
     }
 
+    /// Whether the menu also offers to turn the server off: in the states where choosing the switch only retries.
+    public var offersTurnOff: Bool { retries }
+
+    public static let turnOffTitle = "Turn Off AI Connections"
+
+    /// The explicit exit from `.inUse` and `.failed`: forgets the choice and stops, even under `--mcp`.
+    public func turnOff() {
+        preference.allowsAIConnections = false
+        switchedOffThisSession = true
+        stop()
+    }
+
     /// The menu's choice: a retry after `.inUse` or `.failed`, else the switch.
     public func menuChosen(_ on: Bool) {
         if retries {
+            switchedOffThisSession = false
             start()
         } else {
             setOn(on)

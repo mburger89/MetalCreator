@@ -28,6 +28,7 @@ extension AppModel {
     /// A file is checked when it is chosen (`ImageResolver.bytes(ofFileAt:)`, `GreyImageDecoder.inspect`): over 16 MB, over
     /// 8,192 px on a side, or not a PNG or JPEG, and the setting stays as it was (fields spec D10).
     public func performImage(_ action: InspectorAction, on node: NodeID, using picker: any FilePicker) async {
+        let picker = tracked(picker)
         let failure = await withFileAction(on: node) { target in
             switch action {
             case .chooseImage: try await chooseImage(target, using: picker)

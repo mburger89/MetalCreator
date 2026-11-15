@@ -167,6 +167,10 @@ public final class LocalSocket: Sendable {
         }
     }
 
+    /// Ends this side's sending (`SD_SEND`) while this side can still read, so a close with unread data cannot reset the connection
+    /// and drop what was queued.
+    public func shutdownWrite() { _ = shutdown(handle, 1) }
+
     public func close() { closesocket(handle) }
 }
 

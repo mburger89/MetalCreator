@@ -6,6 +6,8 @@ enum JSONRPC {
     static let invalidRequest = -32600
     static let methodNotFound = -32601
     static let invalidParams = -32602
+    /// The app already serves another client (the listener's refusal; the bridge reads it).
+    static let alreadyConnected = -32001
 
     static func line(_ value: JSONValue) -> Data {
         var data = value.encoded()

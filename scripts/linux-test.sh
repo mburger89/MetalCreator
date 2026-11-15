@@ -132,6 +132,8 @@ do_package() {
         mkdir /tmp/unpacked && tar -xzf /dist/'"$(basename "$tarball")"' -C /tmp/unpacked
         cd /tmp/unpacked/MetalCreator-*
         ./MetalCreator --version
+        if ldd metalcreator-mcp | grep -q "not found"; then echo "metalcreator-mcp does not load: $(ldd metalcreator-mcp | grep "not found")" >&2; exit 1; fi
+        printf '"'"'%s\n'"'"' '"'"'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"verify","version":"1"}}}'"'"' | ./metalcreator-mcp --socket /nonexistent/x.sock | head -n 1 | grep -q "isn'"'"'t running"
         ./MetalCreator --self-test | tee /tmp/self.txt
         grep -q "^ok   implicit compiler: .*libSDL3_shadercross" /tmp/self.txt
         for f in libSDL3_shadercross.so.0 libdxcompiler.so libspirv-cross-c-shared.so.0; do

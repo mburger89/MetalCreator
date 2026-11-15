@@ -2,8 +2,11 @@ import Foundation
 import Synchronization
 
 /// Listens on the local socket and serves one connection at a time. Each line is awaited before the next is read, so
-/// responses keep the order of the requests. The accept loop runs on its own thread.
+/// responses keep the order of the requests. The accept loop runs on its own thread. A connection that arrives while another is
+/// served waits a short grace for the slot, then is answered with `busySentence` and closed.
 public final class MCPListener: Sendable {
+    public static let busySentence = "MetalCreator is already connected to another AI client. Disconnect that one, then try again."
+
     public enum StartResult: Sendable, Equatable {
         case listening
         /// Another live process already listens on the path; its file is left alone.
@@ -27,16 +30,27 @@ public final class MCPListener: Sendable {
     private let connectionChanged: @Sendable (Bool) -> Void
     private let failed: @Sendable (String) -> Void
     private let writeTimeoutMilliseconds: Int
+    private let busyGraceMilliseconds: Int
+    /// How many connections may wait for the slot while one is served (counting the served one the cap is `maximumWaiting + 1`
+    /// threads; with no one served the check admits one more, so up to `maximumWaiting + 1` can be waiting). A connection beyond
+    /// the cap is closed at once, so a client that keeps connecting cannot pile up threads each waiting out the grace.
+    static let maximumWaiting = 8
+    /// Held by the connection being served.
+    private let slot = Mutex(false)
+    private let admitting = Mutex(0)
     private let current = Mutex<Run?>(nil)
     private let loops = Mutex(0)
 
     /// - Parameter failed: told, with a sentence, when the accept loop dies on an error it can't retry.
     /// - Parameter writeTimeoutMilliseconds: a write that makes no progress for this long drops the connection.
+    /// - Parameter busyGraceMilliseconds: how long a connection waits for the slot before it is refused.
     public init(
         path: URL, handle: @escaping Handler, connectionChanged: @escaping @Sendable (Bool) -> Void,
-        failed: @escaping @Sendable (String) -> Void = { _ in }, writeTimeoutMilliseconds: Int = 10_000
+        failed: @escaping @Sendable (String) -> Void = { _ in }, writeTimeoutMilliseconds: Int = 10_000,
+        busyGraceMilliseconds: Int = 1_000
     ) {
         self.writeTimeoutMilliseconds = writeTimeoutMilliseconds
+        self.busyGraceMilliseconds = busyGraceMilliseconds
         self.path = path
         self.handle = handle
         self.connectionChanged = connectionChanged
@@ -45,6 +59,9 @@ public final class MCPListener: Sendable {
 
     /// Accept loops still running (including ones winding down after `stop()`); a test's read-back.
     var runningLoops: Int { loops.withLock { $0 } }
+
+    /// Connection threads still alive (waiting, serving or refusing); a test's read-back.
+    var activeConnections: Int { admitting.withLock { $0 } }
 
     public func start() throws(SocketProblem) -> StartResult {
         if current.withLock({ $0 }) != nil { return .listening }
@@ -93,7 +110,23 @@ public final class MCPListener: Sendable {
         while !run.isStopped {
             do {
                 guard let connection = try listening.accept(timeoutMilliseconds: 100) else { continue }
-                serve(connection, run)
+                // Admitted while `count <= maximumWaiting`: one served plus `maximumWaiting` waiting, or `maximumWaiting + 1` waiting
+                // when no one is served. Anything beyond that is closed at once.
+                let admitted = admitting.withLock { count -> Bool in
+                    guard count <= Self.maximumWaiting else { return false }
+                    count += 1
+                    return true
+                }
+                guard admitted else {
+                    connection.close()
+                    continue
+                }
+                let thread = Thread { [self] in
+                    admit(connection, run)
+                    admitting.withLock { $0 -= 1 }
+                }
+                thread.name = "MCP connection"
+                thread.start()
             } catch {
                 if error.isTransientAccept {
                     Thread.sleep(forTimeInterval: 0.1)
@@ -118,6 +151,61 @@ public final class MCPListener: Sendable {
         if wasCurrent {
             try? LocalSocket.removeFile(at: path)
             failed(error.message)
+        }
+    }
+
+    /// Serves the connection once it holds the slot; one that can't get it within the grace is refused.
+    private func admit(_ connection: LocalSocket, _ run: Run) {
+        var waited = 0
+        while !claimSlot() {
+            guard waited < busyGraceMilliseconds, !run.isStopped else { return refuse(connection, run) }
+            Thread.sleep(forTimeInterval: 0.02)
+            waited += 20
+        }
+        defer { slot.withLock { $0 = false } }
+        serve(connection, run)
+    }
+
+    private func claimSlot() -> Bool {
+        slot.withLock { held in
+            if held { return false }
+            held = true
+            return true
+        }
+    }
+
+    /// Answers the first line with the busy error and closes; a connection that says nothing (a probe) just closes. This never
+    /// reports a connection change.
+    private func refuse(_ connection: LocalSocket, _ run: Run) {
+        defer { connection.close() }
+        connection.setSendTimeout(milliseconds: writeTimeoutMilliseconds)
+        var reader = LineReader()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        for _ in 0..<10 where !run.isStopped {
+            guard connection.waitReadable(milliseconds: 100) else { continue }
+            let count = connection.read(into: &buffer)
+            if count <= 0 { return }
+            reader.append(buffer[0..<count])
+            while let next = reader.nextLine() {
+                guard case .line(let line) = next else { return }
+                if line.isEmpty { continue }
+                let id = (try? JSONValue.parse(line))?["id"] ?? .null
+                _ = connection.write(JSONRPC.error(id: id, code: JSONRPC.alreadyConnected, Self.busySentence))
+                finishRefusal(connection, run)
+                return
+            }
+        }
+    }
+
+    /// After the refusal: stop sending, then read what the client still has queued (the watcher sends `initialize` and
+    /// `notifications/initialized` as two writes) until it closes, for up to a second. Closing with unread data can reset the
+    /// connection on Winsock and drop the reply that was just queued.
+    private func finishRefusal(_ connection: LocalSocket, _ run: Run) {
+        connection.shutdownWrite()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        for _ in 0..<10 where !run.isStopped {
+            guard connection.waitReadable(milliseconds: 100) else { continue }
+            if connection.read(into: &buffer) <= 0 { return }
         }
     }
 
