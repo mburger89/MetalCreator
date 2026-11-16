@@ -23,8 +23,10 @@ enum FacePickWording {
     /// A pick names copies (or imported features) the part no longer has: the first copy's path when there is one, else the imported
     /// board's sentence.
     static func vanished(_ items: [Int]) -> String {
-        if let path = InstancePath.partition(items).paths.first {
-            return "Instance \(InstancePath.text(path)) no longer exists, so the picked face isn't there any more. Pick the face again."
+        let (paths, hasOther) = InstancePath.partition(items)
+        if let path = paths.first {
+            let text = "Instance \(InstancePath.text(path)) no longer exists, so the picked face isn't there any more. Pick the face again."
+            return hasOther ? text + " " + InstancePath.importedFeatureVanished : text
         }
         return InstancePath.importedFeatureVanished
     }

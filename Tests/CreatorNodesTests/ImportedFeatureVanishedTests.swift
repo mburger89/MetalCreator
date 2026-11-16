@@ -40,6 +40,15 @@ struct ImportedFeatureVanishedTests {
             + "The picked feature no longer exists in the imported board.")
     }
 
+    @Test func mixedItemsAreOneSentenceInProjectionsAndAppendedForFaces() {
+        let item = InstancePath.item(for: [4]) ?? 4
+        #expect(SketchProjections.vanishedInstances([item, hashed])
+            == "was picked on instance {4}, which no longer exists, and on a feature that no longer exists in the imported board.")
+        #expect(SketchProjections.vanishedInstances([hashed]) == "was picked on a feature that no longer exists in the imported board.")
+        #expect(FacePickWording.vanished([item, hashed]) == "Instance {4} no longer exists, so the picked face isn't there any more. "
+            + "Pick the face again. The picked feature no longer exists in the imported board.")
+    }
+
     @Test func facePicksSayItToo() {
         #expect(FacePickWording.vanished([hashed, hashed - 1]) == InstancePath.importedFeatureVanished)
         #expect(FacePickWording.vanished([4]) == "Instance {4} no longer exists, so the picked face isn't there any more. "

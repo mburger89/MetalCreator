@@ -14,8 +14,8 @@ extension InspectorBuilder {
     static func pcbFileRows(_ setting: SocketName, node: Node) -> [InspectorRow] {
         let status: String
         let button: (title: String, action: InspectorAction)
-        if let reference = node.inputValues[setting]?.fileReference {
-            status = "Linked · \(reference.fileName ?? "")"
+        if case .linked? = node.inputValues[setting]?.fileReference {
+            status = "Linked · \(node.inputValues[setting]?.fileReference?.fileName ?? "")"
             button = ("Relink…", .relinkPCBFile)
         } else {
             status = "No file chosen"

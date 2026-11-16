@@ -50,7 +50,8 @@ struct PCBFileRowsTests {
         let hash = ImageHash(of: Data("a board".utf8))
         let rows = editor(.embedded(hash)).0.inspectorPage.sections.first?.rows ?? []
         let actions = rows.compactMap { row -> InspectorAction? in if case .button(_, let action) = row { action } else { nil } }
-        #expect(actions == [.relinkPCBFile])
+        #expect(actions == [.choosePCBFile])
+        #expect(rows.first == .readOnly(label: "File", text: "No file chosen"))
     }
 
     @Test func theUndoNamesAreFixedSentences() {
