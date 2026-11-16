@@ -165,7 +165,7 @@ Tags stay what they are (`TopoTag`: node, an `Int` item, a `TopoRole` of integer
 - **Hole walls:** each hole's tool is placed with its pad's key as the item, so a pick on a mounting hole follows that pad when parts are
   added, moved or renumbered elsewhere.
 - **Outline sides:** `side(loop:segment:)`, with loops ordered by the lowest item key in each and each loop's segments numbered from its
-  lowest-keyed piece, so redrawing another part of the outline doesn't renumber this loop. **(call)**
+  lowest-keyed piece, so redrawing another part of the outline doesn't renumber this loop; each cutout is cut as a tool named by its lowest key (item), so its walls are `side(loop: 0, segment: k)` qualified by that key and no other cutout can rename them. **(call)**
 - **Component faces:** each component's body is placed with its footprint's key as the item; inside a body, faces are named by a new role
   `TopoRole.imported(face:)`, the face's index in OpenCascade's map of the model as read. That is stable while the model file is unchanged
   (as every face ID is OCCT map order), unlike `unnamed(face:)`. A pick on J1's face follows J1 and says "J1 no longer exists…" when J1 is

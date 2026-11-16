@@ -62,7 +62,10 @@ struct ImportKiCadBoardPickTests {
         let pick = FacePick(tags: wall.tags, normal: wall.normal, centroid: wall.centroid)
         #expect(before.topology.faces(matching: pick).count == 1)
 
-        try rewrite(file, KiCadBoardText.twoCutouts(secondX: 60, secondID: 502))
+        // A uuid for the second cutout whose key sorts below the first's: the case that renumbered loops when they were ordered by key.
+        let first = KiCadKey.item(for: "edge:" + KiCadBoardText.uuid(500))
+        let lower = try #require((502..<2000).first { KiCadKey.item(for: "edge:" + KiCadBoardText.uuid($0)) < first })
+        try rewrite(file, KiCadBoardText.twoCutouts(secondX: 60, secondID: lower))
         let after = try await solid(h, board)
         let found = after.topology.faces(matching: pick)
         #expect(found.count == 1)

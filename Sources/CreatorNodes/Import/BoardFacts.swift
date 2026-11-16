@@ -7,7 +7,7 @@ enum BoardFacts {
     /// the number. Versions are the tips of each release's branch (format facts §6).
     static func versionName(_ version: Int) -> String {
         let releases: [(version: Int, name: String)] = [
-            (20_261_031, "KiCad 11 (development)"), (20_260_206, "KiCad 10"), (20_241_229, "KiCad 9"), (20_240_108, "KiCad 8"),
+            (20_261_031, "KiCad 11 development"), (20_260_206, "KiCad 10"), (20_241_229, "KiCad 9"), (20_240_108, "KiCad 8"),
             (20_221_018, "KiCad 7"), (20_211_014, "KiCad 6"), (20_171_130, "KiCad 5"),
         ]
         let name = releases.first { version >= $0.version }?.name ?? "KiCad 4"

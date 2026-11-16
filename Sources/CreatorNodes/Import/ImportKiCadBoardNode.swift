@@ -61,10 +61,13 @@ public enum ImportKiCadBoardNode: NodeDefinition {
 
         let outer = parsed.outline.outer.map { BoardFrame.moved($0, by: origin) }
         let cutouts = parsed.outline.holes.map { $0.map { BoardFrame.moved($0, by: origin) } }
-        let base = try await kernel.extrude(Profile2D(plane: .xy, outer: outer, holes: cutouts), distance: thickness,
+        let base = try await kernel.extrude(Profile2D(plane: .xy, outer: outer), distance: thickness,
                                             mode: .oneSided, tag: context.tag)
         let drilled = BoardHoles.placed(board, origin: origin, vias: includesVias)
-        var solid = try await drill(base, holes: drilled, thickness: thickness, kernel: kernel, context: context)
+        let cutters = zip(cutouts, parsed.outline.holeKeys).compactMap { loop, keys in
+            keys.min().map { Cutter(loop: loop, item: $0) }
+        }
+        var solid = try await drill(base, holes: drilled, cutters: cutters, thickness: thickness, kernel: kernel, context: context)
         if let move = frame.placement, move != .identity {
             solid = try await kernel.transform(solid, by: move, tag: context.tag)
         }
@@ -118,18 +121,30 @@ public enum ImportKiCadBoardNode: NodeDefinition {
         }
     }
 
-    /// Cuts every hole: one tool per distinct drill, placed in one kernel call with each pad's key as its item, subtracted in one.
-    private static func drill(_ board: Solid, holes: [BoardHoles.Placed], thickness: Double, kernel: any Kernel,
-                              context: EvalContext) async throws -> Solid {
-        guard !holes.isEmpty else { return board }
+    /// A cutout of the outline, cut as a tool named by its own lowest piece key, so redrawing another cutout never renames its walls.
+    private struct Cutter {
+        var loop: [Segment2D]
+        var item: Int
+    }
+
+    /// Cuts every cutout and hole: one tool per distinct drill and one per cutout, all placed in one kernel call with each pad's or
+    /// cutout's key as its item, subtracted in one.
+    private static func drill(_ board: Solid, holes: [BoardHoles.Placed], cutters: [Cutter], thickness: Double,
+                              kernel: any Kernel, context: EvalContext) async throws -> Solid {
+        guard !holes.isEmpty || !cutters.isEmpty else { return board }
         let plan = ToolPlan(sizes: holes.map(\.size))
         var tools: [Solid] = []
         for size in plan.distinct {
-            let tool = try await kernel.extrude(BoardHoles.profile(for: size), distance: thickness + 2, mode: .oneSided,
-                                                tag: context.tag)
-            tools.append(tool)
+            tools.append(try await kernel.extrude(BoardHoles.profile(for: size), distance: thickness + 2, mode: .oneSided,
+                                                  tag: context.tag))
         }
-        let copies = try await PlacementMoves.place(plan.toolIndex.map { tools[$0] }, planes: holes.map(\.plane), items: holes.map(\.item),
+        var placed = plan.toolIndex.map { tools[$0] }
+        for cutter in cutters {
+            let profile = Profile2D(plane: Plane.xy.offset(by: -1), outer: cutter.loop)
+            placed.append(try await kernel.extrude(profile, distance: thickness + 2, mode: .oneSided, tag: context.tag))
+        }
+        let planes = holes.map(\.plane) + cutters.map { _ in Plane.xy }
+        let copies = try await PlacementMoves.place(placed, planes: planes, items: holes.map(\.item) + cutters.map(\.item),
                                                     placedBy: context.node.id, kernel: kernel, tag: context.tag)
         return try await kernel.boolean(.subtract, board, copies, tag: context.tag)
     }

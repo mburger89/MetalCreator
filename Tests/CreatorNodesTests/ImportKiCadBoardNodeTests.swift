@@ -177,7 +177,7 @@ struct ImportKiCadBoardNodeTests {
         #expect(BoardFacts.versionName(4) == "KiCad 4 (4)")
         #expect(BoardFacts.versionName(20_171_130) == "KiCad 5 (20171130)")
         #expect(BoardFacts.versionName(20_250_101) == "KiCad 9 (20250101)")
-        #expect(BoardFacts.versionName(20_261_031) == "KiCad 11 (development) (20261031)")
+        #expect(BoardFacts.versionName(20_261_031) == "KiCad 11 development (20261031)")
     }
 
     @Test func naturalOrder() {
