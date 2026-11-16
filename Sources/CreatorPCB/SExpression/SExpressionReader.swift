@@ -19,7 +19,6 @@ public enum SExpressionReader {
             guard position < bytes.count else { break }
             tokens += 1
             if tokens % limits.cancelEvery == 0, isCancelled() { throw CancellationError() }
-            let byte = bytes[position]
             guard let value = try token(bytes, &position, &stack, limits, notBoard) else { continue }
             if stack.isEmpty {
                 guard root == nil, case .list = value else { throw notBoard }
@@ -59,8 +58,9 @@ public enum SExpressionReader {
         }
     }
 
-    private static func text(_ bytes: some Sequence<UInt8>) -> String {
-        String(bytes: bytes, encoding: .utf8) ?? "\u{FFFD}"
+    private static func text(_ bytes: some Collection<UInt8>) -> String {
+        // swiftlint:disable:next optional_data_string_conversion
+        String(decoding: bytes, as: UTF8.self) // lossy on purpose: a bad byte becomes U+FFFD, the rest stays
     }
 
     private static func isSpace(_ byte: UInt8) -> Bool {

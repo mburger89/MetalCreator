@@ -77,4 +77,14 @@ struct SExpressionReaderTests {
         #expect(tree.hasFlag("hide") && tree.hasFlag("locked") && tree.hasFlag("flat"))
         #expect(!tree.hasFlag("off") && !tree.hasFlag("missing"))
     }
+
+    @Test func refusesLargeFileAndLongTokens() {
+        var tiny = KiCadLimits()
+        tiny.maxFileBytes = 8
+        #expect(message("(a 1 2 3 4 5)", limits: tiny)?.contains("larger than") == true)
+        var short = KiCadLimits()
+        short.maxStringBytes = 4
+        #expect(message("(a abcdefgh)", limits: short)?.contains("longer than") == true)
+        #expect(message("(a |abcdefgh|)", limits: short)?.contains("longer than") == true)
+    }
 }
