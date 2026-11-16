@@ -159,7 +159,7 @@ extension OutlineChainerTests {
         }
     }
 
-    @Test func fiveThousandPiecesChainQuickly() throws {
+    @Test func fiveThousandPiecesUseTheGrid() throws {
         let count = 5_000
         let points = (0..<count).map { index -> Vector2 in
             let angle = 2 * Double.pi * Double(index) / Double(count)
@@ -167,9 +167,9 @@ extension OutlineChainerTests {
         }
         var items = points.indices.map { Self.line(points[$0], points[($0 + 1) % count], "p\($0)") }
         items.reverse()
-        let start = ContinuousClock.now
-        let outline = try OutlineChainer.chain(items, tolerance: 0.01)
-        #expect(ContinuousClock.now - start < .seconds(1))
+        var evaluations = 0
+        let outline = try OutlineChainer.chain(items, tolerance: 0.01, distanceEvaluations: &evaluations)
+        #expect(evaluations > 0 && evaluations <= 50 * count)
         #expect(outline.outer.count == count)
     }
 

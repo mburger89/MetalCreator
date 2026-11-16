@@ -34,10 +34,15 @@ public enum OutlineChainer {
     }
 
     public static func chain(_ items: [EdgeItem], tolerance: Double) throws -> BoardOutline {
+        var evaluations = 0
+        return try chain(items, tolerance: tolerance, distanceEvaluations: &evaluations)
+    }
+
+    static func chain(_ items: [EdgeItem], tolerance: Double, distanceEvaluations: inout Int) throws -> BoardOutline {
         guard !items.isEmpty else { throw KiCadProblem("The board has no outline on Edge.Cuts.") }
         let pieces = items.map { Piece(segment: segment(for: $0.shape), key: KiCadKey.item(for: $0.identity), identity: $0.identity) }
         var usedKeys = Set(pieces.map(\.key))
-        var loops = try buildLoops(pieces, tolerance: tolerance).map { joined($0, usedKeys: &usedKeys) }
+        var loops = try buildLoops(pieces, tolerance: tolerance, evaluations: &distanceEvaluations).map { joined($0, usedKeys: &usedKeys) }
         try rejectCrossings(loops)
         for loop in loops where abs(ArcGeometry.signedArea(loop.map(\.segment))) < 1e-9 {
             throw crosses(at: loop.map(\.start).min(by: lexicographically) ?? .zero)
@@ -98,8 +103,9 @@ public enum OutlineChainer {
         }
     }
 
-    static func buildLoops(_ pieces: [Piece], tolerance: Double) throws -> [[Piece]] {
+    static func buildLoops(_ pieces: [Piece], tolerance: Double, evaluations: inout Int) throws -> [[Piece]] {
         var grid = EndGrid(pieces, tolerance: tolerance)
+        defer { evaluations = grid.evaluations }
         let order = pieces.indices.sorted { grid.precedes($0, $1) }
         var loops: [[Piece]] = []
         var failures: [(key: Int, point: Vector2)] = []

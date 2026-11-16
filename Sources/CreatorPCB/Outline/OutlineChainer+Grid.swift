@@ -11,6 +11,8 @@ extension OutlineChainer {
         let size: Double
         var cells: [Cell: [Int]] = [:]
         var used: [Bool]
+        /// How many end distances `nearest` has measured (tests prove the grid is used by bounding it).
+        var evaluations = 0
 
         init(_ pieces: [Piece], tolerance: Double) {
             self.pieces = pieces
@@ -27,7 +29,7 @@ extension OutlineChainer {
         }
 
         /// The nearest unused end within the tolerance; ties within 1e-12 go to the lowest key, then identity, then index.
-        func nearest(to point: Vector2, tolerance: Double) -> (index: Int, flipped: Bool, distance: Double)? {
+        mutating func nearest(to point: Vector2, tolerance: Double) -> (index: Int, flipped: Bool, distance: Double)? {
             let centre = cell(point)
             var best: (index: Int, flipped: Bool, distance: Double)?
             for dx in -1...1 {
@@ -36,6 +38,7 @@ extension OutlineChainer {
                         let index = entry / 2, flipped = entry % 2 == 1
                         guard !used[index] else { continue }
                         let end = flipped ? pieces[index].end : pieces[index].start
+                        evaluations += 1
                         let distance = (end - point).length
                         guard distance <= tolerance else { continue }
                         if let current = best {
