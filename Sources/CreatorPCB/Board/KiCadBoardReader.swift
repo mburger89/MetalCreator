@@ -76,7 +76,7 @@ public enum KiCadBoardReader {
     private static func readVia(_ via: SExpression) throws -> DrilledHole? {
         guard let at = via.child("at"), let center = try point(at),
               let drill = try number(via.child("drill"), 1), drill > 0 else { return nil }
-        return DrilledHole(center: center, diameter: drill, isPlated: true)
+        return DrilledHole(center: center, diameter: drill, isPlated: true, uuid: identifier(of: via))
     }
 
     // MARK: Shared readers

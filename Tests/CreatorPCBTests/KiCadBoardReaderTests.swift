@@ -147,6 +147,7 @@ struct KiCadBoardReaderTests {
         #expect(board.vias.count == 1)
         #expect(board.vias[0].center == Vector2(5, -10) && board.vias[0].diameter == 0.4 && board.vias[0].isPlated)
         #expect(board.vias[0].padNumber.isEmpty && board.vias[0].identity.isEmpty)
+        #expect(board.vias[0].uuid == "v")
     }
 
     @Test func padsWithoutADrillMakeNoHole() throws {

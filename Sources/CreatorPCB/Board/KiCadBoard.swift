@@ -90,9 +90,12 @@ public struct DrilledHole: Sendable, Hashable {
     public var padNumber: String
     /// Filled by the key assigner; "" when read.
     public var identity: String
+    /// A via's `(uuid …)` or `(tstamp …)`; nil for pads and when absent.
+    public var uuid: String?
 
     public init(center: Vector2, diameter: Double, slotLength: Double? = nil, angle: Double = 0, isPlated: Bool,
-                padNumber: String = "", identity: String = "") {
+                padNumber: String = "", identity: String = "", uuid: String? = nil) {
+        self.uuid = uuid
         self.center = center
         self.diameter = diameter
         self.slotLength = slotLength

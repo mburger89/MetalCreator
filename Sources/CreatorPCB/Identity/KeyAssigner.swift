@@ -22,7 +22,8 @@ public enum KeyAssigner {
         var seenVias: [String: Int] = [:]
         for index in board.vias.indices {
             let centre = board.vias[index].center
-            let identity = numbered("via:\(nanometres(centre.x)),\(nanometres(centre.y))", &seenVias)
+            let name = board.vias[index].uuid.flatMap { $0.isEmpty ? nil : $0 } ?? "\(nanometres(centre.x)),\(nanometres(centre.y))"
+            let identity = numbered("via:\(name)", &seenVias)
             board.vias[index].identity = identity
             strings.append(identity)
         }

@@ -37,6 +37,12 @@ struct KeyAssignerTests {
         #expect(board.vias[0].identity == "via:1.500000,-2.000000")
     }
 
+    @Test func viaUUIDNamesTheVia() throws {
+        var board = KiCadBoard(vias: [DrilledHole(center: .zero, diameter: 0.3, isPlated: true, uuid: "v-1")])
+        try KeyAssigner.assign(&board)
+        #expect(board.vias[0].identity == "via:v-1")
+    }
+
     @Test func aForcedCollisionRefuses() {
         var board = KiCadBoard(footprints: [footprint("A", numbers: ["1"]), footprint("B", numbers: ["1"])])
         do {
