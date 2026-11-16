@@ -19,4 +19,13 @@ enum FacePickWording {
     static func several(_ count: Int, _ action: String) -> String {
         "The pick matches \(count.display) faces; \(action) the first."
     }
+
+    /// A pick names copies (or imported features) the part no longer has: the first copy's path when there is one, else the imported
+    /// board's sentence.
+    static func vanished(_ items: [Int]) -> String {
+        if let path = InstancePath.partition(items).paths.first {
+            return "Instance \(InstancePath.text(path)) no longer exists, so the picked face isn't there any more. Pick the face again."
+        }
+        return InstancePath.importedFeatureVanished
+    }
 }

@@ -85,9 +85,15 @@ enum SketchProjections {
 
     /// "was picked on instance {4}, which no longer exists." (several paths are listed).
     static func vanishedInstances(_ items: [Int]) -> String {
-        let paths = items.map(InstancePath.text).formatted(.list(type: .and).locale(.messages))
-        return items.count == 1
-            ? "was picked on instance \(paths), which no longer exists."
-            : "was picked on instances \(paths), which no longer exist."
+        let (instances, hasOther) = InstancePath.partition(items)
+        var sentences: [String] = []
+        if !instances.isEmpty {
+            let paths = instances.map(InstancePath.text).formatted(.list(type: .and).locale(.messages))
+            sentences.append(instances.count == 1
+                ? "was picked on instance \(paths), which no longer exists."
+                : "was picked on instances \(paths), which no longer exist.")
+        }
+        if hasOther { sentences.append("was picked on a feature that no longer exists in the imported board.") }
+        return sentences.joined(separator: " ")
     }
 }

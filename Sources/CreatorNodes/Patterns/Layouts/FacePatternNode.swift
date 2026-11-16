@@ -114,10 +114,8 @@ public enum FacePatternNode: NodeDefinition {
         case .facePick(let stored)?: pick = stored
         case .some: throw NodeError.invalidValue(unreadablePick)
         }
-        if let gone = solid.topology.vanishedInstances(in: pick.tags).first {
-            throw NodeError.invalidValue("Instance \(InstancePath.text(gone)) no longer exists, so the picked face isn't there any more. "
-                + "Pick the face again.")
-        }
+        let gone = solid.topology.vanishedInstances(in: pick.tags)
+        if !gone.isEmpty { throw NodeError.invalidValue(FacePickWording.vanished(gone)) }
         let resolution = solid.topology.resolution(of: pick)
         guard let face = resolution.faces.first else { throw NodeError.invalidValue(noMatch) }
         guard face.kind == .plane, face.normal?.normalized != nil else { throw NodeError.invalidValue(notFlat) }

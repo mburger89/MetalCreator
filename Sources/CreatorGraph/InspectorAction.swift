@@ -16,4 +16,7 @@ public enum InspectorAction: String, Sendable, Codable {
     /// Import Mesh's file (mesh import spec), carried out by the app shell too: "Choose File…" (a file, linked), "Relink…"
     /// (another file for a link) and "Embed" (a link's file is read into the document).
     case chooseMeshFile, relinkMeshFile, embedMeshFile
+    /// Import KiCad Board's file (KiCad import spec): "Choose File…" (a file, linked) and "Relink…" (another file for a link). A board
+    /// is never embedded.
+    case choosePCBFile, relinkPCBFile
 }

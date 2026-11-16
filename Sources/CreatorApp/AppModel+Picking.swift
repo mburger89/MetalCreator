@@ -30,6 +30,8 @@ extension AppModel {
             handleImage(request)
         case .chooseMeshFile, .relinkMeshFile, .embedMeshFile:
             handleMeshFile(request)
+        case .choosePCBFile, .relinkPCBFile:
+            handleBoardFile(request)
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }

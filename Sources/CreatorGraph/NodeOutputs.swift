@@ -16,6 +16,9 @@ public struct NodeOutputs: Sendable {
     public var dimensions: [DimensionSpec] = []
     /// Which sketch entity made each profile segment; only the Sketch node sets it.
     public var sketchTrace: SketchTrace?
+    /// Labelled facts about what the node made (an imported board's size, thickness, hole count), listed read-only in the inspector
+    /// under `NodeDefinition.factsTitle`. A node that runs once per item keeps the first iteration's.
+    public var facts: [PayloadFact] = []
 
     public init(_ values: [SocketName: Scalar] = [:], warnings: [String] = []) {
         self.values = values

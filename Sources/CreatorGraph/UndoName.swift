@@ -49,6 +49,11 @@ public enum UndoName {
     public static let relinkMeshFile = "Relink Mesh File"
     public static let embedMeshFile = "Embed Mesh File"
 
+    // MARK: Board files (KiCad import spec)
+    public static let importKiCadBoard = "Import KiCad Board"
+    public static let chooseBoardFile = "Choose Board File"
+    public static let relinkBoardFile = "Relink Board File"
+
     // MARK: Comments (canvas comments spec §7)
     public static let addNote = "Add Note"
     public static let editNote = "Edit Note"

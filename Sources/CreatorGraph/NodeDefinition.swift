@@ -42,6 +42,8 @@ public protocol NodeDefinition: Sendable {
     /// layout node: the evaluator refuses, with this sentence, before running it once per item. `nil` (the default) lets the
     /// evaluator broadcast, as for any node.
     static var singleValuesRefusal: String? { get }
+    /// The title of the inspector section that lists the facts a node returns in `NodeOutputs.facts` ("Facts" by default).
+    static var factsTitle: String { get }
     /// Stored settings (`NodeSetting` names) a new node starts with. `NodeRegistry.makeNode`
     /// applies them, so every reader sees a stored value and none relies on "absent means …".
     static var defaultSettings: [SocketName: ConstantValue] { get }
@@ -66,6 +68,7 @@ extension NodeDefinition {
     public static func readsScrubbing(for node: Node) -> Bool { readsScrubbing }
     public static var placesInstances: Bool { false }
     public static var singleValuesRefusal: String? { nil }
+    public static var factsTitle: String { "Facts" }
     public static var defaultSettings: [SocketName: ConstantValue] { [:] }
     public static func migrate(_ node: Node, from version: Int) -> Node { node }
 }

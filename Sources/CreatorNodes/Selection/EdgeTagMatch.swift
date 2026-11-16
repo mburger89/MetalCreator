@@ -76,10 +76,16 @@ struct EdgeTagMatch: Equatable {
 
     /// "Instance {4} no longer exists, so the edge picked on it isn't selected." (several paths are listed).
     static func vanishedInstances(_ items: [Int]) -> String {
-        let paths = items.map(InstancePath.text).formatted(.list(type: .and).locale(.messages))
-        return items.count == 1
-            ? "Instance \(paths) no longer exists, so the edge picked on it isn't selected."
-            : "Instances \(paths) no longer exist, so the edges picked on them aren't selected."
+        let (instances, hasOther) = InstancePath.partition(items)
+        var sentences: [String] = []
+        if !instances.isEmpty {
+            let paths = instances.map(InstancePath.text).formatted(.list(type: .and).locale(.messages))
+            sentences.append(instances.count == 1
+                ? "Instance \(paths) no longer exists, so the edge picked on it isn't selected."
+                : "Instances \(paths) no longer exist, so the edges picked on them aren't selected.")
+        }
+        if hasOther { sentences.append(InstancePath.importedFeatureVanished) }
+        return sentences.joined(separator: " ")
     }
 
     /// "Matched 1 edge, expected 2." (several drifts joined by "; ").
