@@ -113,12 +113,13 @@ struct BoardFileSettingTests {
         let missing = try #require(throws: BoardImportProblem.self) {
             try ImageResolver().pcbFileBytes(of: .linked(relativePath: nil, absolutePath: gone.path(percentEncoded: false)))
         }
-        #expect(missing.message == "The board file “gone.kicad_pcb” wasn't found.")
+        #expect(missing.message.hasPrefix("File 'gone.kicad_pcb' wasn't found at "))
+        #expect(missing.message.hasSuffix(". Relink it in the inspector."))
         #expect(throws: BoardImportProblem.notChosen) { try ImageResolver().pcbFileBytes(of: .embedded(ImageHash(of: Data()))) }
         #expect(BoardImportProblem.notChosen.message == "Choose a KiCad board file.")
-        #expect(BoardImportProblem.tooLarge(name: "b").message == "The board file “b” is larger than 256 MB.")
-        #expect(BoardImportProblem.unreadable(name: "b").message == "The board file “b” couldn't be read.")
-        #expect(BoardImportProblem.notAFile(name: "b").message == "“b” isn't a file.")
+        #expect(BoardImportProblem.tooLarge.message == "This file is larger than the 256 MB limit.")
+        #expect(BoardImportProblem.unreadable(name: "b", reason: "No.").message == "File 'b' couldn't be read: No.")
+        #expect(BoardImportProblem.notAFile(name: "b").message == "File 'b' isn't a file.")
         #expect(Evaluator.message(for: BoardImportProblem.notChosen) == "Choose a KiCad board file.")
     }
 
@@ -127,7 +128,7 @@ struct BoardFileSettingTests {
         let handle = try FileHandle(forWritingTo: file)
         try handle.truncate(atOffset: UInt64(ImageResolver.maxBoardFileBytes) + 1)
         try handle.close()
-        #expect(throws: BoardImportProblem.tooLarge(name: "huge.kicad_pcb")) {
+        #expect(throws: BoardImportProblem.tooLarge) {
             try ImageResolver().pcbFileBytes(of: .linked(relativePath: nil, absolutePath: file.path(percentEncoded: false)))
         }
     }

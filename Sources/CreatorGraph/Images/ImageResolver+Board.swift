@@ -11,7 +11,7 @@ extension ImageResolver {
         guard case .linked = reference else { throw .notChosen }
         let name = reference.fileName ?? "file"
         switch stamp(of: reference) {
-        case .missing: throw .missing(name: name)
+        case .missing(let path): throw .missing(name: name, folder: Self.folder(ofPath: path))
         case .notAFile: throw .notAFile(name: name)
         case .embedded: throw .notChosen
         case .file(let path, _, _):
@@ -20,7 +20,7 @@ extension ImageResolver {
             do {
                 return try handle.read(upToCount: size) ?? Data()
             } catch {
-                throw .unreadable(name: name)
+                throw .unreadable(name: name, reason: error.localizedDescription)
             }
         }
     }
@@ -31,10 +31,11 @@ extension ImageResolver {
         } catch {
             switch error {
             case .notAFile: throw .notAFile(name: name)
-            case .tooManyBytes: throw .tooLarge(name: name)
-            case .notFound: throw .missing(name: name)
+            case .tooManyBytes: throw .tooLarge
+            case .notFound(let name, let folder): throw .missing(name: name, folder: folder)
             case .embeddedMissing, .notChosen: throw .notChosen
-            case .unreadable, .tooManyPixels, .unsupportedType, .undecodable: throw .unreadable(name: name)
+            case .unreadable(let name, let reason): throw .unreadable(name: name, reason: reason)
+            case .tooManyPixels, .unsupportedType, .undecodable: throw .unreadable(name: name, reason: "Not a regular file.")
             }
         }
     }
