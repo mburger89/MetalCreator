@@ -163,6 +163,25 @@ struct ImportKiCadBoardNodeTests {
         #expect(near(second[0].origin, -40, 36, 1.6))
     }
 
+    @Test func drillPlaceOriginWithAnXZPlacement() async throws {
+        let (h, board) = try node(KiCadBoardText.rectangle(aux: (10, 5)),
+                                  ["origin": .integer(BoardOrigin.drillPlace.rawValue), "placement": .plane(.xz)])
+        let report = try await run(h, board, OCCTKernel())
+        let first = try #require(report.value(board, "mounting holes")?.planes?.first)
+        // H1 is at file (4, 4), board (4, -4); minus the drill origin (10, -5) is (-6, 1); on xz that is (x, -1.6, y).
+        #expect(near(first.origin, -6, -1.6, 1, tolerance: 1e-9) && near(first.normal, 0, -1, 0))
+    }
+
+    @Test func viasAreNotCountedAsDrilledPads() async throws {
+        let text = KiCadBoardText.rectangle(extra: KiCadBoardText.via(x: 20, y: 20))
+        let (off, a) = try node(text)
+        let plain = try await run(off, a, OCCTKernel())
+        #expect(plain.results[a.id]?.facts.contains(PayloadFact("Holes", "4 drilled, 4 mounting")) == true)
+        let (on, b) = try node(text, ["vias": .bool(true)])
+        let withVias = try await run(on, b, OCCTKernel())
+        #expect(withVias.results[b.id]?.facts.contains(PayloadFact("Holes", "4 drilled, 4 mounting, 1 vias")) == true)
+    }
+
     @Test func facts() async throws {
         let (h, board) = try node(KiCadBoardText.rectangle())
         let report = try await run(h, board, OCCTKernel())

@@ -14,20 +14,21 @@ enum BoardFacts {
         return "\(name) (\(version))"
     }
 
-    static func facts(file: String, board: KiCadBoard, size: Vector2Size, thickness: Double, drilled: Int, mounting: Int) -> [PayloadFact] {
+    static func facts(file: String, board: KiCadBoard, width: Double, height: Double, thickness: Double, holes: String) -> [PayloadFact] {
         [
             PayloadFact("File", file),
             PayloadFact("KiCad version", versionName(board.version)),
-            PayloadFact("Size", "\(size.width.display) × \(size.height.display) mm"),
+            PayloadFact("Size", "\(width.display) × \(height.display) mm"),
             PayloadFact("Thickness", "\(thickness.display) mm"),
             PayloadFact("Copper layers", board.copperLayers.display),
-            PayloadFact("Holes", "\(drilled.display) drilled, \(mounting.display) mounting"),
+            PayloadFact("Holes", holes),
             PayloadFact("Components", "\(board.footprints.count.display) placed"),
         ]
     }
 
-    struct Vector2Size {
-        var width: Double
-        var height: Double
+    /// "189 drilled, 4 mounting": pad holes only; vias, when the node includes them, add ", 120 vias".
+    static func holesText(board: KiCadBoard, mounting: Int, includesVias: Bool) -> String {
+        let drilled = board.footprints.reduce(0) { $0 + $1.holes.count }
+        return "\(drilled.display) drilled, \(mounting.display) mounting" + (includesVias ? ", \(board.vias.count.display) vias" : "")
     }
 }

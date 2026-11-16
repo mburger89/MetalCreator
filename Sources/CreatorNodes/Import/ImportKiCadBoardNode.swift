@@ -86,8 +86,8 @@ public enum ImportKiCadBoardNode: NodeDefinition {
         ]
         outputs.facts = BoardFacts.facts(
             file: reference.fileName ?? "Board", board: board,
-            size: BoardFacts.Vector2Size(width: box.max.x - box.min.x, height: box.max.y - box.min.y),
-            thickness: thickness, drilled: drilled.count, mounting: mounting.count)
+            width: box.max.x - box.min.x, height: box.max.y - box.min.y, thickness: thickness,
+            holes: BoardFacts.holesText(board: board, mounting: mounting.count, includesVias: includesVias))
         return outputs
     }
 

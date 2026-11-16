@@ -55,6 +55,8 @@ struct ImportKiCadBoardPickTests {
     @Test func outlineSidePickSurvivesRedrawingAnotherCutout() async throws {
         let (h, board, file) = try node(KiCadBoardText.twoCutouts(secondX: 70))
         let before = try await solid(h, board)
+        let aKey = KiCadKey.item(for: "edge:" + KiCadBoardText.uuid(500))
+        #expect(aKey < KiCadKey.item(for: "edge:" + KiCadBoardText.uuid(501)), "before: A's key sorts below B's")
         // The first cutout's wall: a cylinder whose axis is at file (25, 40), board frame (-25, 0).
         let wall = try #require(before.topology.faces.first { face in
             face.kind == .cylinder && abs((face.axisPoint?.x ?? 0) + 25) < 1e-6
@@ -63,8 +65,8 @@ struct ImportKiCadBoardPickTests {
         #expect(before.topology.faces(matching: pick).count == 1)
 
         // A uuid for the second cutout whose key sorts below the first's: the case that renumbered loops when they were ordered by key.
-        let first = KiCadKey.item(for: "edge:" + KiCadBoardText.uuid(500))
-        let lower = try #require((502..<2000).first { KiCadKey.item(for: "edge:" + KiCadBoardText.uuid($0)) < first })
+        let lower = try #require((502..<2000).first { KiCadKey.item(for: "edge:" + KiCadBoardText.uuid($0)) < aKey })
+        #expect(KiCadKey.item(for: "edge:" + KiCadBoardText.uuid(lower)) < aKey, "after: B's key sorts below A's")
         try rewrite(file, KiCadBoardText.twoCutouts(secondX: 60, secondID: lower))
         let after = try await solid(h, board)
         let found = after.topology.faces(matching: pick)
@@ -74,7 +76,7 @@ struct ImportKiCadBoardPickTests {
     }
 
     @Test func holeWallKeepsItsTagAfterAPlacementPlane() async throws {
-        let (h, board, file) = try node(KiCadBoardText.rectangle())
+        let (h, board, _) = try node(KiCadBoardText.rectangle())
         let flat = try await solid(h, board)
         let item = KiCadKey.item(for: "pad:H2:")
         let wall = try #require(flat.topology.faces.first { $0.kind == .cylinder && $0.tags.contains { $0.item == item } })
@@ -86,7 +88,6 @@ struct ImportKiCadBoardPickTests {
         // H2 is at (46, 36) on the board, so (46, y, 36) on the xz plane.
         let centre = try #require(found.first).centroid
         #expect(abs(centre.x - 46) < 1e-5 && abs(centre.z - 36) < 1e-5)
-        _ = file
     }
 }
 #endif
