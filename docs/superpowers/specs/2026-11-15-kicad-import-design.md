@@ -55,8 +55,8 @@ the same feature.
 
 ### The node
 
-- **Name and place:** Import KiCad Board, category Solid, in a new "Import" library sub-group of Solid. Import Mesh stays in Mesh (moving it
-  would change its category and header colour). **(call)**
+- **Name and place:** Import KiCad Board, category Solid, with no library sub-group (Solid has none, and giving it one would mean naming a
+  sub-group for every Solid node). Import Mesh stays in Mesh (moving it would change its category and header colour). **(call)**
 - **Setting:** the board file, `NodeSetting.pcbFile`, a new `ConstantValue.pcbFile(ImageReference)`, **linked only**: Choose File… and
   Relink…, no Embed. A board is edited in KiCad and should follow, and its models are found from its folder, which an embedded copy doesn't
   have. **(call)**
@@ -156,8 +156,10 @@ the same feature.
 
 Tags stay what they are (`TopoTag`: node, an `Int` item, a `TopoRole` of integers); KiCad's identities become stable integers.
 
-- **Identity key:** a 62-bit FNV-1a hash of a fixed string, as a negative `Int` item outside `InstancePath`'s range: "fp:<reference>" for a
-  footprint (its `uuid` where the reference is empty or repeats), "pad:<reference>:<pad number>" for a hole, "edge:<uuid>" for an outline
+- **Identity key:** the 64-bit FNV-1a hash of a fixed string kept to its low 60 bits, plus one, negated: a negative `Int` item whose
+  magnitude is at most 2^60, which `InstancePath` never reads as a path (its packed paths carry a depth of 2 to 4 in bits 60 to 62): "fp:<reference>" for a
+  footprint (its `uuid` where the reference is empty or repeats), "pad:<reference>:<pad number>" for a hole (a pad number that repeats in its footprint, as a connector's shell pads do, gains ":2",
+  ":3" in file order; a via is "via:<uuid>"), "edge:<uuid>" for an outline
   item. The hash function is pinned by tests like `SeededRandom`. Two keys that collide in one board refuse in words (never silently share
   a name). **(call)**
 - **Hole walls:** each hole's tool is placed with its pad's key as the item, so a pick on a mounting hole follows that pad when parts are
@@ -221,7 +223,8 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
   KiCad's chain worked out by hand in the test. KiCad isn't installed on this Mac, so an export by KiCad itself is a human check (KI group).
 - zstd: frames made by the `zstd` command line (raw, RLE and compressed blocks, Huffman and FSE tables, repeat offsets, a dictionary-less
   multi-block frame, a checksum) checked in with their plain bytes; damaged and truncated frames refused in words; a fuzz pass.
-- A digest of the board solid's tessellation and the outline's segments pinned on all three platforms, as Import Mesh's are.
+- A digest of the outline's segments (pure Swift) pinned on all three platforms, as Import Mesh's are; the board solid's face and edge counts
+  and volume (within 1e-6) pinned where OpenCascade runs. A tessellation digest is not pinned: OpenCascade's meshing may differ by platform.
 - Damaged files: a truncated file, an unbalanced parenthesis, an enormous string, deep nesting, a footprint count over the limit; each a
   sentence, none a crash; a fuzz pass over the tokenizer.
 - Picks: a face pick on a mounting hole's wall and on a component survives a fixture edited to add a part and move another.
@@ -249,7 +252,9 @@ shares code with the 3MF reader's XML-free tokenizer.
 7. Full support (2026-11-16): every board version from KiCad 4, scaled models, models stored in the board, and every model format KiCad's
    viewer reads; only the pre-2016 `.brd` format and IDF board files as models are refused.
 8. Absolute paths into KiCad's library folders are remapped to this platform's folder.
-9. Picks follow KiCad's references through hashed integer keys; faces inside a model are named by their index in the model file.
+9. Picks follow KiCad's references through hashed integer keys; faces inside a model are named by their index in the model file. A pick
+   whose KiCad item is gone says "The picked feature no longer exists in the imported board." (KI-1; naming the reference is KI-2's).
+10. Facts shown for a node that outputs a solid: `NodeOutputs.facts`, a general hook, shown in a "Board" section.
 
 Builder check (2026-11-15): an Opus reader raised nine points; all were settled as calls above (face naming, model files rerunning the node,
 back-side turn and scale, absolute paths, embedded models, an embedded board's paths, the reason for two outputs, the library group, flag
