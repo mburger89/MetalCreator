@@ -2,32 +2,47 @@ import Foundation
 
 /// Gives every drilled hole its identity string and refuses two different strings that hash to one key.
 public enum KeyAssigner {
-    public static func assign(_ board: inout KiCadBoard) throws {
-        try assign(&board, hash: KiCadKey.fnv1a64)
+    public static func assign(_ board: inout KiCadBoard, isCancelled: () -> Bool = { false }) throws {
+        try assign(&board, hash: KiCadKey.fnv1a64, isCancelled: isCancelled)
     }
 
-    static func assign(_ board: inout KiCadBoard, hash: (String) -> UInt64) throws {
+    /// Cancellation is asked every this many items.
+    static let cancelEvery = 4_096
+
+    static func assign(_ board: inout KiCadBoard, hash: (String) -> UInt64, isCancelled: () -> Bool = { false }) throws {
         let tokens = footprintTokens(board.footprints)
         var taken = Set<String>()
         var strings: [String] = []
         /// The first use of a string keeps it; a repeat gets "#2", "#3" (in file order: edges, pads, vias).
+        /// The next suffix to try is kept per base string, so a thousand repeats cost a thousand probes, not a million.
+        var nextSuffix: [String: Int] = [:]
         func unique(_ text: String) -> String {
             var result = text
-            var count = 1
-            while taken.contains(result) {
-                count += 1
-                result = "\(text)#\(count)"
+            if taken.contains(result) {
+                var count = nextSuffix[text] ?? 1
+                repeat {
+                    count += 1
+                    result = "\(text)#\(count)"
+                } while taken.contains(result)
+                nextSuffix[text] = count
             }
             taken.insert(result)
             strings.append(result)
             return result
         }
+        var steps = 0
+        func tick() throws {
+            steps += 1
+            if steps % cancelEvery == 0, isCancelled() { throw CancellationError() }
+        }
         for index in board.edgeItems.indices {
+            try tick()
             board.edgeItems[index].identity = unique(board.edgeItems[index].identity)
         }
         for index in board.footprints.indices {
             var seen: [String: Int] = [:]
             for hole in board.footprints[index].holes.indices {
+                try tick()
                 let number = board.footprints[index].holes[hole].padNumber
                 let base = "pad:\(tokens[index]):\(number)"
                 board.footprints[index].holes[hole].identity = unique(numbered(base, &seen))
@@ -35,13 +50,19 @@ public enum KeyAssigner {
         }
         var seenVias: [String: Int] = [:]
         for index in board.vias.indices {
+            try tick()
             let centre = board.vias[index].center
             let name = board.vias[index].uuid.flatMap { $0.isEmpty ? nil : $0 }
                 ?? "\(nanometres(centre.x)),\(nanometres(centre.y))"
             board.vias[index].identity = unique(numbered("via:\(name)", &seenVias))
         }
+        try refuseSharedKeys(strings, hash: hash, tick: tick)
+    }
+
+    private static func refuseSharedKeys(_ strings: [String], hash: (String) -> UInt64, tick: () throws -> Void) throws {
         var owner: [UInt64: String] = [:]
         for text in strings {
+            try tick()
             let key = hash(text) & 0x0FFF_FFFF_FFFF_FFFF
             if let other = owner[key], other != text {
                 throw KiCadProblem("Two items in this board share an internal name (\(other) and \(text)). "

@@ -7,7 +7,7 @@ public enum KiCadBoardReader {
         if data.starts(with: Data("PCBNEW-BOARD".utf8)) {
             throw KiCadProblem("This is an old KiCad board (.brd). Open it in KiCad and save it as a .kicad_pcb, then try again.")
         }
-        let root = try SExpressionReader.read(data, limits: limits, isCancelled: isCancelled)
+        let root = try SExpressionReader.read(data, limits: limits, skipping: skipped, isCancelled: isCancelled)
         guard root.keyword == "kicad_pcb" else { throw KiCadProblem("This isn't a KiCad board file.") }
 
         var board = try header(of: root)
@@ -21,14 +21,22 @@ public enum KiCadBoardReader {
                 try requireRoom(for: board.footprints.count, limits: limits)
                 board.footprints.append(
                     try readFootprint(item, version: board.version, pads: &pads, limits: limits, edges: &board.edgeItems))
+                try requireEdgeRoom(board.edgeItems.count, limits: limits)
             case "via":
                 if let via = try readVia(item) { board.vias.append(via) }
             default:
                 board.edgeItems += try edgeItems(in: item, place: .identity, version: board.version)
+                try requireEdgeRoom(board.edgeItems.count, limits: limits)
             }
         }
         return board
     }
+
+    /// Top-level children nothing reads: tracks, zones, nets, groups and text are scanned past, never built.
+    static let skipped: Set<String> = [
+        "zone", "segment", "arc", "net", "group", "generated", "dimension", "target", "image",
+        "gr_text", "gr_text_box", "table",
+    ]
 
     private static func header(of root: SExpression) throws -> KiCadBoard {
         var board = KiCadBoard()
@@ -48,6 +56,12 @@ public enum KiCadBoardReader {
     private static func requireRoom(for footprints: Int, limits: KiCadLimits) throws {
         guard footprints < limits.maxFootprints else {
             throw KiCadProblem("This board has more than \(count(limits.maxFootprints)) footprints.")
+        }
+    }
+
+    private static func requireEdgeRoom(_ items: Int, limits: KiCadLimits) throws {
+        guard items <= limits.maxEdgeItems else {
+            throw KiCadProblem("This board has more than \(count(limits.maxEdgeItems)) outline pieces.")
         }
     }
 

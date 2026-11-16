@@ -63,16 +63,19 @@ public struct Footprint: Sendable {
     public var isBack: Bool
     public var place: Placement2D
     public var holes: [DrilledHole]
+    /// Every pad, SMD ones too.
+    public var padCount: Int
     public var models: [ModelReference]
 
     public init(reference: String, libraryID: String, uuid: String?, isBack: Bool, place: Placement2D,
-                holes: [DrilledHole], models: [ModelReference]) {
+                holes: [DrilledHole], padCount: Int? = nil, models: [ModelReference]) {
         self.reference = reference
         self.libraryID = libraryID
         self.uuid = uuid
         self.isBack = isBack
         self.place = place
         self.holes = holes
+        self.padCount = padCount ?? holes.count
         self.models = models
     }
 }

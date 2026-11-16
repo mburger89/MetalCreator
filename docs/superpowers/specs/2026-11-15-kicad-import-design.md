@@ -68,8 +68,8 @@ the same feature.
     it does in KiCad's 3D viewer from the top.
   - `outline`: a profile, the outer Edge.Cuts loop and its cutouts as holes, on the board's top plane.
   - `mounting holes`: placements, one per mounting hole, at the hole's centre on the board's top face facing +z; and `mounting hole
-    diameters`, numbers in the same order. A mounting hole is a pad of a footprint whose library name starts with `MountingHole` (KiCad's
-    library convention), or a footprint with exactly one pad which is non-plated, round and at least 2 mm; the rest are just holes.
+    diameters`, numbers in the same order. A mounting hole is the largest hole of a footprint whose library name starts with `MountingHole` (KiCad's
+    library convention; its `_Pad_Via` parts ring that hole with small via pads), or a footprint with exactly one pad which is non-plated, round and at least 2 mm; the rest are just holes.
     Order: by reference designator (natural order: H2 before H10). **(call)**
   - `components`: a list of solids, one per component with a STEP, IGES or IDF model (several models on one footprint are one solid, a compound). Order: by
     reference designator.

@@ -33,17 +33,27 @@ public enum OutlineChainer {
         }
     }
 
-    public static func chain(_ items: [EdgeItem], tolerance: Double) throws -> BoardOutline {
-        var evaluations = 0
-        return try chain(items, tolerance: tolerance, distanceEvaluations: &evaluations)
+    /// Cancellation is asked every this many steps of a walk, a sweep or a containment test.
+    static let cancelEvery = 4_096
+
+    static func tick(_ steps: inout Int, _ isCancelled: () -> Bool) throws {
+        steps += 1
+        if steps % cancelEvery == 0, isCancelled() { throw CancellationError() }
     }
 
-    static func chain(_ items: [EdgeItem], tolerance: Double, distanceEvaluations: inout Int) throws -> BoardOutline {
+    public static func chain(_ items: [EdgeItem], tolerance: Double, isCancelled: () -> Bool = { false }) throws -> BoardOutline {
+        var evaluations = 0
+        return try chain(items, tolerance: tolerance, distanceEvaluations: &evaluations, isCancelled: isCancelled)
+    }
+
+    static func chain(_ items: [EdgeItem], tolerance: Double, distanceEvaluations: inout Int,
+                      isCancelled: () -> Bool = { false }) throws -> BoardOutline {
         guard !items.isEmpty else { throw KiCadProblem("The board has no outline on Edge.Cuts.") }
         let pieces = items.map { Piece(segment: segment(for: $0.shape), key: KiCadKey.item(for: $0.identity), identity: $0.identity) }
         var usedKeys = Set(pieces.map(\.key))
-        var loops = try buildLoops(pieces, tolerance: tolerance, evaluations: &distanceEvaluations).map { joined($0, usedKeys: &usedKeys) }
-        try rejectCrossings(loops)
+        var loops = try buildLoops(pieces, tolerance: tolerance, evaluations: &distanceEvaluations, isCancelled: isCancelled)
+            .map { joined($0, usedKeys: &usedKeys) }
+        try rejectCrossings(loops, isCancelled: isCancelled)
         for loop in loops where abs(ArcGeometry.signedArea(loop.map(\.segment))) < 1e-9 {
             throw crosses(at: loop.map(\.start).min(by: lexicographically) ?? .zero)
         }
@@ -65,7 +75,7 @@ public enum OutlineChainer {
                 return a != b ? a < b : lhs.offset < rhs.offset
             }
             .map(\.element)
-        try requireInside(holes, of: outer)
+        try requireInside(holes, of: outer, isCancelled: isCancelled)
         return BoardOutline(outer: outer.map(\.segment), holes: holes.map { $0.map(\.segment) },
                             outerKeys: outer.map(\.key), holeKeys: holes.map { $0.map(\.key) })
     }
@@ -88,8 +98,10 @@ public enum OutlineChainer {
     // MARK: Chaining
 
     /// Walks on from the last piece until the loop closes on `start` (true) or no piece is left to join (false).
-    static func walk(_ loop: inout [Piece], grid: inout EndGrid, closingOn start: Vector2?, tolerance: Double) -> Bool {
+    static func walk(_ loop: inout [Piece], grid: inout EndGrid, closingOn start: Vector2?, tolerance: Double,
+                     steps: inout Int, isCancelled: () -> Bool) throws -> Bool {
         while true {
+            try tick(&steps, isCancelled)
             let end = loop[loop.count - 1].end
             let best = grid.nearest(to: end, tolerance: tolerance)
             if let start {
@@ -103,23 +115,26 @@ public enum OutlineChainer {
         }
     }
 
-    static func buildLoops(_ pieces: [Piece], tolerance: Double, evaluations: inout Int) throws -> [[Piece]] {
+    static func buildLoops(_ pieces: [Piece], tolerance: Double, evaluations: inout Int,
+                           isCancelled: () -> Bool = { false }) throws -> [[Piece]] {
         var grid = EndGrid(pieces, tolerance: tolerance)
         defer { evaluations = grid.evaluations }
         let order = pieces.indices.sorted { grid.precedes($0, $1) }
         var loops: [[Piece]] = []
         var failures: [(key: Int, point: Vector2)] = []
+        var steps = 0
         for first in order where !grid.used[first] {
+            try tick(&steps, isCancelled)
             grid.used[first] = true
             var loop = [pieces[first]]
-            if walk(&loop, grid: &grid, closingOn: pieces[first].start, tolerance: tolerance) {
+            if try walk(&loop, grid: &grid, closingOn: pieces[first].start, tolerance: tolerance, steps: &steps, isCancelled: isCancelled) {
                 loops.append(loop)
                 continue
             }
             // Open: run the other way from the first piece too, so both ends of the chain are known.
             let firstEnd = loop[loop.count - 1].end
             loop = loop.reversed().map { $0.reversed() }
-            _ = walk(&loop, grid: &grid, closingOn: nil, tolerance: tolerance)
+            _ = try walk(&loop, grid: &grid, closingOn: nil, tolerance: tolerance, steps: &steps, isCancelled: isCancelled)
             let point = [firstEnd, loop[loop.count - 1].end].min(by: lexicographically) ?? firstEnd
             failures.append((loop.map(\.key).min() ?? 0, point))
         }

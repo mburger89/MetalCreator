@@ -6,11 +6,13 @@ extension KiCadBoardReader {
                               edges: inout [EdgeItem]) throws -> Footprint {
         let (place, usesTransform) = try placement(of: item)
         var holes: [DrilledHole] = []
+        var padCount = 0
         guard case .list(let children) = item else { throw KiCadProblem("This isn't a KiCad board file.") }
         for child in children {
             switch child.keyword {
             case "pad":
                 pads += 1
+                padCount += 1
                 guard pads <= limits.maxPads else {
                     throw KiCadProblem("This board has more than \(count(limits.maxPads)) pads.")
                 }
@@ -26,6 +28,7 @@ extension KiCadBoardReader {
             isBack: item.child("layer")?.text(at: 1) == "B.Cu",
             place: place,
             holes: holes,
+            padCount: padCount,
             models: item.children("model").compactMap(model(of:)))
     }
 
@@ -59,7 +62,8 @@ extension KiCadBoardReader {
         guard let drill = pad.child("drill"), let at = pad.child("at"), let local = try point(at) else { return nil }
         let isOval = drill.text(at: 1) == "oval"
         let first = try number(drill, isOval ? 2 : 1)
-        let second = isOval ? try number(drill, 3) : first
+        // KiCad writes `(drill oval 1.0)` when the height equals the width.
+        let second = isOval ? try number(drill, 3) ?? first : first
         guard let width = first, let height = second, width > 0, height > 0 else { return nil }
 
         // The pad's angle is absolute in an `at` footprint and in the library frame in a `transform` one (ruling).

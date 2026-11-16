@@ -13,13 +13,13 @@ enum BoardFrame {
         }
     }
 
-    /// The box of the outer loop: an arc counts only the quarter points inside its sweep, a spline its poles.
+    /// The box of the outer loop: an arc counts only the quarter points inside its sweep, a spline its polyline.
     static func bounds(of loop: [Segment2D]) -> (min: Vector2, max: Vector2)? {
         var points: [Vector2] = []
         for segment in loop {
             switch segment {
             case .line(let a, let b): points += [a, b]
-            case .spline(let curve): points += curve.poles
+            case .spline(let curve): points += curve.polyline()
             case .arc(let center, let radius, let start, let end):
                 points += [segment.startPoint, segment.endPoint]
                 let (low, high) = (min(start.radians, end.radians), max(start.radians, end.radians))

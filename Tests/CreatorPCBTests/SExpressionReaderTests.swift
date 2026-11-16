@@ -85,6 +85,6 @@ struct SExpressionReaderTests {
         var short = KiCadLimits()
         short.maxStringBytes = 4
         #expect(message("(a abcdefgh)", limits: short)?.contains("longer than") == true)
-        #expect(message("(a |abcdefgh|)", limits: short)?.contains("longer than") == true)
+        #expect(message("(a |abcdefgh|)", limits: short) == nil) // a data block is bounded by the file size alone
     }
 }

@@ -22,8 +22,21 @@ actor KiCadBoardCache {
 
     init() {}
 
-    /// The board for `stamp`: the kept one, else what `read` makes (and keeps, when the stamp names a definite thing).
-    func board(for stamp: ImageStamp, read: @Sendable () throws -> ParsedBoard) throws -> ParsedBoard {
+    /// The board for `stamp`: the kept one, else what `read` makes (and keeps, when the stamp names a definite thing). The parse runs
+    /// outside the actor, so one slow board never holds up another; two evaluations of one new board may both parse it.
+    nonisolated func board(for stamp: ImageStamp, read: @Sendable () throws -> ParsedBoard) async throws -> ParsedBoard {
+        if let kept = try await lookup(stamp) { return kept }
+        let outcome = Self.attempt(read)
+        await record(outcome, for: stamp)
+        return try outcome.get()
+    }
+
+    /// Reads synchronously (no locals held across an `await`); only a board's own problem is kept as a result.
+    private static func attempt(_ read: () throws -> ParsedBoard) -> Result<ParsedBoard, any Error> {
+        Result { try read() }
+    }
+
+    private func lookup(_ stamp: ImageStamp) throws -> ParsedBoard? {
         clock += 1
         if let kept = entries[stamp] {
             entries[stamp] = (kept.parsed, clock)
@@ -33,13 +46,14 @@ actor KiCadBoardCache {
             problems[stamp] = (known.problem, clock)
             throw known.problem
         }
-        do {
-            let made = try read()
-            if stamp.isKeepable { keep(made, for: stamp) }
-            return made
-        } catch let problem as KiCadProblem {
-            if stamp.isKeepable { keepProblem(problem, for: stamp) }
-            throw problem
+        return nil
+    }
+
+    private func record(_ outcome: Result<ParsedBoard, any Error>, for stamp: ImageStamp) {
+        guard stamp.isKeepable else { return }
+        switch outcome {
+        case .success(let made): keep(made, for: stamp)
+        case .failure(let error): if let problem = error as? KiCadProblem { keepProblem(problem, for: stamp) }
         }
     }
 

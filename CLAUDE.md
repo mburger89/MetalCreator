@@ -106,7 +106,7 @@ and the tools' rulings on an imperfect mesh) code is done; its human checks (gro
 KiCad import, KI-1 (the Import KiCad Board node: spec `docs/superpowers/specs/2026-11-15-kicad-import-design.md`, format facts
 `2026-11-16-kicad-format-facts.md`, plan `docs/superpowers/plans/2026-11-16-ki-1-board.md`; `creator.importKiCadBoard` reads a `.kicad_pcb`
 into a board solid with its pad holes (and, on request, vias) drilled, its outline as a profile, its mounting holes as placements and
-diameters, and its components as boxes or meshes; `placement`, `origin` (board centre, page, drill/place), `vias` and `components` are its
+diameters (the `components` and `component meshes` outputs are declared and stay empty until KI-2); `placement`, `origin` (board centre, page, drill/place), `vias` and `components` are its
 inputs; `CreatorPCB` is the portable reader; the node's `factsTitle` "Board" hook lists KiCad version, size, thickness, copper layers, holes
 and components; File ▸ Import KiCad Board… inserts it wired to an Output as one step "Import KiCad Board"; the file is
 `NodeSetting.pcbFile`, linked only, never embedded; file format 13) code is done; its human checks (group KI) are pending.

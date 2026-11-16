@@ -46,19 +46,24 @@ enum BoardHoles {
         var diameter: Double
     }
 
-    /// The board's mounting holes (KiCad import spec, Outputs): each hole of a footprint whose library name starts with
-    /// `MountingHole`, or the one hole of a footprint that has exactly one and it is non-plated, round and at least 2 mm.
+    /// The board's mounting holes (KiCad import spec, Outputs): the largest hole of a footprint whose library name starts with
+    /// `MountingHole`, or the hole of a footprint that has exactly one pad and it is a non-plated, round hole of at least 2 mm.
     /// Ordered by the footprint's reference (digits compared as numbers), then the pad's identity.
     static func mounting(_ board: KiCadBoard, origin: Vector2) -> [Mounting] {
         var found: [(reference: String, identity: String, mounting: Mounting)] = []
         for footprint in board.footprints {
             let name = footprint.libraryID.split(separator: ":", maxSplits: 1).last.map(String.init) ?? footprint.libraryID
             let isMountingName = name.hasPrefix("MountingHole")
-            let isLoneBigHole = footprint.holes.count == 1 && footprint.holes.contains {
+            let isLoneBigHole = footprint.padCount == 1 && footprint.holes.count == 1 && footprint.holes.contains {
                 !$0.isPlated && $0.slotLength == nil && $0.diameter >= 2
             }
             guard isMountingName || isLoneBigHole else { continue }
-            for hole in footprint.holes {
+            // A mounting hole's library part may ring its hole with small via pads: only the largest hole counts.
+            let largest = footprint.holes.reduce(nil as DrilledHole?) { best, hole in
+                guard let best else { return hole }
+                return hole.diameter > best.diameter ? hole : best
+            }
+            if let hole = largest {
                 found.append((footprint.reference, hole.identity, Mounting(center: hole.center - origin, diameter: hole.diameter)))
             }
         }

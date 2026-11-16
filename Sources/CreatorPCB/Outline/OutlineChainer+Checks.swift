@@ -26,7 +26,8 @@ extension OutlineChainer {
         return (shapes, crossings)
     }
 
-    static func rejectCrossings(_ loops: [[Piece]]) throws {
+    static func rejectCrossings(_ loops: [[Piece]], isCancelled: () -> Bool = { false }) throws {
+        var steps = 0
         var found: Vector2?
         func note(_ point: Vector2) {
             let rounded = Vector2((point.x * 1e6).rounded() / 1e6 + 0, (point.y * 1e6).rounded() / 1e6 + 0)
@@ -38,6 +39,7 @@ extension OutlineChainer {
         for (position, i) in order.enumerated() {
             let a = shapes[i]
             for j in order[(position + 1)...] {
+                try tick(&steps, isCancelled)
                 let b = shapes[j]
                 if b.minX > a.maxX + exact { break }
                 if b.minY > a.maxY + exact || b.maxY < a.minY - exact { continue }
@@ -96,21 +98,49 @@ extension OutlineChainer {
         return p + r * low
     }
 
-    static func requireInside(_ holes: [[Piece]], of outer: [Piece]) throws {
+    static func requireInside(_ holes: [[Piece]], of outer: [Piece], isCancelled: () -> Bool = { false }) throws {
+        var steps = 0
         var polygon: [Vector2] = []
         for piece in outer { polygon += ArcGeometry.polyline(piece.segment) }
+        let outerBox = box(of: polygon)
         for hole in holes {
-            for piece in hole where !contains(polygon, piece.start) {
-                throw KiCadProblem("A cutout lies outside the board outline near \(coordinates(piece.start)) mm.")
+            for piece in hole {
+                try tick(&steps, isCancelled)
+                if !outerBox.contains(piece.start) || !contains(polygon, piece.start) {
+                    throw KiCadProblem("A cutout lies outside the board outline near \(coordinates(piece.start)) mm.")
+                }
             }
         }
         let polygons = holes.map { hole in hole.flatMap { ArcGeometry.polyline($0.segment) } }
+        let boxes = polygons.map(box(of:))
         for (index, hole) in holes.enumerated() {
-            for (other, shape) in polygons.enumerated() where other != index && contains(shape, hole[0].start) {
-                throw KiCadProblem("The board outline has a piece inside a cutout near \(coordinates(hole[0].start)) mm, "
-                    + "which isn't supported.")
+            for (other, shape) in polygons.enumerated() where other != index {
+                try tick(&steps, isCancelled)
+                if boxes[other].contains(hole[0].start), contains(shape, hole[0].start) {
+                    throw KiCadProblem("The board outline has a piece inside a cutout near \(coordinates(hole[0].start)) mm, "
+                        + "which isn't supported.")
+                }
             }
         }
+    }
+
+    struct Box {
+        var minX = Double.infinity, maxX = -Double.infinity, minY = Double.infinity, maxY = -Double.infinity
+
+        func contains(_ point: Vector2) -> Bool {
+            point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
+        }
+    }
+
+    static func box(of points: [Vector2]) -> Box {
+        var result = Box()
+        for point in points {
+            result.minX = min(result.minX, point.x)
+            result.maxX = max(result.maxX, point.x)
+            result.minY = min(result.minY, point.y)
+            result.maxY = max(result.maxY, point.y)
+        }
+        return result
     }
 
     static func contains(_ polygon: [Vector2], _ point: Vector2) -> Bool {
