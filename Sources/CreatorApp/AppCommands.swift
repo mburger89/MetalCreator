@@ -60,8 +60,6 @@ public enum AppCommands {
         }
     }
 
-    /// The AI connections switch (MCP-1): a checkmark while on. When another window serves the socket, or the listener couldn't
-    /// start, the title says so and choosing the item asks again (`MCPService.menuChosen`).
     /// File ▸ Import Mesh… and Import KiCad Board….
     @MainActor
     @MenuContentBuilder
@@ -72,6 +70,8 @@ public enum AppCommands {
             .disabled(!model.canImportKiCadBoard)
     }
 
+    /// The AI connections switch (MCP-1): a checkmark while on. When another window serves the socket, or the listener couldn't
+    /// start, the title says so and choosing the item asks again (`MCPService.menuChosen`).
     @MainActor
     @MenuContentBuilder
     static func aiConnectionsItem(_ model: AppModel) -> MenuItems {
