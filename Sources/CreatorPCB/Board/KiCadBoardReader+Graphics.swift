@@ -3,18 +3,18 @@ import Foundation
 
 extension KiCadBoardReader {
     /// The Edge.Cuts pieces of one `gr_…` or `fp_…` item, placed by `place` (the identity for a board item).
-    static func edgeItems(in item: SExpression, place: Placement2D, version: Int) -> [EdgeItem] {
+    static func edgeItems(in item: SExpression, place: Placement2D, version: Int) throws -> [EdgeItem] {
         guard let keyword = item.keyword, keyword.hasPrefix("gr_") || keyword.hasPrefix("fp_"),
               item.child("layer")?.text(at: 1) == "Edge.Cuts" else { return [] }
         let kind = String(keyword.dropFirst(3))
         let shapes: [EdgeItem.Shape]
         switch kind {
-        case "line": shapes = line(item, place)
-        case "arc": shapes = arc(item, place, version: version)
-        case "circle": shapes = circle(item, place)
-        case "rect": shapes = rectangle(item, place)
-        case "poly": shapes = polygon(item, place)
-        case "curve": shapes = bezier(item, place)
+        case "line": shapes = try line(item, place)
+        case "arc": shapes = try arc(item, place, version: version)
+        case "circle": shapes = try circle(item, place)
+        case "rect": shapes = try rectangle(item, place)
+        case "poly": shapes = try polygon(item, place)
+        case "curve": shapes = try bezier(item, place)
         default: return []
         }
         let base = identifier(of: item)
@@ -26,47 +26,47 @@ extension KiCadBoardReader {
         }
     }
 
-    private static func line(_ item: SExpression, _ place: Placement2D) -> [EdgeItem.Shape] {
-        guard let start = point(item, "start"), let end = point(item, "end") else { return [] }
-        return [.line(place.apply(start), place.apply(end))]
+    private static func line(_ item: SExpression, _ place: Placement2D) throws -> [EdgeItem.Shape] {
+        guard let start = try point(item, "start"), let end = try point(item, "end") else { return [] }
+        return [.line(try placed(place, start), try placed(place, end))]
     }
 
-    private static func arc(_ item: SExpression, _ place: Placement2D, version: Int) -> [EdgeItem.Shape] {
-        if let start = point(item, "start"), let mid = point(item, "mid"), let end = point(item, "end") {
-            return [.arc(start: place.apply(start), mid: place.apply(mid), end: place.apply(end))]
+    private static func arc(_ item: SExpression, _ place: Placement2D, version: Int) throws -> [EdgeItem.Shape] {
+        if let start = try point(item, "start"), let mid = try point(item, "mid"), let end = try point(item, "end") {
+            return [.arc(start: try placed(place, start), mid: try placed(place, mid), end: try placed(place, end))]
         }
         // Legacy (facts §5): `start` is the centre, `end` the first point, `angle` positive clockwise on screen.
-        guard version <= KiCadVersion.lastLegacyArcs, let centre = point(item, "start"), let first = point(item, "end"),
-              let degrees = item.child("angle")?.number(at: 1), degrees != 0 else { return [] }
+        guard version <= KiCadVersion.lastLegacyArcs, let centre = try point(item, "start"), let first = try point(item, "end"),
+              let degrees = try number(item.child("angle"), 1), degrees != 0 else { return [] }
         let radial = first - centre
         let last = centre + Placement2D.turn(radial, byDegrees: -degrees)
         let mid = centre + Placement2D.turn(radial, byDegrees: -degrees / 2)
         let (start, end) = degrees < 0 ? (last, first) : (first, last)
-        return [.arc(start: place.apply(start), mid: place.apply(mid), end: place.apply(end))]
+        return [.arc(start: try placed(place, start), mid: try placed(place, mid), end: try placed(place, end))]
     }
 
-    private static func circle(_ item: SExpression, _ place: Placement2D) -> [EdgeItem.Shape] {
-        guard let centre = point(item, "center"), let edge = point(item, "end") else { return [] }
-        let placed = place.apply(centre)
-        let radius = (place.apply(edge) - placed).length
-        return radius > 0 ? [.circle(center: placed, radius: radius)] : []
+    private static func circle(_ item: SExpression, _ place: Placement2D) throws -> [EdgeItem.Shape] {
+        guard let centre = try point(item, "center"), let edge = try point(item, "end") else { return [] }
+        let middle = try placed(place, centre)
+        let radius = (try placed(place, edge) - middle).length
+        return radius > 0 ? [.circle(center: middle, radius: radius)] : []
     }
 
-    private static func rectangle(_ item: SExpression, _ place: Placement2D) -> [EdgeItem.Shape] {
-        guard let start = point(item, "start"), let end = point(item, "end") else { return [] }
-        let corners = [start, Vector2(end.x, start.y), end, Vector2(start.x, end.y)].map(place.apply)
+    private static func rectangle(_ item: SExpression, _ place: Placement2D) throws -> [EdgeItem.Shape] {
+        guard let start = try point(item, "start"), let end = try point(item, "end") else { return [] }
+        let corners = try [start, Vector2(end.x, start.y), end, Vector2(start.x, end.y)].map { try placed(place, $0) }
         return (0..<4).map { .line(corners[$0], corners[($0 + 1) % 4]) }
     }
 
-    private static func bezier(_ item: SExpression, _ place: Placement2D) -> [EdgeItem.Shape] {
-        let points = item.child("pts")?.children("xy").compactMap { point($0) } ?? []
+    private static func bezier(_ item: SExpression, _ place: Placement2D) throws -> [EdgeItem.Shape] {
+        let points = try item.child("pts")?.children("xy").compactMap { try point($0) } ?? []
         guard points.count == 4 else { return [] }
-        let placed = points.map(place.apply)
-        return [.bezier(placed[0], placed[1], placed[2], placed[3])]
+        let moved = try points.map { try placed(place, $0) }
+        return [.bezier(moved[0], moved[1], moved[2], moved[3])]
     }
 
     /// The outline of a polygon: lines between its points and arcs, closed.
-    private static func polygon(_ item: SExpression, _ place: Placement2D) -> [EdgeItem.Shape] {
+    private static func polygon(_ item: SExpression, _ place: Placement2D) throws -> [EdgeItem.Shape] {
         guard case .list(let entries)? = item.child("pts") else { return [] }
         var shapes: [EdgeItem.Shape] = []
         var first: Vector2?
@@ -78,15 +78,16 @@ extension KiCadBoardReader {
         for entry in entries {
             switch entry.keyword {
             case "xy":
-                guard let local = point(entry) else { continue }
-                let target = place.apply(local)
+                guard let local = try point(entry) else { continue }
+                let target = try placed(place, local)
                 join(to: target)
                 current = target
             case "arc":
-                guard let start = point(entry, "start"), let mid = point(entry, "mid"), let end = point(entry, "end") else { continue }
-                let placedStart = place.apply(start), placedEnd = place.apply(end)
+                guard let start = try point(entry, "start"), let mid = try point(entry, "mid"),
+                      let end = try point(entry, "end") else { continue }
+                let placedStart = try placed(place, start), placedEnd = try placed(place, end)
                 join(to: placedStart)
-                shapes.append(.arc(start: placedStart, mid: place.apply(mid), end: placedEnd))
+                shapes.append(.arc(start: placedStart, mid: try placed(place, mid), end: placedEnd))
                 current = placedEnd
             default:
                 continue

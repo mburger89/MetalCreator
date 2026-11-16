@@ -4,7 +4,7 @@ import Foundation
 extension KiCadBoardReader {
     static func readFootprint(_ item: SExpression, version: Int, pads: inout Int, limits: KiCadLimits,
                               edges: inout [EdgeItem]) throws -> Footprint {
-        let (place, usesTransform) = placement(of: item)
+        let (place, usesTransform) = try placement(of: item)
         var holes: [DrilledHole] = []
         guard case .list(let children) = item else { throw KiCadProblem("This isn't a KiCad board file.") }
         for child in children {
@@ -14,9 +14,9 @@ extension KiCadBoardReader {
                 guard pads <= limits.maxPads else {
                     throw KiCadProblem("This board has more than \(count(limits.maxPads)) pads.")
                 }
-                if let hole = hole(of: child, place: place, usesTransform: usesTransform) { holes.append(hole) }
+                if let hole = try hole(of: child, place: place, usesTransform: usesTransform) { holes.append(hole) }
             default:
-                edges += edgeItems(in: child, place: place, version: version)
+                edges += try edgeItems(in: child, place: place, version: version)
             }
         }
         return Footprint(
@@ -30,19 +30,19 @@ extension KiCadBoardReader {
     }
 
     /// `(at x y a)`, or `(transform (translate x y) (rotate a) (scale sx sy))` from 20260616.
-    private static func placement(of footprint: SExpression) -> (Placement2D, Bool) {
+    private static func placement(of footprint: SExpression) throws -> (Placement2D, Bool) {
         if let transform = footprint.child("transform") {
             var place = Placement2D()
-            if let translate = transform.child("translate"), let origin = point(translate) { place.origin = origin }
-            place.angle = transform.child("rotate")?.number(at: 1) ?? 0
-            if let scale = transform.child("scale"), let sx = scale.number(at: 1) {
-                let sy = scale.number(at: 2) ?? sx
-                place.scale = Vector2(sx > 0 ? sx : 1, sy > 0 ? sy : 1)
+            if let translate = transform.child("translate"), let origin = try point(translate) { place.origin = origin }
+            place.angle = try number(transform.child("rotate"), 1) ?? 0
+            if let scale = transform.child("scale"), let sx = Double(scale.text(at: 1) ?? "") {
+                let sy = Double(scale.text(at: 2) ?? "") ?? sx
+                place.scale = Vector2(sx.isFinite && sx > 0 ? sx : 1, sy.isFinite && sy > 0 ? sy : 1)
             }
             return (place, true)
         }
-        guard let at = footprint.child("at"), let origin = point(at) else { return (.identity, false) }
-        return (Placement2D(origin: origin, angle: at.number(at: 3) ?? 0), false)
+        guard let at = footprint.child("at"), let origin = try point(at) else { return (.identity, false) }
+        return (Placement2D(origin: origin, angle: try number(at, 3) ?? 0), false)
     }
 
     private static func reference(of footprint: SExpression) -> String {
@@ -55,19 +55,20 @@ extension KiCadBoardReader {
 
     // MARK: Pads
 
-    private static func hole(of pad: SExpression, place: Placement2D, usesTransform: Bool) -> DrilledHole? {
-        guard let drill = pad.child("drill"), let at = pad.child("at"), let local = point(at) else { return nil }
+    private static func hole(of pad: SExpression, place: Placement2D, usesTransform: Bool) throws -> DrilledHole? {
+        guard let drill = pad.child("drill"), let at = pad.child("at"), let local = try point(at) else { return nil }
         let isOval = drill.text(at: 1) == "oval"
-        let first = isOval ? drill.number(at: 2) : drill.number(at: 1)
-        let second = isOval ? drill.number(at: 3) : first
+        let first = try number(drill, isOval ? 2 : 1)
+        let second = isOval ? try number(drill, 3) : first
         guard let width = first, let height = second, width > 0, height > 0 else { return nil }
 
         // The pad's angle is absolute in an `at` footprint and in the library frame in a `transform` one (ruling).
-        let fileAngle = at.number(at: 3) ?? 0
+        let fileAngle = try number(at, 3) ?? 0
         let angle = usesTransform ? fileAngle + place.angle : fileAngle
-        var center = place.apply(local)
-        if let offset = drill.child("offset"), let shift = point(offset) {
+        var center = try placed(place, local)
+        if let offset = drill.child("offset"), let shift = try point(offset) {
             center += Placement2D.turn(shift, byDegrees: angle)
+            guard abs(center.x) <= 1e6, abs(center.y) <= 1e6 else { throw outOfRange }
         }
         let number = pad.text(at: 1) ?? ""
         let plated = pad.text(at: 2) != "np_thru_hole"
@@ -76,7 +77,13 @@ extension KiCadBoardReader {
         }
         let longAlongX = width > height
         return DrilledHole(center: center, diameter: min(width, height), slotLength: max(width, height),
-                           angle: longAlongX ? angle : angle + 90, isPlated: plated, padNumber: number)
+                           angle: normalised(longAlongX ? angle : angle + 90), isPlated: plated, padNumber: number)
+    }
+
+    /// Degrees in [0, 360).
+    private static func normalised(_ degrees: Double) -> Double {
+        let value = degrees.truncatingRemainder(dividingBy: 360)
+        return value < 0 ? value + 360 : value
     }
 
     // MARK: Models

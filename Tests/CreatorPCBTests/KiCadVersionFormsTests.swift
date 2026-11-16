@@ -28,10 +28,15 @@ struct KiCadVersionFormsTests {
             }
             #expect(board.footprints.map(\.reference) == ["H1", "H2", "H3", "H4"], "\(era)")
             for (left, right) in zip(board.footprints, reference.footprints) {
-                #expect(left.holes.count == 1, "\(era)")
-                #expect(close(left.holes[0].center, right.holes[0].center), "\(era)")
-                #expect(left.holes[0].diameter == 3.2 && !left.holes[0].isPlated, "\(era)")
+                #expect(left.holes.count == right.holes.count, "\(era)")
+                for (hole, expected) in zip(left.holes, right.holes) {
+                    #expect(close(hole.center, expected.center), "\(era)")
+                    #expect(hole.diameter == expected.diameter && hole.slotLength == expected.slotLength, "\(era)")
+                    #expect(hole.angle == expected.angle && hole.isPlated == expected.isPlated, "\(era)")
+                }
             }
+            let slot = board.footprints[1].holes[1]
+            #expect(close(slot.center, Vector2(96, -1.5)) && slot.angle == 180 && slot.slotLength == 2, "\(era)")
             #expect(board.thickness == 1.6 && board.copperLayers == 2, "\(era)")
         }
     }

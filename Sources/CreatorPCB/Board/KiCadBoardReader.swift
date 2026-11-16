@@ -10,7 +10,7 @@ public enum KiCadBoardReader {
         let root = try SExpressionReader.read(data, limits: limits, isCancelled: isCancelled)
         guard root.keyword == "kicad_pcb" else { throw KiCadProblem("This isn't a KiCad board file.") }
 
-        var board = header(of: root)
+        var board = try header(of: root)
         var pads = 0
         guard case .list(let items) = root else { return board }
         for item in items {
@@ -22,21 +22,26 @@ public enum KiCadBoardReader {
                 board.footprints.append(
                     try readFootprint(item, version: board.version, pads: &pads, limits: limits, edges: &board.edgeItems))
             case "via":
-                if let via = readVia(item) { board.vias.append(via) }
+                if let via = try readVia(item) { board.vias.append(via) }
             default:
-                board.edgeItems += edgeItems(in: item, place: .identity, version: board.version)
+                board.edgeItems += try edgeItems(in: item, place: .identity, version: board.version)
             }
         }
         return board
     }
 
-    private static func header(of root: SExpression) -> KiCadBoard {
+    private static func header(of root: SExpression) throws -> KiCadBoard {
         var board = KiCadBoard()
-        if let version = root.child("version")?.number(at: 1) { board.version = Int(version) }
+        if let text = root.child("version")?.text(at: 1) {
+            guard let value = Double(text), let version = Int(exactly: value), (0...99_999_999).contains(version) else {
+                throw outOfRange
+            }
+            board.version = version
+        }
         board.generator = root.child("generator")?.text(at: 1) ?? root.child("host")?.text(at: 1)
         board.thickness = thickness(of: root)
         board.copperLayers = copperLayerCount(of: root)
-        board.auxAxisOrigin = root.child("setup")?.child("aux_axis_origin").flatMap { point($0) }
+        if let origin = root.child("setup")?.child("aux_axis_origin") { board.auxAxisOrigin = try point(origin) }
         return board
     }
 
@@ -68,22 +73,39 @@ public enum KiCadBoardReader {
 
     // MARK: Vias
 
-    private static func readVia(_ via: SExpression) -> DrilledHole? {
-        guard let at = via.child("at"), let center = point(at),
-              let drill = via.child("drill")?.number(at: 1), drill > 0 else { return nil }
+    private static func readVia(_ via: SExpression) throws -> DrilledHole? {
+        guard let at = via.child("at"), let center = try point(at),
+              let drill = try number(via.child("drill"), 1), drill > 0 else { return nil }
         return DrilledHole(center: center, diameter: drill, isPlated: true)
     }
 
     // MARK: Shared readers
 
+    static let outOfRange = KiCadProblem("The board file has a number out of range.")
+
+    /// The number at `index`: nil when absent or not a number, a refusal when non-finite or beyond 1e6 (mm or degrees).
+    static func number(_ list: SExpression?, _ index: Int) throws -> Double? {
+        guard let text = list?.text(at: index), let value = Double(text) else { return nil }
+        guard value.isFinite, abs(value) <= 1e6 else { throw outOfRange }
+        return value
+    }
+
     /// A list's first two numbers as a y-up point.
-    static func point(_ list: SExpression) -> Vector2? {
-        guard let x = list.number(at: 1), let y = list.number(at: 2) else { return nil }
+    static func point(_ list: SExpression) throws -> Vector2? {
+        guard let x = try number(list, 1), let y = try number(list, 2) else { return nil }
         return Vector2(x, -y)
     }
 
-    static func point(_ parent: SExpression, _ name: String) -> Vector2? {
-        parent.child(name).flatMap { point($0) }
+    static func point(_ parent: SExpression, _ name: String) throws -> Vector2? {
+        guard let child = parent.child(name) else { return nil }
+        return try point(child)
+    }
+
+    /// `place.apply(local)`, refused when it leaves the range.
+    static func placed(_ place: Placement2D, _ local: Vector2) throws -> Vector2 {
+        let result = place.apply(local)
+        guard result.x.isFinite, result.y.isFinite, abs(result.x) <= 1e6, abs(result.y) <= 1e6 else { throw outOfRange }
+        return result
     }
 
     static func identifier(of item: SExpression) -> String? {

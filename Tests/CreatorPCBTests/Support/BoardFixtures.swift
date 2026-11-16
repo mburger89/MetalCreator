@@ -1,7 +1,8 @@
 import Foundation
 
 /// Small hand-written boards in each KiCad era: a 100 x 80 rectangle (file corners (0,0) to (100,80)), a quarter arc
-/// in its middle, and four MountingHole_3.2mm_M3 footprints H1 to H4 inset 4 mm.
+/// in its middle, and four MountingHole_3.2mm_M3 footprints H1 to H4 inset 4 mm. H2 is turned 90 degrees and has a second,
+/// plated pad with an oval drill (1 x 2, offset 0.5 0) at library (2, 0), its own angle 90 in the file's absolute form.
 enum BoardFixtures {
     enum Era: CaseIterable {
         case kicad4, kicad5, kicad6, kicad8, kicad10, kicad11
@@ -36,7 +37,7 @@ enum BoardFixtures {
         text += arc(era)
         let corners = [(4, 4), (96, 4), (96, 76), (4, 76)]
         for (index, corner) in corners.enumerated() {
-            text += footprint(era, number: index + 1, x: corner.0, y: corner.1)
+            text += footprint(era, number: index + 1, x: corner.0, y: corner.1, angle: index == 1 ? 90 : 0)
         }
         return text + ")\n"
     }
@@ -63,10 +64,11 @@ enum BoardFixtures {
             + tail(era, width: "0.15", id: "00000000-0000-0000-0000-0000000000A0", stamp: "") + "\n"
     }
 
-    private static func footprint(_ era: Era, number: Int, x: Int, y: Int) -> String {
+    private static func footprint(_ era: Era, number: Int, x: Int, y: Int, angle: Int) -> String {
         let keyword = era.isOld ? "module" : "footprint"
         let library = era.isOld ? "MountingHole:MountingHole_3.2mm_M3" : "\"MountingHole:MountingHole_3.2mm_M3\""
-        let position = era == .kicad11 ? "(transform (translate \(x) \(y)) (rotate 0) (scale 1 1))" : "(at \(x) \(y))"
+        let position = era == .kicad11 ? "(transform (translate \(x) \(y)) (rotate \(angle)) (scale 1 1))"
+            : "(at \(x) \(y)\(angle == 0 ? "" : " \(angle)"))"
         let layer = "(layer \(name("F.Cu", era)))"
         let id = era.usesUUID ? "(uuid \"1111111\(number)-0000-0000-0000-000000000000\")" : "(tstamp 5B00000\(number))"
         let effects = "(effects (font (size 1.5 1.5) (thickness 0.15)))"
@@ -77,7 +79,13 @@ enum BoardFixtures {
             text += "    (fp_text reference H\(number) (at 0 -4) \(layer) \(effects))\n"
         }
         let padLayers = era.isOld ? "(layers *.Cu *.Mask)" : "(layers \"*.Cu\" \"*.Mask\")"
-        text += "    (pad \"\" np_thru_hole circle (at 0 0) (size 3.2 3.2) (drill 3.2) \(padLayers))\n  )\n"
+        text += "    (pad \"\" np_thru_hole circle (at 0 0) (size 3.2 3.2) (drill 3.2) \(padLayers))\n"
+        if angle != 0 {
+            // The pad's own angle is absolute in the `at` forms and in the library frame in the `transform` form.
+            let padAngle = era == .kicad11 ? 0 : angle
+            text += "    (pad \"1\" thru_hole oval (at 2 0 \(padAngle)) (size 2 3) (drill oval 1 2 (offset 0.5 0)) \(padLayers))\n"
+        }
+        text += "  )\n"
         return text
     }
 }

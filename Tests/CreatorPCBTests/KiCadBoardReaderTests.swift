@@ -30,7 +30,7 @@ struct KiCadBoardReaderTests {
         let expected = [Vector2(4, -4), Vector2(96, -4), Vector2(96, -76), Vector2(4, -76)]
         for (footprint, centre) in zip(board.footprints, expected) {
             #expect(footprint.libraryID == "MountingHole:MountingHole_3.2mm_M3")
-            #expect(footprint.holes.count == 1)
+            #expect(footprint.holes.count == (footprint.reference == "H2" ? 2 : 1))
             #expect(footprint.holes[0].diameter == 3.2 && !footprint.holes[0].isPlated)
             #expect(close(footprint.holes[0].center, centre))
         }
@@ -193,5 +193,61 @@ struct KiCadBoardReaderTests {
         """)
         let thickness = try #require(board.thickness)
         #expect(abs(thickness - 1.58) < 1e-9)
+    }
+
+    @Test func legacyArcInARotatedFootprint() throws {
+        let board = try read("""
+        (kicad_pcb (version 20171130)
+          (module "L:F" (at 10 10 90)
+            (fp_arc (start 0 0) (end 1 0) (angle 90) (layer Edge.Cuts) (width 0.15))))
+        """)
+        let half = 0.5.squareRoot()
+        guard case .arc(let start, let mid, let end) = board.edgeItems[0].shape else { Issue.record("not an arc"); return }
+        #expect(close(start, Vector2(10, -9)) && close(mid, Vector2(10 + half, -10 + half)) && close(end, Vector2(11, -10)))
+    }
+
+    @Test func holeAnglesAreNormalised() throws {
+        let board = try read("""
+        (kicad_pcb (version 20240108)
+          (footprint "L:F" (at 0 0 -90)
+            (pad "1" thru_hole oval (at 0 0 -90) (size 2 3) (drill oval 1 2))
+            (pad "2" thru_hole oval (at 0 0 450) (size 3 2) (drill oval 2 1))))
+        """)
+        #expect(board.footprints[0].holes.map(\.angle) == [0, 90])
+    }
+
+    @Test func hostileNumbersAreRefusedInWords() {
+        let sentence = "The board file has a number out of range."
+        #expect(message("(kicad_pcb (version 1e30))") == sentence)
+        #expect(message("(kicad_pcb (version 1.5))") == sentence)
+        #expect(message("(kicad_pcb (version -3))") == sentence)
+        #expect(message("(kicad_pcb (gr_line (start 1e30 0) (end 1 1) (layer Edge.Cuts)))") == sentence)
+        #expect(message("(kicad_pcb (gr_line (start inf 0) (end 1 1) (layer Edge.Cuts)))") == sentence)
+        #expect(message("(kicad_pcb (gr_line (start nan 0) (end 1 1) (layer Edge.Cuts)))") == sentence)
+        #expect(message("(kicad_pcb (footprint a (transform (translate 0 0) (rotate 0) (scale 1e300 1))"
+            + " (fp_line (start 1e6 0) (end 0 0) (layer Edge.Cuts))))") == sentence)
+        #expect(message("(kicad_pcb (footprint a (at 0 0) (pad 1 thru_hole circle (at 0 0) (drill 1e30))))") == sentence)
+    }
+
+    @Test func badScalesAreOne() throws {
+        let board = try read("(kicad_pcb (footprint a (transform (translate 0 0) (rotate 0) (scale inf nan))))")
+        #expect(board.footprints[0].place.scale == Vector2(1, 1))
+    }
+
+    @Test func numericMutationsNeverCrash() {
+        var random = SeededRandom(seed: 2026)
+        let original = BoardFixtures.rectangleWithFourM3
+        let replacements = ["1e30", "-1e30", "1e-30", "0", "nan", "inf"]
+        for round in 0..<2_000 {
+            var tokens = original.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+            let numeric = tokens.indices.filter { Double(tokens[$0].trimmingCharacters(in: CharacterSet(charactersIn: "()"))) != nil }
+            for _ in 0..<(1 + round % 3) {
+                let index = numeric[Int(random.next() % UInt64(numeric.count))]
+                let trailing = tokens[index].reversed().prefix { $0 == ")" }
+                tokens[index] = replacements[Int(random.next() % UInt64(replacements.count))] + String(trailing)
+            }
+            let outcome = Result { try read(tokens.joined(separator: " ")) }
+            if case .failure(let error) = outcome { #expect(error is KiCadProblem) }
+        }
     }
 }
