@@ -150,7 +150,7 @@ var targets: [Target] = [
     ),
     .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
-    .testTarget(name: "CreatorPCBTests", dependencies: ["CreatorPCB", "CreatorGeometry"]),
+    .testTarget(name: "CreatorPCBTests", dependencies: ["CreatorPCB", "CreatorGeometry", "CreatorKernel"]),
     .testTarget(
         name: "CreatorImplicitTests",
         dependencies: [
