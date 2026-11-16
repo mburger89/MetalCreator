@@ -22,18 +22,25 @@ public enum ConstantValue: Hashable, Sendable {
     /// An Import Mesh node's file, embedded or linked (mesh import spec, File setting): the same reference as an image, its
     /// embedded bytes in the document's `images` table. A setting, never a socket value.
     case meshFile(ImageReference)
+    /// An Import KiCad Board node's file, linked only (KiCad import spec): the same reference as an image. A setting,
+    /// never a socket value.
+    case pcbFile(ImageReference)
 
-    /// The reference of an `image` or `meshFile` setting: what paths, stamps, hashes and the clipboard read, because both
+    /// The reference of an `image`, `meshFile` or `pcbFile` setting: what paths, stamps, hashes and the clipboard read, because both
     /// kinds are held, resolved and embedded the same way.
     public var fileReference: ImageReference? {
         switch self {
-        case .image(let reference), .meshFile(let reference): reference
+        case .image(let reference), .meshFile(let reference), .pcbFile(let reference): reference
         default: nil
         }
     }
 
-    private var isMeshFile: Bool {
-        if case .meshFile = self { true } else { false }
+    private var fileKind: Kind {
+        switch self {
+        case .meshFile: .meshFile
+        case .pcbFile: .pcbFile
+        default: .image
+        }
     }
 
     /// False for NaN or ±∞ anywhere. JSON can't store those, so commands reject them.
@@ -43,14 +50,24 @@ public enum ConstantValue: Hashable, Sendable {
         case .vector(let vector): vector.isFinite
         case .plane(let plane): plane.origin.isFinite && plane.normal.isFinite && plane.xAxis.isFinite
         case .sketch(let sketch): sketch.isFinite
-        case .integer, .bool, .text, .edgePicks, .facePick, .image, .meshFile: true
+        case .integer, .bool, .text, .edgePicks, .facePick, .image, .meshFile, .pcbFile: true
         }
     }
 }
 
 extension ConstantValue: Codable {
     private enum CodingKeys: String, CodingKey { case type, value }
-    private enum Kind: String, Codable { case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image, meshFile }
+    private enum Kind: String, Codable {
+        case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image, meshFile, pcbFile
+    }
+
+    private static func fileSetting(of kind: Kind, _ reference: ImageReference) -> ConstantValue {
+        switch kind {
+        case .meshFile: .meshFile(reference)
+        case .pcbFile: .pcbFile(reference)
+        default: .image(reference)
+        }
+    }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -65,9 +82,8 @@ extension ConstantValue: Codable {
         case .edgePicks: self = .edgePicks(try container.decode([EdgePick].self, forKey: .value))
         case .sketch: self = .sketch(try container.decode(Sketch.self, forKey: .value))
         case .facePick: self = .facePick(try container.decode(FacePick.self, forKey: .value))
-        case .image, .meshFile:
-            let reference = try container.decode(ImageReference.self, forKey: .value)
-            self = kind == .image ? .image(reference) : .meshFile(reference)
+        case .image, .meshFile, .pcbFile:
+            self = Self.fileSetting(of: kind, try container.decode(ImageReference.self, forKey: .value))
         }
     }
 
@@ -83,8 +99,8 @@ extension ConstantValue: Codable {
         case .edgePicks(let value): try container.encode(Kind.edgePicks, forKey: .type); try container.encode(value, forKey: .value)
         case .sketch(let value): try container.encode(Kind.sketch, forKey: .type); try container.encode(value, forKey: .value)
         case .facePick(let value): try container.encode(Kind.facePick, forKey: .type); try container.encode(value, forKey: .value)
-        case .image(let value), .meshFile(let value):
-            try container.encode(isMeshFile ? Kind.meshFile : Kind.image, forKey: .type)
+        case .image(let value), .meshFile(let value), .pcbFile(let value):
+            try container.encode(fileKind, forKey: .type)
             try container.encode(value, forKey: .value)
         }
     }

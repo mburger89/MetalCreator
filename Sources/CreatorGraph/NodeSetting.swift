@@ -37,6 +37,8 @@ public enum NodeSetting {
 
     /// Import Mesh: its file, as `.meshFile(ImageReference)` (mesh import spec). Absent until one is chosen.
     public static let meshFile: SocketName = "meshFile"
+    /// Import KiCad Board: its file, as `.pcbFile(ImageReference)` (KiCad import spec), linked only. Absent until one is chosen.
+    public static let pcbFile: SocketName = "pcbFile"
 
     /// Loft: the faces of the part its first and last sections come from, as `.facePick(topology.facePick(for:))`.
     public static let startFace: SocketName = "startFace"
@@ -44,7 +46,7 @@ public enum NodeSetting {
 
     public static let all: Set<SocketName> = [
         startFace, endFace, parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern,
-        cullIndices, image, meshFile,
+        cullIndices, image, meshFile, pcbFile,
     ]
 
     /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside
@@ -52,7 +54,7 @@ public enum NodeSetting {
     /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did. `startFace` and `endFace` are left
     /// out for the same reason: only Loft has them, and a file made before the loft's end conditions may name a group socket or an
     /// exposed Sketch dimension "startFace".
-    public static let reservedForSockets: Set<SocketName> = all.subtracting([image, meshFile, startFace, endFace])
+    public static let reservedForSockets: Set<SocketName> = all.subtracting([image, meshFile, pcbFile, startFace, endFace])
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

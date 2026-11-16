@@ -3,7 +3,7 @@
 /// missing loop decodes as 0 (format version 2 files).
 extension TopoRole: Codable {
     private enum CodingKeys: String, CodingKey { case role, loop, segment, edge, face }
-    private enum Kind: String, Codable { case startCap, endCap, side, blend, unnamed }
+    private enum Kind: String, Codable { case startCap, endCap, side, blend, unnamed, imported }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -19,6 +19,7 @@ extension TopoRole: Codable {
             self = .side(loop: loop, segment: try container.decode(Int.self, forKey: .segment))
         case .blend: self = .blend(sourceEdge: try container.decode(EdgeKey.self, forKey: .edge))
         case .unnamed: self = .unnamed(face: try container.decode(Int.self, forKey: .face))
+        case .imported: self = .imported(face: try container.decode(Int.self, forKey: .face))
         }
     }
 
@@ -44,6 +45,9 @@ extension TopoRole: Codable {
             try container.encode(edge, forKey: .edge)
         case .unnamed(let face):
             try container.encode(Kind.unnamed, forKey: .role)
+            try container.encode(face, forKey: .face)
+        case .imported(let face):
+            try container.encode(Kind.imported, forKey: .role)
             try container.encode(face, forKey: .face)
         }
     }

@@ -38,14 +38,14 @@ struct MeshFileSettingTests {
 
     func reopened(_ data: Data) throws -> GraphFile { try GraphFileIO.decode(data, registry: Self.registry) }
 
-    @Test func aMeshFileSettingRoundTripsAtFormat12() throws {
-        #expect(GraphFile.currentFormatVersion == 12)
+    @Test func aMeshFileSettingRoundTripsAtFormat13() throws {
+        #expect(GraphFile.currentFormatVersion == 13)
         let hash = ImageHash(of: bytes)
         let linked = probe(.linked(relativePath: "a/part.stl", absolutePath: "/x/a/part.stl"))
         let embedded = probe(.embedded(hash))
         let data = try document([linked, embedded], images: [hash: bytes]).fileData()
         let file = try reopened(data)
-        #expect(file.formatVersion == 12)
+        #expect(file.formatVersion == 13)
         let reference = ImageReference.linked(relativePath: "a/part.stl", absolutePath: "/x/a/part.stl")
         #expect(file.graph.nodes[linked.id]?.inputValues[NodeSetting.meshFile] == .meshFile(reference))
         #expect(file.graph.nodes[embedded.id]?.inputValues[NodeSetting.meshFile] == .meshFile(.embedded(hash)))
@@ -75,14 +75,14 @@ struct MeshFileSettingTests {
     }
     """
 
-    @Test func aFormat11FileOpensUnchangedAndIsWrittenAs12() throws {
+    @Test func aFormat11FileOpensUnchangedAndIsWrittenAs13() throws {
         let old = try reopened(Data(Self.formatEleven.utf8))
         #expect(old.formatVersion == 11)
         #expect(old.graph.nodes.count == 2 && old.images.isEmpty)
         #expect(old.graph.nodes.values.allSatisfy { $0.inputValues[NodeSetting.meshFile] == nil })
         // The same graph, written and read today, is the same graph.
         let today = try reopened(try document(Array(old.graph.nodes.values)).fileData())
-        #expect(today.formatVersion == 12)
+        #expect(today.formatVersion == 13)
         #expect(today.graph == old.graph)
         // And the earlier versions' numbers open too.
         var object = try #require(try JSONSerialization.jsonObject(with: Data(Self.formatEleven.utf8)) as? [String: Any])

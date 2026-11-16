@@ -110,6 +110,7 @@ extension Evaluator {
         case let error as NodeError: error.message
         case let error as ImageProblem: error.message
         case let error as MeshImportProblem: error.message
+        case let error as BoardImportProblem: error.message
         default: String(describing: error)
         }
     }

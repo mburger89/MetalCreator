@@ -10,6 +10,9 @@ public indirect enum TopoRole: Hashable, Sendable {
     /// A face the operation's history does not explain. Unstable across rebuilds by design;
     /// it exists so that no face ever has an empty tag set (M2 plan decision).
     case unnamed(face: Int)
+    /// A face of an imported board (KiCad import): `face` is a stable key of the face's identity in the file, so a pick
+    /// survives other parts changing.
+    case imported(face: Int)
 
     /// A deterministic text form, used to order tags canonically. Outer walls keep the
     /// pre-hole form `side(k)`; hole walls are `side(loop:k)`.
@@ -21,6 +24,7 @@ public indirect enum TopoRole: Hashable, Sendable {
         case .side(let loop, let segment): "side(\(loop):\(segment))"
         case .blend(let edge): "blend(\(edge.sortKey))"
         case .unnamed(let face): "unnamed(\(face))"
+        case .imported(let face): "imported(\(face))"
         }
     }
 }

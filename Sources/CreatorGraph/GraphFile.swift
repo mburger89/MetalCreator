@@ -24,7 +24,8 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// constraint, none of which a version-10 reader can decode. Files 1 to 10 open unchanged and are written as 11.
     /// 12: the Import Mesh node's `meshFile` setting (`ConstantValue.meshFile`), whose embedded bytes share the `images` table;
     /// a version-11 reader cannot decode the kind. Files 1 to 11 open unchanged and are written as 12.
-    public static let currentFormatVersion = 12
+    /// 13: the Import KiCad Board node's `pcbFile` setting and the `imported(face:)` role in saved picks. Files 1 to 12 open unchanged and are written as 13.
+    public static let currentFormatVersion = 13
 
     public var formatVersion: Int
     public var graph: Graph
