@@ -8,24 +8,37 @@ public enum KeyAssigner {
 
     static func assign(_ board: inout KiCadBoard, hash: (String) -> UInt64) throws {
         let tokens = footprintTokens(board.footprints)
-        var strings: [String] = board.edgeItems.map(\.identity)
+        var taken = Set<String>()
+        var strings: [String] = []
+        /// The first use of a string keeps it; a repeat gets "#2", "#3" (in file order: edges, pads, vias).
+        func unique(_ text: String) -> String {
+            var result = text
+            var count = 1
+            while taken.contains(result) {
+                count += 1
+                result = "\(text)#\(count)"
+            }
+            taken.insert(result)
+            strings.append(result)
+            return result
+        }
+        for index in board.edgeItems.indices {
+            board.edgeItems[index].identity = unique(board.edgeItems[index].identity)
+        }
         for index in board.footprints.indices {
             var seen: [String: Int] = [:]
             for hole in board.footprints[index].holes.indices {
                 let number = board.footprints[index].holes[hole].padNumber
                 let base = "pad:\(tokens[index]):\(number)"
-                let identity = numbered(base, &seen)
-                board.footprints[index].holes[hole].identity = identity
-                strings.append(identity)
+                board.footprints[index].holes[hole].identity = unique(numbered(base, &seen))
             }
         }
         var seenVias: [String: Int] = [:]
         for index in board.vias.indices {
             let centre = board.vias[index].center
-            let name = board.vias[index].uuid.flatMap { $0.isEmpty ? nil : $0 } ?? "\(nanometres(centre.x)),\(nanometres(centre.y))"
-            let identity = numbered("via:\(name)", &seenVias)
-            board.vias[index].identity = identity
-            strings.append(identity)
+            let name = board.vias[index].uuid.flatMap { $0.isEmpty ? nil : $0 }
+                ?? "\(nanometres(centre.x)),\(nanometres(centre.y))"
+            board.vias[index].identity = unique(numbered("via:\(name)", &seenVias))
         }
         var owner: [UInt64: String] = [:]
         for text in strings {

@@ -1,4 +1,5 @@
 import CreatorGeometry
+import Foundation
 import Testing
 @testable import CreatorPCB
 
@@ -102,8 +103,7 @@ struct OutlineChainerTests {
 
     @Test func refusals() {
         #expect(message([]) == "The board has no outline on Edge.Cuts.")
-        #expect(message(Array(Self.rectangle.dropLast())) == "The board outline isn't closed near (0, -5) mm."
-            || message(Array(Self.rectangle.dropLast()))?.hasPrefix("The board outline isn't closed near") == true)
+        #expect(message(Array(Self.rectangle.dropLast())) == "The board outline isn't closed near (0, 0) mm.")
         let bowtie = [Self.line(Vector2(0, 0), Vector2(10, 5), "a"), Self.line(Vector2(10, 5), Vector2(10, 0), "b"),
                       Self.line(Vector2(10, 0), Vector2(0, 5), "c"), Self.line(Vector2(0, 5), Vector2(0, 0), "d"),
                      ]
@@ -111,6 +111,121 @@ struct OutlineChainerTests {
         let outside = EdgeItem(shape: .circle(center: Vector2(30, 2), radius: 1), identity: "edge:c")
         #expect(message(Self.rectangle + [outside]) == "A cutout lies outside the board outline near (31, -2) mm.")
     }
+}
+
+extension OutlineChainerTests {
+    private func square(_ x: Double, _ y: Double, _ size: Double, _ name: String) -> [EdgeItem] {
+        let points = [Vector2(x, y), Vector2(x + size, y), Vector2(x + size, y + size), Vector2(x, y + size)]
+        return points.indices.map { Self.line(points[$0], points[($0 + 1) % 4], "\(name)\($0)") }
+    }
+
+    private func described(_ items: [EdgeItem]) -> String {
+        do {
+            let outline = try OutlineChainer.chain(items, tolerance: 0.01)
+            return "\(outline.outer) \(outline.holes) \(outline.outerKeys) \(outline.holeKeys)"
+        } catch let problem as KiCadProblem {
+            return problem.message
+        } catch {
+            return "other"
+        }
+    }
+
+    @Test func sharedVertexResultIsTheSameForEveryRotation() {
+        let items = Self.rectangle + square(0, 0, 2, "h")
+        let expected = described(items)
+        for turn in items.indices {
+            #expect(described(Array(items[turn...] + items[..<turn])) == expected)
+            #expect(described(Array(items[turn...] + items[..<turn]).reversed().map(\.flipped)) == expected)
+        }
+        #expect(expected == "The board outline crosses itself near (0, 0) mm.")
+    }
+
+    @Test func twentyCutoutsAreOrderIndependent() {
+        var items = square(0, 0, 100, "o")
+        for index in 0..<20 {
+            items += square(5 + Double(index % 5) * 18, 5 + Double(index / 5) * 22, 8, "h\(index)_")
+        }
+        let expected = described(items)
+        #expect(!expected.hasPrefix("The board"))
+        var state: UInt64 = 12_345
+        for _ in 0..<10 {
+            var shuffled = items
+            for index in shuffled.indices.reversed() {
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                shuffled.swapAt(index, Int(state >> 33) % (index + 1))
+                if state & 1 == 1 { shuffled[index] = shuffled[index].flipped }
+            }
+            #expect(described(shuffled) == expected)
+        }
+    }
+
+    @Test func fiveThousandPiecesChainQuickly() throws {
+        let count = 5_000
+        let points = (0..<count).map { index -> Vector2 in
+            let angle = 2 * Double.pi * Double(index) / Double(count)
+            return Vector2(100 * cos(angle), 100 * sin(angle))
+        }
+        var items = points.indices.map { Self.line(points[$0], points[($0 + 1) % count], "p\($0)") }
+        items.reverse()
+        let start = ContinuousClock.now
+        let outline = try OutlineChainer.chain(items, tolerance: 0.01)
+        #expect(ContinuousClock.now - start < .seconds(1))
+        #expect(outline.outer.count == count)
+    }
+
+    @Test func overlappingAndDuplicatedEdgesAreCrossings() {
+        let points = [(0, 0), (6, 0), (6, 5), (5, 5), (5, 0), (2, 0), (2, 3), (0, 3)].map { Vector2(Double($0.0), Double($0.1)) }
+        let doubled = points.indices.map { Self.line(points[$0], points[($0 + 1) % points.count], "w\($0)") }
+        #expect(message(doubled)?.hasPrefix("The board outline crosses itself") == true)
+        let flat = [Self.line(Vector2(0, 0), Vector2(5, 0), "a"), Self.line(Vector2(5, 0), Vector2(0, 0), "b")]
+        #expect(message(flat)?.hasPrefix("The board outline crosses itself") == true)
+    }
+
+    @Test func aPieceInsideACutoutIsRefused() {
+        let items = square(0, 0, 100, "o") + square(10, 10, 60, "h") + square(20, 20, 10, "i")
+        #expect(message(items) == "The board outline has a piece inside a cutout near (20, -30) mm, which isn't supported.")
+    }
+
+    @Test func aCutoutOverTheEdgeIsRefused() {
+        #expect(message(square(0, 0, 100, "o") + square(200, 0, 10, "h"))?.hasPrefix("A cutout lies outside") == true)
+    }
+
+    @Test func fullCircleFromThreePoints() {
+        let segment = ArcGeometry.arc(start: Vector2(0, 0), mid: Vector2(0, 4), end: Vector2(0, 0))
+        guard case .arc(let centre, let radius, let start, let end) = segment else { Issue.record("not an arc"); return }
+        #expect(centre == Vector2(0, 2) && radius == 2 && abs(end.radians - start.radians - 2 * .pi) < 1e-12)
+    }
+
+    @Test func collinearPointsMakeALineAtAnyScale() {
+        for scale in [1e-6, 1.0, 1e5] {
+            let segment = ArcGeometry.arc(start: Vector2(0, 0), mid: Vector2(scale, scale), end: Vector2(2 * scale, 2 * scale))
+            #expect(segment == .line(Vector2(0, 0), Vector2(2 * scale, 2 * scale)))
+        }
+        #expect(ArcGeometry.arc(start: Vector2(0, 0), mid: Vector2(1000, 1e-7), end: Vector2(2000, 0)).isLine)
+    }
+
+    @Test func arcsAcrossTheSeamKeepContinuousAngles() {
+        func point(_ degrees: Double) -> Vector2 { Vector2(10 * cos(degrees * .pi / 180), 10 * sin(degrees * .pi / 180)) }
+        let ccw = ArcGeometry.arc(start: point(170), mid: point(180), end: point(190))
+        guard case .arc(_, let radius, let a, let b) = ccw else { Issue.record("not an arc"); return }
+        #expect(abs(radius - 10) < 1e-9 && abs((b.radians - a.radians) - 20 * .pi / 180) < 1e-9)
+        let clockwise = ArcGeometry.arc(start: point(190), mid: point(180), end: point(170))
+        guard case .arc(_, _, let c, let d) = clockwise else { Issue.record("not an arc"); return }
+        #expect(abs((d.radians - c.radians) + 20 * .pi / 180) < 1e-9)
+    }
+
+    @Test func aClockwiseArcLoopBecomesCounterClockwise() throws {
+        let items = [
+            EdgeItem(shape: .arc(start: Vector2(10, 0), mid: Vector2(0, -10), end: Vector2(-10, 0)), identity: "edge:a"),
+            EdgeItem(shape: .arc(start: Vector2(-10, 0), mid: Vector2(0, 10), end: Vector2(10, 0)), identity: "edge:b"),
+        ]
+        let outline = try OutlineChainer.chain(items, tolerance: 0.01)
+        #expect(abs(ArcGeometry.signedArea(outline.outer) - 100 * .pi) < 1e-6)
+    }
+}
+
+extension Segment2D {
+    var isLine: Bool { if case .line = self { return true } else { return false } }
 }
 
 extension EdgeItem {

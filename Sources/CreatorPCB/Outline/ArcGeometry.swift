@@ -7,12 +7,20 @@ enum ArcGeometry {
     /// turn start to mid to end goes (clockwise has `end < start`).
     static func arc(start: Vector2, mid: Vector2, end: Vector2) -> Segment2D {
         let ab = mid - start, ac = end - start
+        if ac.length <= 1e-9, ab.length > 1e-9 {
+            // The same point twice and a distinct middle: a full circle with that diameter.
+            let centre = start + ab * 0.5
+            let first = atan2(start.y - centre.y, start.x - centre.x)
+            return .arc(center: centre, radius: ab.length / 2, start: Angle(radians: first),
+                        end: Angle(radians: first + 2 * .pi))
+        }
         let determinant = 2 * (ab.x * ac.y - ab.y * ac.x)
-        guard abs(determinant) >= 1e-9 else { return .line(start, end) }
+        guard abs(determinant) >= 1e-9 * ab.length * ac.length else { return .line(start, end) }
         let abSquared = ab.x * ab.x + ab.y * ab.y
         let acSquared = ac.x * ac.x + ac.y * ac.y
         let offset = Vector2((ac.y * abSquared - ab.y * acSquared) / determinant,
                              (ab.x * acSquared - ac.x * abSquared) / determinant)
+        guard offset.length <= 1e6 else { return .line(start, end) }
         let centre = start + offset
         let radius = offset.length
         let first = atan2(start.y - centre.y, start.x - centre.x)

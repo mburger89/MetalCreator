@@ -43,6 +43,18 @@ struct KeyAssignerTests {
         #expect(board.vias[0].identity == "via:v-1")
     }
 
+    @Test func everyIdentityIsUnique() throws {
+        var board = KiCadBoard(edgeItems: [EdgeItem(shape: .line(.zero, Vector2(1, 0)), identity: "edge:u"),
+                                           EdgeItem(shape: .line(.zero, Vector2(0, 1)), identity: "edge:u"),
+                                           ],
+                               footprints: [footprint("J1", numbers: ["1", "1", "1:2"])])
+        try KeyAssigner.assign(&board)
+        let all = board.edgeItems.map(\.identity) + board.footprints[0].holes.map(\.identity)
+        #expect(Set(all).count == all.count)
+        #expect(board.edgeItems.map(\.identity) == ["edge:u", "edge:u#2"])
+        #expect(board.footprints[0].holes.map(\.identity) == ["pad:J1:1", "pad:J1:1:2", "pad:J1:1:2#2"])
+    }
+
     @Test func aForcedCollisionRefuses() {
         var board = KiCadBoard(footprints: [footprint("A", numbers: ["1"]), footprint("B", numbers: ["1"])])
         do {
