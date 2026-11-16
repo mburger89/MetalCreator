@@ -61,5 +61,22 @@ struct ImportKiCadBoardFinalReviewTests {
         // The box is centred on the board: half of 102.5 each way.
         #expect(abs(solid.bounds.min.y + 51.25) < 0.05 && abs(solid.bounds.max.y - 51.25) < 0.05)
     }
+
+    @Test func aCancelledParseStops() async {
+        var text = KiCadBoardText.header
+        for index in 0..<10_000 {
+            text += "(gr_line (start \(index) 0) (end \(index + 1) 0) (layer \"Edge.Cuts\"))\n"
+        }
+        let data = Data((text + ")").utf8)
+        let task = Task {
+            while !Task.isCancelled { await Task.yield() }
+            return await withTaskCancellationHandler { () -> Bool in
+                do { _ = try ImportKiCadBoardNode.parse(data) } catch is CancellationError { return true } catch { return false }
+                return false
+            } onCancel: {}
+        }
+        task.cancel()
+        #expect(await task.value)
+    }
 }
 #endif

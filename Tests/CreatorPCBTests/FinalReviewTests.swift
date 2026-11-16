@@ -92,4 +92,11 @@ struct FinalReviewTests {
         }
         #expect(throws: CancellationError.self) { try OutlineChainer.chain(items, tolerance: 0.01, isCancelled: { true }) }
     }
+
+    @Test func aBarInsideAnAtomOfASkippedListIsNotADataBlock() throws {
+        let text = """
+        (kicad_pcb (version 20260206) (zone (name /RX|TX) (filled "x")) (gr_line (start 0 0) (end 1 0) (layer "Edge.Cuts")))
+        """
+        #expect(try read(text).edgeItems.count == 1)
+    }
 }

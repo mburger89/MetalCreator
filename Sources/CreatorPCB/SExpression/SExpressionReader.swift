@@ -77,7 +77,8 @@ public enum SExpressionReader {
                 if open == 0 { return }
             case UInt8(ascii: "\""):
                 _ = try quoted(bytes, &position, limits)
-            case UInt8(ascii: "|"):
+            case UInt8(ascii: "|") where isDelimiter(bytes[position - 1]):
+                // A data block opens only at the start of a token, as in `token`; `/RX|TX` is one atom.
                 _ = try barred(bytes, &position, limits)
             default:
                 position += 1

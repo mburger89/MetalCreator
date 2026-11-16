@@ -152,8 +152,8 @@ public enum ImportKiCadBoardNode: NodeDefinition {
     /// The board a file of these bytes holds. Synchronous, so no loop's locals live across an `await`.
     static func parse(_ data: Data) throws -> ParsedBoard {
         var board = try KiCadBoardReader.read(data, isCancelled: { Task.isCancelled })
-        try KeyAssigner.assign(&board)
-        let outline = try OutlineChainer.chain(board.edgeItems, tolerance: board.chainingTolerance)
+        try KeyAssigner.assign(&board, isCancelled: { Task.isCancelled })
+        let outline = try OutlineChainer.chain(board.edgeItems, tolerance: board.chainingTolerance, isCancelled: { Task.isCancelled })
         return ParsedBoard(board: board, outline: outline)
     }
 }
