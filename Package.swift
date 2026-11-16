@@ -69,6 +69,8 @@ let occtPrefix = Context.environment["OCCT_PREFIX"] ?? occtDefaultPrefix
 var targets: [Target] = [
     .target(name: "CreatorGeometry"),
     .target(name: "CreatorSketch", dependencies: ["CreatorGeometry"]),
+    // CreatorPCB: KiCad board import (KI-1); portable, geometry only.
+    .target(name: "CreatorPCB", dependencies: ["CreatorGeometry"]),
     .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
     // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
     .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
@@ -79,7 +81,7 @@ var targets: [Target] = [
     .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU]),
     // MetalUI only for `DecodedImage`, the picture decoder (`GreyImageDecoder+MetalUI.swift`, the one file that imports it).
     .target(name: "CreatorNodes",
-            dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch", metalUI]),
+            dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch", "CreatorPCB", metalUI]),
     // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
     // the editor's views and the viewport's GPU colours read.
     .target(name: "CreatorStyle", dependencies: [metalUI]),
@@ -148,6 +150,7 @@ var targets: [Target] = [
     ),
     .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
+    .testTarget(name: "CreatorPCBTests", dependencies: ["CreatorPCB", "CreatorGeometry"]),
     .testTarget(
         name: "CreatorImplicitTests",
         dependencies: [
