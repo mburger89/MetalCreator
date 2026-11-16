@@ -1,7 +1,9 @@
 # KiCad board import — design
 
-Status: draft, 2026-11-15, written without a question round (the user's standing preference). The user's request: "We should be able to import
-KiCAD" files. Everything else is marked **(call)** and is open to change. The user's own boards (a 5 × 12 keyboard, KiCad 10, file version
+Status: revised 2026-11-16 for full support. The user's requests: "We should be able to import KiCAD" files, then "Let's make sure that we
+fully support kicad import and then start building the feature". Full support means every board KiCad can save as `.kicad_pcb` (KiCad 4 to
+11) and every 3D model KiCad's own 3D viewer opens, including scaled models and models stored inside the board. KiCad's own behaviour is
+taken from its source code; the facts, with file and line, are in `2026-11-16-kicad-format-facts.md` beside this spec. Everything else is marked **(call)** and is open to change. The user's own boards (a 5 × 12 keyboard, KiCad 10, file version
 20260206) are the shape of file this is written against: a 1.6 mm board with a rectangle on Edge.Cuts, about 200 drilled holes (185 non-plated
 switch pins, round, oval and rectangular plated holes), and component models that are STEP files from KiCad's library and the project's own
 `${KIPRJMOD}/3dmodels` folder, plus some VRML (`.wrl`) files there with no STEP twin.
@@ -17,10 +19,11 @@ the same feature.
 
 ## Goals
 
-1. An **Import KiCad Board** node reads a `.kicad_pcb` file (KiCad 6 to 10) and outputs the board as a solid: the Edge.Cuts outline with its
+1. An **Import KiCad Board** node reads any `.kicad_pcb` file (KiCad 4 to 11) and outputs the board as a solid: the Edge.Cuts outline with its
    cutouts, extruded by the board's thickness, with every drilled hole cut through.
 2. It outputs the outline as a profile, the mounting holes as placements with their diameters, and the components as bodies at their places
-   (top and bottom side), from the 3D models the board names.
+   (top and bottom side), from the 3D models the board names, in every format KiCad's 3D viewer reads (STEP, compressed STEP, IGES, VRML
+   1 and 2, compressed VRML, X3D, IDF), scaled as KiCad scales them, whether the model is a file or stored inside the board.
 3. Every platform reads the same file to the same geometry (the parser is ours; OpenCascade builds the solids and reads STEP everywhere).
 4. Linked files (the board and each model) are watched: a change on disk runs the node again at the next evaluation, and nothing else.
 5. Picks on the board and its parts survive the board being edited in KiCad, so long as the picked feature still exists, by naming faces after
@@ -31,8 +34,9 @@ the same feature.
 
 - Copper, traces, silkscreen, solder mask, zones and their colours. The board is one plain solid. **(call)**
 - Writing back to KiCad, or any ECAD–MCAD exchange format (IDX, IDF, ODB++). Schematics (`.kicad_sch`) and Gerbers.
-- Other ECAD tools (Altium, Eagle, EasyEDA) and KiCad 5 and older files (refused in words: "This board was saved by KiCad 5 or older. Open it
-  in a newer KiCad and save it, then try again.").
+- Other ECAD tools (Altium, Eagle, EasyEDA), and KiCad's pre-2016 legacy `.brd` format (refused in words: "This is an old KiCad board
+  (.brd). Open it in KiCad and save it as a .kicad_pcb, then try again.").
+- IDF board files (`.emn`) named as a model: a whole board, not a part; skipped with a warning naming the component.
 - Vias: they are copper-plated holes too small to matter for an enclosure, and a board has thousands. Off by default, a toggle to include them.
   **(call)**
 - A guessed body for a component without a 3D model (a box from its courtyard). A made-up height gives a confident wrong clearance; a missing
@@ -67,9 +71,9 @@ the same feature.
     diameters`, numbers in the same order. A mounting hole is a pad of a footprint whose library name starts with `MountingHole` (KiCad's
     library convention), or a footprint with exactly one pad which is non-plated, round and at least 2 mm; the rest are just holes.
     Order: by reference designator (natural order: H2 before H10). **(call)**
-  - `components`: a list of solids, one per component with a STEP model (several models on one footprint are one solid, a compound). Order: by
+  - `components`: a list of solids, one per component with a STEP, IGES or IDF model (several models on one footprint are one solid, a compound). Order: by
     reference designator.
-  - `component meshes`: a list of meshes, one per component whose model is VRML only. Order: by reference designator. **(call: two outputs.
+  - `component meshes`: a list of meshes, one per component whose model is VRML or X3D only. Order: by reference designator. **(call: two outputs.
     A STEP body keeps exact surfaces and named faces; a VRML model is a triangle soup, often open, which Mesh to Solid would turn into
     thousands of planar faces slowly or refuse. A mesh still works with the Section, Measure, zebra and export.)**
 - **Facts** (inspector): the file's name, KiCad version, size (x × y mm), thickness, layer count, holes (drilled, of which mounting), components
@@ -79,43 +83,72 @@ the same feature.
 ### Reading the board
 
 - **Format:** KiCad's S-expression format. The parser is ours (`CreatorPCB`, portable, no Foundation parser), a tokenizer and a tree of
-  lists, reading only what is needed and skipping the rest without building it. Version from `(version N)`: KiCad 6 is 20211014; older is
-  refused; newer than the newest we know is read anyway, with one warning "This board is from a newer KiCad than MetalCreator knows. Check
-  the result." **(call)**
+  lists, reading only what is needed and skipping the rest without building it. Version from `(version N)` (4 for KiCad 4, 20171130 for 5,
+  20211014 for 6, 20221018 for 7, 20240108 for 8, 20241229 for 9, 20260206 for 10, 20261031 for 11's development); a file without one is
+  read as 20201115, as KiCad does. Every version is read; one newer than the newest we know is read anyway, with one warning "This board is
+  from a newer KiCad than MetalCreator knows. Check the result." **(call)**
+- **Old forms** (read by version, as KiCad's own parser does): `module` for `footprint`; up to 20210925 arcs are `(start centre) (end
+  first point) (angle degrees)`, the end point the start turned about the centre in the file's y-down coordinates (a positive angle runs
+  clockwise on screen; a negative one swaps the ends); a model's `(at (xyz …))` is in inches (× 25.4), `(offset (xyz …))` in mm; the reference
+  designator is `(fp_text reference "R1")` before 20230620 and `(property "Reference" "R1")` from it (both are read whatever the version).
+  From 20260616 a footprint is placed by `(transform (translate x y) (rotate a) (scale sx sy))` and its children are in its library frame:
+  scale, turn, then move them; a scale that isn't positive and finite is 1, as KiCad reads it.
 - **Thickness:** `(general (thickness t))`, else the stackup's sum, else 1.6 mm with a warning.
 - **Outline:** every item on `Edge.Cuts`, both board graphics (`gr_line`, `gr_arc`, `gr_circle`, `gr_rect`, `gr_poly`, `gr_curve`) and
   footprint graphics on that layer (`fp_*`, transformed by the footprint's place). Arcs are KiCad 6's start/mid/end form. A `gr_curve` is a
   cubic Bézier, carried exactly as a degree-5 spline segment (degree elevation). The pieces are chained into closed loops end to end within
-  KiCad's own tolerance, 1 µm **(call: to be checked against KiCad's source in KI-1)**. The loop with the largest area is the outline; loops
+  KiCad's own tolerance for the file's version: 0.005 mm up to KiCad 5, 0.02 mm for KiCad 6 files (before 20221018), 0.01 mm after
+  (`DEFAULT_CHAINING_EPSILON_MM`), compared as a distance. The loop with the largest area is the outline; loops
   inside it are cutouts; a loop that does not close, crosses itself or crosses another is refused naming where ("The board outline isn't
   closed near (x, y) mm."), as KiCad's DRC does.
 - **Holes:** each pad's drill (round, or an oval as a slot), at the pad's place plus its drill offset, and `np_thru_hole` and `thru_hole` alike.
   A plated hole's finished size is its drill size (KiCad's convention). The board is the outline extruded, then every hole cut in one
   `Kernel.place` of the distinct drill tools and one `Kernel.boolean`, as Hole Pattern does, so each hole's wall carries its own item (below).
   **(call)**
-- **Footprints:** `(at x y angle)`, layer `F.Cu` or `B.Cu`. A back footprint's pads and graphics are already stored flipped in the file; its
-  models are turned 180° about the board's y axis and placed under the board (a turn, not a mirror, so a part keeps its handedness), as
-  KiCad's 3D viewer and STEP export do. Pads' `at` angles include the footprint's in KiCad 6 and later.
+- **Footprints:** `(at x y angle)`, layer `F.Cu` or `B.Cu`. Graphics are stored relative to the footprint and unturned: turn them by the
+  footprint's angle, then move them. Pads' positions are relative too, but their angles already include the footprint's. A back footprint's
+  pads and graphics are already stored flipped in the file.
 - **Flags:** both KiCad 6/7's bare `(hide)` and KiCad 8+'s `(hide yes)` forms are read, for every flag.
 
 ### Components
 
-- **Models:** each `(model "path" (offset (xyz …)) (scale (xyz …)) (rotate (xyz …)) (hide) (opacity …))`; hidden ones are skipped. The
-  transform is applied in KiCad's order (rotate about z, y, x, then offset, then the footprint's place and turn) **(call: pinned by a
-  test against a board KiCad exported to STEP)**. A scale other than 1 is not supported (`Kernel.place` moves and turns, and scaling a STEP
-  body turns it into B-splines): that component is left out with a warning naming it. **(call)**
-- **Paths:** `${KIPRJMOD}` is the board's folder; `${KICADn_3DMODEL_DIR}` (n = 6 to 10) is that environment variable when set, else KiCad's
+- **Models:** each `(model "path" (offset (xyz …)) (scale (xyz …)) (rotate (xyz …)) (hide) (opacity …))`; hidden ones are skipped. KiCad's
+  matrix (`CalcModelMatrix`, and the STEP exporter's identical chain) is, acting on a model's point: scale, then turn about x by −rx, about y
+  by −ry, about z by −rz (degrees), then move by the offset (mm), then, for a back footprint, turn 180° about x (a turn, not a mirror, so a
+  part keeps its handedness), then turn about z by the footprint's angle, then move to (x, −y) and up to the board's top (or down to its
+  bottom for a back footprint). Pinned by tests that place an asymmetric model and check its corners against this chain worked by hand.
+- **Scale:** supported. The scale is applied to the model as read, once per distinct (model, scale), before it is placed. A uniform scale is
+  an exact similarity (surfaces keep their kind); an uneven one is OpenCascade's general transform, which turns the model's surfaces into
+  B-splines with the same faces, so names hold. A mesh is scaled point by point.
+- **Paths:** `kicad-embed://name` is a model stored in the board (below). `${KIPRJMOD}` is the board's folder; `${KICADn_3DMODEL_DIR}` (n = 6 to 10) is that environment variable when set, else KiCad's
   library folder where KiCad installs it on this platform (macOS `/Applications/KiCad/KiCad.app/Contents/SharedSupport/3dmodels`, Linux
   `/usr/share/kicad/3dmodels`, Windows `C:\Program Files\KiCad\<n>.0\share\kicad\3dmodels`); `${VAR}` names in KiCad's own `kicad_common.json`
   path table too (KI-2) **(call)**; a relative path is against the board's folder. An absolute path into a known KiCad library folder of any
   platform (any of the three above, any version) is remapped to this platform's folder, because KiCad often writes models that way: on the
   user's board 227 of 348 model paths are absolute macOS paths, which would all be missing on Linux and Windows. **(call)** A `.wrl` whose
-  same-named `.step` or `.stp` exists beside it is read as the STEP (KiCad's library ships both). Models embedded in a KiCad 9+ board
-  (`embedded_files`, `kicad-embed://`, zstd-compressed) are not read yet: one warning names them. A zstd decoder of our own is later work.
-  **(call)**
-- **Reading:** STEP through OpenCascade's reader (the shim has `occt_read_step`), each distinct file once per evaluation and cached by its stamp,
-  then placed with `Kernel.place`. VRML 2 (`.wrl`): our own reader for what KiCad's models use, `IndexedFaceSet` under `Transform` and `Shape`,
-  colours ignored, anything else skipped with a warning; it makes a `TriangleMesh`.
+  same-named `.step` or `.stp` exists beside it is read as the STEP (KiCad's library ships both).
+- **Models stored in the board** (KiCad 9+, from version 20240706): `(embedded_files (file (name "x.step") (type model) (data |…|)
+  (checksum "…")))` in the board and in each footprint; a footprint's own files are looked in first, then the board's. The data is base64
+  (lines, the first starting and the last ending with `|`) of one zstd frame of the file. Decoded by our own `ZstdDecoder` (RFC 8878, portable,
+  no library), bounded: the frame's content size, when stated, is checked against the model limit before allocating, and output stops at the
+  limit when it isn't. The checksum (MurmurHash3, or SHA-256 in early 9.0 files) is not checked: a damaged frame fails to decode on its own.
+  A stored model is cached by its hash, as an embedded picture is, and is part of the board's stamp.
+- **Formats**, chosen by the name's extension as KiCad chooses them, then confirmed by the bytes (a gzip header, `ISO-10303-21`, IGES's
+  column-73 section letters, `#VRML V1.0`, `#VRML V2.0`, `<X3D`, IDF's `.HEADER`), in any case:
+  - STEP `.step`, `.stp`; compressed STEP `.stpz`, `.stepz`, `.stp.gz`, `.step.gz` (gzip, inflated by our `Inflate`, which moves to a
+    portable place both modules can use): solids, read by OpenCascade from bytes.
+  - IGES `.igs`, `.iges`: solids through OpenCascade's IGES reader (the `TKDEIGES` toolkit, linked on all three platforms).
+  - VRML `.wrl`, compressed VRML `.wrz` (gzip): our `VRMLReader`, VRML 1 and VRML 2, the geometry KiCad's models and exporters use
+    (`IndexedFaceSet`, `Coordinate`/`Coordinate3`, `Transform`, `Group`, `Separator`, `MatrixTransform`, `Box`, `DEF`/`USE`), colours
+    ignored, anything else skipped with one warning; meshes.
+  - X3D `.x3d`: our `X3DReader` over `XMLScanner` (`IndexedFaceSet`, `IndexedTriangleSet`, `Coordinate`, `Transform`, `Group`, `Shape`,
+    `DEF`/`USE`); meshes.
+  - Units as KiCad's: VRML 1, VRML 2 and X3D coordinates are in 0.1 inch (× 2.54), except a VRML 2 file whose top-level `Transform` has a
+    scale other than 1, which KiCad reads as already in mm.
+  - IDF `.idf` (a component outline: a closed outline and a height): a solid, the outline extruded, made by the kernel.
+- **Reading:** each distinct model once per evaluation, cached by its stamp, then placed with `Kernel.place` (solids) or moved point by
+  point (meshes).
+- **Mixed:** a footprint with a solid model and a mesh model gives a solid in `components` and a mesh in `component meshes`.
 - **Missing:** a model that can't be found or read gives no body, and one warning per kind: "12 components have no 3D model: C1, C2, R4 … (and
   5 more)."; "2 models weren't found: …"; "1 model couldn't be read: … (the STEP file contains no shapes)".
 
@@ -147,15 +180,20 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
 ### Limits
 
 - The board file at most 256 MB, nesting depth 64, a string at most 1 MB, at most 100,000 footprints, 1,000,000 pads and 10,000 distinct
-  models; each checked as it is reached, before allocation. A STEP model at most 256 MB, a VRML one at most 64 MB and 10,000,000 triangles
-  (Import Mesh's limit). Over a limit is a sentence naming it. The parser asks about cancellation every 65,536 tokens.
+  models; each checked as it is reached, before allocation. A STEP or IGES model at most 256 MB (after decompression), a VRML or X3D one at
+  most 64 MB and 10,000,000 triangles (Import Mesh's limit), an IDF one 16 MB; a compressed model or a stored one may not inflate past its
+  format's limit, and a stored model's base64 is limited by the board's own 256 MB. Over a limit is a sentence naming it. The parser asks about cancellation every 65,536 tokens.
 
 ## Construction
 
 - `CreatorPCB` (new module, portable, depends on `CreatorGeometry`): `SExpressionReader`, `KiCadBoardReader` (the board as values:
-  `KiCadBoard`, `BoardOutline`, `DrilledHole`, `Footprint`, `ModelReference`), `OutlineChainer`, `ModelPathResolver`. No kernel calls.
-- `CreatorImplicit/Import` gains `VRMLReader` (KI-3), beside `STLReader`.
-- `CreatorKernel`: `Kernel.readSTEP(at:)` (the shim exists; give it limits, cancellation between files and a test on every platform).
+  `KiCadBoard`, `BoardOutline`, `DrilledHole`, `Footprint`, `ModelReference`, `EmbeddedFile`), `OutlineChainer`, `ModelPathResolver`,
+  `ZstdDecoder`, `Base64`, `IDFReader`. No kernel calls.
+- `Inflate` (and a gzip wrapper) moves out of `CreatorImplicit` to where `CreatorPCB` can use it too (`CreatorGeometry/Compression`, the
+  lowest portable module), unchanged.
+- `CreatorImplicit/Import` gains `VRMLReader` and `X3DReader` (KI-3), beside `STLReader`.
+- `CreatorKernel`: `Kernel.readModel(_ bytes:, format: .step | .iges)` (the shim's `occt_read_step` becomes a reader from bytes; IGES joins
+  it) and `Kernel.scaled(_:by:)` (uniform: a similarity; uneven: the general transform), both refused by `FakeKernel`.
 - `CreatorNodes`: `ImportKiCadBoardNode`, with a `KiCadBoardCache` keyed by the board's stamp and each model's stamp, so moving one model on
   disk rereads only that model.
 - `CreatorGraph`: `NodeOutputs.dependencies` and the evaluator's re-stamping of them.
@@ -166,18 +204,23 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
 - **KI-1, the board:** the reader, outline, holes, thickness, the `board`, `outline` and mounting-hole outputs, origin and placement,
   facts, linking, File ▸ Import KiCad Board…, format 13, the identity keys for holes and outline sides. Tests on small boards made for the
   purpose.
-- **KI-2, STEP components:** model paths and remapping, STEP models, transforms, both sides, `TopoRole.imported`, the evaluator's
-  `dependencies`, the warnings; the placement test against KiCad's own STEP export of the same board.
-- **KI-3, VRML components:** `VRMLReader` and the `component meshes` output.
+  Every board version, from KiCad 4 to 11's transform form.
+- **KI-2, solid components:** model paths and remapping, STEP, compressed STEP and IGES, `Inflate` moved, scale, transforms, both sides,
+  `TopoRole.imported`, the evaluator's `dependencies`, the warnings.
+- **KI-3, mesh and outline components:** `VRMLReader` (1 and 2, `.wrz`), `X3DReader`, the units rule, the `component meshes` output, IDF.
+- **KI-4, models stored in the board:** `Base64`, `ZstdDecoder`, `embedded_files` in board and footprints, `kicad-embed://`.
 
 ## Tests
 
 - Fixtures are small boards written for the tests (a rectangle with four M3 mounting holes; a rounded outline with arcs, a Bézier edge and a
-  cutout; a footprint on each side with a STEP model offset and rotated, and one scaled (left out with its warning); an oval drill; an outline
-  that doesn't close). The user's own
+  cutout; a footprint on each side with a STEP model offset, rotated and scaled; an oval drill; an outline that doesn't close; the same board
+  in KiCad 4, 5, 6, 8 and 11 forms; a model in each format; a board with stored models). Models are small and written for the tests (a
+  lettered, asymmetric block, so a wrong turn or mirror shows). The user's own
   boards are never checked in; reading them is a human check.
-- Placement: a board fixture exported by `kicad-cli pcb export step` once (the exported STEP checked in beside it), and the imported
-  components' bounds held to that file's within 1e-3 mm. **(call: generated once on a machine with KiCad; KiCad is not a CI dependency)**
+- Placement: the asymmetric model's corners, placed front and back at several angles, offsets, turns and scales, held within 1e-6 mm to
+  KiCad's chain worked out by hand in the test. KiCad isn't installed on this Mac, so an export by KiCad itself is a human check (KI group).
+- zstd: frames made by the `zstd` command line (raw, RLE and compressed blocks, Huffman and FSE tables, repeat offsets, a dictionary-less
+  multi-block frame, a checksum) checked in with their plain bytes; damaged and truncated frames refused in words; a fuzz pass.
 - A digest of the board solid's tessellation and the outline's segments pinned on all three platforms, as Import Mesh's are.
 - Damaged files: a truncated file, an unbalanced parenthesis, an enormous string, deep nesting, a footprint count over the limit; each a
   sentence, none a crash; a fuzz pass over the tokenizer.
@@ -187,7 +230,8 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
 
 Import each of the user's keyboard boards: the outline, the switch-pin holes and the USB-C connector's place match KiCad's 3D viewer; the
 facts match KiCad's board statistics; a change saved in KiCad shows at the next evaluation; standoffs from the mounting holes line up; models
-from KiCad's library and from the project's folder both appear.
+from KiCad's library and from the project's folder both appear. With KiCad installed, a board's models placed by the import match KiCad's own
+STEP export (`kicad-cli pcb export step`) within 0.01 mm.
 
 ## Left to the builder
 
@@ -202,7 +246,8 @@ shares code with the 3MF reader's XML-free tokenizer.
 4. A new "Import" sub-group under Solid; Import Mesh stays where it is.
 5. The board is linked only, never embedded.
 6. Mounting holes found by KiCad's `MountingHole` footprint names, plus single non-plated pads of 2 mm and up.
-7. A model with a scale other than 1 is left out with a warning; models embedded in the board (KiCad 9+) are not read yet.
+7. Full support (2026-11-16): every board version from KiCad 4, scaled models, models stored in the board, and every model format KiCad's
+   viewer reads; only the pre-2016 `.brd` format and IDF board files as models are refused.
 8. Absolute paths into KiCad's library folders are remapped to this platform's folder.
 9. Picks follow KiCad's references through hashed integer keys; faces inside a model are named by their index in the model file.
 
