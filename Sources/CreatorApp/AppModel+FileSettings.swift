@@ -3,7 +3,7 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 
-/// The file of an Image Field or an Import Mesh node set from a path: an AI client's `set_file` (top level, like every client edit)
+/// The file of an Image Field, an Import Mesh or an Import KiCad Board node set from a path: an AI client's `set_file` (top level, like every client edit)
 /// and the inspector's buttons, which choose the file with a panel and then come here, so both share the checks and the undo names.
 extension AppModel {
     /// Links, or embeds, the picture at `url` on the Image Field `node` of the top level, as one undo step, or throws why not.
@@ -27,6 +27,20 @@ extension AppModel {
             throw AppProblem("That mesh file can't be used", problem.message)
         } catch {
             throw AppProblem("The mesh file couldn't be changed", Evaluator.message(for: error))
+        }
+    }
+
+    /// Links the KiCad board at `url` on the Import KiCad Board `node` of the top level, as one undo step, or throws why not.
+    /// A board is linked only: `embed` is refused.
+    public func setBoardFile(_ url: URL, on node: NodeID, embed: Bool) throws(AppProblem) {
+        do {
+            try attachBoardFile(url, embed: embed, to: topLevelTarget(node))
+        } catch let problem as AppProblem {
+            throw problem
+        } catch let problem as BoardImportProblem {
+            throw AppProblem("That board file can't be used", problem.message)
+        } catch {
+            throw AppProblem("The board file couldn't be changed", Evaluator.message(for: error))
         }
     }
 

@@ -76,7 +76,7 @@ Editing (each call is one named undo step):
 - `connect` / `disconnect`: wire an output into an input (replacing any wire there) or remove the wire.
 - `remove_nodes`: delete nodes and their wires.
 - `rename_node`, `set_output` (mark or unmark an Output), `move_node`.
-- `set_file`: set the file of an Image Field (a picture) or an Import Mesh node (STL or 3MF), linked or embedded.
+- `set_file`: set the file of an Image Field (a picture) an Import Mesh node (STL or 3MF), linked or embedded, or an Import KiCad Board node (a `.kicad_pcb`, linked only: `embed` is refused).
 - `batch`: several edit operations as one undo step, or none if any is refused. The step is named "Build" (it adds a node), "Delete", "Rewire", "Rearrange" or "Edit Graph", or after its one operation; an optional `step_name` picks one of Build, Rewire, Rearrange, Clean Up, Delete or Edit Graph (no other text).
 
 Edit results list each `changed` node (state or outputs changed, so downstream nodes whose geometry changed are listed too, not only the node edited) with its `outputs` summaries.

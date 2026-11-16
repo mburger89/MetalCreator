@@ -17,6 +17,10 @@ extension ContentType {
     public static let threeMF = ContentType("org.3mf.3mf", conformingTo: [.data], filenameExtensions: ["3mf"],
                                                localizedDescription: "3MF model")
 
+    /// A KiCad board, read by the Import KiCad Board node.
+    public static let kicadPCB = ContentType("org.kicad.pcb", conformingTo: [.data], filenameExtensions: ["kicad_pcb"],
+                                             localizedDescription: "KiCad board")
+
     /// The file type an export format writes.
     public static func exported(_ kind: ExportKind) -> ContentType {
         switch kind {

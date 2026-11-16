@@ -195,8 +195,10 @@ final class AppDocumentSession: DocumentSession {
                 try inner.performExternal { () throws(AppProblem) in try model.setImageFile(url, on: node, embed: embed) }
             case ImportMeshNode.typeID:
                 try inner.performExternal { () throws(AppProblem) in try model.setMeshFile(url, on: node, embed: embed) }
+            case ImportKiCadBoardNode.typeID:
+                try inner.performExternal { () throws(AppProblem) in try model.setBoardFile(url, on: node, embed: embed) }
             default:
-                return .refused("Only an Image Field or an Import Mesh node holds a file.")
+                return .refused("Only an Image Field, an Import Mesh or an Import KiCad Board node holds a file.")
             }
             return .done(nil)
         } catch {

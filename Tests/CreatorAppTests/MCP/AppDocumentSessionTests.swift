@@ -153,6 +153,23 @@ struct AppDocumentSessionTests {
         #expect(!undone.isError, "a file setting is the client's own step")
     }
 
+    @Test func setFileLinksAKiCadBoardAndRefusesEmbedding() async throws {
+        var builder = GraphBuilder()
+        let board = builder.add(ImportKiCadBoardNode.self)
+        let (app, _, core) = await rig(builder.graph)
+        let url = temporaryURL("mcp-board.kicad_pcb")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("(kicad_pcb (version 20260206))\n".utf8).write(to: url)
+        let id = JSONValue.string(board.id.rawValue.uuidString)
+        let embedded = try await call(core, "set_file", .object(["node": id, "path": .string(url.path), "embed": .bool(true)]))
+        #expect(embedded.isError)
+        #expect(app.document.graph.nodes[board.id]?.inputValues[NodeSetting.pcbFile] == nil)
+        let linked = try await call(core, "set_file", .object(["node": id, "path": .string(url.path)]))
+        #expect(!linked.isError)
+        #expect(app.document.graph.nodes[board.id]?.inputValues[NodeSetting.pcbFile]?.fileReference?.isEmbedded == false)
+        #expect(app.document.undoName == "Choose Board File")
+    }
+
     // MARK: Refusals
 
     /// A sample of every family of client edit: adding, setting, wiring, undoing, a file setting and a file save.

@@ -18,8 +18,7 @@ public enum AppCommands {
                     .keyboardShortcut("n")
                 Button("Open…") { model.withFilePicker { await model.openDocument(using: $0) } }
                     .keyboardShortcut("o")
-                Button("Import Mesh…") { model.withFilePicker { await model.importMesh(using: $0) } }
-                    .disabled(!model.canImportMesh)
+                importItems(model)
                 Button("Save") { model.withFilePicker { await model.saveDocument(using: $0) } }
                     .keyboardShortcut("s")
                 Button("Save As…") { model.withFilePicker { await model.saveDocumentAs(using: $0) } }
@@ -63,6 +62,16 @@ public enum AppCommands {
 
     /// The AI connections switch (MCP-1): a checkmark while on. When another window serves the socket, or the listener couldn't
     /// start, the title says so and choosing the item asks again (`MCPService.menuChosen`).
+    /// File ▸ Import Mesh… and Import KiCad Board….
+    @MainActor
+    @MenuContentBuilder
+    static func importItems(_ model: AppModel) -> MenuItems {
+        Button("Import Mesh…") { model.withFilePicker { await model.importMesh(using: $0) } }
+            .disabled(!model.canImportMesh)
+        Button("Import KiCad Board…") { model.withFilePicker { await model.importKiCadBoard(using: $0) } }
+            .disabled(!model.canImportKiCadBoard)
+    }
+
     @MainActor
     @MenuContentBuilder
     static func aiConnectionsItem(_ model: AppModel) -> MenuItems {

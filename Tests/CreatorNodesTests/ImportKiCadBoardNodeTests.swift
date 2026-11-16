@@ -179,7 +179,14 @@ struct ImportKiCadBoardNodeTests {
         #expect(plain.results[a.id]?.facts.contains(PayloadFact("Holes", "4 drilled, 4 mounting")) == true)
         let (on, b) = try node(text, ["vias": .bool(true)])
         let withVias = try await run(on, b, OCCTKernel())
-        #expect(withVias.results[b.id]?.facts.contains(PayloadFact("Holes", "4 drilled, 4 mounting, 1 vias")) == true)
+        #expect(withVias.results[b.id]?.facts.contains(PayloadFact("Holes", "4 drilled, 4 mounting, 1 via")) == true)
+    }
+
+    @Test func viasArePluralInTheHolesFact() async throws {
+        let text = KiCadBoardText.rectangle(extra: KiCadBoardText.via(x: 20, y: 20) + KiCadBoardText.via(x: 30, y: 30))
+        let (on, a) = try node(text, ["vias": .bool(true)])
+        let report = try await run(on, a, OCCTKernel())
+        #expect(report.results[a.id]?.facts.contains(PayloadFact("Holes", "4 drilled, 4 mounting, 2 vias")) == true)
     }
 
     @Test func facts() async throws {

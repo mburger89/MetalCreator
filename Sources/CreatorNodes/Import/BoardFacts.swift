@@ -29,6 +29,11 @@ enum BoardFacts {
     /// "189 drilled, 4 mounting": pad holes only; vias, when the node includes them, add ", 120 vias".
     static func holesText(board: KiCadBoard, mounting: Int, includesVias: Bool) -> String {
         let drilled = board.footprints.reduce(0) { $0 + $1.holes.count }
-        return "\(drilled.display) drilled, \(mounting.display) mounting" + (includesVias ? ", \(board.vias.count.display) vias" : "")
+        var text = "\(drilled.display) drilled, \(mounting.display) mounting"
+        if includesVias {
+            let count = board.vias.count
+            text += ", \(count.display) \(count == 1 ? "via" : "vias")"
+        }
+        return text
     }
 }
