@@ -12,21 +12,25 @@ struct KiCadBoardCacheTests {
         ParsedBoard(board: KiCadBoard(), outline: BoardOutline(outer: [], holes: [], outerKeys: [], holeKeys: []))
     }
 
-    /// Blocks the calling thread (a synchronous helper: the compiler refuses `wait` where `async` shows).
-    private static func arrived(_ semaphore: DispatchSemaphore) -> Bool { semaphore.wait(timeout: .now() + 10) == .success }
+    /// Blocks the calling thread (a synchronous helper: the compiler refuses `wait` where `async` shows). Generous, because the
+    /// slow read holds one of the shared pool's threads while it waits, and a loaded machine (Windows CI ran it at 148 s) may take
+    /// long to give the fast board another; nothing else here blocks a pool thread.
+    private static func arrived(_ semaphore: DispatchSemaphore) -> Bool { semaphore.wait(timeout: .now() + 300) == .success }
 
     @Test func aSlowParseDoesNotBlockAnotherBoard() async throws {
         let cache = KiCadBoardCache()
-        let slowStarted = DispatchSemaphore(value: 0)
+        let (slowStarted, started) = AsyncStream.makeStream(of: Void.self)
         let fastDone = DispatchSemaphore(value: 0)
         let board = parsed()
         async let slow: ParsedBoard = cache.board(for: stamp("slow")) {
-            slowStarted.signal()
+            started.yield()
+            started.finish()
             // Waits for the other board to finish; with the parse inside the actor that would never come.
             #expect(Self.arrived(fastDone))
             return board
         }
-        #expect(await Task.detached { Self.arrived(slowStarted) }.value)
+        // Waits without holding a thread, so the slow read's blocked thread is the only one taken from the pool.
+        for await _ in slowStarted { break }
         _ = try await cache.board(for: stamp("fast")) { board }
         fastDone.signal()
         _ = try await slow
