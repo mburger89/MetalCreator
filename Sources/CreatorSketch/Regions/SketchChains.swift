@@ -17,12 +17,13 @@ public struct SketchChain: Hashable, Sendable {
 
 /// Chains a solved sketch's curves for the Sketch node's `curves` output.
 public enum SketchChains {
-    /// Points closer than this (mm) are one point, as the kernel's own join check (1e-6) allows.
-    static let joinTolerance = 1e-7
+    /// Points closer than this (mm) are one point: the region graph's own rule, so a chain closes exactly when a region does.
+    static let joinTolerance = CurveIntersection.tolerance
 
     /// Every non-construction curve (projected edges included) chained at the points where exactly two curve ends
     /// meet; a point where one or three or more end ends a chain, and a circle is its own closed chain. Chains are ordered
-    /// by their lowest-numbered curve in the sketch, so an edit elsewhere never reorders them.
+    /// by the lowest curve index (entity ID order) among their pieces, so an edit elsewhere never reorders them; an open chain
+    /// starts at its end whose curve has the lower index.
     public static func find(in solved: Sketch) -> [SketchChain] {
         let curves = solved.curves(includingConstruction: false)
         var points: [Vector2] = []

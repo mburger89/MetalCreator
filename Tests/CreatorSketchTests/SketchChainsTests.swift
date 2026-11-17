@@ -70,4 +70,46 @@ struct SketchChainsTests {
         #expect(chains[0].isClosed && chains[0].sources == [circle])
         #expect(!chains[1].isClosed && chains[1].sources == [spline])
     }
+
+    @Test func anArcAndASplineWalkedBackwardsAreReversed() throws {
+        var sketch = Sketch()
+        let a = sketch.addPoint(Vector2(0, 0)), b = sketch.addPoint(Vector2(10, 0))
+        let c = sketch.addPoint(Vector2(10, 10)), d = sketch.addPoint(Vector2(20, 10))
+        _ = sketch.addLine(from: a, to: b)
+        let center = sketch.addPoint(Vector2(10, 5))
+        // Counter-clockwise from c to b about (10, 5), so the chain from a reaches it at its end.
+        _ = sketch.addArc(center: center, start: c, end: b)
+        _ = sketch.addSpline(through: [d, sketch.addPoint(Vector2(15, 14)), c])
+        let chain = try #require(SketchChains.find(in: sketch).first)
+        #expect(chain.segments.count == 3 && !chain.isClosed)
+        guard case .arc(_, _, let start, let end) = chain.segments[1] else { Issue.record("not an arc"); return }
+        #expect(end.radians < start.radians)
+        for (x, y) in zip(chain.segments, chain.segments.dropFirst()) { #expect(isClose(x.endPoint, y.startPoint, tolerance: 1e-6)) }
+        #expect(isClose(chain.segments[2].endPoint, Vector2(20, 10), tolerance: 1e-6))
+    }
+
+    @Test func aClosedCycleWhoseFirstCurveIsStoredReversedStillClosesInOrder() {
+        var sketch = Sketch()
+        let p = [Vector2(0, 0), Vector2(10, 0), Vector2(5, 8), Vector2(-2, 5)].map { sketch.addPoint($0) }
+        let lines = [sketch.addLine(from: p[1], to: p[0]), sketch.addLine(from: p[1], to: p[2]),
+                     sketch.addLine(from: p[2], to: p[3]), sketch.addLine(from: p[3], to: p[0]),
+        ]
+        let chains = SketchChains.find(in: sketch)
+        #expect(chains.count == 1 && chains[0].isClosed && chains[0].segments.count == 4)
+        #expect(chains[0].sources == [lines[0], lines[3], lines[2], lines[1]])
+        let segments = chains[0].segments
+        for (x, y) in zip(segments, segments.dropFirst() + [segments[0]]) { #expect(isClose(x.endPoint, y.startPoint)) }
+    }
+
+    @Test func anUnrelatedEditElsewhereKeepsTheChainsOrder() {
+        var sketch = Sketch()
+        let circle = sketch.addCircle(center: Vector2(0, 0), radius: 3)
+        let line = sketch.addLine(Vector2(10, 0), Vector2(20, 0))
+        let before = SketchChains.find(in: sketch)
+        _ = sketch.addLine(Vector2(50, 50), Vector2(60, 60))
+        let after = SketchChains.find(in: sketch)
+        #expect(after.count == 3)
+        #expect(Array(after.prefix(2)) == before)
+        #expect(after.map { $0.sources[0] }.prefix(2) == [circle, line])
+    }
 }

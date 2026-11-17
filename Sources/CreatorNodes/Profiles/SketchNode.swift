@@ -81,7 +81,7 @@ public enum SketchNode: NodeDefinition {
             "profiles": output.profiles.map(Scalar.profile),
             "measurements": output.measurements.map(Scalar.number),
         ]
-        let made = await curves(of: output.sketch, on: plane, kernel: kernel, node: context.node.id)
+        let made = try await curves(of: output.sketch, on: plane, kernel: kernel, node: context.node.id)
         lists["curves"] = made.curves
         var outputs = NodeOutputs(lists: lists, warnings: warnings + output.warnings + made.warnings)
         outputs.dimensions = dimensions(of: output, on: plane)
@@ -91,12 +91,14 @@ public enum SketchNode: NodeDefinition {
 
     /// One curve per chain of the sketch; a kernel that refuses gives none and a warning, never a failed node.
     private static func curves(of sketch: Sketch, on plane: Plane, kernel: any Kernel,
-                               node: NodeID) async -> (curves: [Scalar], warnings: [String]) {
+                               node: NodeID) async throws -> (curves: [Scalar], warnings: [String]) {
         var made: [Scalar] = []
         for (index, chain) in SketchChains.find(in: sketch).enumerated() {
             let pieces = CurvePiece.pieces(of: chain.segments, on: plane)
             do {
                 made.append(.curve(try await kernel.makeCurve(pieces, tag: NodeTag(node: node, item: index))))
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 return ([], ["\(curvesFailed) \(reason(of: error))"])
             }
@@ -105,7 +107,7 @@ public enum SketchNode: NodeDefinition {
     }
 
     private static func reason(of error: any Error) -> String {
-        (error as? KernelError)?.userMessage ?? (error as? NodeError)?.message ?? "\(error)"
+        (error as? KernelError)?.userMessage ?? (error as? NodeError)?.message ?? "the kernel refused them."
     }
 
     /// The projected entity of `trace.sketch` whose stored pick (`NodeSetting.projection(reference)` on `node`) locates
