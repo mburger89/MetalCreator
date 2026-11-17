@@ -142,5 +142,66 @@ struct SheetBuilderTests {
             }
         }
     }
+
+    @Test func zeroDistanceIsRefused() async throws {
+        let kernel = OCCTKernel()
+        await #expect(throws: KernelError.invalidInput("The distance must be greater than 0 mm.")) {
+            _ = try await kernel.extrude(try await threeLines(kernel), direction: .unitZ, distance: 0, symmetric: false, tag: tag)
+        }
+    }
+
+    @Test func sectionsWithDifferentPieceCountsAreRefused() async throws {
+        let kernel = OCCTKernel()
+        let lines = try await threeLines(kernel)
+        let single = try await arc(kernel, z: 5)
+        for ruled in [false, true] {
+            await #expect(throws: KernelError.invalidInput("Loft sections need the same number of pieces.")) {
+                _ = try await kernel.loftSurface([lines, single], ruled: ruled, closed: false, tag: tag)
+            }
+        }
+    }
+
+    func faceSpans(_ sheet: Solid) -> Set<Int> {
+        var spans: Set<Int> = []
+        for face in sheet.topology.faces {
+            for item in face.tags { if case .side(let loop, _) = item.role { spans.insert(loop) } }
+        }
+        return spans
+    }
+
+    func railCount(_ sheet: Solid, _ which: Int) -> Int { count(sheet, .rail(which)) }
+
+    func untaggedBoundaries(_ sheet: Solid) -> Int { sheet.topology.edges.filter { $0.isBoundary && $0.tags.isEmpty }.count }
+
+    @Test func aRuledOpenLoftOfThreeSectionsNamesEverySpanAndRail() async throws {
+        let kernel = OCCTKernel()
+        let sections = [try await arc(kernel, z: 0), try await arc(kernel, z: 5, radius: 7), try await arc(kernel, z: 9)]
+        let sheet = try await kernel.loftSurface(sections, ruled: true, closed: false, tag: tag)
+        #expect(sheet.topology.faces.count == 2)
+        #expect(faceSpans(sheet) == [0, 1])
+        #expect(sheet.topology.faces.allSatisfy { $0.tags.count == 1 })
+        #expect(count(sheet, .start) == 1 && count(sheet, .end) == 1)
+        #expect(railCount(sheet, 0) == 2 && railCount(sheet, 1) == 2)
+        #expect(untaggedBoundaries(sheet) == 0)
+    }
+
+    @Test func aSmoothOpenLoftOfThreeSectionsIsOneNamedSpan() async throws {
+        let kernel = OCCTKernel()
+        let sections = [try await arc(kernel, z: 0), try await arc(kernel, z: 5, radius: 7), try await arc(kernel, z: 9)]
+        let sheet = try await kernel.loftSurface(sections, ruled: false, closed: false, tag: tag)
+        #expect(sheet.topology.faces.count == 1 && faceSpans(sheet) == [0])
+        #expect(count(sheet, .start) == 1 && count(sheet, .end) == 1)
+        #expect(railCount(sheet, 0) == 1 && railCount(sheet, 1) == 1)
+        #expect(untaggedBoundaries(sheet) == 0)
+    }
+
+    @Test func aRuledClosedLoftNamesEverySpanIncludingTheReturn() async throws {
+        let kernel = OCCTKernel()
+        let sections = [try await circle(kernel, z: 0), try await circle(kernel, z: 5, radius: 7), try await circle(kernel, z: 9)]
+        let sheet = try await kernel.loftSurface(sections, ruled: true, closed: true, tag: tag)
+        #expect(sheet.topology.faces.count == 3 && faceSpans(sheet) == [0, 1, 2])
+        #expect(count(sheet, .start) == 0 && count(sheet, .end) == 0)
+        #expect(untaggedBoundaries(sheet) == 0)
+    }
 }
 #endif

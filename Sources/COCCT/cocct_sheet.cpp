@@ -284,6 +284,9 @@ occt_shape *occt_extrude_curve(const occt_shape *curve, const double direction[3
         if (vector.Magnitude() < 1e-12) {
             throw user_error("The direction can't be zero.");
         }
+        if (!std::isfinite(distance) || distance <= 0) {
+            throw user_error("The distance must be greater than 0 mm.");
+        }
         const gp_Vec unit = vector.Normalized();
         // A symmetric extrusion starts the curve distance behind its place. Moving the wire only sets a location, so
         // the caller's curve is untouched.
@@ -395,24 +398,34 @@ occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int r
         const TopoDS_Shape result = loft.Shape();
         check_valid(result, "The sections can't be lofted.");
         history_builder records(result);
-        const std::vector<TopoDS_Edge> edges = wire_edges(wires.front());
-        for (std::size_t k = 0; k < edges.size(); ++k) {
-            records.add(loft.GeneratedFace(edges[k]), OCCT_FROM_SEGMENT, 0, static_cast<int>(k));
+        // A smooth loft is one span; a ruled one has a span between each pair of sections (and back to the first when closed).
+        const int span_count = ruled ? (closed ? count : count - 1) : 1;
+        for (int span = 0; span < span_count; ++span) {
+            const std::vector<TopoDS_Edge> span_edges = wire_edges(wires[span]);
+            for (std::size_t k = 0; k < span_edges.size(); ++k) {
+                records.add(loft.GeneratedFace(span_edges[k]), OCCT_FROM_SEGMENT, span, static_cast<int>(k));
+            }
         }
         records.move_into(history);
         boundary_table table(result);
+        TopTools_IndexedDataMapOfShapeListOfShape owners;
+        TopExp::MapShapesAndAncestors(result, TopAbs_EDGE, TopAbs_FACE, owners);
+        const auto vertices_of = [](const TopoDS_Wire &wire) {
+            std::vector<gp_Pnt> points;
+            for (TopExp_Explorer it(wire, TopAbs_VERTEX); it.More(); it.Next()) {
+                points.push_back(BRep_Tool::Pnt(TopoDS::Vertex(it.Current())));
+            }
+            return points;
+        };
+        const auto among = [](const std::vector<gp_Pnt> &points, const gp_Pnt &p) {
+            return std::any_of(points.begin(), points.end(), [&](const gp_Pnt &q) { return q.Distance(p) < 1e-5; });
+        };
         if (!closed) {
-            name_edges(table, loft.FirstShape(), loft.LastShape());
             name_edges(table, wires.front(), wires.back());
-        }
-        if (!sections_closed && !edges.empty()) {
-            // The rails are the edges of one face that are neither section: the one reaching the first section's first
-            // vertex is rail 0, the one reaching its last vertex rail 1.
-            TopTools_IndexedDataMapOfShapeListOfShape owners;
-            TopExp::MapShapesAndAncestors(result, TopAbs_EDGE, TopAbs_FACE, owners);
-            const gp_Pnt from = BRep_Tool::Pnt(TopExp::FirstVertex(edges.front(), Standard_True));
-            const gp_Pnt to = BRep_Tool::Pnt(TopExp::LastVertex(edges.back(), Standard_True));
-            const double tolerance = 1e-5;
+            // A smooth loft over three or more sections rebuilds its end edges, so they are also found as the free
+            // edges that run between the vertices of one end section.
+            const std::vector<gp_Pnt> start_points = vertices_of(wires.front());
+            const std::vector<gp_Pnt> end_points = vertices_of(wires.back());
             for (int i = 1; i <= owners.Extent(); ++i) {
                 const TopoDS_Edge edge = TopoDS::Edge(owners.FindKey(i));
                 if (BRep_Tool::Degenerated(edge) || owners(i).Extent() != 1) {
@@ -420,9 +433,35 @@ occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int r
                 }
                 const gp_Pnt a = BRep_Tool::Pnt(TopExp::FirstVertex(edge, Standard_True));
                 const gp_Pnt b = BRep_Tool::Pnt(TopExp::LastVertex(edge, Standard_True));
-                if (a.Distance(from) < tolerance || b.Distance(from) < tolerance) {
+                if (among(start_points, a) && among(start_points, b)) {
+                    table.set(edge, kBoundaryStart);
+                } else if (among(end_points, a) && among(end_points, b)) {
+                    table.set(edge, kBoundaryEnd);
+                }
+            }
+        }
+        if (!sections_closed) {
+            // Rails: the single-face edges that join the sections' first vertices (rail 0) or last vertices (rail 1).
+            std::vector<gp_Pnt> firsts;
+            std::vector<gp_Pnt> lasts;
+            for (const TopoDS_Wire &wire : wires) {
+                const std::vector<TopoDS_Edge> wire_list = wire_edges(wire);
+                if (wire_list.empty()) {
+                    continue;
+                }
+                firsts.push_back(BRep_Tool::Pnt(TopExp::FirstVertex(wire_list.front(), Standard_True)));
+                lasts.push_back(BRep_Tool::Pnt(TopExp::LastVertex(wire_list.back(), Standard_True)));
+            }
+            for (int i = 1; i <= owners.Extent(); ++i) {
+                const TopoDS_Edge edge = TopoDS::Edge(owners.FindKey(i));
+                if (BRep_Tool::Degenerated(edge) || owners(i).Extent() != 1) {
+                    continue;
+                }
+                const gp_Pnt a = BRep_Tool::Pnt(TopExp::FirstVertex(edge, Standard_True));
+                const gp_Pnt b = BRep_Tool::Pnt(TopExp::LastVertex(edge, Standard_True));
+                if (among(firsts, a) && among(firsts, b)) {
                     table.set(edge, kBoundaryRail, 0);
-                } else if (a.Distance(to) < tolerance || b.Distance(to) < tolerance) {
+                } else if (among(lasts, a) && among(lasts, b)) {
                     table.set(edge, kBoundaryRail, 1);
                 }
             }

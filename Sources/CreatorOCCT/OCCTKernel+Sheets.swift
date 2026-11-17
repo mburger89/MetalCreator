@@ -74,6 +74,9 @@ extension OCCTKernel {
             throw KernelError.invalidInput(
                 "Section \(index + 1) is \(this) and section 1 is \(first); a loft's sections must all be open or all closed.")
         }
+        guard sections.allSatisfy({ $0.pieceCount == sections[0].pieceCount }) else {
+            throw KernelError.invalidInput("Loft sections need the same number of pieces.")
+        }
         let wires = try sections.map { try curveShape(of: $0) }
         return try buildSheet("loft", tag: tag) { try OCCTShape.loftCurves(wires, ruled: ruled, closed: closed) }
     }
