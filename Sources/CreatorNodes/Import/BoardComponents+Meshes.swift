@@ -25,7 +25,7 @@ extension ModelFiles {
     /// An IDF outline extruded by its height and named like a read STEP solid.
     static func readOutline(at path: String, stamp: ImageStamp, kernel: any Kernel,
                             tag: NodeTag) async throws -> ComponentModelCache.Made {
-        let file = try fileBytes(at: path)
+        let file = try fileBytes(at: path, limit: IDFReader.maximumBytes)
         guard ModelFormat.idf.matches(file.data) else { throw ModelProblem("the file isn't an IDF model", isRemembered: true) }
         let outline = try idfOutline(file.data)
         do {
@@ -46,7 +46,7 @@ extension ModelFiles {
 
     /// A VRML, compressed VRML or X3D model's mesh, in the file's units. Synchronous, so no loop's locals live across an `await`.
     static func readMesh(at path: String, format: ModelFormat, stamp: ImageStamp) throws -> ComponentModelCache.MadeMesh {
-        let file = try fileBytes(at: path)
+        let file = try fileBytes(at: path, limit: format == .vrmlGzip ? BoardComponents.maxModelBytes : VRMLReader.maximumBytes)
         var bytes = file.data
         let word = format == .x3d ? "X3D" : "VRML"
         guard format.matches(bytes) else { throw ModelProblem("the file isn't a \(word) model", isRemembered: true) }
@@ -67,10 +67,13 @@ extension ModelFiles {
     /// A reader's sentence as the phrase in parentheses: "This VRML file uses a shape before it is defined." becomes
     /// "it uses a shape before it is defined"; any other sentence is lower-cased and its period dropped.
     static func readerReason(_ sentence: String) -> String {
-        for prefix in ["This VRML file ", "This X3D file ", "This IDF file "] where sentence.hasPrefix(prefix) {
-            var rest = String(sentence.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            if rest.hasSuffix(".") { rest.removeLast() }
-            return "it " + rest
+        for format in ["VRML", "X3D", "IDF"] {
+            let starts = [("This \(format) file ", "it "), ("This \(format) file's ", "its ")]
+            for (prefix, subject) in starts where sentence.hasPrefix(prefix) {
+                var rest = String(sentence.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if rest.hasSuffix(".") { rest.removeLast() }
+                return subject + rest
+            }
         }
         return reason(from: sentence)
     }
@@ -83,6 +86,9 @@ extension ModelFiles {
         case .noTriangles: "it has no triangles"
         case .tooLarge, .modelTooLarge: "it is larger than \(VRMLReader.maximumBytes >> 20) MB"
         case .coordinatesOverflow: "its coordinates are too large"
+        case .malformedModel(let reason):
+            // The XML scanner's own wording ("it stops inside a tag.") with the final period dropped.
+            reason.hasSuffix(".") ? String(reason.dropLast()) : reason
         default: readerReason(problem.message)
         }
     }
@@ -143,34 +149,54 @@ extension Placer {
     }
 }
 
+/// The most triangles a footprint's joined mesh, and all of a board's `component meshes`, may hold (injectable for tests).
+struct MeshLimits: Sendable {
+    var footprint = MeshImportLimits.maxTriangles
+    var board = 20_000_000
+}
+
 extension BoardComponents {
-    /// A footprint's pieces joined into one mesh each, in the order of the pieces (R2: vertices are not welded across models).
+    @TaskLocal static var meshLimits = MeshLimits()
+
+    /// A footprint's pieces joined into one mesh each, in the order of the pieces (R2: vertices are not welded across models). A
+    /// footprint whose meshes hold too many triangles together is left out and named; once the board's budget is spent, so is every
+    /// footprint after it, counted in one warning.
     static func joined(_ pieces: [MeshPiece], board: KiCadBoard, problems: inout Problems) -> [(footprint: Int, mesh: TriangleMesh)] {
         var meshes: [(footprint: Int, mesh: TriangleMesh)] = []
         var start = 0
+        var spent = 0
+        var exhausted = false
         while start < pieces.count {
             var end = start + 1
             while end < pieces.count, pieces[end].footprint == pieces[start].footprint { end += 1 }
             let group = pieces[start..<end]
+            let footprint = board.footprints[pieces[start].footprint]
+            let triangles = group.reduce(0) { $0 + $1.triangles.count / 3 }
             let vertices = group.reduce(0) { $0 + $1.positions.count }
-            if vertices > Int(UInt32.max) {
+            if triangles > meshLimits.footprint {
+                let name = footprint.reference.isEmpty ? "unnamed" : footprint.reference
+                problems.unreadable.append("\(name) (its meshes have more than \(meshLimits.footprint.display) triangles together)")
+            } else if exhausted || spent + triangles > meshLimits.board {
+                exhausted = true
+                problems.meshesLeftOut += 1
+            } else if vertices > Int(UInt32.max) {
                 problems.unreadable.append("\(group.map(\.name).joined(separator: " and ")) (they have too many points to join)")
             } else {
+                spent += triangles
                 var positions: [SIMD3<Float>] = []
-                var triangles: [UInt32] = []
+                var indices: [UInt32] = []
                 positions.reserveCapacity(vertices)
                 for piece in group {
                     let offset = UInt32(positions.count)
                     positions += piece.positions
-                    triangles += piece.triangles.map { $0 + offset }
+                    indices += piece.triangles.map { $0 + offset }
                 }
-                meshes.append((pieces[start].footprint, mesh(positions, triangles, footprint: board.footprints[pieces[start].footprint])))
+                meshes.append((pieces[start].footprint, mesh(positions, indices, footprint: footprint)))
             }
             start = end
         }
         return meshes
     }
-
     private static func mesh(_ positions: [SIMD3<Float>], _ triangles: [UInt32], footprint: Footprint) -> TriangleMesh {
         var low = SIMD3<Float>(repeating: .infinity), high = SIMD3<Float>(repeating: -.infinity)
         for point in positions {

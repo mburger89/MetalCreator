@@ -16,7 +16,7 @@ enum BoardComponents {
     /// What a board's components came to.
     struct Outcome {
         var solids: [Solid] = []
-        /// One mesh per footprint with a VRML or X3D model, in the same order as the solids.
+        /// One mesh per footprint with a VRML or X3D model, in natural reference order.
         var meshes: [TriangleMesh] = []
         /// How many footprints have a solid, a mesh or both.
         var withModel = 0

@@ -40,7 +40,7 @@ enum ModelFiles {
     static func read(at path: String, format: ModelFormat, stamp: ImageStamp, kernel: any Kernel,
                      tag: NodeTag) async throws -> ComponentModelCache.Made {
         if format == .idf { return try await readOutline(at: path, stamp: stamp, kernel: kernel, tag: tag) }
-        let file = try fileBytes(at: path)
+        let file = try fileBytes(at: path, limit: BoardComponents.maxModelBytes)
         var bytes = file.data
         let word = format == .iges ? "IGES" : "STEP"
         guard format.matches(bytes) else { throw ModelProblem("the file isn't a \(word) model", isRemembered: true) }
@@ -64,9 +64,9 @@ enum ModelFiles {
         }
     }
 
-    static func fileBytes(at path: String) throws -> (data: Data, stamp: ImageStamp) {
+    static func fileBytes(at path: String, limit: Int) throws -> (data: Data, stamp: ImageStamp) {
         do {
-            return try ImageResolver.modelFile(at: path, limit: BoardComponents.maxModelBytes)
+            return try ImageResolver.modelFile(at: path, limit: limit)
         } catch {
             if case .tooLarge = error { throw ModelProblem(error.reason, isRemembered: true) }
             throw ModelProblem(error.reason)
@@ -115,6 +115,8 @@ struct Problems: Equatable {
     var unreadable: [String] = []
     /// Model files with shapes that aren't read, each named once.
     var skipped: [String] = []
+    /// How many footprints' meshes were left out because the board's budget was spent.
+    var meshesLeftOut = 0
 
     func sentences() -> [String] {
         var result: [String] = []
@@ -129,6 +131,11 @@ struct Problems: Equatable {
             result.append("\(bad.count.display) model\(bad.count == 1 ? "" : "s") couldn't be read: \(Self.list(bad)).")
         }
         for name in Self.unique(skipped) { result.append("\(name) has shapes that aren't read (spheres, cylinders and the like).") }
+        if meshesLeftOut > 0 {
+            let limit = BoardComponents.meshLimits.board.display
+            let (count, noun, verb) = meshesLeftOut == 1 ? ("1", "mesh", "was") : (meshesLeftOut.display, "meshes", "were")
+            result.append("\(count) component \(noun) \(verb) left out: a board's meshes are limited to \(limit) triangles.")
+        }
         return result
     }
 
