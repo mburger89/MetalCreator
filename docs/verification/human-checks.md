@@ -2459,7 +2459,7 @@ the Output selected so the part is shown.
 - [ ] **TI-4 Hit boxes.** Every icon is a 24 x 24 target: press just above, below or beside a glyph (inside the 24-point square) on Undo, Redo, Export, each header icon and the cube's house and camera: the control acts (or opens its menu), the viewport does not orbit or pick, and on Linux or Windows the window does not start to drag. A press just outside the square is the viewport's again. Pinned: `ToolbarIconsWindowTests` (Undo and Home).
 - [ ] **TI-5 App menu order.** Check on screen that the app menu keeps its order with Services and Settings (MetalUI #276 and #278). **Observed:**
 
-## Group KI — KiCad board import (KI-1, KI-2)
+## Group KI — KiCad board import (KI-1, KI-2, KI-3)
 
 - [ ] **KI-1 Import a board.** File ▸ Import KiCad Board… and choose each keyboard board in turn: an Import KiCad Board node appears wired to an Output and the board shows in the viewport. Compare the outline and every hole with KiCad's 3D viewer. **Observed:**
 - [ ] **KI-2 Facts.** The node's Board section lists the KiCad version, size, thickness, copper layers, holes and components; they match KiCad's board statistics and the board setup's thickness. **Observed:**
@@ -2470,3 +2470,6 @@ the Output selected so the part is shown.
 - [ ] **KI-7 Back side.** A part on the back copper layer sits under the board, turned over (rotated 180° about the board's x axis), as KiCad's 3D viewer shows it; not mirrored. **Observed:**
 - [ ] **KI-8 Model edited on disk.** Change a model file (replace its STEP) and save: the node's components change at the next evaluation with no relink. **Observed:**
 - [ ] **KI-9 Against KiCad's STEP.** With KiCad installed, `kicad-cli pcb export step` the same board and compare with the imported board and components (File ▸ export STEP of the node's output): x and y positions match within 0.01 mm; top parts sit about the copper thickness (≈0.035 mm) lower here than in KiCad's STEP export (ruling R7). **Observed:**
+- [ ] **KI-10 VRML with no STEP twin.** Put a project VRML model (`.wrl`, no STEP beside it) on a footprint with `${KIPRJMOD}`: the part appears on the node's `component meshes` output, in the same place and turn as a STEP of it would. The facts line counts it "as meshes". **Observed:**
+- [ ] **KI-11 VRML scale.** A VRML exported from KiCad with a top-level `scale` (a VRML 2 `Transform` scale other than 1) lands at the right size (compare with KiCad's 3D viewer and with the library's STEP), while a library VRML without one is multiplied by 2.54 and also fits. **Observed:**
+- [ ] **KI-12 IDF part.** A footprint whose model is an IDF file appears as an extruded outline of the stated height on `components`, with its holes; a THOU file is the right size. **Observed:**

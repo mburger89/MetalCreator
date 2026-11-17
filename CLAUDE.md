@@ -106,7 +106,7 @@ and the tools' rulings on an imperfect mesh) code is done; its human checks (gro
 KiCad import, KI-1 (the Import KiCad Board node: spec `docs/superpowers/specs/2026-11-15-kicad-import-design.md`, format facts
 `2026-11-16-kicad-format-facts.md`, plan `docs/superpowers/plans/2026-11-16-ki-1-board.md`; `creator.importKiCadBoard` reads a `.kicad_pcb`
 into a board solid with its pad holes (and, on request, vias) drilled, its outline as a profile, its mounting holes as placements and
-diameters (the `component meshes` output is declared and stays empty until KI-3); `placement`, `origin` (board centre, page, drill/place), `vias` and `components` are its
+diameters (the `component meshes` output is declared; KI-3 fills it); `placement`, `origin` (board centre, page, drill/place), `vias` and `components` are its
 inputs; `CreatorPCB` is the portable reader; the node's `factsTitle` "Board" hook lists KiCad version, size, thickness, copper layers, holes
 and components; File ▸ Import KiCad Board… inserts it wired to an Output as one step "Import KiCad Board"; the file is
 `NodeSetting.pcbFile`, linked only, never embedded; file format 13) code is done; its human checks (group KI) are pending.
@@ -119,8 +119,16 @@ checks (group KI) are pending. `CreatorPCB/Models`: `ModelPathResolver` (relativ
 zero-copy stream, IGES through a 0600 temp file, `xstep.cascade.unit` MM; TKDEIGES is linked on every platform, the Linux Dockerfile included), `Kernel.scaled` and
 `Kernel.compound` (`FakeKernel` refuses all three, as the protocol defaults do). `FileDependency` / `NodeOutputs.dependencies`: a node names the files its result read beyond its settings; the
 evaluator re-stamps them each evaluation and downstream keys include them, so a model edited on disk updates the board. `ComponentModelCache` reads each model once per file
-stamp across nodes (a sentinel tag retargeted per node); `BoardComponents.environment` is a TaskLocal. VRML, X3D and IDF are KI-3 and models stored in the board KI-4:
-until then such a model is a "couldn't be read" warning.
+stamp across nodes (a sentinel tag retargeted per node); `BoardComponents.environment` is a TaskLocal. models stored in the board are KI-4: until then such a model is a "couldn't be read" warning.
+KiCad import, KI-3 (mesh and outline components: plan `docs/superpowers/plans/2026-11-17-ki-3-mesh-components.md`; a footprint's VRML (1 and 2, `.wrl`, `.wrz` through `Gzip`), X3D or IDF model is read and
+placed by KI-2's chain) code is done; its human checks (group KI) are pending. `VRMLReader` (`CreatorImplicit/Import/VRML`: our own tokenizer, explicit stacks, never recursion; VRML 1's state
+scoped by `Separator`, VRML 2's `Transform` (translation, rotation, scale, scaleOrientation, center), `DEF`/`USE`, `IndexedFaceSet` fan-triangulated, `Sphere` and the like left out as skipped geometry;
+node-visit and work budgets apart, 1.2M-triangle refusal of a runaway) and `X3DReader` (`CreatorImplicit/Import/X3D`, over `XMLScanner`, namespaces and `DEF`/`USE`, per-element attributes) return a `TriangleMesh` in the file's units;
+`IDFReader` (`CreatorPCB/Models`) returns the first `.ELECTRICAL` or `.MECHANICAL` section's outline (loop 0) with its holes and a height, which the kernel extrudes, so an IDF part is a solid on `components` (`MM` as is, `THOU` x 0.0254).
+The units rule: VRML 1, VRML 2 and X3D are in 0.1 inch, so the mesh is multiplied by 2.54, except a VRML 2 file whose top-level `Transform` has a `scale` other than (1, 1, 1), which is taken as millimetres
+(no factor; `isMillimetres`). `component meshes` is one mesh per footprint (a footprint's VRML and X3D meshes concatenated, not welded across models), `creaseAngle` 30, items `fp:<token>`; budgets: a footprint's mesh at most
+10,000,000 triangles (else that footprint's mesh is left out with "its meshes have more than 10,000,000 triangles together"), the board's component meshes at most 20,000,000 in all (later footprints in natural order left out, one warning).
+Reader sentences become reasons by `ModelFiles.readerReason` (the "This <FORMAT> file" subject replaced by "it", the final period dropped). The facts read "N placed, S as solids, M as meshes, W without a 3D model".
 Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
@@ -399,7 +407,7 @@ Module boundaries (dependency order):
   `canImport(Compression)`, else stores. `MeshStream` is what a Mesh node returns while `EvalContext.meshQuality` is
   `.streamedExport`: the implicit, the resolution and the stages.
   Mesh import (`Import/`, mesh import spec): `STLReader` reads binary and ASCII STL (the file is read whole through the one descriptor that was opened and checked, never mapped, since a mapped file truncated mid-parse is a SIGBUS; ASCII is scanned by token, keywords in any case; limits are checked from the header and the size, and a count above the limit that the size cannot hold is `notAMeshFile`),
-  `ExactWeld` welds by exact position and drops degenerate triangles, and `ImportedMesh` carries the mesh (the node makes the facts). `ImportMeshNode`
+  `VRML/` and `X3D/` (KI-3) hold `VRMLReader` and `X3DReader`; `ExactWeld` welds by exact position and drops degenerate triangles, and `ImportedMesh` carries the mesh (the node makes the facts). `ImportMeshNode`
   (`CreatorNodes/Implicit/MeshTools`) holds the file as `ConstantValue.meshFile`, an `ImageReference` whose embedded bytes live in the document's
   `images` table (no table of its own), and warns about open, over-full and flipped edges. `EdgeCounts` (`Mesh/`) counts open, over-full and flipped
   edges by sorting edge keys, and is edge-only: a bow-tie vertex passes it, so Mesh to Solid and Check Trapped Volumes refuse such a mesh on their own.

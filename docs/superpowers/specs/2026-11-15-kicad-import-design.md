@@ -185,6 +185,7 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
   models; each checked as it is reached, before allocation. A STEP or IGES model at most 256 MB (after decompression), a VRML or X3D one at
   most 64 MB and 10,000,000 triangles (Import Mesh's limit), an IDF one 16 MB; a compressed model or a stored one may not inflate past its
   format's limit, and a stored model's base64 is limited by the board's own 256 MB. Over a limit is a sentence naming it. The parser asks about cancellation every 65,536 tokens.
+- Erratum (controller ruling 2026-11-17, KI-3): the 10,000,000-triangle limit holds per footprint mesh (all of a footprint's VRML and X3D models together), and the board's component meshes are limited to 20,000,000 triangles in all; a footprint over either is left out with a warning.
 
 ## Construction
 
@@ -209,7 +210,7 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
   Every board version, from KiCad 4 to 11's transform form.
 - **KI-2, solid components (done 2026-11-17; human checks KI-6 to KI-9 pending):** model paths and remapping, STEP, compressed STEP and IGES, `Inflate` moved, scale, transforms, both sides,
   `TopoRole.imported`, the evaluator's `dependencies`, the warnings.
-- **KI-3, mesh and outline components:** `VRMLReader` (1 and 2, `.wrz`), `X3DReader`, the units rule, the `component meshes` output, IDF.
+- **KI-3, mesh and outline components (done 2026-11-17; human checks pending):** `VRMLReader` (1 and 2, `.wrz`), `X3DReader`, the units rule, the `component meshes` output, IDF.
 - **KI-4, models stored in the board:** `Base64`, `ZstdDecoder`, `embedded_files` in board and footprints, `kicad-embed://`.
 
 ## Tests
