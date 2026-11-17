@@ -23,14 +23,14 @@ extension ModelTags {
 
 extension ModelFiles {
     /// An IDF outline extruded by its height and named like a read STEP solid.
-    static func readOutline(at path: String, stamp: ImageStamp, kernel: any Kernel,
+    static func readOutline(_ source: Source, stamp: ImageStamp, kernel: any Kernel,
                             tag: NodeTag) async throws -> ComponentModelCache.Made {
-        let file = try fileBytes(at: path, limit: IDFReader.maximumBytes)
+        let file = try bytes(of: source, format: .idf, stamp: stamp)
         guard ModelFormat.idf.matches(file.data) else { throw ModelProblem("the file isn't an IDF model", isRemembered: true) }
         let outline = try idfOutline(file.data)
         do {
             let solid = try await kernel.extrude(outline.profile, distance: outline.height, mode: .oneSided, tag: tag)
-            return ComponentModelCache.Made(solid: ModelTags.imported(solid, tag: tag), isCurrent: file.stamp == stamp)
+            return ComponentModelCache.Made(solid: ModelTags.imported(solid, tag: tag), isCurrent: file.isCurrent)
         } catch let error as KernelError {
             throw problem(from: error)
         }
@@ -45,8 +45,8 @@ extension ModelFiles {
     }
 
     /// A VRML, compressed VRML or X3D model's mesh, in the file's units. Synchronous, so no loop's locals live across an `await`.
-    static func readMesh(at path: String, format: ModelFormat, stamp: ImageStamp) throws -> ComponentModelCache.MadeMesh {
-        let file = try fileBytes(at: path, limit: format == .vrmlGzip ? BoardComponents.maxModelBytes : VRMLReader.maximumBytes)
+    static func readMesh(_ source: Source, format: ModelFormat, stamp: ImageStamp) throws -> ComponentModelCache.MadeMesh {
+        let file = try bytes(of: source, format: format, stamp: stamp)
         var bytes = file.data
         let word = format == .x3d ? "X3D" : "VRML"
         guard format.matches(bytes) else { throw ModelProblem("the file isn't a \(word) model", isRemembered: true) }
@@ -58,7 +58,7 @@ extension ModelFiles {
             let model = format == .x3d
                 ? try X3DReader.read(bytes, isCancelled: { Task.isCancelled })
                 : try VRMLReader.read(bytes, isCancelled: { Task.isCancelled })
-            return ComponentModelCache.MadeMesh(model: model, isCurrent: file.stamp == stamp)
+            return ComponentModelCache.MadeMesh(model: model, isCurrent: file.isCurrent)
         } catch let error as MeshImportProblem {
             throw ModelProblem(meshReason(error), isRemembered: true)
         }
@@ -71,6 +71,14 @@ extension ModelFiles {
         case "This file isn't a VRML 1 or VRML 2 file.": return "the file isn't a VRML model"
         case "This file isn't an X3D file.": return "the file isn't an X3D model"
         default: break
+        }
+        let stored = "The stored model "
+        if sentence.hasPrefix(stored) {
+            // "The stored model is damaged." and "... is larger than 256 MB." become "it is ..."; the dictionary one is shortened.
+            if sentence.hasPrefix(stored + "uses a zstd dictionary") { return "it uses a zstd dictionary" }
+            var rest = String(sentence.dropFirst(stored.count))
+            if rest.hasSuffix(".") { rest.removeLast() }
+            return "it " + rest
         }
         for format in ["VRML", "X3D", "IDF"] {
             let starts = [("This \(format) file ", "it "), ("This \(format) file's ", "its ")]
@@ -109,12 +117,11 @@ struct MeshPiece {
 
 extension Placer {
     /// The mesh of one model path: read once (kept in file units) or the reason it can't be.
-    func loadMesh(path: String, format: ModelFormat, stamp: ImageStamp) async throws -> BoardComponents.Found {
+    func loadMesh(_ source: ModelFiles.Source, name: String, format: ModelFormat, stamp: ImageStamp) async throws -> BoardComponents.Found {
         let key = ComponentModelCache.ReadKey(stamp: stamp, format: format)
-        let name = ModelFiles.fileName(of: path)
         do {
             let made = try await cache.mesh(for: key) {
-                try ModelFiles.readMesh(at: path, format: format, stamp: stamp)
+                try ModelFiles.readMesh(source, format: format, stamp: stamp)
             }
             return .mesh(made.model, name: name)
         } catch let problem as ModelProblem {
@@ -123,8 +130,8 @@ extension Placer {
     }
 
     /// Whether the model is read as a mesh.
-    func isMesh(_ model: ModelReference) -> Bool {
-        if case .mesh = found[model.path] { return true }
+    func isMesh(_ model: ModelReference, of index: Int) -> Bool {
+        if case .mesh = found[BoardComponents.foundKey(model.path, of: setting.board.footprints[index])] { return true }
         return false
     }
 
@@ -134,7 +141,7 @@ extension Placer {
     mutating func admitMeshes(of models: [ModelReference], footprint index: Int) -> Bool {
         var triangles = 0
         for model in models {
-            guard case .mesh(let found, _) = found[model.path],
+            guard case .mesh(let found, _) = found[BoardComponents.foundKey(model.path, of: setting.board.footprints[index])],
                   [model.scale.x, model.scale.y, model.scale.z].allSatisfy({ $0.isFinite && $0 > 0 }) else { continue }
             triangles += found.mesh.positions.isEmpty ? 0 : found.mesh.triangles.count / 3
         }

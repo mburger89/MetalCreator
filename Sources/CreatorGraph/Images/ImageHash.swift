@@ -11,6 +11,12 @@ public struct ImageHash: Hashable, Sendable, Comparable, Codable, CustomStringCo
         hex = SHA256.hex(of: data)
     }
 
+    /// The hash of `text`'s UTF-8 bytes, without a copy of them.
+    public init(ofUTF8 text: String) {
+        var copy = text
+        hex = copy.withUTF8 { HashPadding.hex(SHA256.hash(UnsafeRawBufferPointer($0))) }
+    }
+
     /// The hash written as `hex`, or `nil` unless it is exactly 64 lowercase hexadecimal digits (anything else in a file
     /// is damage, not a hash).
     public init?(hex: String) {

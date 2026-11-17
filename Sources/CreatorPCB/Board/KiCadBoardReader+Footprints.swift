@@ -21,7 +21,7 @@ extension KiCadBoardReader {
                 edges += try edgeItems(in: child, place: place, version: version)
             }
         }
-        return Footprint(
+        var footprint = Footprint(
             reference: reference(of: item),
             libraryID: item.text(at: 1) ?? "",
             uuid: identifier(of: item),
@@ -30,6 +30,8 @@ extension KiCadBoardReader {
             holes: holes,
             padCount: padCount,
             models: item.children("model").compactMap(model(of:)))
+        footprint.embeddedModels = item.children("embedded_files").flatMap { embeddedModels(in: $0, version: version) }
+        return footprint
     }
 
     /// `(at x y a)`, or `(transform (translate x y) (rotate a) (scale sx sy))` from 20260616.

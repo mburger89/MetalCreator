@@ -14,6 +14,8 @@ public struct KiCadBoard: Sendable {
     public var edgeItems: [EdgeItem]
     public var footprints: [Footprint]
     public var vias: [DrilledHole]
+    /// The board's `(embedded_files …)` entries of type model, in file order (KiCad 9+; empty before version 20240706).
+    public var embeddedModels: [EmbeddedFile]
 
     public static let newestKnownVersion = 20_261_031
 
@@ -25,7 +27,8 @@ public struct KiCadBoard: Sendable {
     }
 
     public init(version: Int = KiCadVersion.missing, generator: String? = nil, thickness: Double? = nil, copperLayers: Int = 0,
-                auxAxisOrigin: Vector2? = nil, edgeItems: [EdgeItem] = [], footprints: [Footprint] = [], vias: [DrilledHole] = []) {
+                auxAxisOrigin: Vector2? = nil, edgeItems: [EdgeItem] = [], footprints: [Footprint] = [], vias: [DrilledHole] = [],
+                embeddedModels: [EmbeddedFile] = []) {
         self.version = version
         self.generator = generator
         self.thickness = thickness
@@ -34,6 +37,7 @@ public struct KiCadBoard: Sendable {
         self.edgeItems = edgeItems
         self.footprints = footprints
         self.vias = vias
+        self.embeddedModels = embeddedModels
     }
 }
 
@@ -66,6 +70,8 @@ public struct Footprint: Sendable {
     /// Every pad, SMD ones too.
     public var padCount: Int
     public var models: [ModelReference]
+    /// The footprint's own `(embedded_files …)` models (a board's footprints usually carry none; the board's table holds them).
+    public var embeddedModels: [EmbeddedFile] = []
     /// "fp:<token>" (the reference when unique, else the uuid, else the place in the file), filled by the key assigner; "" when read.
     public var identity = ""
 
@@ -124,5 +130,17 @@ public struct ModelReference: Sendable, Hashable {
         self.scale = scale
         self.rotation = rotation
         self.isHidden = isHidden
+    }
+}
+
+/// A model stored in the board: its name and its base64 text, undecoded (one copy of the reader's string).
+public struct EmbeddedFile: Sendable, Hashable {
+    public var name: String
+    /// Empty for KiCad 9.0.0's `(data)` writer bug.
+    public var base64: String
+
+    public init(name: String, base64: String) {
+        self.name = name
+        self.base64 = base64
     }
 }

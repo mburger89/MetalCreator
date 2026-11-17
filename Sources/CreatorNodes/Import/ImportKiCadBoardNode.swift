@@ -66,9 +66,9 @@ public enum ImportKiCadBoardNode: NodeDefinition {
         let top = frame.offset(by: thickness)
         let mounting = BoardHoles.mounting(board, origin: origin)
         let folder = BoardComponents.normalisedFolder(context.images.folder(of: reference)?.path(percentEncoded: false) ?? "")
-        let components = try await components(
-            includesComponents, BoardComponents.Setting(board: board, origin: origin, thickness: thickness, frame: frame, folder: folder),
-            kernel: kernel, context: context)
+        var setting = BoardComponents.Setting(board: board, origin: origin, thickness: thickness, frame: frame, folder: folder)
+        setting.storedHashes = parsed.storedHashes
+        let components = try await components(includesComponents, setting, kernel: kernel, context: context)
         warnings += components.warnings
         var outputs = NodeOutputs([
             "board": .solid(solid),
@@ -127,7 +127,7 @@ public enum ImportKiCadBoardNode: NodeDefinition {
 
     private static func load(_ reference: ImageReference, _ resolver: ImageResolver) async throws -> ParsedBoard {
         do {
-            return try await KiCadBoardCache.shared.board(for: resolver.stamp(of: reference)) {
+            return try await KiCadBoardCache.current.board(for: resolver.stamp(of: reference)) {
                 try parse(resolver.pcbFileBytes(of: reference))
             }
         } catch let problem as KiCadProblem {
