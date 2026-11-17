@@ -44,6 +44,8 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
     case notEnoughMemory
     /// More triangles than `MeshImportLimits.maxTriangles`, found without an exact count (a count that saturated, or a stored cap).
     case overTriangleLimit
+    /// A VRML model that cannot be read; the sentence says why ("This VRML file ...") and the node names the file.
+    case vrml(String)
 
     /// The longest piece of a file's own text a message repeats.
     public static let longestQuote = 80
@@ -94,6 +96,8 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
             "This 3MF's model is larger than the 2 GB limit."
         case .notEnoughMemory:
             "This 3MF is too large to open with the memory available."
+        case .vrml(let sentence):
+            sentence
         case .overTriangleLimit:
             "This file has more triangles than Import Mesh takes: at most "
                 + "\(MeshImportLimits.maxTriangles.formatted(.number.locale(.messages)))."
