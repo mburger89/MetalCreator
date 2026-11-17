@@ -207,7 +207,7 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
   facts, linking, File ▸ Import KiCad Board…, format 13, the identity keys for holes and outline sides. Tests on small boards made for the
   purpose.
   Every board version, from KiCad 4 to 11's transform form.
-- **KI-2, solid components:** model paths and remapping, STEP, compressed STEP and IGES, `Inflate` moved, scale, transforms, both sides,
+- **KI-2, solid components (done 2026-11-17; human checks KI-6 to KI-9 pending):** model paths and remapping, STEP, compressed STEP and IGES, `Inflate` moved, scale, transforms, both sides,
   `TopoRole.imported`, the evaluator's `dependencies`, the warnings.
 - **KI-3, mesh and outline components:** `VRMLReader` (1 and 2, `.wrz`), `X3DReader`, the units rule, the `component meshes` output, IDF.
 - **KI-4, models stored in the board:** `Base64`, `ZstdDecoder`, `embedded_files` in board and footprints, `kicad-embed://`.

@@ -2459,10 +2459,14 @@ the Output selected so the part is shown.
 - [ ] **TI-4 Hit boxes.** Every icon is a 24 x 24 target: press just above, below or beside a glyph (inside the 24-point square) on Undo, Redo, Export, each header icon and the cube's house and camera: the control acts (or opens its menu), the viewport does not orbit or pick, and on Linux or Windows the window does not start to drag. A press just outside the square is the viewport's again. Pinned: `ToolbarIconsWindowTests` (Undo and Home).
 - [ ] **TI-5 App menu order.** Check on screen that the app menu keeps its order with Services and Settings (MetalUI #276 and #278). **Observed:**
 
-## Group KI — KiCad board import (KI-1)
+## Group KI — KiCad board import (KI-1, KI-2)
 
 - [ ] **KI-1 Import a board.** File ▸ Import KiCad Board… and choose each keyboard board in turn: an Import KiCad Board node appears wired to an Output and the board shows in the viewport. Compare the outline and every hole with KiCad's 3D viewer. **Observed:**
 - [ ] **KI-2 Facts.** The node's Board section lists the KiCad version, size, thickness, copper layers, holes and components; they match KiCad's board statistics and the board setup's thickness. **Observed:**
 - [ ] **KI-3 Edit in KiCad.** Change the board in KiCad (move a mounting hole, resize the outline) and save: the node's result changes at the next evaluation with no relink. **Observed:**
 - [ ] **KI-4 Standoffs from mounting holes.** Wire the node's mounting holes and diameters into a Hole Pattern or Boss / Pin Pattern: the standoffs line up with the board's mounting holes. **Observed:**
 - [ ] **KI-5 Origin choices.** Switch the origin between board centre, page and drill/place: the board moves as KiCad's origin does, and a board with no drill/place origin warns and falls back to its centre. **Observed:**
+- [ ] **KI-6 Components.** With the `components` toggle on, each footprint's model appears on the board from the library (KiCad's 3D folders) and from the project (`${KIPRJMOD}/3dmodels`), in KiCad's place and turn, scaled and offset as the footprint's model settings say. A footprint with no model, a missing file and an unreadable one each warn. **Observed:**
+- [ ] **KI-7 Back side.** A part on the back copper layer sits under the board, mirrored as KiCad's 3D viewer shows it. **Observed:**
+- [ ] **KI-8 Model edited on disk.** Change a model file (replace its STEP) and save: the node's components change at the next evaluation with no relink. **Observed:**
+- [ ] **KI-9 Against KiCad's STEP.** With KiCad installed, `kicad-cli pcb export step` the same board and compare with the imported board and components (File ▸ export STEP of the node's output): positions match within 0.01 mm. **Observed:**
