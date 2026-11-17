@@ -26,6 +26,8 @@ enum PatternApply {
     /// the pieces a result falls into, as Boolean does, and of the instances that missed the part.
     static func run(_ request: Request, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let (op, part, grid) = (request.operation, request.part, request.grid)
+        try ClosedSolidCheck.requireInput(part, "part")
+        for tool in request.tools { try ClosedSolidCheck.requireInput(tool, "tool") }
         let count = grid.count
         guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
         let copies = try await PlacementMoves.place(request.tools, planes: request.planes, items: grid.items,

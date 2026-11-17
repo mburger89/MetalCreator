@@ -49,6 +49,7 @@ public enum FilletNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let set = try inputs.edgeSet("edges")
+        try ClosedSolidCheck.requireForBlend(set.solid, "Fillet")
         let radius = try inputs.number("radius")
         // A drag previews the circular fillet (identical tags); the G2 surface is built when it ends.
         let profile: FilletProfile = try inputs.integer("continuity") == 1 && !context.isScrubbing

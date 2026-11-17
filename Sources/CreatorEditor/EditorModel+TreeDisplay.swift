@@ -22,6 +22,8 @@ extension EditorModel {
                 help["in.\(link.to.socket.rawValue)"] = recipe
             } else if let recipe = result(of: link.from.node)?.outputs?[link.from.socket]?.implicitSummary(limit: Self.tooltipLimit) {
                 help["in.\(link.to.socket.rawValue)"] = recipe
+            } else if let sheets = result(of: link.from.node)?.outputs?[link.from.socket]?.sheetSummary {
+                help["in.\(link.to.socket.rawValue)"] = sheets
             }
         }
         for (socket, value) in result(of: node)?.outputs ?? [:] {
@@ -31,6 +33,8 @@ extension EditorModel {
                 help["out.\(socket.rawValue)"] = recipe
             } else if let recipe = value.implicitSummary(limit: Self.tooltipLimit) {
                 help["out.\(socket.rawValue)"] = recipe
+            } else if let sheets = value.sheetSummary {
+                help["out.\(socket.rawValue)"] = sheets
             }
         }
         return help
@@ -55,5 +59,19 @@ extension EditorModel {
         } else {
             expandedShapeLists.insert(key)
         }
+    }
+}
+
+extension Value {
+    /// "1 sheet" or "2 solids and 1 sheet" for a value of solids that holds a sheet; `nil` for anything else (no sheet, or not solids).
+    var sheetSummary: String? {
+        let solids = items.compactMap { scalar -> Solid? in if case .solid(let solid) = scalar { solid } else { nil } }
+        guard !solids.isEmpty, solids.count == items.count else { return nil }
+        let sheets = solids.filter(\.hasOpenShell).count
+        guard sheets > 0 else { return nil }
+        let closed = solids.count - sheets
+        let sheetText = "\(sheets) \(sheets == 1 ? "sheet" : "sheets")"
+        guard closed > 0 else { return sheetText }
+        return "\(closed) \(closed == 1 ? "solid" : "solids") and \(sheetText)"
     }
 }

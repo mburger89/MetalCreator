@@ -22,6 +22,9 @@ public enum ToImplicitNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let solid = try inputs.solid("solid")
+        guard !solid.hasOpenShell else {
+            throw NodeError.invalidValue("To Implicit needs a closed solid; Thicken or Sew the sheet first.")
+        }
         let tolerance = try inputs.number("tolerance")
         guard tolerance.isFinite, tolerance >= minimumTolerance else {
             let smallest = minimumTolerance.formatted(.number.precision(.fractionLength(0...3)).locale(.messages))
