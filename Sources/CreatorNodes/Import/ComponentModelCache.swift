@@ -1,3 +1,4 @@
+import Foundation
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -28,8 +29,16 @@ actor ComponentModelCache {
     struct ReadKey: Hashable, Sendable {
         var stamp: ImageStamp
         var format: SolidModelFormat
-        var node: NodeID
     }
+
+    /// What a read made, and whether the file was still what the key's stamp says when it was read (else it is not kept).
+    struct Made: Sendable {
+        var solid: Solid
+        var isCurrent = true
+    }
+
+    /// The tag node every kept solid carries; a node rewrites it to its own id when it uses the solid (`ModelTags.retargeted`).
+    static let sentinel = NodeID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-4B4943414D32") ?? UUID())
 
     private enum Key: Hashable {
         case read(ReadKey)
@@ -53,21 +62,24 @@ actor ComponentModelCache {
 
     /// The model for `key`: the kept one, else what `read` makes. The work runs outside the actor, so one slow model never holds
     /// up another; two evaluations of one new model may both read it.
-    nonisolated func solid(for key: ReadKey, read: @Sendable () async throws -> Solid) async throws -> Solid {
+    nonisolated func solid(for key: ReadKey, read: @Sendable () async throws -> Made) async throws -> Made {
         try await fetch(.read(key), read)
     }
 
     /// `key`'s model scaled by `factors`, kept the same way.
-    nonisolated func scaled(of key: ReadKey, by factors: Vector3, make: @Sendable () async throws -> Solid) async throws -> Solid {
-        try await fetch(.scaled(key, factors.x, factors.y, factors.z), make)
+    nonisolated func scaled(of key: ReadKey, by factors: Vector3, isCurrent: Bool,
+                            make: @Sendable () async throws -> Solid) async throws -> Made {
+        try await fetch(.scaled(key, factors.x, factors.y, factors.z)) {
+            Made(solid: try await make(), isCurrent: isCurrent)
+        }
     }
 
-    private nonisolated func fetch(_ key: Key, _ make: @Sendable () async throws -> Solid) async throws -> Solid {
-        if let kept = try await lookup(key) { return kept }
+    private nonisolated func fetch(_ key: Key, _ make: @Sendable () async throws -> Made) async throws -> Made {
+        if let kept = try await lookup(key) { return Made(solid: kept) }
         await noteRun(key)
         do {
             let made = try await make()
-            await store(made, for: key)
+            if made.isCurrent { await store(made.solid, for: key) }
             return made
         } catch let problem as ModelProblem {
             if problem.isRemembered { await storeProblem(problem, for: key) }
@@ -76,7 +88,15 @@ actor ComponentModelCache {
     }
 
     private func noteRun(_ key: Key) {
-        if case .read = key { readLog.append(key.readKey) } else { scaleLog.append(key.readKey) }
+        if case .read = key { Self.append(key.readKey, to: &readLog) } else { Self.append(key.readKey, to: &scaleLog) }
+    }
+
+    /// The test counters keep the latest `maxLog` runs.
+    private static let maxLog = 4_096
+
+    private static func append(_ key: ReadKey, to log: inout [ReadKey]) {
+        if log.count >= maxLog { log.removeFirst(maxLog / 2) }
+        log.append(key)
     }
 
     private func lookup(_ key: Key) throws -> Solid? {
@@ -129,5 +149,19 @@ actor ComponentModelCache {
             if case .file(let path, _, _) = key.stamp { return path.contains(folder) }
             return false
         }.count
+    }
+}
+
+/// Rewriting the node every face of a cached solid is tagged with.
+enum ModelTags {
+    /// `solid` with the tags of `ComponentModelCache.sentinel` naming `node` instead (faces, edges and order untouched).
+    static func retargeted(_ solid: Solid, to node: NodeID) -> Solid {
+        var topology = solid.topology
+        for index in topology.faces.indices {
+            topology.faces[index].tags = Set(topology.faces[index].tags.map { tag in
+                tag.node == ComponentModelCache.sentinel ? TopoTag(node: node, item: tag.item, role: tag.role) : tag
+            })
+        }
+        return Solid(topology: topology, bounds: solid.bounds, storage: solid.storage)
     }
 }

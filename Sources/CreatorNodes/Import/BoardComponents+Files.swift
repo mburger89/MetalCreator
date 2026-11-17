@@ -39,8 +39,10 @@ enum ModelFiles {
     }
 
     /// The model file's solid: read within the limit, checked against its format, gunzipped when compressed, handed to the kernel.
-    static func read(at path: String, format: ModelFormat, kernel: any Kernel, tag: NodeTag) async throws -> Solid {
-        var bytes = try fileBytes(at: path)
+    static func read(at path: String, format: ModelFormat, stamp: ImageStamp, kernel: any Kernel,
+                     tag: NodeTag) async throws -> ComponentModelCache.Made {
+        let file = try fileBytes(at: path)
+        var bytes = file.data
         let word = format == .iges ? "IGES" : "STEP"
         guard format.matches(bytes) else { throw ModelProblem("the file isn't a \(word) model", isRemembered: true) }
         if format == .stepGzip {
@@ -48,7 +50,8 @@ enum ModelFiles {
             guard ModelFormat.step.matches(bytes) else { throw ModelProblem("the file isn't a STEP model", isRemembered: true) }
         }
         do {
-            return try await kernel.readModel(bytes, format: format == .iges ? .iges : .step, tag: tag)
+            let solid = try await kernel.readModel(bytes, format: format == .iges ? .iges : .step, tag: tag)
+            return ComponentModelCache.Made(solid: solid, isCurrent: file.stamp == stamp)
         } catch let error as KernelError {
             throw problem(from: error)
         }
@@ -62,9 +65,9 @@ enum ModelFiles {
         }
     }
 
-    private static func fileBytes(at path: String) throws -> Data {
+    private static func fileBytes(at path: String) throws -> (data: Data, stamp: ImageStamp) {
         do {
-            return try ImageResolver.modelFile(at: path, limit: BoardComponents.maxModelBytes).data
+            return try ImageResolver.modelFile(at: path, limit: BoardComponents.maxModelBytes)
         } catch {
             if case .tooLarge = error { throw ModelProblem(error.reason, isRemembered: true) }
             throw ModelProblem(error.reason)
@@ -111,7 +114,7 @@ extension ModelFormat {
 }
 
 /// What went wrong with a board's components, in the words the node warns in.
-struct Problems {
+struct Problems: Equatable {
     var noModel: [String] = []
     var notFound: [String] = []
     var unreadable: [String] = []

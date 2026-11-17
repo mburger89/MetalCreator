@@ -26,6 +26,21 @@ struct ImportKiCadComponentsTests {
         Model(path: "${KIPRJMOD}/models/\(name)", offset: offset, scale: scale, rotate: rotate)
     }
 
+    /// No variables but the board's own and settings under a temporary home, so the person's KiCad installation never matters.
+    var environment: BoardComponents.Environment {
+        BoardComponents.Environment(variables: [:], home: folder.url.appending(path: "home").path(percentEncoded: false))
+    }
+
+    func go(_ h: Harness, _ node: Node) async throws -> EvaluationReport {
+        let environment = environment
+        return try await BoardComponents.$environment.withValue(environment) { try await h.run([node], kernel: kernel) }
+    }
+
+    /// The warning's sentences, one per line (the evaluator sorts and joins them with newlines).
+    func warnings(_ report: EvaluationReport, _ node: Node) -> [String] {
+        report.warning(node)?.split(separator: "\n").map(String.init) ?? []
+    }
+
     func write(_ data: Data, _ name: String) throws {
         try folder.write(data, to: "models/\(name)")
     }
@@ -68,7 +83,7 @@ struct ImportKiCadComponentsTests {
     @Test func placesTopComponent() async throws {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let (h, node, text) = try board([part("U1", models: [model(offset: (1, 2, 0.5))])])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         let solid = try #require(components(report, node).first)
         expectBounds(solid, try expectedBox(text: text))
@@ -89,7 +104,7 @@ struct ImportKiCadComponentsTests {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let rotated = model(offset: (1.5, -2, 0.7), rotate: (20, 35, 50))
         let (h, node, text) = try board([part("U1", x: 40, y: 25, models: [rotated], angle: 30, back: true)])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         let solid = try #require(components(report, node).first)
         expectBounds(solid, try expectedBox(text: text))
@@ -98,7 +113,7 @@ struct ImportKiCadComponentsTests {
     @Test func scalesBeforePlacing() async throws {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let (h, node, text) = try board([part("U1", models: [model(scale: (2, 1, 1))])])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         let solid = try #require(components(report, node).first)
         expectBounds(solid, try expectedBox(text: text))
         #expect(abs((solid.bounds.max.x - solid.bounds.min.x) - 12) < 1e-6)
@@ -107,7 +122,7 @@ struct ImportKiCadComponentsTests {
     @Test func readsCompressedStep() async throws {
         try write(ComponentFixtures.gzip(try await ComponentFixtures.step(kernel)), "l.stp.gz")
         let (h, node, text) = try board([part("U1", models: [model("l.stp.gz")])])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         expectBounds(try #require(components(report, node).first), try expectedBox(text: text))
     }
@@ -115,7 +130,7 @@ struct ImportKiCadComponentsTests {
     @Test func readsIges() async throws {
         try write(try await ComponentFixtures.iges(kernel), "l.igs")
         let (h, node, text) = try board([part("U1", models: [model("l.igs")])])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         expectBounds(try #require(components(report, node).first), try expectedBox(text: text), tolerance: 1e-5)
     }
@@ -124,7 +139,7 @@ struct ImportKiCadComponentsTests {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let both = [model(), model(offset: (10, 0, 0))]
         let (h, node, _) = try board([part("U1", models: both)])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         let all = components(report, node)
         #expect(all.count == 1)
@@ -145,7 +160,7 @@ struct ImportKiCadComponentsTests {
         let parts = (0..<60).map { part("C\($0 + 1)", x: 5 + Double($0 % 10) * 9, y: 5 + Double($0 / 10) * 11,
                                         models: [model(scale: (1.5, 1.5, 1.5))]) }
         let (h, node, _) = try board(parts)
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         #expect(components(report, node).count == 60)
         #expect(await ComponentModelCache.shared.reads(containing: key) == 1)
@@ -159,10 +174,11 @@ struct ImportKiCadComponentsTests {
         try write(TestImages.pngHeader(claiming: 4, 4), "bad.step")
         let parts = [part("A1", models: [model("gone.step")]), part("B1", models: [model("bad.step")])]
         let (h, node, _) = try board(parts)
-        let report = try await h.run([node], kernel: kernel)
-        let warning = try #require(report.warning(node))
-        #expect(warning.contains("1 model wasn't found: ${KIPRJMOD}/models/gone.step."))
-        #expect(warning.contains("1 model couldn't be read: bad.step (the file isn't a STEP model)."))
+        let report = try await go(h, node)
+        let lines = warnings(report, node)
+        #expect(lines.contains("1 model wasn't found: ${KIPRJMOD}/models/gone.step."))
+        #expect(lines.contains("1 model couldn't be read: bad.step (the file isn't a STEP model)."))
+        #expect(lines.count == 2)
         #expect(components(report, node).isEmpty)
         let facts = Dictionary(uniqueKeysWithValues: (try #require(report.results[node.id]).facts).map { ($0.label, $0.value) })
         #expect(facts["Components"] == "2 placed, 0 with a 3D model, 2 without")
@@ -170,16 +186,16 @@ struct ImportKiCadComponentsTests {
 
     @Test func warnsNoModel() async throws {
         let (h, node, _) = try board([part("H1"), part("H2", x: 50)])
-        let report = try await h.run([node], kernel: kernel)
-        #expect(report.warning(node) == "2 components have no 3D model: H1, H2.")
+        let report = try await go(h, node)
+        #expect(warnings(report, node) == ["2 components have no 3D model: H1, H2."])
         let (h1, one, _) = try board([part("H1")])
-        #expect(try await h1.run([one], kernel: kernel).warning(one) == "1 component has no 3D model: H1.")
+        #expect(warnings(try await go(h1, one), one) == ["1 component has no 3D model: H1."])
     }
 
     @Test func componentsOffReadsNothing() async throws {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let (h, node, _) = try board([part("U1", models: [model()]), part("H1")], ["components": .bool(false)])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         #expect(components(report, node).isEmpty)
         #expect(report.results[node.id]?.dependencies.isEmpty == true)
@@ -191,15 +207,15 @@ struct ImportKiCadComponentsTests {
         var hidden = model()
         hidden.hidden = true
         let (h, node, _) = try board([part("U1", models: [hidden])])
-        let report = try await h.run([node], kernel: kernel)
-        #expect(report.warning(node) == "1 component has no 3D model: U1.")
+        let report = try await go(h, node)
+        #expect(warnings(report, node) == ["1 component has no 3D model: U1."])
         #expect(await ComponentModelCache.shared.reads(containing: key) == 0)
     }
 
     @Test func wrlTwinReadAsStep() async throws {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let (h, node, text) = try board([part("U1", models: [model("l.wrl")])])
-        let report = try await h.run([node], kernel: kernel)
+        let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         expectBounds(try #require(components(report, node).first), try expectedBox(text: text))
     }
@@ -208,28 +224,27 @@ struct ImportKiCadComponentsTests {
         try write(Data("#VRML V2.0 utf8\n".utf8), "x.wrl")
         let embedded = Model(path: "kicad-embed://inside.step")
         let (h, node, _) = try board([part("U1", models: [model("x.wrl")]), part("U2", x: 60, models: [embedded])])
-        let warning = try #require(try await h.run([node], kernel: kernel).warning(node))
-        #expect(warning.contains("x.wrl (VRML isn't read yet)"))
-        #expect(warning.contains("inside.step (models stored in the board aren't read yet)"))
-        #expect(warning.contains("2 models couldn't be read: "))
+        let lines = warnings(try await go(h, node), node)
+        let expected = "2 models couldn't be read: x.wrl (VRML isn't read yet), inside.step (models stored in the board aren't read yet)."
+        #expect(lines == [expected])
     }
 
     @Test func modelEditedOnDiskReruns() async throws {
         let file = try folder.write(try await ComponentFixtures.step(kernel), to: "models/l.step")
         let (h, node, text) = try board([part("U1", models: [model()]), part("U2", x: 70, y: 60)])
-        let first = try #require(components(try await h.run([node], kernel: kernel), node).first)
+        let first = try #require(components(try await go(h, node), node).first)
         #expect(await ComponentModelCache.shared.reads(containing: key) == 1)
 
         // An unrelated edit (the other part moves): the model is not read again.
         let moved = KiCadBoardText.rectangle(parts: [part("U1", models: [model()]), part("U2", x: 75, y: 60)])
         try folder.write(Data(moved.utf8), to: "board.kicad_pcb")
-        _ = try await h.run([node], kernel: kernel)
+        _ = try await go(h, node)
         #expect(await ComponentModelCache.shared.reads(containing: key) == 1)
 
         // The model rewritten twice as large: the next evaluation's component is larger.
         try Data(try await ComponentFixtures.step(kernel, scaledBy: 2)).write(to: file)
         try folder.touch(file, Date(timeIntervalSinceNow: 60))
-        let second = try #require(components(try await h.run([node], kernel: kernel), node).first)
+        let second = try #require(components(try await go(h, node), node).first)
         #expect(await ComponentModelCache.shared.reads(containing: key) == 2)
         #expect(abs((second.bounds.max.x - second.bounds.min.x) - 2 * (first.bounds.max.x - first.bounds.min.x)) < 1e-6)
         _ = text
@@ -240,21 +255,21 @@ struct ImportKiCadComponentsTests {
         bytes[bytes.count - 6] ^= 0xFF
         try write(bytes, "l.stp.gz")
         let (h, node, _) = try board([part("U1", models: [model("l.stp.gz")])])
-        let report = try await h.run([node], kernel: kernel)
-        #expect(report.warning(node)?.contains("1 model couldn't be read: l.stp.gz (the compressed file is damaged).") == true)
+        let report = try await go(h, node)
+        #expect(warnings(report, node) == ["1 model couldn't be read: l.stp.gz (the compressed file is damaged)."])
         #expect(report.value(node, "board")?.solids?.count == 1)
     }
 
     @Test func missingModelAppearing() async throws {
         let (h, node, _) = try board([part("U1", models: [model()])])
-        let before = try await h.run([node], kernel: kernel)
-        #expect(before.warning(node)?.contains("1 model wasn't found") == true)
+        let before = try await go(h, node)
+        #expect(warnings(before, node) == ["1 model wasn't found: ${KIPRJMOD}/models/l.step."])
         #expect(components(before, node).isEmpty)
         let missing = try #require(before.results[node.id]).dependencies
         #expect(missing.contains { $0.path.hasSuffix("models/l.step") && $0.stamp == ImageResolver.stamp(ofFileAt: $0.path) })
 
         try write(try await ComponentFixtures.step(kernel), "l.step")
-        let after = try await h.run([node], kernel: kernel)
+        let after = try await go(h, node)
         #expect(after.isOK(node), "\(String(describing: after.state(node)))")
         #expect(components(after, node).count == 1)
         let found = try #require(after.results[node.id]).dependencies.first { $0.path.hasSuffix("models/l.step") }
@@ -275,8 +290,8 @@ struct ImportKiCadComponentsFakeKernelTests {
         let reference = ImageReference.linked(relativePath: nil, absolutePath: file.path(percentEncoded: false))
         let node = h.add(ImportKiCadBoardNode.self, [NodeSetting.pcbFile: .pcbFile(reference)])
         let report = try await h.run([node])
-        let warning = try #require(report.warning(node))
-        #expect(warning.contains("1 model couldn't be read: l.step (reading 3D models isn't supported by this kernel yet)."))
+        #expect(report.warning(node)?.split(separator: "\n").map(String.init)
+            == ["1 model couldn't be read: l.step (reading 3D models isn't supported by this kernel yet)."])
         #expect(report.value(node, "board")?.solids?.count == 1)
         #expect(report.value(node, "components")?.items.isEmpty == true)
     }

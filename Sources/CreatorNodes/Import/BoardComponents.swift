@@ -29,16 +29,27 @@ enum BoardComponents {
         var folder: String
     }
 
+    /// Where path variables come from: the process environment and KiCad's settings folders under the home folder. The tests
+    /// replace it with an empty environment and a temporary home.
+    struct Environment: Sendable {
+        var variables: [String: String]
+        var home: String
+        static let real = Environment(variables: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+    }
+
+    @TaskLocal static var environment = Environment.real
+
     /// What one distinct model path came to.
     enum Found {
         case notFound
         case unreadable(name: String, reason: String)
-        case solid(Solid, ComponentModelCache.ReadKey, name: String)
+        case solid(Solid, ComponentModelCache.ReadKey, name: String, isCurrent: Bool)
     }
 
     /// One model of a footprint, placed.
     struct Piece {
         var footprint: Int
+        var name: String
         var tool: Solid
         var plane: Plane
     }
@@ -52,18 +63,20 @@ enum BoardComponents {
             throw NodeError.invalidValue("This board names more than 10,000 different 3D models.")
         }
         var outcome = Outcome()
-        let settings = KiCadSettingsFiles.read()
+        let settings = KiCadSettingsFiles.read(environment: environment.variables, home: environment.home)
         outcome.dependencies = settings.dependencies
-        let variables = KiCadPathVariables.merged(environment: ProcessInfo.processInfo.environment,
+        let variables = KiCadPathVariables.merged(environment: environment.variables,
                                                   settings: settings.variables, platform: .current)
         var placer = Placer(setting: setting, kernel: kernel, cache: cache, node: context.node.id)
         for path in paths {
+            try Task.checkCancellation()
             let resolved = ModelFiles.resolve(path, folder: setting.folder, variables: variables)
             outcome.dependencies += resolved.dependencies
             placer.found[path] = try await placer.load(resolved.result)
         }
         var pieces: [Piece] = []
         for index in order {
+            try Task.checkCancellation()
             guard !visible[index].isEmpty else {
                 let name = setting.board.footprints[index].reference
                 placer.problems.noModel.append(name.isEmpty ? "unnamed" : name)
@@ -73,7 +86,6 @@ enum BoardComponents {
                 if let piece = try await placer.place(model, of: index) { pieces.append(piece) }
             }
         }
-        for path in paths { placer.noteProblem(of: path) }
         outcome.solids = try await assemble(pieces, setting: setting, kernel: kernel, context: context, problems: &placer.problems)
         outcome.warnings = placer.problems.sentences()
         return outcome
@@ -133,8 +145,8 @@ enum BoardComponents {
                 do {
                     solids.append(try await kernel.compound(parts, tag: NodeTag(node: context.node.id, item: items[start])))
                 } catch let error as KernelError {
-                    let name = setting.board.footprints[pieces[start].footprint].reference
-                    problems.unreadable.append("\(name) (\(ModelFiles.reason(from: error.userMessage)))")
+                    let names = pieces[start..<end].map(\.name).joined(separator: " and ")
+                    problems.unreadable.append("\(names) (\(ModelFiles.reason(from: error.userMessage)))")
                 }
             }
             start = end
@@ -178,15 +190,15 @@ struct Placer {
         case .notFound: return .notFound
         case .unreadable(let name, let reason): return .unreadable(name: name, reason: reason)
         case .file(let path, let format, let stamp):
-            let key = ComponentModelCache.ReadKey(stamp: stamp, format: format.solidFormat, node: node)
-            let tag = NodeTag(node: node, item: 0)
+            let key = ComponentModelCache.ReadKey(stamp: stamp, format: format.solidFormat)
+            let tag = NodeTag(node: ComponentModelCache.sentinel, item: 0)
             let name = ModelFiles.fileName(of: path)
             let kernel = kernel
             do {
-                let solid = try await cache.solid(for: key) {
-                    try await ModelFiles.read(at: path, format: format, kernel: kernel, tag: tag)
+                let made = try await cache.solid(for: key) {
+                    try await ModelFiles.read(at: path, format: format, stamp: stamp, kernel: kernel, tag: tag)
                 }
-                return .solid(solid, key, name: name)
+                return .solid(made.solid, key, name: name, isCurrent: made.isCurrent)
             } catch let problem as ModelProblem {
                 return .unreadable(name: name, reason: problem.reason)
             }
@@ -194,7 +206,7 @@ struct Placer {
     }
 
     /// What a path that gave no solid says: nothing was found, or the file could not be read.
-    mutating func noteProblem(of path: String) {
+    private mutating func noteProblem(of path: String) {
         switch found[path] ?? .notFound {
         case .notFound: problems.notFound.append(path)
         case .unreadable(let name, let reason): problems.unreadable.append("\(name) (\(reason))")
@@ -202,9 +214,12 @@ struct Placer {
         }
     }
 
-    /// The piece for one model: scaled and given its world plane; nil (the problem noted) when it can't be.
+    /// The piece for one model: scaled, tagged with this node and given its world plane; nil (the problem noted) when it can't be.
     mutating func place(_ model: ModelReference, of index: Int) async throws -> BoardComponents.Piece? {
-        guard case .solid(let solid, let key, let name) = found[model.path] ?? .notFound else { return nil }
+        guard case .solid(let solid, let key, let name, let isCurrent) = found[model.path] ?? .notFound else {
+            noteProblem(of: model.path)
+            return nil
+        }
         let scale = model.scale
         guard [scale.x, scale.y, scale.z].allSatisfy({ $0.isFinite && $0 > 0 }) else {
             problems.unreadable.append("\(name) (its scale isn't positive)")
@@ -216,20 +231,23 @@ struct Placer {
             problems.unreadable.append("\(name) (its position isn't valid)")
             return nil
         }
-        guard scale != Vector3(1, 1, 1) else { return BoardComponents.Piece(footprint: index, tool: solid, plane: plane) }
         let id = BoardComponents.ScaleID(key: key, scale: scale)
-        if let kept = memo[id] { return BoardComponents.Piece(footprint: index, tool: kept, plane: plane) }
-        let tag = NodeTag(node: node, item: 0)
-        let kernel = kernel
-        do {
-            let scaled = try await cache.scaled(of: key, by: scale) {
-                try await ModelFiles.scale(solid, by: scale, kernel: kernel, tag: tag)
+        if let kept = memo[id] { return BoardComponents.Piece(footprint: index, name: name, tool: kept, plane: plane) }
+        var tool = solid
+        if scale != Vector3(1, 1, 1) {
+            let tag = NodeTag(node: ComponentModelCache.sentinel, item: 0)
+            let kernel = kernel
+            do {
+                tool = try await cache.scaled(of: key, by: scale, isCurrent: isCurrent) {
+                    try await ModelFiles.scale(solid, by: scale, kernel: kernel, tag: tag)
+                }.solid
+            } catch let problem as ModelProblem {
+                problems.unreadable.append("\(name) (\(problem.reason))")
+                return nil
             }
-            memo[id] = scaled
-            return BoardComponents.Piece(footprint: index, tool: scaled, plane: plane)
-        } catch let problem as ModelProblem {
-            problems.unreadable.append("\(name) (\(problem.reason))")
-            return nil
         }
+        tool = ModelTags.retargeted(tool, to: node)
+        memo[id] = tool
+        return BoardComponents.Piece(footprint: index, name: name, tool: tool, plane: plane)
     }
 }
