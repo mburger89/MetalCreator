@@ -34,6 +34,7 @@ public enum BuiltInNodes {
         TPMSNode.self, StrutLatticeNode.self, VoronoiLatticeNode.self,
         MeshNode.self, DecimateNode.self, CheckThinWallsNode.self, CheckTrappedVolumesNode.self, MeshToSolidNode.self,
         ImportMeshNode.self,
+        ImportKiCadBoardNode.self,
         OutputNode.self,
     ]
 

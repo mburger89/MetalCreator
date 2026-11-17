@@ -44,10 +44,8 @@ enum LatticeFaceMapping {
         guard !sources.isEmpty else { throw NodeError.invalidValue(region.holdsMovedSource ? movedSource : noSource) }
         if let found = found(pick, among: sources) { return found }
         // The same words the other face nodes use for a copy of a pattern that is gone.
-        if let gone = sources.lazy.compactMap({ $0.source?.solid.topology.vanishedInstances(in: pick.tags).first }).first {
-            throw NodeError.invalidValue("Instance \(InstancePath.text(gone)) no longer exists, so the picked face isn't there any "
-                + "more. Pick the face again.")
-        }
+        let gone = sources.flatMap { $0.source?.solid.topology.vanishedInstances(in: pick.tags) ?? [] }
+        if !gone.isEmpty { throw NodeError.invalidValue(FacePickWording.vanished(gone)) }
         throw NodeError.invalidValue(wrongSolid)
     }
 

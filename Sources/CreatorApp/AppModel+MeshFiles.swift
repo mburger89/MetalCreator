@@ -37,7 +37,8 @@ extension AppModel {
             case .relinkMeshFile: try await chooseMeshFile(target, using: picker, named: UndoName.relinkMeshFile)
             case .embedMeshFile: try embedMeshFile(target)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-                 .editSketch, .editGroup, .makeUnique, .ungroup, .chooseImage, .linkImage, .relinkImage, .embedImage: break
+                 .editSketch, .editGroup, .makeUnique, .ungroup, .chooseImage, .linkImage, .relinkImage, .embedImage,
+                 .choosePCBFile, .relinkPCBFile: break
             }
         }
         reportMeshFile(failure, title: "The mesh file couldn't be changed")

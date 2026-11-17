@@ -8,12 +8,16 @@ public struct NodeResult: Sendable {
     public var dimensions: [DimensionSpec] = []
     /// The Sketch node's trace of profile segments to sketch entities; nil for every other node and when it failed.
     public var sketchTrace: SketchTrace?
+    /// The facts the node returned (`NodeOutputs.facts`); the first iteration's. Empty for a node with none and when it failed.
+    public var facts: [PayloadFact] = []
 
-    public init(state: NodeState, outputs: [SocketName: Value]? = nil, dimensions: [DimensionSpec] = [], sketchTrace: SketchTrace? = nil) {
+    public init(state: NodeState, outputs: [SocketName: Value]? = nil, dimensions: [DimensionSpec] = [], sketchTrace: SketchTrace? = nil,
+                facts: [PayloadFact] = []) {
         self.state = state
         self.outputs = outputs
         self.dimensions = dimensions
         self.sketchTrace = sketchTrace
+        self.facts = facts
     }
 
     public var estimatedBytes: Int {

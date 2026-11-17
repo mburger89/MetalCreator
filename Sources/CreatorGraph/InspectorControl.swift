@@ -23,6 +23,9 @@ public enum InspectorControl: Sendable, Equatable {
     /// A mesh file setting (Import Mesh's `NodeSetting.meshFile`): what the file is, embedded or linked. Its buttons come with the
     /// file actions; until then it is a read-only row.
     case meshFile(SocketName)
+    /// A board file setting (Import KiCad Board's `NodeSetting.pcbFile`): "No file chosen" or "Linked · name", with "Choose File…" or
+    /// "Relink…". A board is linked only.
+    case pcbFile(SocketName)
     /// A read-only line showing what the named output socket holds now (Convert Units' converted number): "No result yet" before
     /// the node has run, a list as its values separated by commas, cut when long. It edits nothing.
     case result(SocketName)

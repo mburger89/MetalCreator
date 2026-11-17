@@ -2458,3 +2458,11 @@ the Output selected so the part is shown.
 - [ ] **TI-3 View cube icons.** Under the view cube a house icon (Home view) and a camera icon (View options, a menu with Perspective, Orthographic, the shading modes and Set Home View) sit in one row; the house still returns to the home view.
 - [ ] **TI-4 Hit boxes.** Every icon is a 24 x 24 target: press just above, below or beside a glyph (inside the 24-point square) on Undo, Redo, Export, each header icon and the cube's house and camera: the control acts (or opens its menu), the viewport does not orbit or pick, and on Linux or Windows the window does not start to drag. A press just outside the square is the viewport's again. Pinned: `ToolbarIconsWindowTests` (Undo and Home).
 - [ ] **TI-5 App menu order.** Check on screen that the app menu keeps its order with Services and Settings (MetalUI #276 and #278). **Observed:**
+
+## Group KI — KiCad board import (KI-1)
+
+- [ ] **KI-1 Import a board.** File ▸ Import KiCad Board… and choose each keyboard board in turn: an Import KiCad Board node appears wired to an Output and the board shows in the viewport. Compare the outline and every hole with KiCad's 3D viewer. **Observed:**
+- [ ] **KI-2 Facts.** The node's Board section lists the KiCad version, size, thickness, copper layers, holes and components; they match KiCad's board statistics and the board setup's thickness. **Observed:**
+- [ ] **KI-3 Edit in KiCad.** Change the board in KiCad (move a mounting hole, resize the outline) and save: the node's result changes at the next evaluation with no relink. **Observed:**
+- [ ] **KI-4 Standoffs from mounting holes.** Wire the node's mounting holes and diameters into a Hole Pattern or Boss / Pin Pattern: the standoffs line up with the board's mounting holes. **Observed:**
+- [ ] **KI-5 Origin choices.** Switch the origin between board centre, page and drill/place: the board moves as KiCad's origin does, and a board with no drill/place origin warns and falls back to its centre. **Observed:**

@@ -46,6 +46,16 @@ public enum InstancePath {
         (indices(ofItem: a) ?? [a]).lexicographicallyPrecedes(indices(ofItem: b) ?? [b])
     }
 
+    /// What a message says when a pick names an item that is no instance path (a hashed feature of an imported board) and the
+    /// topology no longer has it.
+    public static let importedFeatureVanished = "The picked feature no longer exists in the imported board."
+
+    /// `items` split into those that are instance paths (in the order given) and whether any is not one.
+    public static func partition(_ items: [Int]) -> (paths: [Int], hasOther: Bool) {
+        let paths = items.filter { indices(ofItem: $0) != nil }
+        return (paths, paths.count != items.count)
+    }
+
     /// `{3}` or `{0;3}`: the path of `indices`.
     public static func text(indices: [Int]) -> String {
         "{" + indices.map { String($0) }.joined(separator: ";") + "}"

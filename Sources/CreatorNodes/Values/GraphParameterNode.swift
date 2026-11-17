@@ -38,7 +38,7 @@ public enum GraphParameterNode: NodeDefinition {
             return NodeOutputs(["bool": .bool(bool)])
         case .vector(let vector):
             return NodeOutputs(["vector": .vector(vector)])
-        case .plane, .text, .edgePicks, .sketch, .facePick, .image, .meshFile:
+        case .plane, .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile:
             throw NodeError.invalidValue("Graph Parameter reads number, integer, true/false and vector parameters.")
         }
     }

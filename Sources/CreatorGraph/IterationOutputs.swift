@@ -12,6 +12,9 @@ struct IterationOutputs {
     private(set) var dimensions: [DimensionSpec] = []
     /// The first iteration's sketch trace (a Sketch node runs once).
     private(set) var sketchTrace: SketchTrace?
+    /// The first iteration's facts.
+    private(set) var facts: [PayloadFact] = []
+    private var hasRecorded = false
 
     init(warnings: [String]) {
         self.warnings = warnings
@@ -41,6 +44,8 @@ struct IterationOutputs {
         warnings += outputs.warnings
         dimensions += outputs.dimensions
         if sketchTrace == nil { sketchTrace = outputs.sketchTrace }
+        if !hasRecorded { facts = outputs.facts }
+        hasRecorded = true
     }
 
     /// The output values. An optional output that any iteration left out is absent.

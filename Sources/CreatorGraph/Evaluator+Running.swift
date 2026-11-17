@@ -100,7 +100,7 @@ extension Evaluator {
         let unique = Array(Set(collector.warnings)).sorted()
         let state: NodeState = unique.isEmpty ? .ok(duration: start.duration(to: clock.now)) : .warning(unique.joined(separator: "\n"))
         return NodeResult(state: state, outputs: collector.values(for: outputSpecs, plan: plan),
-                          dimensions: collector.dimensions, sketchTrace: collector.sketchTrace)
+                          dimensions: collector.dimensions, sketchTrace: collector.sketchTrace, facts: collector.facts)
     }
 
     /// Plain-language text for any error a node can throw.
@@ -110,6 +110,7 @@ extension Evaluator {
         case let error as NodeError: error.message
         case let error as ImageProblem: error.message
         case let error as MeshImportProblem: error.message
+        case let error as BoardImportProblem: error.message
         default: String(describing: error)
         }
     }

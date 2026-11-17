@@ -8,7 +8,8 @@ import Foundation
         [
             MCPTool(
                 name: "set_file",
-                description: "Sets the file of an Image Field (a picture) or an Import Mesh node (STL or 3MF), linked or embedded.",
+                description: "Sets the file of an Image Field (a picture), an Import Mesh node (STL or 3MF) or an Import KiCad Board node "
+                    + "(linked only).",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
