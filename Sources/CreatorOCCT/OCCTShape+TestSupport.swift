@@ -23,3 +23,12 @@ extension OCCTShape {
         }
     }
 }
+
+extension OCCTShape {
+    /// Writes the shape as a STEP file whose length unit is `unit` ("MM", "INCH"). Call under `OCCTKernel.serialized`.
+    func writeSTEP(to url: URL, unit: String) throws(OCCTError) {
+        try Self.check { status in
+            url.withUnsafeFileSystemRepresentation { path in unit.withCString { occt_test_write_step_units(raw, path, $0, status) } }
+        }
+    }
+}

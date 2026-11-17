@@ -101,6 +101,8 @@ public protocol Kernel: Actor {
     func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid
     /// A planar surface bounded by `loops`. The default refuses.
     func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid
+    /// `curve` scaled about the origin by `factor`. The default refuses.
+    func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve
     /// Every solid, sheet and curve in a model file. The default refuses.
     func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes
     /// Exports `solids` and free `curves`. The default exports solids alone when there are no curves, else refuses.
@@ -175,6 +177,10 @@ extension Kernel {
 
     public func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("planar surfaces")
+    }
+
+    public func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve {
+        throw KernelError.unsupported("scaling")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {

@@ -66,6 +66,8 @@ public enum AppCommands {
     static func importItems(_ model: AppModel) -> MenuItems {
         Button("Import Mesh…") { model.withFilePicker { await model.importMesh(using: $0) } }
             .disabled(!model.canImportMesh)
+        Button("Import Model…") { model.withFilePicker { await model.importModel(using: $0) } }
+            .disabled(!model.canImportModel)
         Button("Import KiCad Board…") { model.withFilePicker { await model.importKiCadBoard(using: $0) } }
             .disabled(!model.canImportKiCadBoard)
     }

@@ -31,7 +31,7 @@ extension AppModel {
             case .relinkPCBFile: try await chooseBoardFile(target, using: picker, named: UndoName.relinkBoardFile)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
                  .editSketch, .editGroup, .makeUnique, .ungroup, .chooseImage, .linkImage, .relinkImage, .embedImage,
-                 .chooseMeshFile, .relinkMeshFile, .embedMeshFile: break
+                 .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .chooseModelFile, .relinkModelFile, .embedModelFile: break
             }
         }
         reportBoardFile(failure, title: "The board file couldn't be changed")

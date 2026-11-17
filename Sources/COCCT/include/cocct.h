@@ -429,6 +429,23 @@ occt_shape *occt_read_step(const char *path, occt_status *status);
 occt_shape *occt_read_model(const char *data, size_t size, occt_status *status);
 /// Reads the IGES file at `path` like occt_read_model ("The IGES model couldn't be read.").
 occt_shape *occt_read_iges_file(const char *path, occt_status *status);
+/// What a model file holds, sorted (NURBS spec, Import Model): `count` shapes, each a solid (kind 0), a sheet (kind 1: a free shell or
+/// face) or a curve (kind 2: a free wire, or a free edge as a wire), in the file's order, read in millimetres. `file_unit_mm` is the
+/// length unit the file was written in, in millimetres. The caller takes the shapes it uses (setting the entry to null) and frees
+/// the rest with occt_model_shapes_free.
+typedef struct {
+    occt_shape **shapes;
+    int *kinds;
+    int count;
+    double file_unit_mm;
+} occt_model_shapes;
+void occt_model_shapes_free(occt_model_shapes *models);
+/// Reads a STEP model from `size` bytes, or, when `iges_path` is not null, the IGES file at that path (the bytes are then ignored).
+/// Refuses with "The STEP model couldn't be read.", "The IGES model couldn't be read." and "The model contains no shapes.". Returns 1,
+/// or 0 with `status` set.
+int occt_read_shapes(const char *data, size_t size, const char *iges_path, occt_model_shapes *out, occt_status *status);
+/// FOR TESTS ONLY. Writes `shape` as a STEP file at `path` with the file's length unit `unit` ("MM", "INCH", ...).
+int occt_test_write_step_units(const occt_shape *shape, const char *path, const char *unit, occt_status *status);
 /// A copy of `shape` scaled about the origin: a similarity when the three factors are equal, OpenCascade's general transform
 /// otherwise. Faces keep their order in the shape's face map. Every factor must be finite and greater than 0.
 occt_shape *occt_scale(const occt_shape *shape, double sx, double sy, double sz, occt_status *status);

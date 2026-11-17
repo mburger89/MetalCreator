@@ -93,7 +93,7 @@ extension OCCTKernel {
     }
 
     /// The `Curve` for a wire: its facts read once, the wire kept as the storage.
-    private func curve(from wire: OCCTShape, operation: String) throws -> Curve {
+    func curve(from wire: OCCTShape, operation: String) throws -> Curve {
         let info: OCCTCurveInfo
         do {
             info = try Self.serialized { () throws -> OCCTCurveInfo in try wire.curveInfo() }
