@@ -67,6 +67,11 @@ extension ModelFiles {
     /// A reader's sentence as the phrase in parentheses: "This VRML file uses a shape before it is defined." becomes
     /// "it uses a shape before it is defined"; any other sentence is lower-cased and its period dropped.
     static func readerReason(_ sentence: String) -> String {
+        switch sentence {
+        case "This file isn't a VRML 1 or VRML 2 file.": return "the file isn't a VRML model"
+        case "This file isn't an X3D file.": return "the file isn't an X3D model"
+        default: break
+        }
         for format in ["VRML", "X3D", "IDF"] {
             let starts = [("This \(format) file ", "it "), ("This \(format) file's ", "its ")]
             for (prefix, subject) in starts where sentence.hasPrefix(prefix) {
@@ -117,11 +122,48 @@ extension Placer {
         }
     }
 
+    /// Whether the model is read as a mesh.
+    func isMesh(_ model: ModelReference) -> Bool {
+        if case .mesh = found[model.path] { return true }
+        return false
+    }
+
+    /// Decides, before any point is moved, whether this footprint's meshes are made: the triangles its placeable models hold
+    /// are counted from the cached meshes, a footprint over the per-footprint limit is left out and named, and once the board's
+    /// budget is spent so is every footprint after it (counted in one warning).
+    mutating func admitMeshes(of models: [ModelReference], footprint index: Int) -> Bool {
+        var triangles = 0
+        for model in models {
+            guard case .mesh(let found, _) = found[model.path],
+                  [model.scale.x, model.scale.y, model.scale.z].allSatisfy({ $0.isFinite && $0 > 0 }) else { continue }
+            triangles += found.mesh.positions.isEmpty ? 0 : found.mesh.triangles.count / 3
+        }
+        guard triangles > 0 else { return true }
+        let limits = BoardComponents.meshLimits
+        if triangles > limits.footprint {
+            let reference = setting.board.footprints[index].reference
+            problems.meshesOverFootprintLimit.append(reference.isEmpty ? "unnamed" : reference)
+            leftOut.insert(index)
+            return false
+        }
+        if meshBudgetSpent || meshTriangles + triangles > limits.board {
+            meshBudgetSpent = true
+            problems.meshesLeftOut += 1
+            leftOut.insert(index)
+            return false
+        }
+        meshTriangles += triangles
+        return true
+    }
+
     /// The model's mesh scaled (and converted from the file's units), moved by the model's frame and the board's; nil (the
-    /// problem noted) when it can't be, and nil without a problem when the file held nothing to draw.
+    /// problem noted) when it can't be, and nil without a problem when the file held nothing to draw. Only called for a footprint
+    /// `admitMeshes` allowed, so a budget is never spent on points that are then thrown away.
     mutating func placeMesh(_ found: ImportedModelMesh, scale: Vector3, of index: Int, plane: Plane, name: String) throws -> MeshPiece? {
         if found.skippedGeometry { problems.skipped.append(name) }
+        if found.referencesFiles { problems.inlined.append(name) }
         guard !found.mesh.positions.isEmpty, !found.mesh.triangles.isEmpty else { return nil }
+        BoardComponents.meshMoveObserver?(found.mesh.positions.count)
         let unit = found.isMillimetres ? 1 : 2.54
         let factors = Vector3(scale.x * unit, scale.y * unit, scale.z * unit)
         guard let positions = try Self.moved(found.mesh.positions, by: factors, onto: plane) else {
@@ -157,41 +199,39 @@ struct MeshLimits: Sendable {
 
 extension BoardComponents {
     @TaskLocal static var meshLimits = MeshLimits()
+    /// Called with a model's point count each time its points are moved (a test counts them).
+    @TaskLocal static var meshMoveObserver: (@Sendable (Int) -> Void)?
 
-    /// A footprint's pieces joined into one mesh each, in the order of the pieces (R2: vertices are not welded across models). A
-    /// footprint whose meshes hold too many triangles together is left out and named; once the board's budget is spent, so is every
-    /// footprint after it, counted in one warning.
-    static func joined(_ pieces: [MeshPiece], board: KiCadBoard, problems: inout Problems) -> [(footprint: Int, mesh: TriangleMesh)] {
+    /// A footprint's pieces joined into one mesh each, in the order of the pieces (R2: vertices are not welded across models). The
+    /// budgets were applied before any point was moved (`Placer.admitMeshes`), so this only concatenates, and empties each
+    /// footprint's pieces as it joins them.
+    static func joined(_ pieces: inout [MeshPiece], board: KiCadBoard,
+                       problems: inout Problems) throws -> [(footprint: Int, mesh: TriangleMesh)] {
         var meshes: [(footprint: Int, mesh: TriangleMesh)] = []
         var start = 0
-        var spent = 0
-        var exhausted = false
         while start < pieces.count {
+            try Task.checkCancellation()
             var end = start + 1
             while end < pieces.count, pieces[end].footprint == pieces[start].footprint { end += 1 }
-            let group = pieces[start..<end]
-            let footprint = board.footprints[pieces[start].footprint]
-            let triangles = group.reduce(0) { $0 + $1.triangles.count / 3 }
-            let vertices = group.reduce(0) { $0 + $1.positions.count }
-            if triangles > meshLimits.footprint {
-                let name = footprint.reference.isEmpty ? "unnamed" : footprint.reference
-                problems.unreadable.append("\(name) (its meshes have more than \(meshLimits.footprint.display) triangles together)")
-            } else if exhausted || spent + triangles > meshLimits.board {
-                exhausted = true
-                problems.meshesLeftOut += 1
-            } else if vertices > Int(UInt32.max) {
-                problems.unreadable.append("\(group.map(\.name).joined(separator: " and ")) (they have too many points to join)")
+            let footprintIndex = pieces[start].footprint
+            let footprint = board.footprints[footprintIndex]
+            let vertices = pieces[start..<end].reduce(0) { $0 + $1.positions.count }
+            if vertices > Int(UInt32.max) {
+                let names = pieces[start..<end].map(\.name).joined(separator: " and ")
+                problems.unreadable.append("\(names) (they have too many points to join)")
             } else {
-                spent += triangles
                 var positions: [SIMD3<Float>] = []
                 var indices: [UInt32] = []
                 positions.reserveCapacity(vertices)
-                for piece in group {
+                for index in start..<end {
+                    if index > start { try Task.checkCancellation() }
                     let offset = UInt32(positions.count)
-                    positions += piece.positions
-                    indices += piece.triangles.map { $0 + offset }
+                    positions += pieces[index].positions
+                    indices += pieces[index].triangles.map { $0 + offset }
+                    pieces[index].positions = []
+                    pieces[index].triangles = []
                 }
-                meshes.append((pieces[start].footprint, mesh(positions, indices, footprint: footprint)))
+                meshes.append((footprintIndex, mesh(positions, indices, footprint: footprint)))
             }
             start = end
         }

@@ -112,7 +112,9 @@ import Testing
         let read = try Self.read(Self.header2 + "Shape { geometry Sphere { radius 1 } } \(Self.triangle)")
         #expect(read.skippedGeometry && read.mesh.triangles.count == 3)
         let only = try Self.read(Self.header2 + "Shape { geometry Cylinder { } } Inline { url \"a.wrl\" }")
-        #expect(only.skippedGeometry && only.mesh.triangles.isEmpty)
+        #expect(only.skippedGeometry && only.referencesFiles && only.mesh.triangles.isEmpty)
+        let inline = try Self.read(Self.header2 + "Inline { url \"a.wrl\" }")
+        #expect(inline.referencesFiles && !inline.skippedGeometry && inline.mesh.triangles.isEmpty)
     }
 
     @Test func version1SeparatorScopesState() throws {

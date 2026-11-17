@@ -6,13 +6,16 @@ public struct ImportedModelMesh: Sendable {
     public var mesh: TriangleMesh
     /// Whether the file held shapes that are not read (spheres, cylinders and the like).
     public var skippedGeometry: Bool
+    /// Whether the file refers to other files (VRML or X3D `Inline`), which are not read.
+    public var referencesFiles: Bool
     /// Whether the file's units are millimetres: a VRML 2 file whose top-level `Transform` has a `scale` other than 1 (KiCad's way
     /// of writing millimetres). Every other VRML file is in 0.1 inch, and the caller applies that factor.
     public var isMillimetres: Bool
 
-    public init(mesh: TriangleMesh, skippedGeometry: Bool, isMillimetres: Bool) {
+    public init(mesh: TriangleMesh, skippedGeometry: Bool, isMillimetres: Bool, referencesFiles: Bool = false) {
         self.mesh = mesh
         self.skippedGeometry = skippedGeometry
+        self.referencesFiles = referencesFiles
         self.isMillimetres = isMillimetres
     }
 }
@@ -88,11 +91,13 @@ public enum VRMLReader {
     static func finish(_ scene: VRMLScene, millimetres: Bool) throws -> ImportedModelMesh {
         let welded = ExactWeld.weld(corners: scene.corners)
         guard !welded.triangles.isEmpty else {
-            guard scene.skippedGeometry else { throw MeshImportProblem.noTriangles }
-            return ImportedModelMesh(mesh: TriangleMesh(positions: [], triangles: [], creaseAngle: 30), skippedGeometry: true,
-                                     isMillimetres: millimetres)
+            guard scene.skippedGeometry || scene.referencesFiles else { throw MeshImportProblem.noTriangles }
+            return ImportedModelMesh(mesh: TriangleMesh(positions: [], triangles: [], creaseAngle: 30),
+                                     skippedGeometry: scene.skippedGeometry, isMillimetres: millimetres,
+                                     referencesFiles: scene.referencesFiles)
         }
         let mesh = TriangleMesh(positions: welded.positions, triangles: welded.triangles, creaseAngle: 30)
-        return ImportedModelMesh(mesh: mesh, skippedGeometry: scene.skippedGeometry, isMillimetres: millimetres)
+        return ImportedModelMesh(mesh: mesh, skippedGeometry: scene.skippedGeometry, isMillimetres: millimetres,
+                                 referencesFiles: scene.referencesFiles)
     }
 }

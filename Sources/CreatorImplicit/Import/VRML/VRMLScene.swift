@@ -6,6 +6,8 @@ final class VRMLScene {
 
     private(set) var corners: [SIMD3<Float>] = []
     var skippedGeometry = false
+    /// Whether the file names other files (`Inline`) that are not read.
+    var referencesFiles = false
     /// The format named in this scene's refusals.
     let format: String
     private let triangleLimit: Int

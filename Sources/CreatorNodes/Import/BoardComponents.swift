@@ -94,7 +94,9 @@ enum BoardComponents {
                 }
                 continue
             }
+            let meshesAllowed = placer.admitMeshes(of: visible[index], footprint: index)
             for model in visible[index] {
+                if !meshesAllowed, placer.isMesh(model) { continue }
                 switch try await placer.place(model, of: index) {
                 case .solid(let piece): pieces.append(piece)
                 case .mesh(let piece): meshPieces.append(piece)
@@ -103,10 +105,11 @@ enum BoardComponents {
             }
         }
         let made = try await assemble(pieces, setting: setting, kernel: kernel, context: context, problems: &placer.problems)
-        let joined = joined(meshPieces, board: setting.board, problems: &placer.problems)
+        let joined = try joined(&meshPieces, board: setting.board, problems: &placer.problems)
         outcome.solids = made.map(\.solid)
         outcome.meshes = joined.map(\.mesh)
-        outcome.withModel = Set(made.map(\.footprint)).union(joined.map(\.footprint)).count
+        // A footprint whose meshes a budget left out has a model: it is not one "without a 3D model".
+        outcome.withModel = Set(made.map(\.footprint)).union(joined.map(\.footprint)).union(placer.leftOut).count
         outcome.warnings = placer.problems.sentences()
         return outcome
     }
@@ -202,6 +205,11 @@ struct Placer {
     var found: [String: BoardComponents.Found] = [:]
     var problems = Problems()
     var memo: [BoardComponents.ScaleID: Solid] = [:]
+    /// Triangles of the meshes admitted so far on this board, and whether the board's budget has been spent.
+    var meshTriangles = 0
+    var meshBudgetSpent = false
+    /// Footprints whose meshes a budget left out.
+    var leftOut: Set<Int> = []
 
     init(setting: BoardComponents.Setting, kernel: any Kernel, cache: ComponentModelCache, node: NodeID) {
         self.setting = setting

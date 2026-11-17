@@ -146,6 +146,11 @@ import Testing
         #expect(result.mesh.triangles.count == 3)
     }
 
+    @Test func inlineOnlyReferencesFiles() throws {
+        let result = try Self.read(Self.wrap("<Inline url=\"a.x3d\"/>"))
+        #expect(result.referencesFiles && !result.skippedGeometry && result.mesh.triangles.isEmpty)
+    }
+
     @Test func coordinateDoubleAndOrderOfAttributes() throws {
         let text = Self.wrap("""
         <Shape><IndexedFaceSet coordIndex="0 1 2 -1"><CoordinateDouble point="0 0 0 1 0 0 0 1 0"/></IndexedFaceSet></Shape>

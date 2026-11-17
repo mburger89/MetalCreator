@@ -69,7 +69,6 @@ private struct IDFParseState {
     var scale = 1.0
     var height = 0.0
     var loops: [(label: Int, segments: [Segment2D])] = []
-    var usedLabels: Set<Int> = []
     var firstPoint: Vector2?
     var previous: Vector2?
     var segments: [Segment2D] = []
@@ -126,9 +125,6 @@ private struct IDFParseState {
     mutating func readPoint(_ tokens: [String]) throws(KiCadProblem) {
         let (loop, point, angle) = try parsePoint(tokens)
         guard let start = firstPoint, let from = previous else {
-            guard usedLabels.insert(loop).inserted else {
-                throw KiCadProblem("This IDF file has two outlines with the same loop number.")
-            }
             (label, firstPoint, previous, segments) = (loop, point, point, [])
             return
         }
@@ -156,7 +152,7 @@ private struct IDFParseState {
             throw KiCadProblem("This IDF file has a point line that isn't a loop number, x, y and angle.")
         }
         guard abs(x * scale) <= 1e9, abs(y * scale) <= 1e9 else {
-            throw KiCadProblem("This IDF file has a coordinate beyond a million kilometres.")
+            throw KiCadProblem("This IDF file has a coordinate beyond 1,000 kilometres.")
         }
         return (loop, Vector2(x * scale, y * scale), angle)
     }
@@ -196,14 +192,13 @@ private struct IDFParseState {
             throw KiCadProblem("This IDF file has no part outline (.ELECTRICAL or .MECHANICAL section).")
         }
         if firstPoint != nil { throw unclosed }
-        guard let outerIndex = loops.firstIndex(where: { $0.label == 0 }) else {
-            throw KiCadProblem("This IDF file's part has no outer outline (loop 0).")
+        // A loop's label is IDF 3.0's winding flag (0 counter-clockwise, 1 clockwise), not outline against hole: the first
+        // closed loop is the outline whatever its label, the others are holes, and the orientation is fixed here.
+        guard let first = loops.first else {
+            throw KiCadProblem("This IDF file's part has no outer outline.")
         }
-        let outer = Self.oriented(loops[outerIndex].segments, counterClockwise: true)
-        var holes: [[Segment2D]] = []
-        for (index, loop) in loops.enumerated() where index != outerIndex {
-            holes.append(Self.oriented(loop.segments, counterClockwise: false))
-        }
+        let outer = Self.oriented(first.segments, counterClockwise: true)
+        let holes = loops.dropFirst().map { Self.oriented($0.segments, counterClockwise: false) }
         return IDFOutline(profile: Profile2D(plane: .xy, outer: outer, holes: holes), height: height)
     }
 

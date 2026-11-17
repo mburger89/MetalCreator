@@ -115,6 +115,10 @@ struct Problems: Equatable {
     var unreadable: [String] = []
     /// Model files with shapes that aren't read, each named once.
     var skipped: [String] = []
+    /// Model files that refer to other files, which aren't read, each named once.
+    var inlined: [String] = []
+    /// References of footprints whose meshes together exceed the per-footprint triangle limit.
+    var meshesOverFootprintLimit: [String] = []
     /// How many footprints' meshes were left out because the board's budget was spent.
     var meshesLeftOut = 0
 
@@ -131,6 +135,18 @@ struct Problems: Equatable {
             result.append("\(bad.count.display) model\(bad.count == 1 ? "" : "s") couldn't be read: \(Self.list(bad)).")
         }
         for name in Self.unique(skipped) { result.append("\(name) has shapes that aren't read (spheres, cylinders and the like).") }
+        for name in Self.unique(inlined) { result.append("\(name) refers to other files, which aren't read.") }
+        if !meshesOverFootprintLimit.isEmpty {
+            let names = Self.unique(meshesOverFootprintLimit)
+            let limit = BoardComponents.meshLimits.footprint.display
+            if names.count == 1 {
+                result.append("\(names[0])'s component meshes were left out: they have more than \(limit) triangles together.")
+            } else {
+                let count = names.count.display
+                result.append("\(count) components' meshes were left out because each has more than \(limit) triangles together: "
+                    + "\(Self.list(names)).")
+            }
+        }
         if meshesLeftOut > 0 {
             let limit = BoardComponents.meshLimits.board.display
             let (count, noun, verb) = meshesLeftOut == 1 ? ("1", "mesh", "was") : (meshesLeftOut.display, "meshes", "were")

@@ -197,8 +197,15 @@ struct IDFReaderTests {
         #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: "0 0 0 0\n0 4 0 0\n0 4 2 360")) }
     }
 
-    @Test func repeatedLoopLabelIsRefused() {
-        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: Self.square + "\n" + Self.square)) }
+    @Test func labelIsAWindingFlagNotOutlineVersusHole() throws {
+        // A clockwise rectangle labelled 1 is the outline (the first loop), and a second loop labelled 1 is a hole.
+        let outer = "1 0 0 0\n1 0 2 0\n1 4 2 0\n1 4 0 0\n1 0 0 0"
+        let hole = "1 1 0.5 0\n1 1 1.5 0\n1 3 1.5 0\n1 3 0.5 0\n1 1 0.5 0"
+        let outline = try Self.read(Self.file(body: outer + "\n" + hole))
+        #expect(outline.profile.holes.count == 1)
+        #expect(abs(ArcGeometry.signedArea(outline.profile.outer) - 8) < 1e-9)
+        #expect(ArcGeometry.signedArea(outline.profile.holes[0]) < 0)
+        #expect(outline.profile.isClosed)
     }
 
     @Test func tinyAngleIsALine() throws {
@@ -257,7 +264,7 @@ struct IDFReaderTests {
     }
 
     @Test func pointAfterAClosedLoopStartsAnotherLoop() throws {
-        // Pinned: a new loop number begins a hole; a repeated one is refused (see repeatedLoopLabelIsRefused).
+        // Pinned: a second closed loop is a hole whatever its label.
         let outline = try Self.read(Self.file(body: Self.square + "\n3 1 0.5 0\n3 3 0.5 0\n3 3 1.5 0\n3 1 0.5 0"))
         #expect(outline.profile.holes.count == 1)
     }

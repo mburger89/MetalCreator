@@ -4,6 +4,7 @@ import CreatorImplicit
 import CreatorKernel
 import CreatorPCB
 import Foundation
+import Synchronization
 import Testing
 @testable import CreatorNodes
 
@@ -16,6 +17,10 @@ struct ModelReasonTests {
         #expect(ModelFiles.readerReason("This VRML file's units are odd.") == "its units are odd")
         #expect(ModelFiles.readerReason("This X3D file's scene is empty.") == "its scene is empty")
         #expect(ModelFiles.readerReason("Something else entirely.") == "something else entirely")
+        #expect(ModelFiles.readerReason("This file isn't a VRML 1 or VRML 2 file.") == "the file isn't a VRML model")
+        #expect(ModelFiles.readerReason("This file isn't an X3D file.") == "the file isn't an X3D model")
+        #expect(ModelFiles.meshReason(.vrml("This file isn't a VRML 1 or VRML 2 file.")) == "the file isn't a VRML model")
+        #expect(ModelFiles.meshReason(.x3d("This file isn't an X3D file.")) == "the file isn't an X3D model")
     }
 
     @Test func meshProblemsReadInKiCadsWords() {
@@ -237,8 +242,9 @@ struct ImportKiCadMeshComponentsTests {
         try write(Self.vrml(), "v.wrl")  // 20 triangles each
         let (h, node, _) = try board([part("U1", models: [model("v.wrl"), model("v.wrl")]), part("U2", x: 60, models: [model("v.wrl")])])
         let report = try await go(h, node, limits: MeshLimits(footprint: 30, board: 1_000))
-        #expect(warnings(report, node) == ["1 model couldn't be read: U1 (its meshes have more than 30 triangles together)."])
+        #expect(warnings(report, node) == ["U1's component meshes were left out: they have more than 30 triangles together."])
         #expect(meshes(report, node).count == 1)
+        #expect(try facts(report, node)["Components"] == "2 placed, 0 as solids, 1 as meshes, 0 without a 3D model")
     }
 
     @Test func aBoardsMeshesAreLimitedInNaturalOrder() async throws {

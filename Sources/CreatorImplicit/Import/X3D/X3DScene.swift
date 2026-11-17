@@ -22,10 +22,10 @@ extension VRMLScene {
             matrix *= VRMLMatrix.transform(translation: node.translation, rotation: node.rotation, scale: node.scale,
                                            scaleOrientation: node.scaleOrientation, center: node.center)
             return node.children
-        case "X3D", "Scene", "Group", "StaticGroup", "Collision", "Billboard", "Anchor", "Shape":
+        case _ where Self.groupingTypes.contains(node.type) || ["X3D", "Scene", "StaticGroup", "Shape"].contains(node.type):
             return node.children
         case "LOD":
-            let readable = node.children.first { Self.isReadable($0.type) }
+            let readable = node.children.first { X3DBuilder.isReadable($0.type) }
             return readable.map { [$0] } ?? []
         case "Switch":
             guard node.whichChoice >= 0, node.whichChoice < Float(node.children.count) else { return [] }
@@ -45,18 +45,12 @@ extension VRMLScene {
         case "Box":
             let size = node.size.flatMap { $0.count >= 3 ? $0 : nil } ?? [2, 2, 2]
             try addBox(size: SIMD3(Double(size[0]), Double(size[1]), Double(size[2])), matrix: matrix, reversed: false)
+        case "Inline":
+            referencesFiles = true
         default:
             if X3DBuilder.isUnread(node.type) { skippedGeometry = true }
         }
     }
-
-    private static let readable: Set<String> = [
-        "X3D", "Scene", "Transform", "Group", "StaticGroup", "Collision", "Billboard", "Anchor", "Switch", "LOD", "Shape",
-        "IndexedFaceSet", "IndexedTriangleSet", "Box",
-    ]
-
-    /// Whether an element makes triangles or holds nodes that can.
-    private static func isReadable(_ type: String) -> Bool { readable.contains(type) }
 
     private func points(of node: X3DNode) -> [Float] {
         node.children.first { $0.type == "Coordinate" || $0.type == "CoordinateDouble" }?.point ?? []

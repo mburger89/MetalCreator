@@ -3,6 +3,9 @@ extension VRMLScene {
         "Sphere", "Cone", "Cylinder", "ElevationGrid", "Extrusion", "IndexedLineSet", "PointSet", "Text", "AsciiText"
     ]
 
+    /// Nodes that only pass their `children` on, in VRML 2 and X3D alike.
+    static let groupingTypes: Set<String> = ["Group", "Collision", "Billboard", "Anchor"]
+
     static func isUnread(_ type: String) -> Bool { unreadGeometry.contains(type) }
 
     private struct Work {
@@ -32,7 +35,7 @@ extension VRMLScene {
                 translation: node.numbers("translation"), rotation: node.numbers("rotation"), scale: node.numbers("scale"),
                 scaleOrientation: node.numbers("scaleOrientation"), center: node.numbers("center"))
             return node.nodes("children")
-        case "Group", "Collision", "Billboard", "Anchor":
+        case _ where Self.groupingTypes.contains(node.type):
             return node.nodes("children")
         case "Switch":
             let choices = node.nodes("choice") + node.nodes("children")
@@ -49,7 +52,7 @@ extension VRMLScene {
     private func makeGeometry2(_ node: VRMLNode, matrix: VRMLMatrix) throws {
         switch node.type {
         case "Inline":
-            skippedGeometry = true
+            referencesFiles = true
         case "IndexedFaceSet":
             try addFaces(points: node.nodes("coord").first?.numbers("point") ?? [], indices: node.numbers("coordIndex") ?? [],
                          matrix: matrix, counterClockwise: node.field("ccw")?.word != "FALSE")

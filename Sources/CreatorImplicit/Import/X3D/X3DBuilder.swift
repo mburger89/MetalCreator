@@ -6,12 +6,17 @@ struct X3DBuilder {
     static let maximumElements = 4_000_000
 
     /// Elements whose children are read.
-    private static let containers: Set<String> = [
+    static let containers: Set<String> = [
         "X3D", "Scene", "Transform", "Group", "StaticGroup", "Collision", "Billboard", "Anchor", "Switch", "LOD", "Shape",
         "IndexedFaceSet", "IndexedTriangleSet",
     ]
     /// Elements kept as leaves.
-    private static let leaves: Set<String> = ["Coordinate", "CoordinateDouble", "Box"]
+    private static let leaves: Set<String> = Set(["Coordinate", "CoordinateDouble"]).union(geometryLeaves)
+    /// Leaves that make triangles themselves.
+    private static let geometryLeaves: Set<String> = ["Box"]
+
+    /// Whether an element makes triangles or holds nodes that can.
+    static func isReadable(_ type: String) -> Bool { containers.contains(type) || geometryLeaves.contains(type) }
 
     var scanner: XMLScanner
     let isCancelled: () -> Bool
