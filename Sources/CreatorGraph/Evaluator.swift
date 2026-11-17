@@ -104,7 +104,8 @@ public actor Evaluator {
                 level.keys[node.id] = key
                 return NodeResult(state: .ok(duration: .zero), outputs: inputs)
             default:
-                if let cached = cache.result(for: key), cached.dependencies.allSatisfy(\.isCurrent) {
+                // During a scrub the cached result is reused without re-stamping files; the next evaluation checks them.
+                if let cached = cache.result(for: key), scope.setup.isScrubbing || cached.dependencies.allSatisfy(\.isCurrent) {
                     level.keys[node.id] = key.including(cached.dependencies)
                     return cached
                 }

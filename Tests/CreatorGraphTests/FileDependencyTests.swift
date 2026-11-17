@@ -122,6 +122,23 @@ struct FileDependencyTests {
         #expect(report.evaluatedNodes == [other.id])
     }
 
+    @Test func aScrubReusesTheResultWithoutCheckingFiles() async throws {
+        let dir = try folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let path = dir.appending(path: "a.bin").path(percentEncoded: false)
+        try Data(count: 10).write(to: URL(filePath: path))
+        let node = probe(path)
+        let evaluator = Evaluator(registry: registry, kernel: FakeKernel())
+        let g = graph([node])
+        _ = try await evaluator.evaluate(g, demand: [node.id])
+        try Data(count: 25).write(to: URL(filePath: path))
+        let scrub = try await evaluator.evaluate(g, demand: [node.id], isScrubbing: true)
+        #expect(scrub.evaluatedNodes.isEmpty)
+        let after = try await evaluator.evaluate(g, demand: [node.id])
+        #expect(after.evaluatedNodes == [node.id])
+        #expect(size(of: after.results[node.id]) == 25)
+    }
+
     @Test func modelFileRefusesWhatIsNotAFileOrTooBig() throws {
         let dir = try folder()
         defer { try? FileManager.default.removeItem(at: dir) }

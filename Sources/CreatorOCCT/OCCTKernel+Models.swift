@@ -15,7 +15,11 @@ extension OCCTKernel {
                 shape = try readIGES(data)
             }
         } catch let error as OCCTError {
-            throw KernelError.invalidInput(error.message.hasPrefix("occt: ") ? Self.unreadable(format) : error.message)
+            // The shim's own sentences are about the file; any other exception (bad_alloc too) says nothing about its contents.
+            if error.message.hasPrefix("occt: ") {
+                throw KernelError.operationFailed(operation: "read model", reason: Self.unreadable(format))
+            }
+            throw KernelError.invalidInput(error.message)
         }
         let read: Solid
         do {
@@ -39,7 +43,9 @@ extension OCCTKernel {
         guard data.count >= 73, data[data.startIndex + 72] == UInt8(ascii: "S") else { throw unreadable }
         let url = URL.temporaryDirectory.appending(path: "metalcreator-model-\(UUID().uuidString).igs")
         defer { try? FileManager.default.removeItem(at: url) }
-        guard FileManager.default.createFile(atPath: url.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
+        // Mode 0600 where the platform has modes; a platform without them (Windows) is tried again with none.
+        guard FileManager.default.createFile(atPath: url.path, contents: data, attributes: [.posixPermissions: 0o600])
+            || FileManager.default.createFile(atPath: url.path, contents: data) else {
             throw unreadable
         }
         return try Self.serialized { () throws -> OCCTShape in try OCCTShape.readIGESFile(at: url) }

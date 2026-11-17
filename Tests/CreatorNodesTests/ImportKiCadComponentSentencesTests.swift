@@ -59,3 +59,13 @@ struct ImportKiCadComponentSentencesTests {
         #expect(await cache.reads(containing: "/x/") == 2)
     }
 }
+
+struct ImportKiCadFolderTests {
+    @Test func aWindowsFolderLosesItsLeadingSlash() {
+        #expect(BoardComponents.normalisedFolder("/C:/b") == "C:/b")
+        #expect(BoardComponents.normalisedFolder("/c:") == "c:")
+        #expect(BoardComponents.normalisedFolder("/home/b") == "/home/b")
+        #expect(BoardComponents.normalisedFolder("/a:b/c") == "/a:b/c")
+        #expect(BoardComponents.normalisedFolder("") == "")
+    }
+}

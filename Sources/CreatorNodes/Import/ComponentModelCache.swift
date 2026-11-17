@@ -152,16 +152,21 @@ actor ComponentModelCache {
     }
 }
 
-/// Rewriting the node every face of a cached solid is tagged with.
+/// Rewriting the tags of a cached or placed model's faces.
 enum ModelTags {
-    /// `solid` with the tags of `ComponentModelCache.sentinel` naming `node` instead (faces, edges and order untouched).
-    static func retargeted(_ solid: Solid, to node: NodeID) -> Solid {
+    /// `solid` with every face tag passed through `change` (faces, edges and order untouched).
+    static func rewritten(_ solid: Solid, _ change: (TopoTag) -> TopoTag) -> Solid {
         var topology = solid.topology
         for index in topology.faces.indices {
-            topology.faces[index].tags = Set(topology.faces[index].tags.map { tag in
-                tag.node == ComponentModelCache.sentinel ? TopoTag(node: node, item: tag.item, role: tag.role) : tag
-            })
+            topology.faces[index].tags = Set(topology.faces[index].tags.map(change))
         }
         return Solid(topology: topology, bounds: solid.bounds, storage: solid.storage)
+    }
+
+    /// `solid` with the tags of `ComponentModelCache.sentinel` naming `node` instead.
+    static func retargeted(_ solid: Solid, to node: NodeID) -> Solid {
+        rewritten(solid) { tag in
+            tag.node == ComponentModelCache.sentinel ? TopoTag(node: node, item: tag.item, role: tag.role) : tag
+        }
     }
 }

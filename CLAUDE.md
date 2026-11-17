@@ -117,7 +117,7 @@ are footprint keys `fp:<token>`; the warnings are "no model", "not found" and "c
 checks (group KI) are pending. `CreatorPCB/Models`: `ModelPathResolver` (relative to the board, the project, KiCad's library folders), `KiCadPathVariables`, `ModelFormat` and
 `ModelPlacement`. `Inflate`, `CRC32` and `Gzip` now live in `CreatorGeometry/Compression` (3MF and compressed STEP share them). `Kernel.readModel` (OCCT: STEP read from a
 zero-copy stream, IGES through a 0600 temp file, `xstep.cascade.unit` MM; TKDEIGES is linked on every platform, the Linux Dockerfile included), `Kernel.scaled` and
-`Kernel.compound` (`FakeKernel` answers all three). `FileDependency` / `NodeOutputs.dependencies`: a node names the files its result read beyond its settings; the
+`Kernel.compound` (`FakeKernel` refuses all three, as the protocol defaults do). `FileDependency` / `NodeOutputs.dependencies`: a node names the files its result read beyond its settings; the
 evaluator re-stamps them each evaluation and downstream keys include them, so a model edited on disk updates the board. `ComponentModelCache` reads each model once per file
 stamp across nodes (a sentinel tag retargeted per node); `BoardComponents.environment` is a TaskLocal. VRML, X3D and IDF are KI-3 and models stored in the board KI-4:
 until then such a model is a "couldn't be read" warning.
@@ -236,7 +236,7 @@ Module boundaries (dependency order):
   output, never saved), `ModelDimensionKind` (the kind a pair of picked entities gets) and `MeasuredDimension` (a dimension added at its measured
   value, as a reference when it would over-define).
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
-  the outline's bounds, as OCCT refuses strays). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
+  the outline's bounds, as OCCT refuses strays). `Kernel.readModel(_:format:tag:)` (STEP or IGES bytes to a solid, faces `.imported(face: i)`), `Kernel.scaled(_:by:tag:)` and `Kernel.compound(_:tag:)` refuse by default and in `FakeKernel`; OCCT answers them (KiCad import KI-2). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
   call: copy `i` is a tool moved by a `Transform`, its tags requalified (`Topology.qualified(item:_:)`: node → `qualify(node)`,
   item → `i`, nested blend source edges too). A pattern over a tree renames each copy afterwards
   (`Topology.withInstanceItem(_:)`,

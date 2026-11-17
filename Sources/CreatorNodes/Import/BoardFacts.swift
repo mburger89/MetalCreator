@@ -28,10 +28,10 @@ enum BoardFacts {
         ]
     }
 
-    /// "63 placed, 58 with a 3D model, 5 without"; just "63 placed" when the node leaves components out.
-    static func componentsText(placed: Int, withModel: Int?) -> String {
+    /// "63 placed, 58 with a 3D model, 5 without" (a footprint whose models are all hidden is in neither of the last two); just "63 placed" when the node leaves components out.
+    static func componentsText(placed: Int, withModel: Int?, hidden: Int = 0) -> String {
         guard let withModel else { return "\(placed.display) placed" }
-        return "\(placed.display) placed, \(withModel.display) with a 3D model, \((placed - withModel).display) without"
+        return "\(placed.display) placed, \(withModel.display) with a 3D model, \((placed - withModel - hidden).display) without"
     }
 
     /// "189 drilled, 4 mounting": pad holes only; vias, when the node includes them, add ", 120 vias".

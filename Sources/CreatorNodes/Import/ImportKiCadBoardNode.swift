@@ -65,7 +65,7 @@ public enum ImportKiCadBoardNode: NodeDefinition {
 
         let top = frame.offset(by: thickness)
         let mounting = BoardHoles.mounting(board, origin: origin)
-        let folder = context.images.folder(of: reference)?.path(percentEncoded: false) ?? ""
+        let folder = BoardComponents.normalisedFolder(context.images.folder(of: reference)?.path(percentEncoded: false) ?? "")
         let components = try await components(
             includesComponents, BoardComponents.Setting(board: board, origin: origin, thickness: thickness, frame: frame, folder: folder),
             kernel: kernel, context: context)
@@ -85,7 +85,8 @@ public enum ImportKiCadBoardNode: NodeDefinition {
             file: reference.fileName ?? "Board", board: board, size: Vector2(box.max.x - box.min.x, box.max.y - box.min.y),
             thickness: thickness, holes: BoardFacts.holesText(board: board, mounting: mounting.count, includesVias: includesVias),
             components: BoardFacts.componentsText(placed: board.footprints.count,
-                                                  withModel: includesComponents ? components.withModel : nil))
+                                                  withModel: includesComponents ? components.withModel : nil,
+                                                  hidden: components.hiddenOnly))
         return outputs
     }
 

@@ -208,7 +208,9 @@ struct ImportKiCadComponentsTests {
         hidden.hidden = true
         let (h, node, _) = try board([part("U1", models: [hidden])])
         let report = try await go(h, node)
-        #expect(warnings(report, node) == ["1 component has no 3D model: U1."])
+        #expect(report.isOK(node), "\(String(describing: report.state(node)))")
+        let facts = Dictionary(uniqueKeysWithValues: (try #require(report.results[node.id]).facts).map { ($0.label, $0.value) })
+        #expect(facts["Components"] == "1 placed, 0 with a 3D model, 0 without")
         #expect(await ComponentModelCache.shared.reads(containing: key) == 0)
     }
 

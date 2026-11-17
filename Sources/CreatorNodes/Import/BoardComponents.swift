@@ -16,6 +16,8 @@ enum BoardComponents {
         var solids: [Solid] = []
         var warnings: [String] = []
         var dependencies: [FileDependency] = []
+        /// Footprints whose models are all hidden: skipped, neither warned about nor counted as without a model.
+        var hiddenOnly = 0
         /// How many footprints have a component.
         var withModel: Int { solids.count }
     }
@@ -78,8 +80,12 @@ enum BoardComponents {
         for index in order {
             try Task.checkCancellation()
             guard !visible[index].isEmpty else {
-                let name = setting.board.footprints[index].reference
-                placer.problems.noModel.append(name.isEmpty ? "unnamed" : name)
+                if setting.board.footprints[index].models.isEmpty {
+                    let name = setting.board.footprints[index].reference
+                    placer.problems.noModel.append(name.isEmpty ? "unnamed" : name)
+                } else {
+                    outcome.hiddenOnly += 1
+                }
                 continue
             }
             for model in visible[index] {
@@ -113,6 +119,14 @@ enum BoardComponents {
     struct ScaleID: Hashable {
         var key: ComponentModelCache.ReadKey
         var scale: Vector3
+    }
+
+    /// A folder path as the platform's file calls want it: Windows URLs give "/C:/b", which drops its leading slash.
+    static func normalisedFolder(_ path: String) -> String {
+        let chars = Array(path)
+        guard chars.count >= 3, chars[0] == "/", chars[1].isLetter, chars[2] == ":",
+              chars.count == 3 || chars[3] == "/" || chars[3] == "\\" else { return path }
+        return String(path.dropFirst())
     }
 
     /// The model's frame (board-local, y up) as a plane in the world: the board frame's origin, axes and normal carry it.
@@ -157,14 +171,10 @@ enum BoardComponents {
     /// The k-th model of a footprint names its faces `(k << 32) + i`, so two models never share a name (ruling R1).
     static func retagged(_ solid: Solid, model k: Int) -> Solid {
         guard k > 0 else { return solid }
-        var topology = solid.topology
-        for index in topology.faces.indices {
-            topology.faces[index].tags = Set(topology.faces[index].tags.map { tag in
-                guard case .imported(let face) = tag.role else { return tag }
-                return TopoTag(node: tag.node, item: tag.item, role: .imported(face: (k << 32) + face))
-            })
+        return ModelTags.rewritten(solid) { tag in
+            guard case .imported(let face) = tag.role else { return tag }
+            return TopoTag(node: tag.node, item: tag.item, role: .imported(face: (k << 32) + face))
         }
-        return Solid(topology: topology, bounds: solid.bounds, storage: solid.storage)
     }
 }
 
