@@ -41,7 +41,9 @@ extension AppModel {
         switch request.action {
         case .chooseMeshFile, .relinkMeshFile, .embedMeshFile: handleMeshFile(request)
         case .choosePCBFile, .relinkPCBFile: handleBoardFile(request)
-        default: handleModelFile(request)
+        case .chooseModelFile, .relinkModelFile, .embedModelFile: handleModelFile(request)
+        case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
+             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup: break
         }
     }
 

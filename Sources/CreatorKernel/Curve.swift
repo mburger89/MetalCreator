@@ -44,7 +44,8 @@ public struct SweepOptions: Hashable, Sendable {
     }
 }
 
-/// What a model file holds: solids, sheets (open surfaces) and free curves, in millimetres after `fileUnitMillimetres`.
+/// What a model file holds: solids, sheets (open surfaces) and free curves, read in millimetres. `fileUnitMillimetres` is the length unit the
+/// file was written in, in millimetres, or 0 when the file names none OpenCascade can give a factor for.
 public struct ImportedShapes: Sendable {
     public var solids: [Solid]
     public var sheets: [Solid]

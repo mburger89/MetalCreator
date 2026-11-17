@@ -121,6 +121,29 @@ struct ReadShapesTests {
         #expect(try #require(read.solids.first).bounds.max.x.isApproximatelyEqual(to: 10, absoluteTolerance: 1e-6))
     }
 
+    @Test func unitsComeFromOpenCascadesNumbers() async throws {
+        let kernel = OCCTKernel()
+        let shape = try await kernel.shape(of: try await box(kernel))
+        for (name, millimetres) in [("CM", 10.0), ("M", 1000.0), ("UM", 0.001), ("MIL", 0.0254)] {
+            let read = try await kernel.readShapes(try file([shape], as: .step(unit: name)), format: .step, tag: newTag())
+            #expect(read.fileUnitMillimetres.isApproximatelyEqual(to: millimetres, relativeTolerance: 1e-9), "\(name)")
+            #expect(try #require(read.solids.first).bounds.max.x.isApproximatelyEqual(to: 10, absoluteTolerance: 1e-6), "\(name)")
+        }
+    }
+
+    @Test func aClosedFreeShellBecomesASolidAndLooseFacesStaySheets() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await kernel.shape(of: try await box(kernel))
+        let shell = try OCCTKernel.serialized { () throws in try solid.children() }
+        let read = try await kernel.readShapes(try file(shell, as: .step(unit: "MM")), format: .step, tag: newTag())
+        #expect(read.solids.count == 1 && read.sheets.isEmpty)
+        let volume = try await kernel.properties(of: try #require(read.solids.first)).volume
+        #expect(volume.isApproximatelyEqual(to: 240, relativeTolerance: 1e-6))
+        let faces = try OCCTKernel.serialized { () throws in try shell[0].children() }
+        let loose = try await kernel.readShapes(try file(Array(faces.prefix(2)), as: .step(unit: "MM")), format: .step, tag: newTag())
+        #expect(loose.solids.isEmpty && loose.sheets.count == 2)
+    }
+
     @Test func anIgesWrittenInInchesReportsItsUnit() async throws {
         let kernel = OCCTKernel()
         let data = try file([try await kernel.shape(of: try await box(kernel))], as: .iges(unit: "IN"))

@@ -11,6 +11,7 @@ extension ImageResolver {
         switch reference {
         case .embedded(let hash):
             guard let data = embedded[hash] else { throw .embeddedMissing }
+            guard data.count <= Self.maxModelFileBytes else { throw .tooLarge }
             return data
         case .linked:
             let name = reference.fileName ?? "file"

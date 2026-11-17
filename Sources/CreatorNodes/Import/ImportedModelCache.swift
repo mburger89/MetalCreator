@@ -8,20 +8,20 @@ struct ImportedModelProblem: Error, Equatable, Sendable {
     var message: String
 }
 
-/// The shapes of STEP and IGES model files kept by what they were read from (NURBS spec, Import Model): an embedded file by its
-/// content hash, a linked one by path, modification date and size (`ImageStamp`), so moving or scaling an Import Model node never
-/// reads the file again and two nodes on one file share one read. Every kept shape carries `sentinel` as its tag's node; a node
-/// rewrites it to its own id when it uses them (`ImportedModelTags`). Least recently used files go first past `maxBytes`.
-///
-/// A file whose contents are wrong is remembered under its stamp (at most `maxProblems`); a file that could not be reached (missing,
-/// permissions) or a kernel that cannot read models is tried again every time, because fixing that changes no stamp. Only a stamp
-/// that names a definite thing (`ImageStamp.isKeepable`) is kept.
 /// What a read of a model file made: its shapes and the format its bytes were.
 struct ImportedModel: Sendable {
     var shapes: ImportedShapes
     var format: SolidModelFormat
 }
 
+/// The shapes of STEP and IGES model files kept by what they were read from (NURBS spec, Import Model): an embedded file by its
+/// content hash, a linked one by path, modification date and size (`ImageStamp`), so moving or scaling an Import Model node never
+/// reads the file again and two nodes on one file share one read. Every kept shape carries `sentinel` as its tag's node; a node
+/// rewrites it to its own id when it uses them (`ImportedModelTags`). Least recently used files go first past `maxBytes`.
+///
+/// A file whose contents are wrong (the shim's own sentences, a format refusal) is remembered under its stamp (at most `maxProblems`); a file that could not be reached (missing,
+/// permissions) an out-of-memory or other kernel failure, or a kernel that cannot read models is tried again every time, because fixing that changes no stamp. Only a stamp
+/// that names a definite thing (`ImageStamp.isKeepable`) is kept.
 actor ImportedModelCache {
     static let maxBytes = 512 << 20
     static let maxProblems = 256
@@ -105,9 +105,9 @@ actor ImportedModelCache {
 enum ImportedModelTags {
     /// `solid` with every face and edge tag of `ImportedModelCache.sentinel` naming `node` instead (the order of faces and edges is
     /// untouched).
-    static func retargeted(_ solid: Solid, to node: NodeID) -> Solid {
+    static func retargeted(_ solid: Solid, to node: NodeID, item: Int) -> Solid {
         func change(_ tag: TopoTag) -> TopoTag {
-            tag.node == ImportedModelCache.sentinel ? TopoTag(node: node, item: tag.item, role: tag.role) : tag
+            tag.node == ImportedModelCache.sentinel ? TopoTag(node: node, item: item, role: tag.role) : tag
         }
         var topology = solid.topology
         for index in topology.faces.indices {

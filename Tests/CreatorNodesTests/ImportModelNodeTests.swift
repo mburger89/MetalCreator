@@ -43,7 +43,7 @@ struct ImportModelNodeTests {
         let facts = try #require(report.results[node.id]?.facts)
         #expect(facts == [
             PayloadFact("Format", "STEP"), PayloadFact("File units", "mm"), PayloadFact("Solids", "1"),
-            PayloadFact("Sheets", "0"), PayloadFact("Curves", "0"),
+            PayloadFact("Sheets", "0"), PayloadFact("Curves", "0"), PayloadFact("Picks", "Last until the file changes."),
         ])
         #expect(ImportModelNode.factsTitle == "Model")
     }
@@ -92,16 +92,72 @@ struct ImportModelNodeTests {
 
     @Test func aFileReadOnceServesTwoNodes() async throws {
         let kernel = OCCTKernel()
-        let (h, first, file) = try linked(try await stepBox(height: 5, kernel), name: "shared.step")
-        var graph = h
-        let reference = ImageReference.linked(relativePath: nil, absolutePath: file.path(percentEncoded: false))
-        let second = graph.add(ImportModelNode.self, [NodeSetting.modelFile: .modelFile(reference)])
-        let before = await ImportedModelCache.shared.readCount
-        let report = try await graph.run([first, second], kernel: kernel)
-        let after = await ImportedModelCache.shared.readCount
-        #expect(after - before <= 2)
-        let a = try onlySolid(report, first, "solids"), b = try onlySolid(report, second, "solids")
+        let data = try await stepBox(height: 5, kernel)
+        let cache = ImportedModelCache()
+        let stamp = ImageStamp.file(path: "/x/shared.step", modified: Date(timeIntervalSince1970: 1), size: data.count)
+        let read: @Sendable () async throws -> ImportedModel = {
+            let tag = NodeTag(node: ImportedModelCache.sentinel, item: 0)
+            return ImportedModel(shapes: try await kernel.readShapes(data, format: .step, tag: tag), format: .step)
+        }
+        let first = try await cache.model(for: stamp, read: read)
+        let second = try await cache.model(for: stamp, read: read)
+        #expect(await cache.readCount == 1)
+        #expect(first.shapes.solids.count == 1 && second.shapes.solids.count == 1)
+        // Two nodes on one file are each named for themselves.
+        let a = ImportedModelTags.retargeted(first.shapes.solids[0], to: NodeID(), item: 0)
+        let b = ImportedModelTags.retargeted(second.shapes.solids[0], to: NodeID(), item: 0)
         #expect(a.topology.faces[0].tags != b.topology.faces[0].tags)
+    }
+
+    @Test func aKernelFailureIsNotRemembered() async throws {
+        let cache = ImportedModelCache()
+        let stamp = ImageStamp.file(path: "/x/big.step", modified: Date(timeIntervalSince1970: 1), size: 5)
+        let failing: @Sendable () async throws -> ImportedModel = {
+            throw NodeError.invalidValue("occt out of memory")
+        }
+        for _ in 0..<2 { await #expect(throws: NodeError.self) { try await cache.model(for: stamp, read: failing) } }
+        let (problems, reads) = (await cache.problemCount, await cache.readCount)
+        #expect(problems == 0 && reads == 2)
+    }
+
+    @Test func factsSayHowLongPicksLast() async throws {
+        let kernel = OCCTKernel()
+        let (h, node, _) = try linked(try await stepBox(kernel))
+        let facts = try #require(try await h.run([node], kernel: kernel).results[node.id]?.facts)
+        #expect(facts.contains(PayloadFact("Picks", "Last until the file changes.")))
+    }
+
+    @Test func aByteOrderMarkIsAcceptedAndGzipIsRefusedInWords() async throws {
+        let kernel = OCCTKernel()
+        let data = try await stepBox(kernel)
+        let (h, bom, _) = try linked(Data([0xEF, 0xBB, 0xBF]) + data, name: "bom.step")
+        let report = try await h.run([bom], kernel: kernel)
+        #expect(report.isOK(bom), "\(String(describing: report.state(bom)))")
+        let (h2, zipped, _) = try linked(Data([0x1F, 0x8B, 0x08, 0x00]) + data, name: "part.stp")
+        #expect(try await h2.run([zipped], kernel: kernel).error(zipped) == "Compressed STEP files can't be read; unzip it first.")
+    }
+
+    @Test func factsNameTheFileUnit() async throws {
+        let kernel = OCCTKernel()
+        let (h, node, _) = try linked(try await stepBox(kernel))
+        #expect(try await h.run([node], kernel: kernel).results[node.id]?.facts.contains(PayloadFact("File units", "mm")) == true)
+    }
+
+    @Test func anUnknownFileUnitWarnsFromFileAndRefusesAnExplicitOne() throws {
+        let sentence = "The file's length unit isn't known; explicit units can't be applied."
+        #expect(try ImportModelNode.unitFactor(.fromFile, fileUnit: 0).warning == sentence)
+        #expect(try ImportModelNode.unitFactor(.fromFile, fileUnit: 0).factor == 1)
+        #expect(throws: NodeError.invalidValue(sentence)) { try ImportModelNode.unitFactor(.centimetres, fileUnit: 0) }
+        #expect(try ImportModelNode.unitFactor(.centimetres, fileUnit: 1).factor == 10)
+        #expect(try ImportModelNode.unitFactor(.millimetres, fileUnit: 25.4).factor == 1 / 25.4)
+    }
+
+    @Test func anEmbeddedFileOverTheLimitIsRefused() {
+        let data = Data(count: ImageResolver.maxModelFileBytes + 1)
+        let hash = ImageHash(of: data)
+        #expect(throws: ModelImportProblem.tooLarge) {
+            try ImageResolver(embedded: [hash: data]).modelFileBytes(of: .embedded(hash))
+        }
     }
 
     @Test func refusalsAreSentences() async throws {

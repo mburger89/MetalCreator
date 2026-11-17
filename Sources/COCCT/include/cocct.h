@@ -430,7 +430,7 @@ occt_shape *occt_read_model(const char *data, size_t size, occt_status *status);
 /// Reads the IGES file at `path` like occt_read_model ("The IGES model couldn't be read.").
 occt_shape *occt_read_iges_file(const char *path, occt_status *status);
 /// What a model file holds, sorted (NURBS spec, Import Model): `count` shapes, each a solid (kind 0), a sheet (kind 1: a free shell or
-/// face) or a curve (kind 2: a free wire, or a free edge as a wire), in the file's order, read in millimetres. `file_unit_mm` is the
+/// face) or a curve (kind 2: a free wire, or a free edge as a wire), in the file's order, read in millimetres. `file_unit_mm` (0 when the file names no length unit OpenCascade can give a factor for) is the
 /// length unit the file was written in, in millimetres. The caller takes the shapes it uses (setting the entry to null) and frees
 /// the rest with occt_model_shapes_free.
 typedef struct {

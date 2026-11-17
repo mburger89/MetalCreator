@@ -3,7 +3,19 @@
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRep_Tool.hxx>
+#include <IGESData_BasicEditor.hxx>
 #include <IGESData_GlobalSection.hxx>
+#include <STEPConstruct_UnitContext.hxx>
+#include <StepData_StepModel.hxx>
+#include <StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx.hxx>
+#include <StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext.hxx>
+#include <StepRepr_GlobalUnitAssignedContext.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
 #include <IGESData_IGESModel.hxx>
 #include <Interface_Static.hxx>
 #include <TColStd_SequenceOfAsciiString.hxx>
@@ -110,7 +122,27 @@ void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found) {
     case TopAbs_SOLID:
         found.push_back({shape, 0});
         break;
-    case TopAbs_SHELL:
+    case TopAbs_SHELL: {
+        // A closed free shell is a solid when it makes a valid one; otherwise (or when open) it stays a sheet.
+        if (BRep_Tool::IsClosed(shape)) {
+            BRepBuilderAPI_MakeSolid maker(TopoDS::Shell(shape));
+            if (maker.IsDone()) {
+                TopoDS_Shape solid = maker.Solid();
+                GProp_GProps volume;
+                BRepGProp::VolumeProperties(solid, volume);
+                if (volume.Mass() < 0) {
+                    solid.Reverse();
+                }
+                BRepCheck_Analyzer check(solid);
+                if (check.IsValid()) {
+                    found.push_back(found_shape{solid, 0});
+                    break;
+                }
+            }
+        }
+        found.push_back({shape, 1});
+        break;
+    }
     case TopAbs_FACE:
         found.push_back({shape, 1});
         break;
@@ -132,58 +164,19 @@ void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found) {
     }
 }
 
-/// Millimetres in the unit a STEP file calls `name` (the names OpenCascade reports for a length unit), or 0 when it is not known.
-double step_unit_millimetres(const char *name) {
-    std::string upper;
-    for (const char *c = name; *c; ++c) {
-        upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(*c))));
-    }
-    struct entry {
-        const char *name;
-        double millimetres;
-    };
-    static const entry table[] = {
-        {"MM", 1}, {"MILLIMETRE", 1}, {"MILLIMETER", 1}, {"CM", 10}, {"CENTIMETRE", 10}, {"CENTIMETER", 10},
-        {"M", 1000}, {"METRE", 1000}, {"METER", 1000}, {"KM", 1e6}, {"KILOMETRE", 1e6}, {"KILOMETER", 1e6},
-        {"UM", 1e-3}, {"MICROMETRE", 1e-3}, {"MICROMETER", 1e-3}, {"MICRON", 1e-3},
-        {"INCH", 25.4}, {"IN", 25.4}, {"FOOT", 304.8}, {"FT", 304.8}, {"MIL", 0.0254}, {"MILE", 1609344},
-    };
-    for (const entry &candidate : table) {
-        if (upper == candidate.name) {
-            return candidate.millimetres;
-        }
-    }
-    return 0;
-}
-
-/// Millimetres in the length unit an IGES file's global section names (its unit flag), 1 when unknown.
+/// Millimetres in the length unit an IGES file's global section names, from OpenCascade's own table of unit flags; 0 when the
+/// flag is one it has no length for (a named unit).
 double iges_unit_millimetres(const IGESData_GlobalSection &section) {
-    switch (section.UnitFlag()) {
-    case 1: return 25.4;
-    case 2: return 1;
-    case 4: return 304.8;
-    case 5: return 1609344;
-    case 6: return 1000;
-    case 7: return 1e6;
-    case 8: return 0.0254;
-    case 9: return 1e-3;
-    case 10: return 10;
-    case 11: return 2.54e-5;
-    default: break;
-    }
-    const Handle(TCollection_HAsciiString) name = section.UnitName();
-    if (!name.IsNull()) {
-        const double known = step_unit_millimetres(name->ToCString());
-        if (known > 0) {
-            return known;
-        }
-    }
-    return 1;
+    // `UnitFlagValue` is the unit in millimetres (its header says metres; the values are 1 for flag 2 and 25.4 for flag 1).
+    const double millimetres = IGESData_BasicEditor::UnitFlagValue(section.UnitFlag());
+    return (std::isfinite(millimetres) && millimetres > 0) ? millimetres : 0.0;
 }
 
 /// Transfers the roots of `reader` (already read) and sorts the result into `out`, which the caller frees.
-int sort_into(XSControl_Reader &reader, double file_unit_millimetres, occt_model_shapes *out, occt_status *status) {
-    reader.TransferRoots();
+int sort_into(XSControl_Reader &reader, double file_unit_millimetres, bool transfer, occt_model_shapes *out, occt_status *status) {
+    if (transfer) {
+        reader.TransferRoots();
+    }
     const TopoDS_Shape root = reader.OneShape();
     if (root.IsNull()) {
         set_error(status, "The model contains no shapes.");
@@ -291,7 +284,7 @@ int occt_read_shapes(const char *data, size_t size, const char *iges_path, occt_
                 if (!model.IsNull()) {
                     unit = iges_unit_millimetres(model->GlobalSection());
                 }
-                return sort_into(reader, unit, out, status);
+                return sort_into(reader, unit, true, out, status);
             }
             static const char *const unreadable = "The STEP model couldn't be read.";
             if (!data || size == 0) {
@@ -305,16 +298,34 @@ int occt_read_shapes(const char *data, size_t size, const char *iges_path, occt_
                 set_error(status, unreadable);
                 return 0;
             }
-            double unit = 1;
-            TColStd_SequenceOfAsciiString lengths, angles, solid_angles;
-            reader.FileUnits(lengths, angles, solid_angles);
-            if (lengths.Length() > 0) {
-                const double known = step_unit_millimetres(lengths.First().ToCString());
-                if (known > 0) {
-                    unit = known;
+            // The file's own length unit, in millimetres, as OpenCascade computes it from the file's unit context (0: it names none).
+            // `ComputeFactors` is the transfer's own reading of the unit entities (prefix and conversion factor included).
+            double unit = 0;
+            Handle(StepData_StepModel) model = Handle(StepData_StepModel)::DownCast(reader.Model());
+            if (!model.IsNull()) {
+                for (Standard_Integer i = 1; i <= model->NbEntities() && unit == 0; ++i) {
+                    Handle(StepRepr_GlobalUnitAssignedContext) context;
+                    if (auto both = Handle(StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx)::DownCast(model->Value(i));
+                        !both.IsNull()) {
+                        context = both->GlobalUnitAssignedContext();
+                    } else if (auto plain = Handle(StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext)::DownCast(
+                                   model->Value(i));
+                               !plain.IsNull()) {
+                        context = plain->GlobalUnitAssignedContext();
+                    }
+                    if (context.IsNull()) {
+                        continue;
+                    }
+                    STEPConstruct_UnitContext units;
+                    units.ComputeFactors(context);
+                    const double factor = units.LengthFactor();
+                    if (units.LengthDone() && std::isfinite(factor) && factor > 0) {
+                        unit = factor;
+                    }
                 }
             }
-            return sort_into(reader, unit, out, status);
+            reader.TransferRoots();
+            return sort_into(reader, unit, false, out, status);
         } catch (const Standard_Failure &) {
             occt_model_shapes_free(out);
             set_error(status, iges_path ? "The IGES model couldn't be read." : "The STEP model couldn't be read.");
@@ -329,12 +340,15 @@ int occt_read_shapes(const char *data, size_t size, const char *iges_path, occt_
 int occt_test_write_step_units(const occt_shape *shape, const char *path, const char *unit, occt_status *status) {
     return guarded(status, [&]() -> int {
         occt_initialize();
-        const TCollection_AsciiString previous = Interface_Static::CVal("write.step.unit");
+        // Restores the global unit on every path, including an exception.
+        struct unit_restorer {
+            TCollection_AsciiString previous = Interface_Static::CVal("write.step.unit");
+            ~unit_restorer() { Interface_Static::SetCVal("write.step.unit", previous.ToCString()); }
+        } restore;
         Interface_Static::SetCVal("write.step.unit", unit ? unit : "MM");
         STEPControl_Writer writer;
         const bool ok = writer.Transfer(shape->shape, STEPControl_AsIs) == IFSelect_RetDone
             && writer.Write(path) == IFSelect_RetDone;
-        Interface_Static::SetCVal("write.step.unit", previous.ToCString());
         if (!ok) {
             set_error(status, "STEP file could not be written");
             return 0;

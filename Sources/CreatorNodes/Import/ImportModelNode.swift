@@ -35,7 +35,8 @@ public enum ImportModelNode: NodeDefinition {
         }
         let model = try await load(reference, resolver: context.images, kernel: kernel)
         let file = model.shapes
-        let factor = units.millimetres.map { $0 / file.fileUnitMillimetres } ?? 1
+        let (factor, warning) = try unitFactor(units, fileUnit: file.fileUnitMillimetres)
+        let warnings = warning.map { [$0] } ?? []
         guard factor.isFinite, factor > 0 else { throw NodeError.invalidValue("The model's unit can't be used.") }
 
         var solids: [Scalar] = [], sheets: [Scalar] = [], curves: [Scalar] = []
@@ -48,20 +49,21 @@ public enum ImportModelNode: NodeDefinition {
         for curve in file.curves {
             curves.append(.curve(factor == 1 ? curve : try await kernel.scaled(curve, by: factor, tag: context.tag)))
         }
-        var outputs = NodeOutputs(lists: ["solids": solids, "sheets": sheets, "curves": curves])
+        var outputs = NodeOutputs(lists: ["solids": solids, "sheets": sheets, "curves": curves], warnings: warnings)
         outputs.facts = [
             PayloadFact("Format", model.format == .step ? "STEP" : "IGES"),
-            PayloadFact("File units", unitName(file.fileUnitMillimetres)),
+            PayloadFact("File units", file.fileUnitMillimetres > 0 ? unitName(file.fileUnitMillimetres) : "Unknown"),
             PayloadFact("Solids", file.solids.count.display),
             PayloadFact("Sheets", file.sheets.count.display),
             PayloadFact("Curves", file.curves.count.display),
+            PayloadFact("Picks", "Last until the file changes."),
         ]
         return outputs
     }
 
     /// The solid or sheet named for this node and scaled by `factor` (1 leaves it as it is).
     private static func placed(_ shape: Solid, factor: Double, kernel: any Kernel, context: EvalContext) async throws -> Solid {
-        let named = ImportedModelTags.retargeted(shape, to: context.node.id)
+        let named = ImportedModelTags.retargeted(shape, to: context.node.id, item: context.tag.item)
         guard factor != 1 else { return named }
         return try await kernel.scaled(named, by: Vector3(factor, factor, factor), tag: context.tag)
     }
@@ -71,14 +73,14 @@ public enum ImportModelNode: NodeDefinition {
         let sentinel = NodeTag(node: ImportedModelCache.sentinel, item: 0)
         do {
             return try await ImportedModelCache.shared.model(for: resolver.stamp(of: reference)) {
-                let data = try resolver.modelFileBytes(of: reference)
-                let format = try format(of: data)
+                let (data, format) = try bytesAndFormat(of: try resolver.modelFileBytes(of: reference))
                 do {
                     return ImportedModel(shapes: try await kernel.readShapes(data, format: format, tag: sentinel), format: format)
                 } catch KernelError.invalidInput(let reason) {
                     throw ImportedModelProblem(message: reason)
                 } catch KernelError.operationFailed(_, let reason) {
-                    throw ImportedModelProblem(message: reason)
+                    // Not remembered: an out-of-memory or other kernel failure says nothing lasting about the file.
+                    throw NodeError.invalidValue(reason)
                 }
             }
         } catch let problem as ImportedModelProblem {
@@ -86,10 +88,25 @@ public enum ImportModelNode: NodeDefinition {
         }
     }
 
-    /// The format the bytes are: STEP begins "ISO-10303-21", IGES has the section letter "S" in column 73 of its first record.
-    static func format(of data: Data) throws -> SolidModelFormat {
-        if ModelFormat.step.matches(data) { return .step }
-        if ModelFormat.iges.matches(data) { return .iges }
+    /// The scale an explicit unit asks for on a file in `fileUnit` millimetres per unit (0: the file names none), with the warning when
+    /// "From file" is chosen for such a file; an explicit unit for it is refused.
+    static func unitFactor(_ units: ImportUnits, fileUnit: Double) throws -> (factor: Double, warning: String?) {
+        guard let explicit = units.millimetres else { return (1, fileUnit > 0 ? nil : unknownUnit) }
+        guard fileUnit > 0 else { throw NodeError.invalidValue(unknownUnit) }
+        return (explicit / fileUnit, nil)
+    }
+
+    private static let unknownUnit = "The file's length unit isn't known; explicit units can't be applied."
+
+    /// The bytes without a UTF-8 byte order mark, and the format they are: STEP begins "ISO-10303-21", IGES has the section letter
+    /// "S" in column 73 of its first record. A gzip file is refused in words.
+    static func bytesAndFormat(of data: Data) throws -> (Data, SolidModelFormat) {
+        if data.starts(with: [0x1F, 0x8B]) {
+            throw ImportedModelProblem(message: "Compressed STEP files can't be read; unzip it first.")
+        }
+        let bytes = data.starts(with: [0xEF, 0xBB, 0xBF]) ? Data(data.dropFirst(3)) : data
+        if ModelFormat.step.matches(bytes) { return (bytes, .step) }
+        if ModelFormat.iges.matches(bytes) { return (bytes, .iges) }
         throw ImportedModelProblem(message: "This isn't a STEP or IGES file.")
     }
 
