@@ -123,28 +123,17 @@ struct SectionCapModelTests {
         app.setSection(true)
         await app.settle()
         let old = try #require(app.viewport.section)
-        let gate = DispatchSemaphore(value: 0)
-        // The hold never lapses on its own (CI runners have spent over 680 s in such tests); every way out of the test releases it.
-        defer { for _ in 0..<4 { gate.signal() } }
-        let (entered, signal) = AsyncStream<Void>.makeStream()
-        await kernel.setSectionHook {
-            signal.yield()
-            gate.wait()
-        }
+        let gate = HookGate()
+        defer { gate.open() }
+        await kernel.setSectionHook { await gate.hold() }
         app.setSectionOffset(1)
-        let reached = await withTaskGroup(of: Bool.self) { group in
-            group.addTask { for await _ in entered { return true }; return false }
-            group.addTask { try? await Task.sleep(for: .seconds(900)); return false }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
-        }
+        let reached = await gate.waitUntilEntered()
         try #require(reached, "the section hook was never reached")
         #expect(app.sectionCaps.isComputing, "the new section is under way")
         let clip = try #require(app.viewport.clip)
         #expect(abs((clip.origin - old.plane.origin).length - 1) < 1e-3, "the viewport is clipped at the new offset")
         #expect(app.viewport.section == old, "the previous cap is still shown")
-        gate.signal()
+        gate.release()
         await app.settle()
         let new = try #require(app.viewport.section)
         #expect(new.generation != old.generation)
