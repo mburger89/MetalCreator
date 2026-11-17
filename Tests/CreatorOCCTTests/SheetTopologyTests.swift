@@ -164,5 +164,40 @@ struct SheetTopologyTests {
         await #expect(throws: outside) { _ = try await kernel.planarSurface([try await rectangle(kernel), big, small], tag: tag) }
         await #expect(throws: outside) { _ = try await kernel.planarSurface([], tag: tag) }
     }
+
+    @Test func aClockwiseOuterCircleWithAHoleMakesAValidSheet() async throws {
+        let kernel = OCCTKernel()
+        let outer = try await circle(kernel, center: Vector3(0, 0, 0), radius: 10, sweep: -2 * .pi)
+        let hole = try await circle(kernel, center: Vector3(2, 0, 0), radius: 3)
+        let sheet = try await kernel.planarSurface([outer, hole], tag: tag)
+        #expect(sheet.topology.edges.count == 2)
+        #expect(isClose(try await kernel.properties(of: sheet).surfaceArea, 100 * .pi - 9 * .pi))
+        let reversedHole = try await circle(kernel, center: Vector3(2, 0, 0), radius: 3, sweep: -2 * .pi)
+        let other = try await kernel.planarSurface([outer, reversedHole], tag: tag)
+        #expect(isClose(try await kernel.properties(of: other).surfaceArea, 100 * .pi - 9 * .pi))
+    }
+
+    @Test func aClockwiseRectangleWithACounterClockwiseHoleMakesAValidSheet() async throws {
+        let kernel = OCCTKernel()
+        let hole = try await circle(kernel, center: Vector3(5, 10, 0), radius: 2)
+        let sheet = try await kernel.planarSurface([try await rectangle(kernel, reversed: true), hole], tag: tag)
+        #expect(isClose(try await kernel.properties(of: sheet).surfaceArea, 200 - 4 * .pi))
+        let flipped = try await circle(kernel, center: Vector3(5, 10, 0), radius: 2, sweep: -2 * .pi)
+        let other = try await kernel.planarSurface([try await rectangle(kernel, reversed: true), flipped], tag: tag)
+        #expect(isClose(try await kernel.properties(of: other).surfaceArea, 200 - 4 * .pi))
+    }
+
+    @Test func aShapeOfManyFacesReadsEveryFacesOpenShellFlagRight() async throws {
+        let kernel = OCCTKernel()
+        let count = 3000
+        let segments: [Segment2D] = (0..<count).map { i in
+            let a = 2 * Double.pi * Double(i) / Double(count), b = 2 * Double.pi * Double(i + 1) / Double(count)
+            return .line(Vector2(10 * cos(a), 10 * sin(a)), Vector2(10 * cos(b), 10 * sin(b)))
+        }
+        let solid = try await kernel.extrude(Profile2D(plane: .xy, segments: segments), distance: 5, mode: .oneSided, tag: tag)
+        #expect(solid.topology.faces.count == count + 2)
+        #expect(solid.topology.faces.allSatisfy { !$0.isOnOpenShell })
+        #expect(solid.isClosed)
+    }
 }
 #endif

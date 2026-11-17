@@ -53,7 +53,7 @@ struct BoundaryKeyTests {
             .startCap, .endCap, .imported(face: 1),
         ]
         #expect(Set(roles.map(\.sortKey)).count == roles.count)
-        for role in roles where role != .unnamed(face: 0) { #expect(!role.isUnstable) }
+        for role in roles { #expect(!role.isUnstable) }
     }
 
     @Test func aTaggedBoundaryEdgeIsNamedByItsFaceAndItsOwnTags() throws {
@@ -111,7 +111,7 @@ struct BoundaryKeyTests {
         #expect(renamed.edges[0].tags.allSatisfy { $0.item == 7 })
     }
 
-    @Test func aSheetIsNotClosedAndABoxIsNot() {
+    @Test func aSheetIsNotClosedAndABoxIs() {
         let sheetSolid = Solid(topology: sheet, bounds: BoundingBox(min: .zero, max: Vector3(10, 20, 0)), storage: FakeStorage())
         #expect(!sheetSolid.isClosed)
         var closed = sheet

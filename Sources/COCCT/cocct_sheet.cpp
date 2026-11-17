@@ -4,6 +4,7 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
+#include <BRepTools.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <BRep_Tool.hxx>
 #include <GCPnts_TangentialDeflection.hxx>
@@ -65,6 +66,9 @@ loop read_loop(const occt_shape &shape, const gp_Pnt &origin, const gp_Vec &x, c
         }
         if (edge.Orientation() == TopAbs_REVERSED) {
             std::reverse(points.begin(), points.end());
+        }
+        if (points.size() < 2) {
+            throw user_error(kLoopsMessage);
         }
         // The next edge starts where this one ends, so each outline point is kept once.
         out.outline.insert(out.outline.end(), points.begin(), points.end() - 1);
@@ -159,7 +163,13 @@ occt_shape *occt_planar_surface(const occt_shape *const *loops, int loop_count, 
         if (!maker.IsDone()) {
             throw user_error(kLoopsMessage);
         }
-        const bool outer_counter_clockwise = read[outer].area > 0;
+        // MakeFace deliberately adds pcurves to the edges of the shared Curve wires; the role table below relies on
+        // those edges keeping their identity (IsSame) in the face.
+        // MakeFace may have reversed the outer wire to suit the plane it found, so the holes are oriented against the
+        // outer wire as the face holds it, not as it was given.
+        const TopoDS_Wire built_outer = BRepTools::OuterWire(maker.Face());
+        const bool outer_kept = built_outer.IsNull() || built_outer.Orientation() == read[outer].wire.Orientation();
+        const bool outer_counter_clockwise = (read[outer].area > 0) == outer_kept;
         for (std::size_t n = 1; n < order.size(); ++n) {
             const loop &hole = read[order[n]];
             // OCCT needs each hole wire to wind against the outer one; reversing a wire keeps its edges.

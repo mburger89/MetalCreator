@@ -168,15 +168,26 @@ void describe_face(const TopoDS_Face &face, occt_face_info &info) {
     set3(info.centroid, properties.CentreOfMass());
 }
 
+/// Whether each shell of `shape` (index n is shell map index n + 1) is closed, asked once per shell.
+std::vector<bool> shells_closed(const TopTools_IndexedMapOfShape &shells) {
+    std::vector<bool> closed(shells.Extent());
+    for (int i = 1; i <= shells.Extent(); ++i) {
+        closed[i - 1] = BRep_Tool::IsClosed(shells(i));
+    }
+    return closed;
+}
+
 /// Whether a face is on an open shell: it has no closed shell around it.
-bool on_open_shell(const TopoDS_Face &face, const TopTools_IndexedDataMapOfShapeListOfShape &face_shells) {
+bool on_open_shell(const TopoDS_Face &face, const TopTools_IndexedDataMapOfShapeListOfShape &face_shells,
+                   const TopTools_IndexedMapOfShape &shells, const std::vector<bool> &closed) {
     if (!face_shells.Contains(face)) {
         return true;
     }
     bool any = false;
     for (TopTools_ListOfShape::Iterator it(face_shells.FindFromKey(face)); it.More(); it.Next()) {
         any = true;
-        if (!BRep_Tool::IsClosed(it.Value())) {
+        const int index = shells.FindIndex(it.Value());
+        if (index > 0 && !closed[index - 1]) {
             return true;
         }
     }
@@ -332,10 +343,12 @@ int occt_read_topology(const occt_shape *shape, occt_topology *out, occt_status 
         TopTools_IndexedDataMapOfShapeListOfShape face_shells;
         TopExp::MapShapesAndAncestors(shape->shape, TopAbs_FACE, TopAbs_SHELL, face_shells);
 
+        const TopTools_IndexedMapOfShape shells = map_of(shape->shape, TopAbs_SHELL);
+        const std::vector<bool> closed = shells_closed(shells);
         std::vector<occt_face_info> face_info(faces.Extent());
         for (int i = 1; i <= faces.Extent(); ++i) {
             describe_face(TopoDS::Face(faces(i)), face_info[i - 1]);
-            face_info[i - 1].on_open_shell = on_open_shell(TopoDS::Face(faces(i)), face_shells) ? 1 : 0;
+            face_info[i - 1].on_open_shell = on_open_shell(TopoDS::Face(faces(i)), face_shells, shells, closed) ? 1 : 0;
         }
         std::vector<occt_edge_info> edge_info(edges.Extent());
         for (int i = 1; i <= edges.Extent(); ++i) {

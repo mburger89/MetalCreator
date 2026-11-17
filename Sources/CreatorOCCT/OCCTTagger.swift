@@ -33,6 +33,7 @@ enum OCCTTagger {
                      tags: tags[index].flatMap { $0.isEmpty ? nil : $0 } ?? [TopoTag(tag, .unnamed(face: index))],
                      radius: face.radius, axisPoint: face.axisPoint, isOnOpenShell: face.isOnOpenShell)
         }
+        // Carried edge tags are dropped when the counts differ: only a rigid move (transform, place) carries them.
         let carried = carriesEdgeTags && inputs.count == 1 && inputs[0].edges.count == raw.edges.count ? inputs[0].edges : []
         let edges = raw.edges.enumerated().map { index, edge in
             EdgeInfo(id: EdgeID(index), kind: edge.kind, direction: edge.direction, length: edge.length,
