@@ -80,4 +80,19 @@ extension OCCTShape {
             }
         }
     }
+
+    /// `profiles` swept along `path`. Call under `OCCTKernel.serialized`.
+    static func sweepCurves(_ profiles: [OCCTShape], along path: OCCTShape, options: SweepOptions)
+        throws(OCCTError) -> SheetBuild {
+        let pointers: [OpaquePointer?] = profiles.map(\.raw)
+        var binormal = [options.binormal.x, options.binormal.y, options.binormal.z]
+        let spine = path.raw
+        return try buildingSheet { history, roles, status in
+            pointers.withUnsafeBufferPointer { buffer in
+                occt_sweep_curves(buffer.baseAddress, Int32(buffer.count), spine,
+                                  options.orientation == .frenet ? 1 : 0, &binormal, options.endScale,
+                                  options.makesSolid ? 1 : 0, history, roles, status)
+            }
+        }
+    }
 }

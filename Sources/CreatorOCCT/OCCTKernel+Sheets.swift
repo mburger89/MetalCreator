@@ -81,6 +81,20 @@ extension OCCTKernel {
         return try buildSheet("loft", tag: tag) { try OCCTShape.loftCurves(wires, ruled: ruled, closed: closed) }
     }
 
+    public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
+        guard let first = profiles.first else { throw KernelError.invalidInput("A sweep needs at least one profile.") }
+        guard profiles.allSatisfy({ $0.pieceCount == first.pieceCount }) else {
+            throw KernelError.invalidInput("Sweep profiles need the same number of pieces.")
+        }
+        guard options.endScale == 1 || profiles.count == 1 else {
+            throw KernelError.invalidInput("An end scale needs exactly one profile.")
+        }
+        let wires = try profiles.map { try curveShape(of: $0) }
+        let spine = try curveShape(of: path)
+        return try buildSheet("sweep", tag: tag) { try OCCTShape.sweepCurves(wires, along: spine, options: options) }
+    }
+
     /// Runs a sheet builder under the kernel's lock and names the result.
     private func buildSheet(_ operation: String, tag: NodeTag, _ body: () throws -> OCCTShape.SheetBuild) throws -> Solid {
         let built: OCCTShape.SheetBuild

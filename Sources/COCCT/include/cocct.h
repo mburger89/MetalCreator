@@ -529,6 +529,17 @@ occt_shape *occt_revolve_curve(const occt_shape *curve, const double axis_origin
 occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int ruled, int closed,
                              occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
+/// The shape made by sweeping `count` profile curves (wires) along `path` (a wire): BRepOffsetAPI_MakePipeShell, each profile added
+/// as given (no contact, with correction). `frenet` 1 keeps the Frenet frame, else `binormal` is fixed. An `end_scale` other than 1
+/// scales the one profile linearly along the path (refused with several: "An end scale needs exactly one profile."). With `make_solid`
+/// and every profile closed the result is a solid: history OCCT_FROM_START_CAP / OCCT_FROM_END_CAP for the caps; otherwise a sheet.
+/// Sides are OCCT_FROM_SEGMENT (operand 0, index = the profile's piece). Roles: start and end edges (kinds 1, 2) and, for open
+/// profiles, rails 0 and 1. Refuses "The sweep runs into itself; shorten the path or shrink the profile." and "The sweep couldn't be
+/// made along this path.".
+occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int frenet,
+                              const double binormal[3], double end_scale, int make_solid, occt_history *history,
+                              occt_boundary_roles *roles, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif
