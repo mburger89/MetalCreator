@@ -105,12 +105,16 @@ public actor Evaluator {
                 return NodeResult(state: .ok(duration: .zero), outputs: inputs)
             default:
                 level.keys[node.id] = key
-                if let cached = cache.result(for: key) { return cached }
+                if let cached = cache.result(for: key), cached.dependencies.allSatisfy(\.isCurrent) {
+                    level.keys[node.id] = key.including(cached.dependencies)
+                    return cached
+                }
                 var scoped = node
                 scoped.id = scope.identity(of: node.id)  // Tags name the node this way (`EvalContext.tag`).
                 let result = try await run(definition, node: scoped, inputs: inputs, setup: scope.setup)
                 level.evaluated.append(node.id)
                 if !scope.path.isEmpty { trace.evaluated.append(scope.path + [node.id]) }
+                level.keys[node.id] = key.including(result.dependencies)
                 if result.state.isSuccess {
                     cache.insert(result, for: key, node: scoped.id)
                 }

@@ -14,6 +14,8 @@ struct IterationOutputs {
     private(set) var sketchTrace: SketchTrace?
     /// The first iteration's facts.
     private(set) var facts: [PayloadFact] = []
+    /// Every iteration's file dependencies, each once, in first-seen order.
+    private(set) var dependencies: [FileDependency] = []
     private var hasRecorded = false
 
     init(warnings: [String]) {
@@ -44,6 +46,7 @@ struct IterationOutputs {
         warnings += outputs.warnings
         dimensions += outputs.dimensions
         if sketchTrace == nil { sketchTrace = outputs.sketchTrace }
+        for dependency in outputs.dependencies where !dependencies.contains(dependency) { dependencies.append(dependency) }
         if !hasRecorded { facts = outputs.facts }
         hasRecorded = true
     }
