@@ -66,7 +66,11 @@ struct CurveKernelTests {
         let empty = BSplineCurve3D(degree: 5, poles: [], knots: [0, 1], multiplicities: [6, 6])
         let counts = BSplineCurve3D(degree: 3, poles: [.zero, .unitX, .unitY, .unitZ], knots: [0, 1], multiplicities: [3, 3])
         let degree = BSplineCurve3D(degree: 0, poles: [.zero, .unitX], knots: [0, 1], multiplicities: [1, 1])
-        for spline in [empty, counts, degree] {
+        let interior = BSplineCurve3D(degree: 2, poles: (0..<6).map { Vector3(Double($0), 0, 0) },
+                                      knots: [0, 1, 2], multiplicities: [3, 3, 3])
+        let unclamped = BSplineCurve3D(degree: 2, poles: (0..<4).map { Vector3(Double($0), 0, 0) },
+                                       knots: [0, 1, 2, 3], multiplicities: [2, 1, 1, 3])
+        for spline in [empty, counts, degree, interior, unclamped] {
             await #expect(throws: KernelError.invalidInput("The curve's spline is malformed.")) {
                 try await OCCTKernel().makeCurve([.spline(spline)], tag: tag)
             }
@@ -122,16 +126,23 @@ struct CurveKernelTests {
 
     /// OpenCascade's degree-5 fit reproduces every input point (the worst gap over zigzags, random clouds, near-coincident and
     /// backtracking points was far under 1e-6 mm), so no input misses by 1e-6 mm. The check is proved with a tiny threshold on
-    /// points the fit leaves 1e-12 mm or more from the curve; the same points pass at 1e-6 mm.
+    /// half the fit's own measured deviation, so the refusal is certain on every platform; the same points pass at 1e-6 mm.
     static let nearlyCoincident = [
         Vector3(0, 0, 0), Vector3(0.001, 0, 0), Vector3(10, 0, 0), Vector3(10.001, 5, 0), Vector3(20, 0, 0), Vector3(30, 9, 3),
     ]
 
     @Test func degree5RefusesWhenTheCurveMissesByMoreThanTheThreshold() async throws {
         let kernel = OCCTKernel()
+        let fitted = try await kernel.interpolate(Self.nearlyCoincident, degree: 5, closed: false, startTangent: nil,
+                                                  endTangent: nil, tag: tag)
+        var worst = 0.0
+        for point in Self.nearlyCoincident {
+            worst = max(worst, try await kernel.distance(from: point, to: fitted))
+        }
+        #expect(worst > 0)
         let error = try #require(await #expect(throws: KernelError.self) {
             try await kernel.interpolate(Self.nearlyCoincident, degree: 5, closed: false, startTangent: nil,
-                                         endTangent: nil, maxDeviation: 1e-13)
+                                         endTangent: nil, maxDeviation: worst / 2)
         })
         #expect(message(of: error) == "The curve can't pass through these points at degree 5; try degree 3.")
     }
@@ -198,6 +209,42 @@ struct CurveKernelTests {
         #expect((ends - Vector3(0, 0, 0)).length < 1e-9)
         #expect((try #require(curve.polyline.last) - Vector3(15, 3, 0)).length < 1e-9)
         #expect(curve.length > 15)
+        let info = try await OCCTKernel().splineInfo(of: curve)
+        #expect(info.degree == sketch.degree && info.degree == 5)
+        #expect(info.poleCount == sketch.poles.count)
+    }
+
+    @Test func anArcStartingOffItsPlaneIsRefused() async throws {
+        await #expect(throws: KernelError.invalidInput("The arc's start isn't on its circle.")) {
+            try await OCCTKernel().makeCurve(
+                [.arc(center: .zero, normal: .unitZ, radius: 5, start: Vector3(3, 0, 4), sweep: 1)], tag: tag)
+        }
+        await #expect(throws: KernelError.invalidInput("The arc's start isn't on its circle.")) {
+            try await OCCTKernel().makeCurve(
+                [.arc(center: .zero, normal: .unitZ, radius: 5, start: Vector3(4, 0, 0), sweep: 1)], tag: tag)
+        }
+    }
+
+    @Test func interpolationRefusalsSaySo() async throws {
+        let kernel = OCCTKernel()
+        let points = helix(8)
+        await #expect(throws: KernelError.invalidInput("A closed curve needs degree 3.")) {
+            try await kernel.interpolate(points, degree: 5, closed: true, startTangent: nil, endTangent: nil, tag: tag)
+        }
+        await #expect(throws: KernelError.invalidInput("End tangents need degree 3.")) {
+            try await kernel.interpolate(points, degree: 5, closed: false, startTangent: .unitX, endTangent: nil, tag: tag)
+        }
+        await #expect(throws: KernelError.invalidInput("A tangent can't be zero.")) {
+            try await kernel.interpolate(points, degree: 3, closed: false, startTangent: .zero, endTangent: nil, tag: tag)
+        }
+    }
+
+    @Test func anEmptyEdgeListIsRefused() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 12, 8, 5, tag: tag)
+        await #expect(throws: KernelError.invalidInput("Pick at least one edge.")) {
+            try await kernel.curves(from: [], of: solid, tag: tag)
+        }
     }
 }
 #endif

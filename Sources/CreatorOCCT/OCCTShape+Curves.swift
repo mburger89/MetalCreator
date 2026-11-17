@@ -128,4 +128,14 @@ extension OCCTShape {
         guard status.ok != 0 else { throw OCCTError(message: status.messageText) }
         return value
     }
+
+    /// The degree and pole count of the first edge, a B-spline. For tests.
+    func firstSplineInfo() throws(OCCTError) -> (degree: Int, poleCount: Int) {
+        var status = occt_status()
+        var degree: Int32 = 0
+        var poles: Int32 = 0
+        _ = occt_test_curve_spline_info(raw, &degree, &poles, &status)
+        guard status.ok != 0 else { throw OCCTError(message: status.messageText) }
+        return (Int(degree), Int(poles))
+    }
 }

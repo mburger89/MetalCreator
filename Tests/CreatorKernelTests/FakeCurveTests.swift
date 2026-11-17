@@ -31,10 +31,21 @@ struct FakeCurveTests {
         let empty = BSplineCurve3D(degree: 5, poles: [], knots: [0, 1], multiplicities: [6, 6])
         let counts = BSplineCurve3D(degree: 3, poles: [.zero, .unitX, .unitY, .unitZ], knots: [0, 1], multiplicities: [3, 3])
         let degree = BSplineCurve3D(degree: 0, poles: [.zero, .unitX], knots: [0, 1], multiplicities: [1, 1])
-        for spline in [empty, counts, degree] {
+        let interior = BSplineCurve3D(degree: 2, poles: (0..<6).map { Vector3(Double($0), 0, 0) },
+                                      knots: [0, 1, 2], multiplicities: [3, 3, 3])
+        let unclamped = BSplineCurve3D(degree: 2, poles: (0..<4).map { Vector3(Double($0), 0, 0) },
+                                       knots: [0, 1, 2, 3], multiplicities: [2, 1, 1, 3])
+        for spline in [empty, counts, degree, interior, unclamped] {
             await #expect(throws: KernelError.invalidInput("The curve's spline is malformed.")) {
                 try await FakeKernel().makeCurve([.spline(spline)], tag: tag)
             }
+        }
+    }
+
+    @Test func anArcStartingOffItsCircleIsRefused() async throws {
+        await #expect(throws: KernelError.invalidInput("The arc's start isn't on its circle.")) {
+            try await FakeKernel().makeCurve(
+                [.arc(center: .zero, normal: .unitZ, radius: 5, start: Vector3(3, 0, 4), sweep: 1)], tag: tag)
         }
     }
 }

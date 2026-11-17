@@ -115,4 +115,16 @@ extension OCCTKernel {
             throw KernelError.occt("distance", error)
         }
     }
+
+    /// The degree and pole count of a curve's first piece, a spline. For tests.
+    func splineInfo(of curve: Curve) throws -> (degree: Int, poleCount: Int) {
+        guard let storage = curve.storage as? OCCTSolidStorage else {
+            throw KernelError.invalidInput("This curve was made by a different kernel.")
+        }
+        do {
+            return try Self.serialized { () throws -> (degree: Int, poleCount: Int) in try storage.shape.firstSplineInfo() }
+        } catch let error as OCCTError {
+            throw KernelError.occt("spline info", error)
+        }
+    }
 }

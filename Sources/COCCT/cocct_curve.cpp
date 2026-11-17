@@ -2,10 +2,12 @@
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepBuilderAPI_FindPlane.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
+#include <TopExp_Explorer.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <BRep_Builder.hxx>
@@ -40,6 +42,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -86,11 +89,14 @@ PieceCurve build_piece(const occt_curve_piece &piece) {
             throw user_error("An arc in the curve is not valid.");
         }
         if (std::abs(centre.Distance(start) - piece.radius) > kJoin) {
-            throw user_error("An arc in the curve doesn't start on its circle.");
+            throw user_error("The arc's start isn't on its circle.");
         }
         gp_Vec normal(piece.b[0], piece.b[1], piece.b[2]);
         if (normal.Magnitude() < 1e-12) {
             throw user_error("An arc in the curve is not valid.");
+        }
+        if (std::abs(gp_Vec(centre, start).Dot(normal) / normal.Magnitude()) > kJoin) {
+            throw user_error("The arc's start isn't on its circle.");
         }
         if (piece.sweep < 0) {
             normal.Reverse();
@@ -109,8 +115,14 @@ PieceCurve build_piece(const occt_curve_piece &piece) {
         for (int i = 0; i < piece.knot_count; ++i) {
             sum += piece.multiplicities[i];
         }
-        if (piece.degree < 1 || n < 2 || piece.knot_count < 2 || sum != n + piece.degree + 1) {
+        if (piece.degree < 1 || n < 2 || piece.knot_count < 2 || sum != n + piece.degree + 1 ||
+            piece.multiplicities[0] != piece.degree + 1 || piece.multiplicities[piece.knot_count - 1] != piece.degree + 1) {
             throw user_error("The curve's spline is malformed.");
+        }
+        for (int i = 1; i + 1 < piece.knot_count; ++i) {
+            if (piece.multiplicities[i] > piece.degree) {
+                throw user_error("The curve's spline is malformed.");
+            }
         }
         TColgp_Array1OfPnt poles(1, n);
         for (int i = 0; i < n; ++i) {
@@ -147,6 +159,12 @@ TopoDS_Vertex vertex_at(const gp_Pnt &p) {
     TopoDS_Vertex v = BRepBuilderAPI_MakeVertex(p);
     BRep_Builder().UpdateVertex(v, kVertexTolerance);
     return v;
+}
+
+void require_valid(const TopoDS_Shape &shape) {
+    if (!BRepCheck_Analyzer(shape).IsValid()) {
+        throw user_error("The curve couldn't be made from these pieces.");
+    }
 }
 
 TopoDS_Wire wire_of_edge(const TopoDS_Edge &edge) {
@@ -202,6 +220,7 @@ occt_shape *occt_make_curve(const occt_curve_piece *pieces, int count, occt_stat
                 throw user_error("The curve's pieces don't join end to end.");
             }
         }
+        require_valid(wire.Wire());
         return new occt_shape{wire.Wire()};
     });
 }
@@ -374,9 +393,10 @@ occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indi
             int lowest = edges.Extent() + 1;
             for (TopExp_Explorer it(wire, TopAbs_EDGE); it.More(); it.Next()) {
                 const int index = edges.FindIndex(it.Current());
-                if (index > 0) {
-                    lowest = std::min(lowest, index);
+                if (index < 1) {
+                    throw user_error("The curve couldn't be made from these pieces.");
                 }
+                lowest = std::min(lowest, index);
             }
             ordered.emplace_back(lowest, wire);
         }
@@ -385,6 +405,7 @@ occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indi
         BRep_Builder builder;
         builder.MakeCompound(compound);
         for (const auto &entry : ordered) {
+            require_valid(entry.second);
             builder.Add(compound, entry.second);
         }
         return new occt_shape{compound};
@@ -410,6 +431,23 @@ occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_stat
             }
         }
         throw user_error("That piece doesn't exist.");
+    });
+}
+
+int occt_test_curve_spline_info(const occt_shape *wire, int *degree, int *pole_count, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        TopExp_Explorer it(wire->shape, TopAbs_EDGE);
+        if (!it.More()) {
+            throw user_error("The curve is empty.");
+        }
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(it.Current()));
+        if (adaptor.GetType() != GeomAbs_BSplineCurve) {
+            throw user_error("The first piece isn't a spline.");
+        }
+        const Handle(Geom_BSplineCurve) spline = adaptor.BSpline();
+        *degree = spline->Degree();
+        *pole_count = spline->NbPoles();
+        return 1;
     });
 }
 

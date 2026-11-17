@@ -11,6 +11,12 @@ extension FakeKernel {
         for (a, b) in zip(pieces, pieces.dropFirst()) where (a.end - b.start).length > 1e-6 {
             throw KernelError.invalidInput("The curve's pieces don't join end to end.")
         }
+        for case .arc(let center, let normal, let radius, let start, _) in pieces {
+            let unit = normal.normalized ?? .unitZ
+            if abs((start - center).length - radius) > 1e-6 || abs(unit.dot(start - center)) > 1e-6 {
+                throw KernelError.invalidInput("The arc's start isn't on its circle.")
+            }
+        }
         var points: [Vector3] = [pieces[0].start]
         var length = 0.0
         for piece in pieces {

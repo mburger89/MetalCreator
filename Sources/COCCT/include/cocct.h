@@ -479,6 +479,8 @@ occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indi
 /// The number of children of a compound made by occt_curves_from_edges, and the child at `index` (0-based).
 int occt_compound_child_count(const occt_shape *compound);
 occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_status *status);
+/// FOR TESTS ONLY. The degree and pole count of the first edge of a wire, which must be a B-spline.
+int occt_test_curve_spline_info(const occt_shape *wire, int *degree, int *pole_count, occt_status *status);
 /// FOR TESTS ONLY. The shortest distance from the point to the curve (a wire).
 double occt_test_curve_distance(const occt_shape *wire, double x, double y, double z, occt_status *status);
 

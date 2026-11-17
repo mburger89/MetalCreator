@@ -15,13 +15,15 @@ public struct BSplineCurve3D: Hashable, Sendable, Codable {
         self.multiplicities = multiplicities
     }
 
-    /// Whether the poles, weights, knots and multiplicities describe one clamped-or-not B-spline: degree 1 or more, two poles or
-    /// more, finite numbers, increasing knots, each multiplicity from 1 to degree + 1 and summing to poles + degree + 1.
+    /// Whether the poles, weights, knots and multiplicities describe one clamped B-spline: degree 1 or more, two poles or
+    /// more, finite numbers, increasing knots, the end multiplicities degree + 1 (so the first and last poles are its ends), the
+    /// interior ones from 1 to degree, and all summing to poles + degree + 1.
     public var isWellFormed: Bool {
         guard degree >= 1, poles.count >= 2, poles.allSatisfy(\.isFinite),
               knots.count >= 2, knots.count == multiplicities.count, knots.allSatisfy(\.isFinite),
               zip(knots, knots.dropFirst()).allSatisfy({ $0 < $1 }),
-              multiplicities.allSatisfy({ (1...(degree + 1)).contains($0) }),
+              multiplicities.first == degree + 1, multiplicities.last == degree + 1,
+              multiplicities.dropFirst().dropLast().allSatisfy({ (1...degree).contains($0) }),
               multiplicities.reduce(0, +) == poles.count + degree + 1 else { return false }
         if let weights {
             return weights.count == poles.count && weights.allSatisfy { $0.isFinite && $0 > 0 }
