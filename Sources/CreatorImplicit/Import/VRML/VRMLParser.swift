@@ -104,10 +104,10 @@ final class VRMLParser {
         case .string:
             return
         case .word(let range):
-            if try startsNode(range) {
-                try openNode(starting: range, destination: .listElement)
-            } else if tokenizer.looksNumeric(range) {
+            if tokenizer.looksNumeric(range) {
                 try updateList { $0.numbers.append(try tokenizer.number(range)) }
+            } else if try startsNode(range) {
+                try openNode(starting: range, destination: .listElement)
             } else {
                 let text = tokenizer.text(range)
                 try updateList { if $0.word == nil { $0.word = text } }
@@ -147,14 +147,14 @@ final class VRMLParser {
     /// A node whose first word (`DEF`, `USE` or the type) was just read: a `USE` is placed at once, any other opens a body frame.
     private func openNode(starting first: Range<Int>, destination: Destination) throws {
         if tokenizer.equals(first, "USE") {
-            guard case .done(let node)? = definitions[tokenizer.text(try word())] else { throw VRMLReader.undefinedShape }
+            guard case .done(let node)? = definitions[try tokenizer.name(try word())] else { throw VRMLReader.undefinedShape }
             try place(node, destination)
             return
         }
         var name: String?
         var typeRange = first
         if tokenizer.equals(first, "DEF") {
-            let defined = tokenizer.text(try word())
+            let defined = try tokenizer.name(try word())
             name = defined
             definitions[defined] = .inProgress
             typeRange = try word()

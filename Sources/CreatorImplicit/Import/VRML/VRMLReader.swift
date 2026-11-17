@@ -80,13 +80,12 @@ public enum VRMLReader {
     }
 
     static func finish(_ scene: VRMLScene, millimetres: Bool) throws -> ImportedModelMesh {
-        guard !scene.corners.isEmpty else {
+        let welded = ExactWeld.weld(corners: scene.corners)
+        guard !welded.triangles.isEmpty else {
             guard scene.skippedGeometry else { throw MeshImportProblem.noTriangles }
             return ImportedModelMesh(mesh: TriangleMesh(positions: [], triangles: [], creaseAngle: 30), skippedGeometry: true,
                                      isMillimetres: millimetres)
         }
-        let welded = ExactWeld.weld(corners: scene.corners)
-        guard !welded.triangles.isEmpty else { throw MeshImportProblem.noTriangles }
         let mesh = TriangleMesh(positions: welded.positions, triangles: welded.triangles, creaseAngle: 30)
         return ImportedModelMesh(mesh: mesh, skippedGeometry: scene.skippedGeometry, isMillimetres: millimetres)
     }

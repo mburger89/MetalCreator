@@ -77,7 +77,13 @@ struct VRMLTokenizer {
         }
     }
 
-    /// A word's text, for names; one longer than 64 bytes is a name nothing uses and reads as "?".
+    /// A `DEF` or `USE` name, whole; one over 1 KB is refused.
+    func name(_ range: Range<Int>) throws -> String {
+        guard range.count <= 1_024 else { throw VRMLReader.damaged }
+        return String(bytes: bytes[range], encoding: .isoLatin1) ?? "?"
+    }
+
+    /// A word's text, for type and field names; one longer than 64 bytes is a name nothing uses and reads as "?".
     func text(_ range: Range<Int>) -> String {
         range.count > 64 ? "?" : String(bytes: bytes[range], encoding: .utf8) ?? "?"
     }

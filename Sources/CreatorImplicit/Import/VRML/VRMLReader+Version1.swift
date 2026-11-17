@@ -57,7 +57,7 @@ extension VRMLScene {
             let height = node.numbers("height")?.first ?? 2
             let length = node.numbers("depth")?.first ?? 2
             try addBox(size: SIMD3(Double(width), Double(height), Double(length)), matrix: state.matrix,
-                       reversed: state.clockwise)
+                       reversed: false)
         case "IndexedFaceSet":
             try addFaces(points: state.points, indices: node.numbers("coordIndex") ?? [], matrix: state.matrix,
                          counterClockwise: !state.clockwise)

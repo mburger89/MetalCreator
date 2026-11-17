@@ -188,6 +188,52 @@ import Testing
         #expect(throws: CancellationError.self) { try VRMLReader.read(Data(text.utf8), isCancelled: { true }) }
     }
 
+    @Test func version1CubeIgnoresClockwiseHints() throws {
+        let text = Self.header1 + "ShapeHints { vertexOrdering CLOCKWISE } Cube { width 2 height 2 depth 2 }"
+        #expect(Self.volume(try Self.read(text).mesh) > 0)
+    }
+
+    @Test func longNamesAreKeyedWhole() throws {
+        let a = String(repeating: "n", count: 200) + "A", b = String(repeating: "n", count: 200) + "B"
+        let text = Self.header2 + """
+        DEF \(a) Shape { geometry Box { size 1 1 1 } }
+        DEF \(b) Shape { geometry Box { size 3 3 3 } }
+        Transform { translation 10 0 0 children [ USE \(a) ] }
+        """
+        let xs = try Self.read(text).mesh.positions.map(\.x)
+        #expect(xs.contains(10.5) && xs.contains(9.5) && !xs.contains(11.5))
+        #expect(Self.problem(Self.header2 + "DEF \(String(repeating: "x", count: 2_000)) Group { }") == "This VRML file is damaged.")
+    }
+
+    @Test func matrixTransformRotates() throws {
+        let matrix = "MatrixTransform { matrix 0 1 0 0  -1 0 0 0  0 0 1 0  0 0 0 1 }"
+        let text = Self.header1 + "Coordinate3 { point [1 0 0, 2 0 0, 1 1 0] } \(matrix) IndexedFaceSet { coordIndex [0 1 2 -1] }"
+        #expect(Self.corners(try Self.read(text).mesh).first == [0, 1, 0])
+    }
+
+    @Test func skippedShapesWithOnlyDegenerateFacesGiveAnEmptyMesh() throws {
+        let degenerate = Self.shape("0 0 0, 1 0 0", "0 1 1 -1")
+        let read = try Self.read(Self.header2 + "Shape { geometry Sphere { } } " + degenerate)
+        #expect(read.skippedGeometry && read.mesh.triangles.isEmpty)
+        #expect(Self.problem(Self.header2 + degenerate) == "This file holds no triangles.")
+    }
+
+    @Test func largeSetsUsedTwiceReadFine() throws {
+        // 2 x 1,000,000 triangles through USE, with a limit above them: neither budget stops it.
+        let side = 708
+        let points = (0..<(side * side)).map { "\($0 % side) \($0 / side) 0" }.joined(separator: " ")
+        var indices = ""
+        for row in 0..<(side - 1) {
+            for column in 0..<(side - 1) {
+                let a = row * side + column
+                indices += "\(a) \(a + 1) \(a + side + 1) \(a + side) -1 "
+            }
+        }
+        let text = Self.header2 + "DEF S " + Self.shape(points, indices) + "\nTransform { translation 0 0 5 children [ USE S ] }"
+        let mesh = try Self.read(text, limit: 4_000_000).mesh
+        #expect(mesh.triangles.count / 3 == 2 * 2 * 707 * 707)
+    }
+
     @Test func randomMutationsNeverTrap() {
         let seed = Self.header2 + """
         Transform { translation 1 2 3 rotation 0 0 1 1.5 scale 1 1 1 children [

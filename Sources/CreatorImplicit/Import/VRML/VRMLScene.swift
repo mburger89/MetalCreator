@@ -9,9 +9,15 @@ final class VRMLScene {
     private let triangleLimit: Int
     private let isCancelled: () -> Bool
     private var visits = 0
+    private var work = 0
+    private var ticks = 0
+    /// The most points, indices and corners an evaluation handles: well above what the triangle limit allows, yet finite, so a
+    /// `USE` that doubles a huge face set stops.
+    private let workLimit: Int
 
     init(triangleLimit: Int, isCancelled: @escaping () -> Bool) {
         self.triangleLimit = triangleLimit
+        workLimit = 4 * triangleLimit + 64_000_000
         self.isCancelled = isCancelled
     }
 
@@ -21,12 +27,19 @@ final class VRMLScene {
         guard depth <= VRMLParser.maximumDepth else { throw VRMLReader.tooDeep }
         visits += 1
         guard visits <= Self.maximumVisits else { throw VRMLReader.tooComplex }
-        try tick()
+        try pulse()
     }
 
+    /// One unit of per-point or per-index work, counted against its own budget and asking about cancellation.
     func tick() throws {
-        visits += 1
-        if visits % 65_536 == 0, isCancelled() { throw CancellationError() }
+        work += 1
+        guard work <= workLimit else { throw VRMLReader.tooComplex }
+        try pulse()
+    }
+
+    private func pulse() throws {
+        ticks += 1
+        if ticks % 65_536 == 0, isCancelled() { throw CancellationError() }
     }
 
     func addTriangle(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ c: SIMD3<Float>) throws {
@@ -72,7 +85,7 @@ final class VRMLScene {
         }
         let flip = counterClockwise == (matrix.determinant < 0)
         var face: [Int] = []
-        for value in indices + [-1] {
+        for value in indices {
             try tick()
             if value == -1 {
                 try fan(face, world, reversed: flip)
@@ -82,12 +95,14 @@ final class VRMLScene {
             guard value >= 0, value < Float(count), value == value.rounded() else { throw VRMLReader.badIndex }
             face.append(Int(value))
         }
+        try fan(face, world, reversed: flip)
     }
 
     private func fan(_ face: [Int], _ world: [SIMD3<Float>], reversed: Bool) throws {
         guard face.count >= 3 else { return }
         for offset in 1..<(face.count - 1) {
             let (a, b, c) = (world[face[0]], world[face[offset]], world[face[offset + 1]])
+            try tick()
             if reversed { try addTriangle(a, c, b) } else { try addTriangle(a, b, c) }
         }
     }
