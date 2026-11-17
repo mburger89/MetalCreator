@@ -79,7 +79,7 @@ public enum VRMLReader {
         }
     }
 
-    private static func finish(_ scene: VRMLScene, millimetres: Bool) throws -> ImportedModelMesh {
+    static func finish(_ scene: VRMLScene, millimetres: Bool) throws -> ImportedModelMesh {
         guard !scene.corners.isEmpty else {
             guard scene.skippedGeometry else { throw MeshImportProblem.noTriangles }
             return ImportedModelMesh(mesh: TriangleMesh(positions: [], triangles: [], creaseAngle: 30), skippedGeometry: true,
