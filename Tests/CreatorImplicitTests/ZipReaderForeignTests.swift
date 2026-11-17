@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CreatorGeometry
 @testable import CreatorImplicit
 
 /// The zip reader on zips other tools wrote, and on hostile ones.

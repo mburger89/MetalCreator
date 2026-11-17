@@ -1,7 +1,7 @@
 import Foundation
 
 /// Why `Inflate` stopped without the bytes it was asked for.
-enum InflateError: Error, Equatable {
+public enum InflateError: Error, Equatable {
     /// The stream is not valid DEFLATE (or ends before its last block does).
     case malformed
     /// The stream holds more than the declared size.
@@ -16,24 +16,33 @@ enum InflateError: Error, Equatable {
 
 /// Raw DEFLATE (RFC 1951) in plain Swift, so a 3MF reads the same on every platform. The input is untrusted: output stops at the declared
 /// `size` (the output is the one allocation that grows with the input's claims: `size` bytes, plus about 13 KB of tables), every read and copy is bounds-checked, nothing recurses, and no input traps. Bytes after the final block are ignored (a zip entry's CRC protects the output).
-enum Inflate {
+public enum Inflate {
     /// Cancellation is asked about once per this many bytes of output.
     static let cancellationInterval = 1 << 20
 
     /// Inflates `input` to exactly `size` bytes. Throws `.tooLong` the moment the stream would write past `size`, `.tooShort` when it ends
     /// under it, `.malformed` for a bad or truncated stream.
-    static func inflate(_ input: UnsafeRawBufferPointer, size: Int, isCancelled: () -> Bool) throws(InflateError) -> Data {
+    public static func inflate(_ input: UnsafeRawBufferPointer, size: Int, isCancelled: () -> Bool) throws(InflateError) -> Data {
+        try inflateMeasuring(input, size: size, isCancelled: isCancelled).data
+    }
+
+    /// As `inflate`, and the count of input bytes the stream used (bytes after the final block are not part of it).
+    public static func inflateMeasuring(
+        _ input: UnsafeRawBufferPointer, size: Int, isCancelled: () -> Bool
+    ) throws(InflateError) -> (data: Data, consumed: Int) {
         guard size >= 0 else { throw .malformed }
         guard let raw = malloc(max(size, 1)) else { throw .allocationFailed }
         let output = raw.assumingMemoryBound(to: UInt8.self)
+        var consumed = 0
         do {
             var state = InflateState(input: input, output: output, size: size)
             try state.run(isCancelled: isCancelled)
+            consumed = state.position - state.bitCount / 8
         } catch {
             free(raw)
             throw error
         }
-        return Data(bytesNoCopy: raw, count: size, deallocator: .free)
+        return (Data(bytesNoCopy: raw, count: size, deallocator: .free), consumed)
     }
 }
 

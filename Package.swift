@@ -148,7 +148,7 @@ var targets: [Target] = [
             metalUIPortableText, metalUISystemFonts,
         ]
     ),
-    .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
+    .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry", "CreatorGraph"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
     .testTarget(name: "CreatorPCBTests", dependencies: ["CreatorPCB", "CreatorGeometry", "CreatorKernel"]),
     .testTarget(

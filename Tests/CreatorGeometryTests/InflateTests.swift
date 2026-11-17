@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import CreatorGeometry
 @testable import CreatorGraph
-@testable import CreatorImplicit
 #if canImport(Compression)
 import Compression
 #endif
