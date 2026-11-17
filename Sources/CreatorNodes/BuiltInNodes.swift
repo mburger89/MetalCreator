@@ -35,6 +35,8 @@ public enum BuiltInNodes {
         MeshNode.self, DecimateNode.self, CheckThinWallsNode.self, CheckTrappedVolumesNode.self, MeshToSolidNode.self,
         ImportMeshNode.self,
         ImportKiCadBoardNode.self,
+        CurveThroughPointsNode.self, CurveFromEdgesNode.self, ProfileToCurvesNode.self, ExtrudeCurveNode.self, RevolveCurveNode.self,
+        LoftSurfaceNode.self, SweepNode.self, PlanarSurfaceNode.self,
         OutputNode.self,
     ]
 

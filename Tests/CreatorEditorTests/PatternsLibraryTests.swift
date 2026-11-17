@@ -12,7 +12,9 @@ struct PatternsLibraryTests {
 
     @Test func thePatternsSectionFollowsFeatureAndPrecedesOutput() {
         #expect(sections().map(\.title)
-            == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Fields", "Implicit", "Mesh", "Output"])
+            == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Fields", "Implicit",
+               "Mesh", "Surfaces", "Output",
+        ])
     }
 
     @Test func theAlphabeticalOrderIsTodays() {
