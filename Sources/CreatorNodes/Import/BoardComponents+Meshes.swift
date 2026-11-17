@@ -130,8 +130,8 @@ extension Placer {
     }
 
     /// Whether the model is read as a mesh.
-    func isMesh(_ model: ModelReference) -> Bool {
-        if case .mesh = found[model.path] { return true }
+    func isMesh(_ model: ModelReference, of index: Int) -> Bool {
+        if case .mesh = found[BoardComponents.foundKey(model.path, of: setting.board.footprints[index])] { return true }
         return false
     }
 
@@ -141,7 +141,7 @@ extension Placer {
     mutating func admitMeshes(of models: [ModelReference], footprint index: Int) -> Bool {
         var triangles = 0
         for model in models {
-            guard case .mesh(let found, _) = found[model.path],
+            guard case .mesh(let found, _) = found[BoardComponents.foundKey(model.path, of: setting.board.footprints[index])],
                   [model.scale.x, model.scale.y, model.scale.z].allSatisfy({ $0.isFinite && $0 > 0 }) else { continue }
             triangles += found.mesh.positions.isEmpty ? 0 : found.mesh.triangles.count / 3
         }

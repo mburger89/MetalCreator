@@ -92,7 +92,7 @@ enum BoardComponents {
             }
             let meshesAllowed = placer.admitMeshes(of: visible[index], footprint: index)
             for model in visible[index] {
-                if !meshesAllowed, placer.isMesh(model) { continue }
+                if !meshesAllowed, placer.isMesh(model, of: index) { continue }
                 switch try await placer.place(model, of: index) {
                 case .solid(let piece): pieces.append(piece)
                 case .mesh(let piece): meshPieces.append(piece)
