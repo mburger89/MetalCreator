@@ -41,7 +41,30 @@ struct SurfaceNodeTests {
         let source = points(&h, count: 3, step: 10)
         h.wire(source, "vector", to: node, "points")
         let report = try await h.run([node], kernel: kernel)
-        #expect(report.error(node) != nil)
+        #expect(report.error(node) == "A degree-5 curve needs at least six points.")
+    }
+
+    @Test(arguments: [0.0, -5, 400]) func revolveCurveRefusesAnAngleOutsideZeroTo360(angle: Double) async throws {
+        var h = Harness()
+        let rect = rectangle(&h, 4, 6, at: Vector3(10, 0, 0))
+        let node = h.add(RevolveCurveNode.self, ["angle": .number(angle)])
+        h.wire(rect, "profile", to: node, "curve")
+        let report = try await h.run([node], kernel: kernel)
+        #expect(report.error(node) == "The angle must be more than 0° and at most 360°.")
+    }
+
+    @Test func sweepShowsItsBinormalForFixedOrientationOnly() {
+        func controls(_ orientation: Int) -> [InspectorControl] {
+            var node = BuiltInNodes.registry.makeNode(SweepNode.typeID)
+            node.inputValues["orientation"] = .integer(orientation)
+            return SweepNode.inspector(for: node).flatMap(\.controls)
+        }
+        #expect(!controls(0).contains(.vector("binormal")))
+        #expect(controls(1).contains(.vector("binormal")))
+    }
+
+    @Test func extrudeCurveHasADistanceHandle() {
+        #expect(ExtrudeCurveNode.handles == [HandleSpec.linear("distance")])
     }
 
     @Test func profileToCurvesGivesOneCurvePerLoop() async throws {
@@ -54,7 +77,7 @@ struct SurfaceNodeTests {
         #expect(curves.count == 1 && curves[0].isClosed && isClose(curves[0].length, 60))
     }
 
-    @Test func curveFromEdgesChainsABoxsTopEdges() async throws {
+    @Test func curveFromEdgesGivesCurvesCoveringAllTwelveBoxEdges() async throws {
         var h = Harness()
         let box = h.box(10, 20, 5)
         let edges = h.add(AllEdgesNode.self)

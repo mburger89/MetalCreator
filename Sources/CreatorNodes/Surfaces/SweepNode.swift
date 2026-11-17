@@ -37,12 +37,12 @@ public enum SweepNode: NodeDefinition {
     }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        let paths = try await CurveInput.loops(try inputs.curves("path"), holes: .all, kernel: kernel, tag: context.tag)
-        guard let path = paths.first, paths.count == 1 else { throw NodeError.invalidValue(pathRefusal) }
         let sources = try inputs.curves("profiles")
         guard sources.count <= maximumProfiles else {
             throw NodeError.invalidValue("A sweep takes at most \(maximumProfiles.display) profiles.")
         }
+        let paths = try await CurveInput.loops(try inputs.curves("path"), holes: .all, kernel: kernel, tag: context.tag)
+        guard let path = paths.first, paths.count == 1 else { throw NodeError.invalidValue(pathRefusal) }
         let profiles = try await CurveInput.loops(sources, holes: .all, kernel: kernel, tag: context.tag)
         let options = SweepOptions(orientation: try inputs.choice("orientation", options: orientations) == 0 ? .frenet : .fixedBinormal,
                                    binormal: try inputs.vector("binormal"), endScale: try inputs.number("end scale"),

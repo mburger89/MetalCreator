@@ -5,7 +5,7 @@ import CreatorNodes
 import Testing
 
 /// A profile with a hole, for the tests that need one (the built-in profile nodes make none).
-enum HoledProfileNode: NodeDefinition {
+private enum HoledProfileNode: NodeDefinition {
     static let typeID = "test.holedProfile"
     static let displayName = "Holed Profile"
     static let category = NodeCategory.profile
@@ -69,6 +69,58 @@ struct SurfaceNodeRefusalTests {
         node.inputValues["points"] = .vector(.zero)
         let report = try await run([node], [], demand: node)
         #expect(report.error(node) == "A curve needs at least two points.")
+    }
+
+    /// A list of rectangles of distinct widths on one wire, from a Series.
+    func widths(_ count: Int) -> (series: Node, rectangle: Node) {
+        (make(SeriesNode.self, ["start": .number(1), "count": .integer(count)]), make(RectangleNode.self))
+    }
+
+    @Test func tooManyLoftSectionsAreRefused() async throws {
+        let (series, rectangle) = widths(1_001)
+        let loft = make(LoftSurfaceNode.self)
+        let report = try await run([series, rectangle, loft], [
+            link(series, "values", rectangle, "width"),
+                                                               link(rectangle, "profile", loft, "sections"),
+        ], demand: loft)
+        #expect(report.error(loft) == "A loft takes at most 1,000 sections.")
+    }
+
+    @Test func tooManySweepProfilesAreRefusedBeforeThePath() async throws {
+        let (series, rectangle) = widths(101)
+        let sweep = make(SweepNode.self), path = make(RectangleNode.self)
+        let report = try await run([series, rectangle, sweep, path], [
+            link(series, "values", rectangle, "width"), link(rectangle, "profile", sweep, "profiles"),
+            link(path, "profile", sweep, "path"),
+        ], demand: sweep)
+        #expect(report.error(sweep) == "A sweep takes at most 100 profiles.")
+    }
+
+    @Test func tooManyPointsAreRefused() async throws {
+        // A Series is limited to 10,000 itself, so two of them are merged.
+        let first = make(SeriesNode.self, ["count": .integer(5_000)]), second = make(SeriesNode.self, ["count": .integer(5_001)])
+        let merge = make(MergeNode.self), vector = make(VectorNode.self), curve = make(CurveThroughPointsNode.self)
+        let report = try await run([first, second, merge, vector, curve], [
+            link(first, "values", merge, "a"), link(second, "values", merge, "b"), link(merge, "list", vector, "x"),
+            link(vector, "vector", curve, "points"),
+        ], demand: curve)
+        #expect(report.error(curve) == "Curve through Points takes at most 10,000 points.")
+    }
+
+    @Test func curveNodesWithoutAKernelSaySo() async throws {
+        let series = make(SeriesNode.self, ["count": .integer(3)]), vector = make(VectorNode.self)
+        let curve = make(CurveThroughPointsNode.self)
+        var report = try await run([series, vector, curve], [link(series, "values", vector, "x"),
+                                                             link(vector, "vector", curve, "points"),
+        ], demand: curve)
+        #expect(report.error(curve) == "Interpolated curves isn't supported by this kernel yet.")
+        let rectangle = make(RectangleNode.self), extrude = make(ExtrudeNode.self)
+        let edges = make(AllEdgesNode.self), fromEdges = make(CurveFromEdgesNode.self)
+        report = try await run([rectangle, extrude, edges, fromEdges], [
+            link(rectangle, "profile", extrude, "profile"), link(extrude, "solid", edges, "solid"),
+            link(edges, "edges", fromEdges, "edges"),
+        ], demand: fromEdges)
+        #expect(report.error(fromEdges) == "Curves from edges isn't supported by this kernel yet.")
     }
 
     @Test(arguments: [
