@@ -25,25 +25,31 @@ public enum Base64 {
     }
 
     private static func bytes(of text: Substring.UTF8View, size: Int) -> Data {
-        var out = [UInt8]()
-        out.reserveCapacity(size)
-        var word: UInt32 = 0
-        var held = 0
-        for byte in text {
-            guard let value = value(of: byte) else { continue }
-            word = word << 6 | UInt32(value)
-            held += 1
-            if held == 4 {
-                out.append(UInt8(word >> 16 & 0xFF))
-                out.append(UInt8(word >> 8 & 0xFF))
-                out.append(UInt8(word & 0xFF))
-                word = 0
-                held = 0
+        var out = Data(count: size)
+        out.withUnsafeMutableBytes { buffer in
+            var written = 0
+            var word: UInt32 = 0
+            var held = 0
+            for byte in text {
+                guard let value = value(of: byte) else { continue }
+                word = word << 6 | UInt32(value)
+                held += 1
+                if held == 4 {
+                    buffer[written] = UInt8(word >> 16 & 0xFF)
+                    buffer[written + 1] = UInt8(word >> 8 & 0xFF)
+                    buffer[written + 2] = UInt8(word & 0xFF)
+                    written += 3
+                    word = 0
+                    held = 0
+                }
+            }
+            if held == 2 { buffer[written] = UInt8(word >> 4 & 0xFF) }
+            if held == 3 {
+                buffer[written] = UInt8(word >> 10 & 0xFF)
+                buffer[written + 1] = UInt8(word >> 2 & 0xFF)
             }
         }
-        if held == 2 { out.append(UInt8(word >> 4 & 0xFF)) }
-        if held == 3 { out.append(UInt8(word >> 10 & 0xFF)); out.append(UInt8(word >> 2 & 0xFF)) }
-        return Data(out)
+        return out
     }
 
     /// The number of alphabet symbols, or `nil` for a stray byte, misplaced padding or a length that is no base64.

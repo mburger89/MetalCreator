@@ -12,7 +12,7 @@ enum ModelFiles {
         case unreadable(name: String, reason: String)
         case file(path: String, format: ModelFormat, stamp: ImageStamp)
         /// A model stored in the board: its name, base64 text and format.
-        case stored(name: String, base64: String, hash: ImageHash, format: ModelFormat)
+        case stored(name: String, base64: String, owner: Int?, format: ModelFormat)
     }
 
     /// Where a model's bytes come from.
@@ -23,15 +23,15 @@ enum ModelFiles {
 
     /// The first candidate for `path` that is a file; every candidate looked at is a dependency, with the stamp it had.
     static func resolve(_ path: String, folder: String, variables: KiCadPathVariables,
-                        stored: (String) -> (file: EmbeddedFile, hash: ImageHash)? = { _ in nil })
+                        stored: (String) -> (file: EmbeddedFile, owner: Int?)? = { _ in nil })
         -> (result: Result, dependencies: [FileDependency]) {
         switch ModelPathResolver.locate(path, boardFolder: folder, variables: variables, platform: .current) {
         case .embedded(let name):
-            guard let (file, hash) = stored(name) else { return (.notFound, []) }
+            guard let (file, owner) = stored(name) else { return (.notFound, []) }
             if file.base64.allSatisfy(\.isWhitespace) { return (.unreadable(name: name, reason: "it is empty"), []) }
             let format = ModelFormat(fileName: name)
             if format == .unknown { return (.unreadable(name: name, reason: "this kind of file isn't read"), []) }
-            return (.stored(name: name, base64: file.base64, hash: hash, format: format), [])
+            return (.stored(name: name, base64: file.base64, owner: owner, format: format), [])
         case .files(let candidates):
             var dependencies: [FileDependency] = []
             for candidate in candidates {

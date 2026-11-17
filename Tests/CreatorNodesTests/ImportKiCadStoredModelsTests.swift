@@ -147,18 +147,18 @@ struct ImportKiCadStoredModelsTests {
         let hash = ImageHash(ofUTF8: base64).hex
         let parts = [part("U1", models: [stored("m.step")]), part("U2", x: 60, models: [stored("m.step")])]
         let (h, node, text) = try board(parts, embedded: [("m.step", base64)])
+        let cache = KiCadBoardCache()
         for _ in 0..<2 {
-            let report = try await go(h, [node])
+            let report = try await KiCadBoardCache.$current.withValue(cache) { try await go(h, [node]) }
             #expect(solids(report, node).count == 2)
         }
         #expect(await ComponentModelCache.shared.reads(containing: hash) == 1)
-        // The parsed board is kept between evaluations, with its hash: the second evaluation hashed nothing (a busy run may have
-        // evicted the board from the shared cache, which then parses it anew and has hashed nothing yet).
+        // The parsed board is kept between evaluations, with its hash: the second evaluation hashed nothing.
         let file = folder.url.appending(path: "board.kicad_pcb")
-        let kept = try await KiCadBoardCache.shared.board(for: ImageResolver.stamp(ofFileAt: file.path(percentEncoded: false))) {
+        let kept = try await cache.board(for: ImageResolver.stamp(ofFileAt: file.path(percentEncoded: false))) {
             try ImportKiCadBoardNode.parse(Data(text.utf8))
         }
-        #expect(kept.storedHashes.computed <= 1)
+        #expect(kept.storedHashes.computed == 1)
     }
 
     @Test func aHashIsMadeOncePerOwnerAndName() {

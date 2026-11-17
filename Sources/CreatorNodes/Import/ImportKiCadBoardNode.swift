@@ -127,7 +127,7 @@ public enum ImportKiCadBoardNode: NodeDefinition {
 
     private static func load(_ reference: ImageReference, _ resolver: ImageResolver) async throws -> ParsedBoard {
         do {
-            return try await KiCadBoardCache.shared.board(for: resolver.stamp(of: reference)) {
+            return try await KiCadBoardCache.current.board(for: resolver.stamp(of: reference)) {
                 try parse(resolver.pcbFileBytes(of: reference))
             }
         } catch let problem as KiCadProblem {

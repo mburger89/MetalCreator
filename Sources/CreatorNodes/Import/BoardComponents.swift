@@ -126,12 +126,10 @@ enum BoardComponents {
     }
 
     /// The stored model `name` and its hash: the footprint's own table first, then the board's (ruling R2).
-    static func storedModel(_ name: String, footprint: Int, _ setting: Setting) -> (file: EmbeddedFile, hash: ImageHash)? {
-        if let own = setting.board.footprints[footprint].embeddedModels.first(where: { $0.name == name }) {
-            return (own, setting.storedHashes.hash(of: own, owner: footprint))
-        }
+    static func storedModel(_ name: String, footprint: Int, _ setting: Setting) -> (file: EmbeddedFile, owner: Int?)? {
+        if let own = setting.board.footprints[footprint].embeddedModels.first(where: { $0.name == name }) { return (own, footprint) }
         guard let file = setting.board.embeddedModels.first(where: { $0.name == name }) else { return nil }
-        return (file, setting.storedHashes.hash(of: file, owner: nil))
+        return (file, nil)
     }
 
     /// One distinct model: its path, the key it is found under and the first footprint (in natural order) that names it.
@@ -262,9 +260,10 @@ struct Placer {
         case .unreadable(let name, let reason): return .unreadable(name: name, reason: reason)
         case .file(let path, let format, let stamp):
             return try await load(.file(path), name: ModelFiles.fileName(of: path), format: format, stamp: stamp)
-        case .stored(let name, let base64, let hash, let format):
+        case .stored(let name, let base64, let owner, let format):
             // The stamp is the SHA-256 of the base64 text (ruling R3): the same stored bytes are read once, whatever file holds them.
-            let stamp = ImageStamp.embedded(hash, isPresent: true)
+            let stamp = ImageStamp.embedded(
+                setting.storedHashes.hash(of: EmbeddedFile(name: name, base64: base64), owner: owner), isPresent: true)
             return try await load(.stored(base64: base64), name: name, format: format, stamp: stamp)
         }
     }
