@@ -105,6 +105,22 @@ struct ZstdDecoderTests {
         #expect(problem(frame, limit: 199_999) == .larger(than: 199_999))
     }
 
+    @Test func blockAndOffsetLimitsFollowTheWindow() {
+        // Window descriptor 0x00: 1 KB. A raw block of 2,000 bytes is larger than the window.
+        var big = Data([0x28, 0xB5, 0x2F, 0xFD, 0x00, 0x00, 0x81, 0x3E, 0x00])
+        big.append(Data(repeating: 1, count: 2000))
+        #expect(problem(big) == .damaged)
+        var small = Data([0x28, 0xB5, 0x2F, 0xFD, 0x00, 0x00, 0x19, 0x00, 0x00, 1, 2, 3])
+        #expect((try? decode(small)) == Data([1, 2, 3]))
+        small.removeLast()
+        #expect(problem(small) == .damaged)
+    }
+
+    @Test func aHugeLimitCannotOverflow() throws {
+        #expect(try decode(frame(ZstdFixtures.tiny), limit: Int.max) == Data(ZstdFixtureInputs.tiny))
+        #expect(problem(frame(ZstdFixtures.samestdin), limit: Int.max - 5) == nil)
+    }
+
     @Test func aHugeWindowIsRefused() {
         // Window descriptor 0xF0: exponent 30, so a window of 2^40.
         let bytes = Data([0x28, 0xB5, 0x2F, 0xFD, 0x00, 0xF0, 0x01, 0x00, 0x00])
@@ -168,8 +184,8 @@ struct ZstdDecoderTests {
     }
 
     @Test func defaultDistributionsAreWholeTables() throws {
-        _ = try ZstdSequenceTables.predefinedLiteralLengths()
-        _ = try ZstdSequenceTables.predefinedMatchLengths()
-        _ = try ZstdSequenceTables.predefinedOffsets()
+        #expect(ZstdSequenceTables.predefinedLiteralLengths.entries.count == 64)
+        #expect(ZstdSequenceTables.predefinedMatchLengths.entries.count == 64)
+        #expect(ZstdSequenceTables.predefinedOffsets.entries.count == 32)
     }
 }

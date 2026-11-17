@@ -26,7 +26,10 @@ enum ZstdSequenceTables {
     ]
     static let offsetDefault = [1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
 
-    static func predefinedLiteralLengths() throws -> ZstdFSETable { try ZstdFSETable(normalized: literalLengthDefault, accuracyLog: 6) }
-    static func predefinedMatchLengths() throws -> ZstdFSETable { try ZstdFSETable(normalized: matchLengthDefault, accuracyLog: 6) }
-    static func predefinedOffsets() throws -> ZstdFSETable { try ZstdFSETable(normalized: offsetDefault, accuracyLog: 5) }
+    // swiftlint:disable:next force_try
+    static let predefinedLiteralLengths: ZstdFSETable = try! ZstdFSETable(normalized: literalLengthDefault, accuracyLog: 6)
+    // swiftlint:disable:next force_try
+    static let predefinedMatchLengths: ZstdFSETable = try! ZstdFSETable(normalized: matchLengthDefault, accuracyLog: 6)
+    // swiftlint:disable:next force_try
+    static let predefinedOffsets: ZstdFSETable = try! ZstdFSETable(normalized: offsetDefault, accuracyLog: 5)
 }

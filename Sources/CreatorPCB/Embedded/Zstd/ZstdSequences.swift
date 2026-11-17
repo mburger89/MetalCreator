@@ -32,11 +32,13 @@ enum ZstdSequences {
         state.matchLengths = ml
         guard let reader = ZstdBackwardBits(UnsafeBufferPointer(rebasing: section[offset...])) else { throw ZstdProblem.damaged }
         var decoder = ZstdSequenceDecoder(tables: (ll, of, ml), reader: reader, repeats: state.repeats)
-        output.count += try run(count: count, decoder: &decoder, literals: literals, output: &output)
+        output.count += try run(count: count, decoder: &decoder, literals: literals, output: &output, window: state.windowSize)
         state.repeats = decoder.repeats
     }
 
-    private static func run(count: Int, decoder: inout ZstdSequenceDecoder, literals: [UInt8], output: inout ZstdOutput) throws -> Int {
+    private static func run(
+        count: Int, decoder: inout ZstdSequenceDecoder, literals: [UInt8], output: inout ZstdOutput, window: Int
+    ) throws -> Int {
         let start = output.count
         let blockMaximum = min(ZstdLiterals.blockMaximum, output.capacity)
         var local = decoder
@@ -49,7 +51,8 @@ enum ZstdSequences {
                     let sequence = try local.next(isLast: index == count - 1)
                     let size = sequence.literalLength + sequence.matchLength
                     guard used + sequence.literalLength <= source.count, position - start + size <= blockMaximum,
-                          sequence.offset <= position + sequence.literalLength else { throw ZstdProblem.damaged }
+                          sequence.offset <= position + sequence.literalLength,
+                          sequence.offset <= window else { throw ZstdProblem.damaged }
                     if sequence.literalLength > 0, let base = source.baseAddress {
                         (out + position).update(from: base + used, count: sequence.literalLength)
                     }
@@ -69,10 +72,12 @@ enum ZstdSequences {
     }
 
     private static func copyMatch(_ out: UnsafeMutablePointer<UInt8>, _ position: Int, offset: Int, length: Int) {
-        if offset >= length {
-            UnsafeMutableRawPointer(out + position).copyMemory(from: out + position - offset, byteCount: length)
-        } else {
-            for index in 0..<length { out[position + index] = out[position + index - offset] }
+        // The source is `offset` bytes back; each copy may reach into what the last one wrote, so the chunk doubles.
+        var done = 0
+        while done < length {
+            let chunk = min(length - done, offset + done)
+            UnsafeMutableRawPointer(out + position + done).copyMemory(from: out + position - offset, byteCount: chunk)
+            done += chunk
         }
     }
 
@@ -90,11 +95,11 @@ enum ZstdSequences {
 
     private static func readTable(
         mode: UInt8, _ section: UnsafeBufferPointer<UInt8>, _ offset: inout Int, limits: (accuracy: Int, symbol: Int),
-        previous: ZstdFSETable?, predefined: () throws -> ZstdFSETable
+        previous: ZstdFSETable?, predefined: ZstdFSETable
     ) throws -> ZstdFSETable {
         switch mode {
         case 0:
-            return try predefined()
+            return predefined
         case 1:
             guard offset < section.count, Int(section[offset]) <= limits.symbol else { throw ZstdProblem.damaged }
             offset += 1

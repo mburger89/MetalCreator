@@ -36,6 +36,12 @@ struct Base64Tests {
         #expect(decode("é") == nil)
     }
 
+    @Test func overLimitIsRefusedWithoutDecoding() {
+        let big = String(repeating: "AAAA", count: 1_000_000)
+        #expect(Base64.decode(big[...].utf8, limit: 10) == nil)
+        #expect(Base64.decode(big[...].utf8, limit: 3_000_000)?.count == 3_000_000)
+    }
+
     @Test func limit() {
         #expect(decode("Zm9vYmFy", limit: 6) == "foobar")
         #expect(decode("Zm9vYmFy", limit: 5) == nil)

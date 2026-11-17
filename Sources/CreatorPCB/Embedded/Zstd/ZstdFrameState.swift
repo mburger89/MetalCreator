@@ -5,6 +5,8 @@ struct ZstdFrameState {
     var offsets: ZstdFSETable?
     var matchLengths: ZstdFSETable?
     var repeats = [1, 4, 8]
+    /// The frame's window: no match reaches back further.
+    var windowSize = Int.max
 }
 
 /// The decoded bytes of a frame. The buffer grows by doubling and holds `count` valid bytes.

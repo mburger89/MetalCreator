@@ -14,7 +14,7 @@ public enum ZstdDecoder {
     }
 
     private static func decode(_ bytes: UnsafeBufferPointer<UInt8>, limit requested: Int, isCancelled: () -> Bool) throws -> Data {
-        let limit = max(requested, 0)
+        let limit = min(max(requested, 0), Int.max / 4)
         var offset = try skipSkippable(bytes)
         guard offset + 4 <= bytes.count, word(bytes, offset) == magic else { throw ZstdProblem.damaged }
         offset += 4
@@ -25,6 +25,7 @@ public enum ZstdDecoder {
         let ceiling = header.contentSize.map { Int($0) } ?? limit + ZstdLiterals.blockMaximum
         var output = ZstdOutput()
         var state = ZstdFrameState()
+        state.windowSize = Int(header.windowSize)
         offset = try readBlocks(bytes, from: offset, into: &output, state: &state, bounds: (limit, ceiling), isCancelled: isCancelled)
         if let stated = header.contentSize, stated != UInt64(output.count) { throw ZstdProblem.damaged }
         if header.hasChecksum {
@@ -53,7 +54,7 @@ public enum ZstdDecoder {
             isLast = header & 1 != 0
             let kind = (header >> 1) & 3
             let size = header >> 3
-            guard size <= ZstdLiterals.blockMaximum else { throw ZstdProblem.damaged }
+            guard size <= min(ZstdLiterals.blockMaximum, state.windowSize) else { throw ZstdProblem.damaged }
             let stored = kind == 1 ? 1 : size
             guard kind != 3, stored <= bytes.count - offset else { throw ZstdProblem.damaged }
             let body = UnsafeBufferPointer(rebasing: bytes[offset..<offset + stored])
