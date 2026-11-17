@@ -19,7 +19,7 @@ struct IDFReaderTests {
 
     static let square = "0 0 0 0\n0 4 0 0\n0 4 2 0\n0 0 2 0\n0 0 0 0"
 
-    static func read(_ data: Data) throws(KiCadProblem) -> IDFOutline {
+    static func read(_ data: Data) throws -> IDFOutline {
         try IDFReader.read(data, isCancelled: { false })
     }
 
@@ -134,8 +134,143 @@ struct IDFReaderTests {
     }
 
     @Test func cancellationIsAsked() {
-        let lines = String(repeating: "\n", count: 70_000)
-        let data = Data((".HEADER\n.END_HEADER\n" + lines).utf8)
-        #expect(throws: KiCadProblem.self) { try IDFReader.read(data, isCancelled: { true }) }
+        let points = "0 0 0 0\n" + String(repeating: "0 1 1 0\n", count: 70_000)
+        let data = Self.file(body: points)
+        #expect(throws: CancellationError.self) { try IDFReader.read(data, isCancelled: { true }) }
+    }
+
+    // MARK: Arcs by hand
+
+    static func arcs(_ outline: IDFOutline, loop: Int = 0) -> [(c: Vector2, r: Double, s: Double, e: Double)] {
+        let segments = loop == 0 ? outline.profile.outer : outline.profile.holes[loop - 1]
+        return segments.compactMap { segment in
+            if case .arc(let c, let r, let s, let e) = segment { (c, r, s.radians, e.radians) } else { nil }
+        }
+    }
+
+    static let bigOuter = "0 -5 -5 0\n0 9 -5 0\n0 9 9 0\n0 -5 9 0\n0 -5 -5 0\n"
+
+    @Test func clockwiseHoleArcKeepsEndBeforeStart() throws {
+        // (2,0) -> (0,2) turning -90 about (2,2): start -pi/2, end -pi.
+        let hole = "1 2 0 0\n1 0 2 -90\n1 2 2 0\n1 2 0 0"
+        let outline = try Self.read(Self.file(body: Self.bigOuter + hole))
+        let arc = Self.arcs(outline, loop: 1)
+        #expect(arc.count == 1)
+        #expect(abs(arc[0].c.x - 2) < 1e-9 && abs(arc[0].c.y - 2) < 1e-9 && abs(arc[0].r - 2) < 1e-9)
+        #expect(abs(arc[0].s + .pi / 2) < 1e-9)
+        #expect(abs(arc[0].e + .pi) < 1e-9)
+        #expect(ArcGeometry.signedArea(outline.profile.holes[0]) < 0)
+        #expect(outline.profile.isClosed)
+    }
+
+    @Test func counterClockwiseHoleIsReversed() throws {
+        // (0,2) -> (2,0) turning +90 about (2,2) is start pi, end 3pi/2; reversing the CCW hole swaps them.
+        let hole = "1 2 0 0\n1 2 2 0\n1 0 2 0\n1 2 0 90"
+        let outline = try Self.read(Self.file(body: Self.bigOuter + hole))
+        let arc = Self.arcs(outline, loop: 1)
+        #expect(arc.count == 1)
+        #expect(abs(arc[0].c.x - 2) < 1e-9 && abs(arc[0].c.y - 2) < 1e-9)
+        #expect(abs(arc[0].s - 3 * .pi / 2) < 1e-9)
+        #expect(abs(arc[0].e - .pi) < 1e-9)
+        #expect(ArcGeometry.signedArea(outline.profile.holes[0]) < 0)
+        #expect(outline.profile.isClosed)
+    }
+
+    @Test func majorArcsBothWays() throws {
+        // +270 (2,0) -> (0,2): centre (2,2), start -pi/2, end pi.
+        let plus = Self.arcs(try Self.read(Self.file(body: "0 0 0 0\n0 2 0 0\n0 0 2 270\n0 0 0 0")))
+        #expect(plus.count == 1)
+        #expect(abs(plus[0].c.x - 2) < 1e-9 && abs(plus[0].c.y - 2) < 1e-9 && abs(plus[0].r - 2) < 1e-9)
+        #expect(abs(plus[0].s + .pi / 2) < 1e-9 && abs(plus[0].e - .pi) < 1e-9)
+        // -270 (2,0) -> (0,2): centre (0,0), swept clockwise from 0 to -3pi/2; the outline is clockwise, so it is reversed.
+        let minus = Self.arcs(try Self.read(Self.file(body: "0 0 0 0\n0 2 0 0\n0 0 2 -270\n0 0 0 0")))
+        #expect(minus.count == 1)
+        #expect(abs(minus[0].c.x) < 1e-9 && abs(minus[0].c.y) < 1e-9 && abs(minus[0].r - 2) < 1e-9)
+        #expect(abs(minus[0].s + 3 * .pi / 2) < 1e-9 && abs(minus[0].e) < 1e-9)
+    }
+
+    @Test func fullCircleIsClosed() throws {
+        #expect(try Self.read(Self.file(body: "0 1 1 0\n0 3 1 360")).profile.isClosed)
+    }
+
+    @Test func circleAfterSegmentsIsRefused() {
+        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: "0 0 0 0\n0 4 0 0\n0 4 2 360")) }
+    }
+
+    @Test func repeatedLoopLabelIsRefused() {
+        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: Self.square + "\n" + Self.square)) }
+    }
+
+    @Test func tinyAngleIsALine() throws {
+        let outline = try Self.read(Self.file(body: "0 0 0 0\n0 4 0 1e-9\n0 4 2 0\n0 0 2 0\n0 0 0 0"))
+        #expect(Self.arcs(outline).isEmpty)
+        #expect(outline.profile.outer.count == 4)
+    }
+
+    @Test func hugeRadiusAndCoordinatesAreRefused() {
+        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: "0 0 0 0\n0 4 0 0.00001\n0 4 2 0\n0 0 0 0")) }
+        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: "0 0 0 0\n0 2e9 0 0\n0 2e9 2 0\n0 0 0 0")) }
+        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(body: "0 0 0 0\n0 0 5e6 360")) }
+    }
+
+    @Test func commentsAndByteOrderMark() throws {
+        let text = "\u{FEFF}# a comment\n.HEADER\n# another\nLIBRARY_FILE 3.0\n.END_HEADER\n.ELECTRICAL\n\"P\" \"Q\" MM 5\n"
+            + "# inside\n" + Self.square + "\n.END_ELECTRICAL\n"
+        #expect(try Self.read(Data(text.utf8)).profile.outer.count == 4)
+    }
+
+    // MARK: Formats
+
+    @Test func crlfLines() throws {
+        let text = ".HEADER\r\nLIBRARY_FILE 3.0\r\n.END_HEADER\r\n.ELECTRICAL\r\n\"P\" \"Q\" MM 5\r\n"
+            + Self.square.replacingOccurrences(of: "\n", with: "\r\n") + "\r\n.END_ELECTRICAL\r\n"
+        #expect(try Self.read(Data(text.utf8)).profile.outer.count == 4)
+    }
+
+    @Test func quotedNamesWithSpaces() throws {
+        let text = ".HEADER\nLIBRARY_FILE 3.0\n.END_HEADER\n.ELECTRICAL\n\"SOT 23 body\" \"Part No 7\" MM 1.1\n"
+            + Self.square + "\n.END_ELECTRICAL\n"
+        #expect(try Self.read(Data(text.utf8)).height == 1.1)
+    }
+
+    @Test func tabsAndExtraWhitespace() throws {
+        let body = "  0\t0   0 0  \n0\t4\t0\t0\n 0 4 2 0\n0   0 2 0\n0 0 0 0"
+        #expect(try Self.read(Self.file(body: body)).profile.outer.count == 4)
+    }
+
+    @Test func exponentNumbers() throws {
+        let outline = try Self.read(Self.file(height: "1.5e0", body: "0 0 0 0\n0 1.5e2 0 0\n0 1.5e2 2 0\n0 0 0 0"))
+        #expect(outline.height == 1.5)
+        #expect(abs((outline.profile.bounds?.max.x ?? 0) - 150) < 1e-9)
+    }
+
+    @Test func negativeHeightIsRefused() {
+        #expect(throws: KiCadProblem.self) { try Self.read(Self.file(height: "-2", body: Self.square)) }
+    }
+
+    @Test func onlyTheFirstSectionIsRead() throws {
+        let text = ".HEADER\nLIBRARY_FILE 3.0\n.END_HEADER\n.ELECTRICAL\n\"A\" \"A\" MM 5\n" + Self.square + "\n.END_ELECTRICAL\n"
+            + ".MECHANICAL\n\"B\" \"B\" MM 9\n0 0 0 0\n0 1 0 0\n0 1 1 0\n0 0 0 0\n.END_MECHANICAL\n"
+        let outline = try Self.read(Data(text.utf8))
+        #expect(outline.height == 5)
+        #expect(outline.profile.outer.count == 4)
+    }
+
+    @Test func pointAfterAClosedLoopStartsAnotherLoop() throws {
+        // Pinned: a new loop number begins a hole; a repeated one is refused (see repeatedLoopLabelIsRefused).
+        let outline = try Self.read(Self.file(body: Self.square + "\n3 1 0.5 0\n3 3 0.5 0\n3 3 1.5 0\n3 1 0.5 0"))
+        #expect(outline.profile.holes.count == 1)
+    }
+
+    @Test func explicitElectricalSection() throws {
+        #expect(try Self.read(Self.file(body: Self.square)).height == 5)
+    }
+
+    @Test func thouArc() throws {
+        // (1000, 0) -> (0, 1000) thou turning +90 about the origin: radius 25.4 mm.
+        let outline = try Self.read(Self.file(unit: "THOU", body: "0 0 0 0\n0 1000 0 0\n0 0 1000 90\n0 0 0 0"))
+        let arc = Self.arcs(outline)
+        #expect(arc.count == 1)
+        #expect(abs(arc[0].r - 25.4) < 1e-9 && abs(arc[0].c.x) < 1e-9 && abs(arc[0].c.y) < 1e-9)
     }
 }

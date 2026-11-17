@@ -19,16 +19,17 @@ public enum IDFReader {
     public static let maximumBytes = 16 * 1024 * 1024
     static let cancelEvery = 65_536
 
-    public static func read(_ data: Data, isCancelled: () -> Bool) throws(KiCadProblem) -> IDFOutline {
+    public static func read(_ data: Data, isCancelled: () -> Bool) throws -> IDFOutline {
         guard data.count <= maximumBytes else { throw KiCadProblem("This IDF file is larger than 16 MB.") }
-        let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
+        var text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
+        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
         var state = IDFParseState()
         var lineCount = 0
         for rawLine in text.split(whereSeparator: { $0 == "\n" || $0 == "\r" || $0 == "\r\n" }) {
             lineCount += 1
-            if lineCount % cancelEvery == 0, isCancelled() { throw KiCadProblem("Reading the IDF file was cancelled.") }
+            if lineCount % cancelEvery == 0, isCancelled() { throw CancellationError() }
             let tokens = tokenize(rawLine)
-            guard let first = tokens.first else { continue }
+            guard let first = tokens.first, !first.hasPrefix("#") else { continue }
             if try state.accept(first: first, tokens: tokens) { break }
         }
         return try state.finish()
@@ -63,10 +64,12 @@ public enum IDFReader {
 private struct IDFParseState {
     enum Phase { case start, header, between, sectionName, points, done }
 
+    static let largestRadius = 1e6
     var phase = Phase.start
     var scale = 1.0
     var height = 0.0
     var loops: [(label: Int, segments: [Segment2D])] = []
+    var usedLabels: Set<Int> = []
     var firstPoint: Vector2?
     var previous: Vector2?
     var segments: [Segment2D] = []
@@ -121,28 +124,23 @@ private struct IDFParseState {
     }
 
     mutating func readPoint(_ tokens: [String]) throws(KiCadProblem) {
-        guard tokens.count >= 4, let loop = Int(tokens[0]), let x = Double(tokens[1]), let y = Double(tokens[2]),
-              let angle = Double(tokens[3]), x.isFinite, y.isFinite, angle.isFinite else {
-            throw KiCadProblem("This IDF file has a point line that isn't a loop number, x, y and angle.")
-        }
-        let point = Vector2(x * scale, y * scale)
+        let (loop, point, angle) = try parsePoint(tokens)
         guard let start = firstPoint, let from = previous else {
+            guard usedLabels.insert(loop).inserted else {
+                throw KiCadProblem("This IDF file has two outlines with the same loop number.")
+            }
             (label, firstPoint, previous, segments) = (loop, point, point, [])
             return
         }
         guard loop == label else { throw unclosed }
         if angle == 360 {
-            let radius = (point - from).length
-            guard radius > 1e-9 else { throw KiCadProblem("This IDF file has a circle with no size.") }
-            loops.append((label, [ArcGeometry.circle(center: from, radius: radius)]))
-            firstPoint = nil
-            previous = nil
+            try addCircle(centre: from, through: point)
             return
         }
         guard abs(angle) < 360 else { throw KiCadProblem("This IDF file has an arc that turns a whole circle or more.") }
         let chord = (point - from).length
         if chord < 1e-9 && abs(angle) > 0 { throw KiCadProblem("This IDF file has an arc with no chord.") }
-        if chord > 1e-9 { segments.append(segment(from: from, to: point, degrees: angle)) }
+        if chord > 1e-9 { segments.append(try segment(from: from, to: point, degrees: angle)) }
         previous = point
         if (point - start).length < 1e-9 {
             guard segments.count >= 2 else { throw KiCadProblem("This IDF file has an outline of fewer than three sides.") }
@@ -152,10 +150,34 @@ private struct IDFParseState {
         }
     }
 
+    func parsePoint(_ tokens: [String]) throws(KiCadProblem) -> (Int, Vector2, Double) {
+        guard tokens.count >= 4, let loop = Int(tokens[0]), let x = Double(tokens[1]), let y = Double(tokens[2]),
+              let angle = Double(tokens[3]), x.isFinite, y.isFinite, angle.isFinite else {
+            throw KiCadProblem("This IDF file has a point line that isn't a loop number, x, y and angle.")
+        }
+        guard abs(x * scale) <= 1e9, abs(y * scale) <= 1e9 else {
+            throw KiCadProblem("This IDF file has a coordinate beyond a million kilometres.")
+        }
+        return (loop, Vector2(x * scale, y * scale), angle)
+    }
+
+    mutating func addCircle(centre: Vector2, through point: Vector2) throws(KiCadProblem) {
+        guard segments.isEmpty else {
+            throw KiCadProblem("This IDF file has a circle that starts partway through an outline.")
+        }
+        let radius = (point - centre).length
+        guard radius > 1e-9, radius <= Self.largestRadius else {
+            throw KiCadProblem("This IDF file has a circle with no usable size.")
+        }
+        loops.append((label, [ArcGeometry.circle(center: centre, radius: radius)]))
+        firstPoint = nil
+        previous = nil
+    }
+
     var unclosed: KiCadProblem { KiCadProblem("This IDF file has an outline that doesn't close.") }
 
-    func segment(from: Vector2, to: Vector2, degrees: Double) -> Segment2D {
-        if degrees == 0 { return .line(from, to) }
+    func segment(from: Vector2, to: Vector2, degrees: Double) throws(KiCadProblem) -> Segment2D {
+        if abs(degrees) < 1e-6 { return .line(from, to) }
         let theta = degrees * .pi / 180
         let chord = to - from
         let length = chord.length
@@ -163,7 +185,9 @@ private struct IDFParseState {
         let middle = Vector2((from.x + to.x) / 2, (from.y + to.y) / 2)
         let centre = middle + normal * (length / 2 / tan(theta / 2))
         let start = atan2(from.y - centre.y, from.x - centre.x)
-        return .arc(center: centre, radius: (from - centre).length, start: Angle(radians: start),
+        let radius = (from - centre).length
+        guard radius <= Self.largestRadius else { throw KiCadProblem("This IDF file has an arc with a radius over 1,000 metres.") }
+        return .arc(center: centre, radius: radius, start: Angle(radians: start),
                     end: Angle(radians: start + theta))
     }
 
