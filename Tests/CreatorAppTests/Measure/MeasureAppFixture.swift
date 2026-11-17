@@ -59,24 +59,24 @@ struct MeasureAppFixture {
 /// Lets exactly one caller through a hook later: the first call waits for `release()`. Each test releases the gate when it
 /// ends (`defer { gate.release() }`), so a test that fails before its own `release()` never leaves the call held.
 ///
-/// The hold lapses after 600 s: `enter()` blocks a thread of Swift's shared pool, and with no limit a few gated tests running
-/// at once on a small machine (CI's aarch64 runner) used the pool up and stalled the whole suite for good.
+/// The first call suspends at a `HookGate`; it never blocks a thread. (It once waited on a semaphore, which held a thread of
+/// Swift's shared pool: a few gated tests running at once on a small machine used the pool up and stalled the whole suite.)
 /// `waitUntilEntered()` has no deadline: on Windows every test of the suite starts at once and then waits its turn for the
 /// main actor, so the kernel call can be minutes away (`measuringShowsWhileTheDistanceIsHeld` ran 1,064 s in CI and its
-/// one-minute wait lapsed before the measurement had even started). A test that really hangs is the CI job's timeout to catch.
+/// one-minute wait lapsed before the measurement had even started).
 final class FirstCallGate: Sendable {
     private let calls = Mutex(0)
-    private let semaphore = DispatchSemaphore(value: 0)
+    private let gate = HookGate()
 
-    func enter() {
+    func enter() async {
         let first = calls.withLock { count -> Bool in
             count += 1
             return count == 1
         }
-        if first { _ = semaphore.wait(timeout: .now() + 600) }
+        if first { await gate.hold() }
     }
 
-    func release() { semaphore.signal() }
+    func release() { gate.open() }
 
     /// Waits until the first call is inside the gate (so the work it holds is really held); false only if the test is cancelled.
     func waitUntilEntered() async -> Bool {

@@ -86,7 +86,7 @@ struct MeasurePanelTests {
         let gate = FirstCallGate()
         defer { gate.release() }
         let kernel = FakeKernel()
-        await kernel.setMeasureHook { gate.enter() }
+        await kernel.setMeasureHook { await gate.enter() }
         var builder = GraphBuilder()
         _ = builder.box()
         let app = try await AppWindow.open(builder.graph, kernel: kernel)

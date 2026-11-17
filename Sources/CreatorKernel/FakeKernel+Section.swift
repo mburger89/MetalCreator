@@ -1,9 +1,9 @@
 import CreatorGeometry
 
 extension FakeKernel {
-    /// A test knob: runs at the start of every `section`, on the kernel's thread; it may throw to refuse the section or block to
-    /// hold it. `nil` (the default) does nothing.
-    public func setSectionHook(_ hook: (@Sendable () throws -> Void)?) {
+    /// A test knob: runs at the start of every `section`; it may throw to refuse the section or suspend to hold it (never block:
+    /// a blocked hook holds a thread of Swift's shared pool, and a few at once starve it). `nil` (the default) does nothing.
+    public func setSectionHook(_ hook: (@Sendable () async throws -> Void)?) {
         sectionHook = hook
     }
 

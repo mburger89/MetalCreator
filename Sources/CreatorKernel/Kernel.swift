@@ -62,17 +62,20 @@ public protocol Kernel: Actor {
     /// The cross-section of `solid` by `plane` (section analysis part B): a region per connected piece of material, with triangles to
     /// fill it and its boundary as pieces that keep their exact line or arc and the face they lie on. `tolerance` (millimetres) is the
     /// chord tolerance of the polylines drawn for curved pieces. A plane that misses the solid gives an empty section. Like every
-    /// operation it checks for cancellation on entry. The default refuses.
-    func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection
+    /// operation it checks for cancellation on entry. The default refuses. `section`, `shortestDistance` and `continuity` are
+    /// `async` so that `FakeKernel`'s test hooks can hold a call by suspending: a hook that blocked would hold a thread of Swift's
+    /// shared pool, and a few held at once on a small machine starve the pool and hang the test run. Their defaults below stay
+    /// synchronous: an `async` default would outrank a kernel's own synchronous method as the witness, silently refusing everything.
+    func section(_ solid: Solid, by plane: Plane, tolerance: Double) async throws -> PlaneSection
     /// The exact shortest distance between two picked elements (faces, edges, free points; the solids may differ) and the
     /// nearest point on each, in millimetres. An ID a solid doesn't have is `KernelError.invalidInput`. Like every operation
     /// it checks for cancellation on entry. The default refuses.
-    func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance
+    func shortestDistance(between first: MeasureElement, and second: MeasureElement) async throws -> ShapeDistance
     /// How smoothly the two faces meet along `edge` of `solid` (G-b, edge continuity): the worst position, normal-angle and
     /// normal-curvature gaps over 32 samples along the edge, normals oriented outward by the faces' orientation in the solid. A
     /// seam or an edge with fewer than two distinct faces is `KernelError.unsupported`; an ID the solid doesn't have is
     /// `KernelError.invalidInput`. Like every operation it checks for cancellation on entry. The default refuses.
-    func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity
+    func continuity(along edge: EdgeID, of solid: Solid) async throws -> EdgeContinuity
     /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
     /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.
     func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid

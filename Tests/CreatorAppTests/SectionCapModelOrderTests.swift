@@ -2,44 +2,12 @@ import CreatorGeometry
 import CreatorKernel
 import CreatorViewport
 import Foundation
-import Synchronization
 import Testing
 @testable import CreatorApp
 
 /// What the section's cap does when a request arrives while one is running: a moved plane lets it publish, an edit or a clear drops it.
 @MainActor
 struct SectionCapModelOrderTests {
-    /// Holds each section in the kernel until released; `entered` yields once per held section.
-    /// A hold never lapses on its own (CI runners have spent over 680 s in these tests, longer than any timeout we set): every test
-    /// opens the gate on every way out (`defer { gate.open() }`), so a failing test lets held sections go instead of hanging.
-    private final class SectionGate: @unchecked Sendable {
-        let semaphore = DispatchSemaphore(value: 0)
-        let entered: AsyncStream<Void>
-        private let signal: AsyncStream<Void>.Continuation
-        private let opened = Mutex(false)
-        init() { (entered, signal) = AsyncStream<Void>.makeStream() }
-        func hold() {
-            signal.yield()
-            if opened.withLock({ $0 }) { return }
-            semaphore.wait()
-        }
-        func release() { semaphore.signal() }
-        /// Lets every held and future section through.
-        func open() {
-            opened.withLock { $0 = true }
-            for _ in 0..<8 { semaphore.signal() }
-        }
-        func waitUntilEntered() async -> Bool {
-            await withTaskGroup(of: Bool.self) { group in
-                group.addTask { for await _ in self.entered { return true }; return false }
-                group.addTask { try? await Task.sleep(for: .seconds(900)); return false }
-                let first = await group.next() ?? false
-                group.cancelAll()
-                return first
-            }
-        }
-    }
-
     private func boxSolid(_ size: Double, kernel: FakeKernel) async throws -> Solid {
         try await kernel.extrude(.rectangle(width: size, height: size, plane: .xy), distance: 10, mode: .oneSided,
                                  tag: NodeTag(node: NodeID(), item: 0))
@@ -49,9 +17,9 @@ struct SectionCapModelOrderTests {
         let kernel = FakeKernel()
         let solid = try await boxSolid(10, kernel: kernel)
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
-        let gate = SectionGate()
+        let gate = HookGate()
         defer { gate.open() }
-        await kernel.setSectionHook { gate.hold() }
+        await kernel.setSectionHook { await gate.hold() }
         let first = ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ)
         let second = ViewportClip(origin: Vector3(0, 0, 6), normal: .unitZ)
         model.follow(clip: first, items: [ViewportItem(solid: solid)])
@@ -74,9 +42,9 @@ struct SectionCapModelOrderTests {
         let kernel = FakeKernel()
         let (small, big) = (try await boxSolid(10, kernel: kernel), try await boxSolid(20, kernel: kernel))
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
-        let gate = SectionGate()
+        let gate = HookGate()
         defer { gate.open() }
-        await kernel.setSectionHook { gate.hold() }
+        await kernel.setSectionHook { await gate.hold() }
         let clip = ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ)
         model.follow(clip: clip, items: [ViewportItem(solid: small)])
         try #require(await gate.waitUntilEntered(), "the section hook was never reached")
@@ -95,9 +63,9 @@ struct SectionCapModelOrderTests {
         let kernel = FakeKernel()
         let solid = try await boxSolid(10, kernel: kernel)
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
-        let gate = SectionGate()
+        let gate = HookGate()
         defer { gate.open() }
-        await kernel.setSectionHook { gate.hold() }
+        await kernel.setSectionHook { await gate.hold() }
         model.follow(clip: ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ), items: [ViewportItem(solid: solid)])
         try #require(await gate.waitUntilEntered(), "the section hook was never reached")
         model.follow(clip: nil, items: [])
