@@ -1,6 +1,17 @@
 #include "cocct_sheet.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
+#include <BRepOffsetAPI_ThruSections.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeRevol.hxx>
+#include <BRepSweep_Revol.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <TopLoc_Location.hxx>
+#include <gp_Ax1.hxx>
+#include <gp_Trsf.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
@@ -101,6 +112,53 @@ bool contains(const std::vector<point2> &polygon, const point2 &p) {
 
 bool all_inside(const std::vector<point2> &polygon, const std::vector<point2> &points) {
     return std::all_of(points.begin(), points.end(), [&](const point2 &p) { return contains(polygon, p); });
+}
+
+/// The edges of a curve's wire in wire order, which is the order of its pieces.
+std::vector<TopoDS_Edge> wire_edges(const TopoDS_Wire &wire) {
+    std::vector<TopoDS_Edge> edges;
+    for (BRepTools_WireExplorer explorer(wire); explorer.More(); explorer.Next()) {
+        edges.push_back(explorer.Current());
+    }
+    return edges;
+}
+
+TopoDS_Wire curve_wire(const occt_shape *curve) {
+    if (!curve || curve->shape.IsNull() || curve->shape.ShapeType() != TopAbs_WIRE) {
+        throw user_error("This curve can't be used.");
+    }
+    return TopoDS::Wire(curve->shape);
+}
+
+void check_valid(const TopoDS_Shape &shape, const char *message) {
+    if (shape.IsNull() || !BRepCheck_Analyzer(shape).IsValid()) {
+        throw user_error(message);
+    }
+}
+
+/// Names the faces made from each edge of `edges` (piece k), the edges of `first` as start and of `last` as end, and
+/// the edges traced by an open curve's first and last vertices as rails 0 and 1.
+void name_edges(boundary_table &table, const TopoDS_Shape &first, const TopoDS_Shape &last) {
+    if (!first.IsNull()) {
+        for (TopExp_Explorer it(first, TopAbs_EDGE); it.More(); it.Next()) {
+            table.set(it.Current(), kBoundaryStart);
+        }
+    }
+    if (!last.IsNull()) {
+        for (TopExp_Explorer it(last, TopAbs_EDGE); it.More(); it.Next()) {
+            table.set(it.Current(), kBoundaryEnd);
+        }
+    }
+}
+
+/// The generated edges of `vertex` that are real (not collapsed onto an axis).
+void set_rails(boundary_table &table, const TopTools_ListOfShape &made, int which) {
+    for (TopTools_ListOfShape::Iterator it(made); it.More(); it.Next()) {
+        const TopoDS_Shape &item = it.Value();
+        if (item.ShapeType() == TopAbs_EDGE && !BRep_Tool::Degenerated(TopoDS::Edge(item))) {
+            table.set(item, kBoundaryRail, which);
+        }
+    }
 }
 
 } // namespace
@@ -211,6 +269,166 @@ occt_shape *occt_planar_surface(const occt_shape *const *loops, int loop_count, 
         }
         table.move_into(roles);
         return new occt_shape{face};
+    });
+}
+
+
+occt_shape *occt_extrude_curve(const occt_shape *curve, const double direction[3], double distance, int symmetric,
+                               occt_history *history, occt_boundary_roles *roles, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        occt_initialize();
+        *history = occt_history{};
+        *roles = occt_boundary_roles{};
+        const TopoDS_Wire wire = curve_wire(curve);
+        const gp_Vec vector(direction[0], direction[1], direction[2]);
+        if (vector.Magnitude() < 1e-12) {
+            throw user_error("The direction can't be zero.");
+        }
+        const gp_Vec unit = vector.Normalized();
+        // A symmetric extrusion starts the curve distance behind its place. Moving the wire only sets a location, so
+        // the caller's curve is untouched.
+        TopoDS_Wire base = wire;
+        if (symmetric) {
+            gp_Trsf move;
+            move.SetTranslation(unit.Reversed() * distance);
+            base = TopoDS::Wire(wire.Moved(TopLoc_Location(move)));
+        }
+        BRepPrimAPI_MakePrism prism(base, unit * (symmetric ? 2 * distance : distance));
+        prism.Build();
+        if (!prism.IsDone()) {
+            throw user_error("The curve can't be extruded.");
+        }
+        const TopoDS_Shape result = prism.Shape();
+        check_valid(result, "The curve can't be extruded.");
+        history_builder records(result);
+        const std::vector<TopoDS_Edge> edges = wire_edges(base);
+        for (std::size_t k = 0; k < edges.size(); ++k) {
+            records.add_all(prism.Generated(edges[k]), OCCT_FROM_SEGMENT, 0, static_cast<int>(k));
+        }
+        records.move_into(history);
+        boundary_table table(result);
+        name_edges(table, prism.FirstShape(), prism.LastShape());
+        if (!BRep_Tool::IsClosed(base) && !edges.empty()) {
+            set_rails(table, prism.Generated(TopExp::FirstVertex(edges.front(), Standard_True)), 0);
+            set_rails(table, prism.Generated(TopExp::LastVertex(edges.back(), Standard_True)), 1);
+        }
+        table.move_into(roles);
+        return new occt_shape{result};
+    });
+}
+
+occt_shape *occt_revolve_curve(const occt_shape *curve, const double axis_origin[3], const double axis_direction[3],
+                               double angle, occt_history *history, occt_boundary_roles *roles, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        occt_initialize();
+        *history = occt_history{};
+        *roles = occt_boundary_roles{};
+        const TopoDS_Wire wire = curve_wire(curve);
+        if (!std::isfinite(angle) || angle <= 0 || angle > 2 * kPi + 1e-9) {
+            throw user_error("The angle must be more than 0\u00B0 and at most 360\u00B0.");
+        }
+        const bool full = angle >= 2 * kPi - 1e-9;
+        const gp_Ax1 axis(gp_Pnt(axis_origin[0], axis_origin[1], axis_origin[2]),
+                          gp_Dir(axis_direction[0], axis_direction[1], axis_direction[2]));
+        BRepPrimAPI_MakeRevol revol(wire, axis, full ? 2 * kPi : angle);
+        revol.Build();
+        if (!revol.IsDone()) {
+            throw user_error("The curve can't be revolved.");
+        }
+        const TopoDS_Shape result = revol.Shape();
+        check_valid(result, "The curve can't be revolved.");
+        // A full revolution leaves Generated() empty for some pieces; the underlying sweep still knows them.
+        const auto generated = [&](const TopoDS_Shape &piece) {
+            TopTools_ListOfShape made = revol.Generated(piece);
+            if (made.IsEmpty()) {
+                const TopoDS_Shape swept = const_cast<BRepSweep_Revol &>(revol.Revol()).Shape(piece);
+                if (!swept.IsNull()) {
+                    made.Append(swept);
+                }
+            }
+            return made;
+        };
+        history_builder records(result);
+        const std::vector<TopoDS_Edge> edges = wire_edges(wire);
+        for (std::size_t k = 0; k < edges.size(); ++k) {
+            records.add_all(generated(edges[k]), OCCT_FROM_SEGMENT, 0, static_cast<int>(k));
+        }
+        records.move_into(history);
+        boundary_table table(result);
+        if (!full) {
+            name_edges(table, revol.FirstShape(), revol.LastShape());
+        }
+        if (!BRep_Tool::IsClosed(wire) && !edges.empty()) {
+            set_rails(table, generated(TopExp::FirstVertex(edges.front(), Standard_True)), 0);
+            set_rails(table, generated(TopExp::LastVertex(edges.back(), Standard_True)), 1);
+        }
+        table.move_into(roles);
+        return new occt_shape{result};
+    });
+}
+
+occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int ruled, int closed,
+                             occt_history *history, occt_boundary_roles *roles, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        occt_initialize();
+        *history = occt_history{};
+        *roles = occt_boundary_roles{};
+        if (!sections || count < 2) {
+            throw user_error("A loft needs at least two sections.");
+        }
+        std::vector<TopoDS_Wire> wires;
+        for (int i = 0; i < count; ++i) {
+            wires.push_back(curve_wire(sections[i]));
+        }
+        const bool sections_closed = BRep_Tool::IsClosed(wires.front());
+        BRepOffsetAPI_ThruSections loft(Standard_False, ruled ? Standard_True : Standard_False);
+        for (const TopoDS_Wire &wire : wires) {
+            loft.AddWire(wire);
+        }
+        if (closed) {
+            loft.AddWire(wires.front());
+        }
+        loft.Build();
+        if (!loft.IsDone()) {
+            throw user_error("The sections can't be lofted.");
+        }
+        const TopoDS_Shape result = loft.Shape();
+        check_valid(result, "The sections can't be lofted.");
+        history_builder records(result);
+        const std::vector<TopoDS_Edge> edges = wire_edges(wires.front());
+        for (std::size_t k = 0; k < edges.size(); ++k) {
+            records.add(loft.GeneratedFace(edges[k]), OCCT_FROM_SEGMENT, 0, static_cast<int>(k));
+        }
+        records.move_into(history);
+        boundary_table table(result);
+        if (!closed) {
+            name_edges(table, loft.FirstShape(), loft.LastShape());
+            name_edges(table, wires.front(), wires.back());
+        }
+        if (!sections_closed && !edges.empty()) {
+            // The rails are the edges of one face that are neither section: the one reaching the first section's first
+            // vertex is rail 0, the one reaching its last vertex rail 1.
+            TopTools_IndexedDataMapOfShapeListOfShape owners;
+            TopExp::MapShapesAndAncestors(result, TopAbs_EDGE, TopAbs_FACE, owners);
+            const gp_Pnt from = BRep_Tool::Pnt(TopExp::FirstVertex(edges.front(), Standard_True));
+            const gp_Pnt to = BRep_Tool::Pnt(TopExp::LastVertex(edges.back(), Standard_True));
+            const double tolerance = 1e-5;
+            for (int i = 1; i <= owners.Extent(); ++i) {
+                const TopoDS_Edge edge = TopoDS::Edge(owners.FindKey(i));
+                if (BRep_Tool::Degenerated(edge) || owners(i).Extent() != 1) {
+                    continue;
+                }
+                const gp_Pnt a = BRep_Tool::Pnt(TopExp::FirstVertex(edge, Standard_True));
+                const gp_Pnt b = BRep_Tool::Pnt(TopExp::LastVertex(edge, Standard_True));
+                if (a.Distance(from) < tolerance || b.Distance(from) < tolerance) {
+                    table.set(edge, kBoundaryRail, 0);
+                } else if (a.Distance(to) < tolerance || b.Distance(to) < tolerance) {
+                    table.set(edge, kBoundaryRail, 1);
+                }
+            }
+        }
+        table.move_into(roles);
+        return new occt_shape{result};
     });
 }
 

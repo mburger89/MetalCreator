@@ -48,4 +48,36 @@ extension OCCTShape {
             }
         }
     }
+
+    typealias SheetBuild = (shape: OCCTShape, history: [OCCTHistoryRecord], roles: [BoundaryRole?])
+
+    /// `curve` moved along `direction`. Call under `OCCTKernel.serialized`.
+    static func extrudeCurve(_ curve: OCCTShape, direction: Vector3, distance: Double, symmetric: Bool)
+        throws(OCCTError) -> SheetBuild {
+        var raw = [direction.x, direction.y, direction.z]
+        let wire = curve.raw
+        return try buildingSheet { history, roles, status in
+            occt_extrude_curve(wire, &raw, distance, symmetric ? 1 : 0, history, roles, status)
+        }
+    }
+
+    /// `curve` turned about `axis` by `angle`. Call under `OCCTKernel.serialized`.
+    static func revolveCurve(_ curve: OCCTShape, axis: Axis, angle: Angle) throws(OCCTError) -> SheetBuild {
+        var origin = [axis.origin.x, axis.origin.y, axis.origin.z]
+        var direction = [axis.direction.x, axis.direction.y, axis.direction.z]
+        let wire = curve.raw
+        return try buildingSheet { history, roles, status in
+            occt_revolve_curve(wire, &origin, &direction, angle.radians, history, roles, status)
+        }
+    }
+
+    /// A surface through `sections`. Call under `OCCTKernel.serialized`.
+    static func loftCurves(_ sections: [OCCTShape], ruled: Bool, closed: Bool) throws(OCCTError) -> SheetBuild {
+        let pointers: [OpaquePointer?] = sections.map(\.raw)
+        return try buildingSheet { history, roles, status in
+            pointers.withUnsafeBufferPointer { buffer in
+                occt_loft_curves(buffer.baseAddress, Int32(buffer.count), ruled ? 1 : 0, closed ? 1 : 0, history, roles, status)
+            }
+        }
+    }
 }

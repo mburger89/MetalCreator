@@ -40,6 +40,58 @@ extension OCCTKernel {
                          boundaryRoles: built.roles)
     }
 
+    public func extrude(_ curve: Curve, direction: Vector3, distance: Double, symmetric: Bool, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
+        guard direction.isFinite, direction.length > 1e-12 else { throw KernelError.invalidInput("The direction can't be zero.") }
+        guard distance.isFinite, distance > 0 else { throw KernelError.invalidInput("The distance must be greater than 0 mm.") }
+        let wire = try curveShape(of: curve)
+        let unit = direction.normalized ?? direction
+        return try buildSheet("extrude", tag: tag) {
+            try OCCTShape.extrudeCurve(wire, direction: unit, distance: distance, symmetric: symmetric)
+        }
+    }
+
+    public func revolve(_ curve: Curve, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
+        guard angle.radians.isFinite, angle.radians > 0, angle.radians <= 2 * .pi + 1e-9 else {
+            throw KernelError.invalidInput("The angle must be more than 0° and at most 360°.")
+        }
+        guard let direction = axis.direction.normalized, axis.origin.isFinite else {
+            throw KernelError.invalidInput("The direction can't be zero.")
+        }
+        let wire = try curveShape(of: curve)
+        let turned = Axis(origin: axis.origin, direction: direction)
+        return try buildSheet("revolve", tag: tag) { try OCCTShape.revolveCurve(wire, axis: turned, angle: angle) }
+    }
+
+    public func loftSurface(_ sections: [Curve], ruled: Bool, closed: Bool, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
+        guard sections.count >= 2 else { throw KernelError.invalidInput("A loft needs at least two sections.") }
+        let firstClosed = sections[0].isClosed
+        for (index, section) in sections.enumerated() where section.isClosed != firstClosed {
+            let this = section.isClosed ? "closed" : "open"
+            let first = firstClosed ? "closed" : "open"
+            throw KernelError.invalidInput(
+                "Section \(index + 1) is \(this) and section 1 is \(first); a loft's sections must all be open or all closed.")
+        }
+        let wires = try sections.map { try curveShape(of: $0) }
+        return try buildSheet("loft", tag: tag) { try OCCTShape.loftCurves(wires, ruled: ruled, closed: closed) }
+    }
+
+    /// Runs a sheet builder under the kernel's lock and names the result.
+    private func buildSheet(_ operation: String, tag: NodeTag, _ body: () throws -> OCCTShape.SheetBuild) throws -> Solid {
+        let built: OCCTShape.SheetBuild
+        do {
+            // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure.
+            built = try Self.serialized { () throws -> OCCTShape.SheetBuild in try body() }
+        } catch let error as OCCTError {
+            if error.message.hasPrefix("occt: ") { throw KernelError.occt(operation, error) }
+            throw KernelError.invalidInput(error.message)
+        }
+        return try solid(from: built.shape, history: built.history, inputs: [], tag: tag, operation: operation,
+                         boundaryRoles: built.roles)
+    }
+
     /// The wire behind a curve made by this kernel.
     func curveShape(of curve: Curve) throws -> OCCTShape {
         guard let storage = curve.storage as? OCCTSolidStorage else {

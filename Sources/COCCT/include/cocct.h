@@ -514,6 +514,21 @@ void occt_boundary_roles_free(occt_boundary_roles *roles);
 occt_shape *occt_planar_surface(const occt_shape *const *loops, int loop_count, const occt_plane *plane,
                                 occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
+/// The sheet swept by `curve` (a wire) moved along `direction` by `distance` (both sides when `symmetric`: from -distance to
+/// +distance). History: the face from piece k is OCCT_FROM_SEGMENT (operand 0, index k). Roles: start and end edges (kinds 1, 2), and
+/// for an open curve the edges traced by its first and last vertex (kind 3, a = 0 and 1). Refuses with "The direction can't be zero.".
+occt_shape *occt_extrude_curve(const occt_shape *curve, const double direction[3], double distance, int symmetric,
+                               occt_history *history, occt_boundary_roles *roles, occt_status *status);
+/// The sheet swept by turning `curve` about the axis through `angle` radians (0 < angle <= 2π). History as occt_extrude_curve. Roles:
+/// start and end edges only for a partial turn; rails as occt_extrude_curve, except one that collapses onto the axis, which is not named.
+occt_shape *occt_revolve_curve(const occt_shape *curve, const double axis_origin[3], const double axis_direction[3],
+                               double angle, occt_history *history, occt_boundary_roles *roles, occt_status *status);
+/// The surface through `count` section curves (wires; ThruSections with isSolid false). `closed` returns to the first section.
+/// History: the face from piece k of the first section is OCCT_FROM_SEGMENT (0, k). Roles: start and end edges unless `closed`;
+/// for open sections the edges joining the sections' first vertices are rail 0 and their last vertices rail 1.
+occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int ruled, int closed,
+                             occt_history *history, occt_boundary_roles *roles, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif
