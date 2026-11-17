@@ -84,6 +84,27 @@ public protocol Kernel: Actor {
     func scaled(_ solid: Solid, by factors: Vector3, tag: NodeTag) throws -> Solid
     /// One solid holding all of `solids`, every tag kept. The default refuses.
     func compound(_ solids: [Solid], tag: NodeTag) throws -> Solid
+    /// A curve over `pieces`, which must join end to end within 1e-6 mm (else "The curve's pieces don't join end to end."). The default refuses.
+    func makeCurve(_ pieces: [CurvePiece], tag: NodeTag) throws -> Curve
+    /// A curve through `points` of the given `degree`, periodic when `closed`, with optional end tangents. The default refuses.
+    func interpolate(_ points: [Vector3], degree: Int, closed: Bool, startTangent: Vector3?, endTangent: Vector3?,
+                     tag: NodeTag) throws -> Curve
+    /// The curves of `edges` of `solid`, chained end to end. The default refuses.
+    func curves(from edges: [EdgeID], of solid: Solid, tag: NodeTag) throws -> [Curve]
+    /// A sheet (or, for a closed curve with `makesSolid`-style callers, a solid) swept from `curve` along `direction`. The default refuses.
+    func extrude(_ curve: Curve, direction: Vector3, distance: Double, symmetric: Bool, tag: NodeTag) throws -> Solid
+    /// `curve` turned about `axis` through `angle`. The default refuses.
+    func revolve(_ curve: Curve, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid
+    /// A surface through `sections`. The default refuses.
+    func loftSurface(_ sections: [Curve], ruled: Bool, closed: Bool, tag: NodeTag) throws -> Solid
+    /// `profiles` swept along `path`. The default refuses.
+    func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid
+    /// A planar surface bounded by `loops`. The default refuses.
+    func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid
+    /// Every solid, sheet and curve in a model file. The default refuses.
+    func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes
+    /// Exports `solids` and free `curves`. The default exports solids alone when there are no curves, else refuses.
+    func export(_ solids: [Solid], curves: [Curve], format: ExportFormat, to url: URL) throws
 }
 
 extension Kernel {
@@ -121,6 +142,48 @@ extension Kernel {
 
     public func compound(_ solids: [Solid], tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("compounds")
+    }
+
+    public func makeCurve(_ pieces: [CurvePiece], tag: NodeTag) throws -> Curve {
+        throw KernelError.unsupported("curves")
+    }
+
+    public func interpolate(_ points: [Vector3], degree: Int, closed: Bool, startTangent: Vector3?, endTangent: Vector3?,
+                            tag: NodeTag) throws -> Curve {
+        throw KernelError.unsupported("interpolated curves")
+    }
+
+    public func curves(from edges: [EdgeID], of solid: Solid, tag: NodeTag) throws -> [Curve] {
+        throw KernelError.unsupported("curves from edges")
+    }
+
+    public func extrude(_ curve: Curve, direction: Vector3, distance: Double, symmetric: Bool, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("extruding a curve")
+    }
+
+    public func revolve(_ curve: Curve, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("revolving a curve")
+    }
+
+    public func loftSurface(_ sections: [Curve], ruled: Bool, closed: Bool, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("lofting surfaces")
+    }
+
+    public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("sweeping")
+    }
+
+    public func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("planar surfaces")
+    }
+
+    public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {
+        throw KernelError.unsupported("reading 3D models")
+    }
+
+    public func export(_ solids: [Solid], curves: [Curve], format: ExportFormat, to url: URL) throws {
+        guard curves.isEmpty else { throw KernelError.unsupported("exporting curves") }
+        try export(solids, format: format, to: url)
     }
 }
 

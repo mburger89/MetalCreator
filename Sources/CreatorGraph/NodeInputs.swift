@@ -83,6 +83,17 @@ public struct NodeInputs: Sendable {
         return value
     }
 
+    /// The curves on a curve socket, each a wired curve or a profile (whose loops the node turns into curves).
+    public func curves(_ name: SocketName) throws -> [CurveSource] {
+        try list(name).map { scalar in
+            switch scalar {
+            case .curve(let curve): .curve(curve)
+            case .profile(let profile): .profile(profile)
+            default: throw NodeError.typeMismatch(name, expected: .curve)
+            }
+        }
+    }
+
     public func solid(_ name: SocketName) throws -> Solid {
         guard case .solid(let value) = try scalar(name) else { throw NodeError.typeMismatch(name, expected: .solid) }
         return value
@@ -102,4 +113,10 @@ public struct NodeInputs: Sendable {
         guard case .implicit(let value) = try scalar(name) else { throw NodeError.typeMismatch(name, expected: .implicit) }
         return value
     }
+}
+
+/// What a curve socket carries: a curve, or a profile whose loops the node makes into curves.
+public enum CurveSource: Sendable {
+    case curve(Curve)
+    case profile(Profile2D)
 }

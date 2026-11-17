@@ -9,6 +9,8 @@ public enum SocketType: String, Sendable, Codable, CaseIterable {
     /// A watertight triangle mesh (implicit spec §2.2). An implicit wired into a mesh socket is meshed at the Mesh node's
     /// default settings by the node that takes it.
     case mesh
+    /// A 3D curve (NURBS spec). A profile wires into a curve socket as it is: the node that takes it makes its loops into curves.
+    case curve
     /// Any item type. Only the list and tree nodes use it (Flatten, Graft, Partition, …), which move items without
     /// reading them; it is no type a value has, only one a socket may declare.
     case any
@@ -21,6 +23,6 @@ public enum SocketType: String, Sendable, Codable, CaseIterable {
         self == source || self == .any || source == .any
             || (self == .number && source == .integer) || (self == .plane && source == .vector)
             || (self == .field && (source == .number || source == .integer || source == .implicit))
-            || (self == .mesh && source == .implicit)
+            || (self == .mesh && source == .implicit) || (self == .curve && source == .profile)
     }
 }

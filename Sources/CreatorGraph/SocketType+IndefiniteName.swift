@@ -15,6 +15,7 @@ extension SocketType {
         case .field: "a field"
         case .implicit: "an implicit solid"
         case .mesh: "a mesh"
+        case .curve: "a curve"
         case .any: "a value"
         }
     }
