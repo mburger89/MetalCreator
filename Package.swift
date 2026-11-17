@@ -181,7 +181,7 @@ var targets: [Target] = [
 let occtLibraries = [
     "TKernel", "TKMath", "TKG2d", "TKG3d", "TKGeomBase", "TKGeomAlgo", "TKBRep", "TKTopAlgo",
     "TKPrim", "TKBO", "TKBool", "TKFillet", "TKOffset", "TKMesh", "TKShHealing",
-    "TKXSBase", "TKDE", "TKDESTEP", "TKDESTL",
+    "TKXSBase", "TKDE", "TKDESTEP", "TKDEIGES", "TKDESTL",
 ]
 
 /// The linker flags per target platform (xp-2, spec section 3). macOS and Linux add the install's `lib` to the run-time search

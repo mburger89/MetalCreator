@@ -73,6 +73,14 @@ public protocol Kernel: Actor {
     /// seam or an edge with fewer than two distinct faces is `KernelError.unsupported`; an ID the solid doesn't have is
     /// `KernelError.invalidInput`. Like every operation it checks for cancellation on entry. The default refuses.
     func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity
+    /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
+    /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.
+    func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid
+    /// `solid` scaled about the origin by `factors` (all finite and greater than 0, else "The scale must be greater than 0."): uniform
+    /// is a similarity, uneven OpenCascade's general transform. Face tags are kept face for face. The default refuses.
+    func scaled(_ solid: Solid, by factors: Vector3, tag: NodeTag) throws -> Solid
+    /// One solid holding all of `solids`, every tag kept. The default refuses.
+    func compound(_ solids: [Solid], tag: NodeTag) throws -> Solid
 }
 
 extension Kernel {
@@ -98,6 +106,18 @@ extension Kernel {
 
     public func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity {
         throw KernelError.unsupported("continuity")
+    }
+
+    public func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("reading 3D models")
+    }
+
+    public func scaled(_ solid: Solid, by factors: Vector3, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("scaling")
+    }
+
+    public func compound(_ solids: [Solid], tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("compounds")
     }
 }
 
