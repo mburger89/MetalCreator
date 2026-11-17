@@ -4,6 +4,7 @@
 #include <BRepAlgoAPI_Check.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
+#include <BRepBuilderAPI_TransitionMode.hxx>
 #include <Law_Linear.hxx>
 #include <TopTools_MapOfShape.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
@@ -498,35 +499,45 @@ std::vector<gp_Pnt> vertex_points(const TopoDS_Shape &shape) {
     return points;
 }
 
-/// The caps of a swept solid: the faces no side record claimed, the one nearer the start profile first.
-void name_caps(history_builder &records, const TopoDS_Shape &result, const std::vector<gp_Pnt> &start_points) {
-    TopTools_IndexedMapOfShape faces = map_of(result, TopAbs_FACE);
-    std::vector<bool> taken(static_cast<std::size_t>(faces.Extent()), false);
-    for (const occt_history_record &record : records.records()) {
-        taken[static_cast<std::size_t>(record.out_face - 1)] = true;
+/// The one face of `shape` that the result holds (found by IsSame), or 0 when there isn't exactly one.
+int single_face_index(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &faces) {
+    int found = 0;
+    if (shape.IsNull()) {
+        return 0;
     }
-    gp_Pnt start(0, 0, 0);
-    for (const gp_Pnt &p : start_points) {
-        start.Translate(gp_Vec(gp_Pnt(0, 0, 0), p) * (1.0 / static_cast<double>(start_points.size())));
-    }
-    struct candidate {
-        int index;
-        double distance;
-    };
-    std::vector<candidate> caps;
-    for (int i = 1; i <= faces.Extent(); ++i) {
-        if (taken[static_cast<std::size_t>(i - 1)]) {
-            continue;
+    for (TopExp_Explorer it(shape, TopAbs_FACE); it.More(); it.Next()) {
+        const int index = faces.FindIndex(it.Current());
+        if (index > 0) {
+            if (found != 0 && found != index) {
+                return 0;
+            }
+            found = index;
         }
-        GProp_GProps properties;
-        BRepGProp::SurfaceProperties(faces(i), properties);
-        caps.push_back(candidate{i, properties.CentreOfMass().Distance(start)});
     }
-    std::sort(caps.begin(), caps.end(), [](const candidate &a, const candidate &b) { return a.distance < b.distance; });
-    if (caps.size() >= 2) {
-        records.add(faces(caps.front().index), OCCT_FROM_START_CAP, 0, 0);
-        records.add(faces(caps.back().index), OCCT_FROM_END_CAP, 0, 0);
+    return found;
+}
+
+/// Grows the chain of `candidates` that starts at `origin`: each edge that shares an end with the chain joins it.
+/// Returns which candidates joined.
+std::vector<bool> grow_chain(const std::vector<std::pair<gp_Pnt, gp_Pnt>> &candidates, const gp_Pnt &origin) {
+    std::vector<gp_Pnt> frontier{origin};
+    std::vector<bool> claimed(candidates.size(), false);
+    for (bool grew = true; grew;) {
+        grew = false;
+        for (std::size_t i = 0; i < candidates.size(); ++i) {
+            if (claimed[i]) {
+                continue;
+            }
+            const bool touches_a = among_points(frontier, candidates[i].first);
+            const bool touches_b = among_points(frontier, candidates[i].second);
+            if (touches_a || touches_b) {
+                claimed[i] = true;
+                grew = true;
+                frontier.push_back(touches_a ? candidates[i].second : candidates[i].first);
+            }
+        }
     }
+    return claimed;
 }
 
 } // namespace
@@ -557,6 +568,8 @@ occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, cons
             all_closed = all_closed && BRep_Tool::IsClosed(wires.back());
         }
         BRepOffsetAPI_MakePipeShell pipe(spine);
+        // A sharp corner in the path is rounded rather than mitred, which would fold the inside over itself.
+        pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
         if (frenet) {
             pipe.SetMode(Standard_True);
         } else {
@@ -596,85 +609,85 @@ occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, cons
         check_valid(result, kSweepFailed);
 
         history_builder records(result);
-        for (const TopoDS_Wire &wire : wires) {
-            const std::vector<TopoDS_Edge> edges = wire_edges(wire);
-            for (std::size_t k = 0; k < edges.size(); ++k) {
-                records.add_all(pipe.Generated(edges[k]), OCCT_FROM_SEGMENT, 0, static_cast<int>(k));
+        // Only the first profile names the sides: the faces it generates run along the path, one per path span (a
+        // spine edge, or the round corner between two), in order from the path's start. The other profiles shape
+        // the same faces.
+        const std::vector<TopoDS_Edge> piece_edges = wire_edges(wires.front());
+        for (std::size_t k = 0; k < piece_edges.size(); ++k) {
+            int span = 0;
+            for (TopTools_ListOfShape::Iterator it(pipe.Generated(piece_edges[k])); it.More(); it.Next(), ++span) {
+                records.add(it.Value(), OCCT_FROM_SEGMENT, span, static_cast<int>(k));
             }
         }
         const TopoDS_Shape first = pipe.FirstShape();
         const TopoDS_Shape last = pipe.LastShape();
-        std::vector<gp_Pnt> start_points = vertex_points(first);
-        const std::vector<gp_Pnt> end_points = vertex_points(last);
-        if (start_points.empty()) {
-            start_points = vertex_points(wires.front());
-        }
-        if (solid) {
-            name_caps(records, result, start_points);
+        const bool closed_path = BRep_Tool::IsClosed(spine);
+        if (solid && !closed_path) {
+            const TopTools_IndexedMapOfShape faces = map_of(result, TopAbs_FACE);
+            const int start_cap = single_face_index(first, faces);
+            const int end_cap = single_face_index(last, faces);
+            if (start_cap == 0 || end_cap == 0 || start_cap == end_cap) {
+                throw user_error(kSweepFailed);
+            }
+            records.add(faces(start_cap), OCCT_FROM_START_CAP, 0, 0);
+            records.add(faces(end_cap), OCCT_FROM_END_CAP, 0, 0);
         }
         records.move_into(history);
 
         boundary_table table(result);
-        if (!solid) {
+        if (!solid && !closed_path) {
             name_edges(table, first, last);
+        }
+        if (!solid) {
+            std::vector<gp_Pnt> start_points = vertex_points(first);
+            std::vector<gp_Pnt> end_points = vertex_points(last);
+            if (start_points.empty()) {
+                start_points = vertex_points(wires.front());
+            }
             TopTools_IndexedDataMapOfShapeListOfShape owners;
             TopExp::MapShapesAndAncestors(result, TopAbs_EDGE, TopAbs_FACE, owners);
-            struct free_edge {
-                TopoDS_Edge edge;
-                TopoDS_Vertex a;
-                TopoDS_Vertex b;
-            };
-            std::vector<free_edge> rails;
+            std::vector<TopoDS_Edge> rail_edges;
+            std::vector<std::pair<gp_Pnt, gp_Pnt>> rail_ends;
             for (int i = 1; i <= owners.Extent(); ++i) {
                 const TopoDS_Edge edge = TopoDS::Edge(owners.FindKey(i));
                 if (BRep_Tool::Degenerated(edge) || owners(i).Extent() != 1) {
                     continue;
                 }
-                const TopoDS_Vertex a = TopExp::FirstVertex(edge, Standard_True);
-                const TopoDS_Vertex b = TopExp::LastVertex(edge, Standard_True);
-                // A free edge whose ends are both on one end profile is that end, though IsSame lost it.
-                if (!start_points.empty() && among_points(start_points, BRep_Tool::Pnt(a)) &&
-                    among_points(start_points, BRep_Tool::Pnt(b)) && !BRep_Tool::IsClosed(wires.front())) {
+                const gp_Pnt a = BRep_Tool::Pnt(TopExp::FirstVertex(edge, Standard_True));
+                const gp_Pnt b = BRep_Tool::Pnt(TopExp::LastVertex(edge, Standard_True));
+                // A free edge whose ends are both on one end profile is that end, though IsSame lost it. A closed path
+                // has no ends.
+                if (!closed_path && !BRep_Tool::IsClosed(wires.front()) && among_points(start_points, a) &&
+                    among_points(start_points, b)) {
                     table.set(edge, kBoundaryStart);
-                } else if (!end_points.empty() && among_points(end_points, BRep_Tool::Pnt(a)) &&
-                           among_points(end_points, BRep_Tool::Pnt(b)) && !BRep_Tool::IsClosed(wires.front())) {
+                } else if (!closed_path && !BRep_Tool::IsClosed(wires.front()) && among_points(end_points, a) &&
+                           among_points(end_points, b)) {
                     table.set(edge, kBoundaryEnd);
                 } else {
-                    rails.push_back(free_edge{edge, a, b});
+                    rail_edges.push_back(edge);
+                    rail_ends.emplace_back(a, b);
                 }
             }
-            if (!BRep_Tool::IsClosed(wires.front())) {
-                // Rail 0 is the chain of remaining free edges that grows from the start profile's first vertex
-                // (the path of the profile's first point); the rest are rail 1.
-                const std::vector<TopoDS_Edge> piece_edges = wire_edges(wires.front());
-                gp_Pnt origin = piece_edges.empty() ? gp_Pnt() : BRep_Tool::Pnt(TopExp::FirstVertex(piece_edges.front(), Standard_True));
+            if (!BRep_Tool::IsClosed(wires.front()) && !piece_edges.empty()) {
+                // Rail 0 is the chain of remaining free edges that grows from the start profile's first vertex (the
+                // path of the profile's first point), rail 1 the chain from its last vertex; any other stays unnamed.
+                gp_Pnt origin = BRep_Tool::Pnt(TopExp::FirstVertex(piece_edges.front(), Standard_True));
+                gp_Pnt tip = BRep_Tool::Pnt(TopExp::LastVertex(piece_edges.back(), Standard_True));
                 if (!first.IsNull() && first.ShapeType() == TopAbs_WIRE) {
                     const std::vector<TopoDS_Edge> placed = wire_edges(TopoDS::Wire(first));
                     if (!placed.empty()) {
                         origin = BRep_Tool::Pnt(TopExp::FirstVertex(placed.front(), Standard_True));
+                        tip = BRep_Tool::Pnt(TopExp::LastVertex(placed.back(), Standard_True));
                     }
                 }
-                std::vector<gp_Pnt> frontier{origin};
-                std::vector<bool> claimed(rails.size(), false);
-                for (bool grew = true; grew;) {
-                    grew = false;
-                    for (std::size_t i = 0; i < rails.size(); ++i) {
-                        if (claimed[i]) {
-                            continue;
-                        }
-                        const gp_Pnt a = BRep_Tool::Pnt(rails[i].a);
-                        const gp_Pnt b = BRep_Tool::Pnt(rails[i].b);
-                        const bool touches_a = among_points(frontier, a);
-                        const bool touches_b = among_points(frontier, b);
-                        if (touches_a || touches_b) {
-                            claimed[i] = true;
-                            grew = true;
-                            frontier.push_back(touches_a ? b : a);
-                        }
+                const std::vector<bool> zero = grow_chain(rail_ends, origin);
+                const std::vector<bool> one = grow_chain(rail_ends, tip);
+                for (std::size_t i = 0; i < rail_edges.size(); ++i) {
+                    if (zero[i]) {
+                        table.set(rail_edges[i], kBoundaryRail, 0);
+                    } else if (one[i]) {
+                        table.set(rail_edges[i], kBoundaryRail, 1);
                     }
-                }
-                for (std::size_t i = 0; i < rails.size(); ++i) {
-                    table.set(rails[i].edge, kBoundaryRail, claimed[i] ? 0 : 1);
                 }
             }
         }

@@ -160,44 +160,113 @@ struct SweepTests {
         }
     }
 
-    /// A sharp corner folds the pipe's inside over itself, so the sweep is refused (pinned: OCCT's default transition
-    /// makes a mitred solid that the self-interference check rejects).
-    @Test func anLShapedPathRunsIntoItself() async throws {
+    /// The corner is rounded, so the sweep is valid. Its volume is the two legs' cylinders (2 * pi * 4 * 20), less the
+    /// inside of the corner where the legs fold over each other (at most the bicylinder 16 r^3 / 3 = 42.7), plus the
+    /// outside of the corner, a quarter of a sphere of the profile's radius (8.4).
+    @Test func anLShapedPathBuildsWithARoundCorner() async throws {
         let kernel = OCCTKernel()
-        let path = try await kernel.makeCurve([.line(.zero, Vector3(0, 0, 20)),
-                                               .line(Vector3(0, 0, 20), Vector3(20, 0, 20)),
-        ], tag: tag)
-        await #expect(throws: KernelError.invalidInput("The sweep runs into itself; shorten the path or shrink the profile.")) {
-            _ = try await kernel.sweep([try await circle(kernel)], along: path,
-                                       options: SweepOptions(makesSolid: true), tag: tag)
-        }
-    }
-
-    @Test func aSmoothMultiPieceSolidSweepIsValidAndNamesItsCaps() async throws {
-        let kernel = OCCTKernel()
-        let path = try await kernel.makeCurve([.line(.zero, Vector3(0, 0, 20)),
-                                               .arc(center: Vector3(10, 0, 20), normal: Vector3(0, 1, 0), radius: 10,
-                                                    start: Vector3(0, 0, 20), sweep: .pi / 2),
+        let path = try await kernel.makeCurve([
+            .line(.zero, Vector3(0, 0, 20)),
+            .line(Vector3(0, 0, 20), Vector3(20, 0, 20)),
         ], tag: tag)
         let solid = try await kernel.sweep([try await circle(kernel)], along: path,
                                            options: SweepOptions(makesSolid: true), tag: tag)
         #expect(solid.isClosed)
-        #expect(solid.topology.faces.filter { $0.tags.contains { $0.role == .startCap } }.count == 1)
-        #expect(solid.topology.faces.filter { $0.tags.contains { $0.role == .endCap } }.count == 1)
+        let legs = 2 * Double.pi * 4 * 20
         let volume = try await kernel.properties(of: solid).volume
-        #expect(relative(volume, .pi * 4 * (20 + .pi / 2 * 10)) < 1e-4)
+        #expect(volume > legs - 16 * 8 / 3.0)
+        #expect(volume < legs + 4.0 / 3 * .pi * 8 / 4)
+        // Two legs and the corner between them are three spans, each its own name.
+        let sides = solid.topology.faces.filter { $0.tags.contains { if case .side = $0.role { true } else { false } } }
+        #expect(sides.count == 3)
+        #expect(Set(sides.map(\.tags)).count == 3)
     }
 
-    @Test func twoProfilesBlendAlongThePath() async throws {
+    @Test func aSolidAlongALineAndAnArcNamesEachSpan() async throws {
         let kernel = OCCTKernel()
-        let path = try await line(kernel, to: Vector3(0, 0, 50))
+        let path = try await kernel.makeCurve([
+            .line(.zero, Vector3(0, 0, 20)),
+            .arc(center: Vector3(10, 0, 20), normal: Vector3(0, 1, 0), radius: 10, start: Vector3(0, 0, 20), sweep: .pi / 2),
+        ], tag: tag)
+        let solid = try await kernel.sweep([try await circle(kernel)], along: path,
+                                           options: SweepOptions(makesSolid: true), tag: tag)
+        #expect(solid.topology.faces.count == 4)
+        #expect(Set(solid.topology.faces.map(\.tags)).count == 4)
+        let span0 = try #require(solid.topology.faces.first { $0.tags.contains(TopoTag(tag, .side(loop: 0, segment: 0))) })
+        let span1 = try #require(solid.topology.faces.first { $0.tags.contains(TopoTag(tag, .side(loop: 1, segment: 0))) })
+        #expect(relative(span0.area, 2 * .pi * 2 * 20) < 1e-6)
+        #expect(relative(span1.area, 2 * .pi * 2 * (.pi / 2 * 10)) < 1e-4)
+    }
+
+    @Test func twoProfilesMakeOneSpanAndTheTagsAreDistinct() async throws {
+        let kernel = OCCTKernel()
         let solid = try await kernel.sweep([try await circle(kernel), try await circle(kernel, radius: 4, z: 50)],
-                                           along: path, options: SweepOptions(makesSolid: true), tag: tag)
+                                           along: try await line(kernel, to: Vector3(0, 0, 50)),
+                                           options: SweepOptions(makesSolid: true), tag: tag)
+        #expect(solid.topology.faces.count == 3)
+        #expect(Set(solid.topology.faces.map(\.tags)).count == 3)
+    }
+
+    @Test func aClosedPathMakesATorusWithNoCaps() async throws {
+        let kernel = OCCTKernel()
+        let path = try await kernel.makeCurve([
+            .arc(center: .zero, normal: .unitZ, radius: 20, start: Vector3(20, 0, 0), sweep: 2 * .pi),
+        ], tag: tag)
+        let profile = try await kernel.makeCurve([
+            .arc(center: Vector3(20, 0, 0), normal: Vector3(0, 1, 0), radius: 3, start: Vector3(23, 0, 0), sweep: 2 * .pi),
+        ], tag: tag)
+        let solid = try await kernel.sweep([profile], along: path, options: SweepOptions(makesSolid: true), tag: tag)
         #expect(solid.isClosed)
-        #expect(solid.topology.faces.contains { $0.tags.contains(TopoTag(tag, .side(loop: 0, segment: 0))) })
-        #expect(solid.topology.faces.contains { $0.tags.contains { $0.role == .startCap } })
-        let frustum = Double.pi * 50 / 3 * (4 + 8 + 16)
-        #expect(relative(try await kernel.properties(of: solid).volume, frustum) < 1e-3)
+        #expect(relative(try await kernel.properties(of: solid).volume, 2 * .pi * .pi * 20 * 9) < 1e-4)
+        #expect(!solid.topology.faces.contains { $0.tags.contains { $0.role == .startCap || $0.role == .endCap } })
+    }
+
+    @Test func aNearlyClosedPathKeepsItsCaps() async throws {
+        let kernel = OCCTKernel()
+        let sweep = 350 * Double.pi / 180
+        let path = try await kernel.makeCurve([
+            .arc(center: .zero, normal: .unitZ, radius: 20, start: Vector3(20, 0, 0), sweep: sweep),
+        ], tag: tag)
+        let profile = try await kernel.makeCurve([
+            .arc(center: Vector3(20, 0, 0), normal: Vector3(0, 1, 0), radius: 3, start: Vector3(23, 0, 0), sweep: 2 * .pi),
+        ], tag: tag)
+        let solid = try await kernel.sweep([profile], along: path, options: SweepOptions(makesSolid: true), tag: tag)
+        #expect(solid.isClosed)
+        #expect(relative(try await kernel.properties(of: solid).volume, .pi * 9 * 20 * sweep) < 1e-4)
+        let start = try #require(solid.topology.faces.first { $0.tags.contains { $0.role == .startCap } })
+        let end = try #require(solid.topology.faces.first { $0.tags.contains { $0.role == .endCap } })
+        #expect((start.centroid - Vector3(20, 0, 0)).length < 1e-6)
+        #expect((end.centroid - Vector3(20 * cos(sweep), 20 * sin(sweep), 0)).length < 1e-6)
+    }
+
+    @Test func railsFollowEachSpanOfThePath() async throws {
+        let kernel = OCCTKernel()
+        let path = try await kernel.makeCurve([
+            .line(.zero, Vector3(0, 0, 20)),
+            .arc(center: Vector3(10, 0, 20), normal: Vector3(0, 1, 0), radius: 10, start: Vector3(0, 0, 20), sweep: .pi / 2),
+        ], tag: tag)
+        let profile = try await kernel.makeCurve([
+            .arc(center: .zero, normal: .unitZ, radius: 2, start: Vector3(2, 0, 0), sweep: .pi / 2),
+        ], tag: tag)
+        let sheet = try await kernel.sweep([profile], along: path, options: SweepOptions(), tag: tag)
+        #expect(sheet.topology.faces.count == 2)
+        #expect(count(sheet, .rail(0)) == 2 && count(sheet, .rail(1)) == 2)
+        #expect(count(sheet, .start) == 1 && count(sheet, .end) == 1)
+        // Rail 0 starts at the profile's first point (2,0,0), rail 1 at its last (0,2,0).
+        let first = sheet.topology.edges.filter { $0.tags.contains { $0.role == .boundary(.rail(0)) } }
+        let second = sheet.topology.edges.filter { $0.tags.contains { $0.role == .boundary(.rail(1)) } }
+        #expect(first.allSatisfy { $0.midpoint.y.magnitude < 1e-6 })
+        #expect(second.allSatisfy { $0.midpoint.y > 1 })
+    }
+
+    @Test func anEndScaleOnAnArcQuadruplesTheEndArea() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await kernel.sweep([try await circle(kernel)], along: try await quarterArc(kernel, radius: 30),
+                                           options: SweepOptions(endScale: 2, makesSolid: true), tag: tag)
+        #expect(solid.isClosed)
+        let start = try #require(solid.topology.faces.first { $0.tags.contains { $0.role == .startCap } })
+        let end = try #require(solid.topology.faces.first { $0.tags.contains { $0.role == .endCap } })
+        #expect(relative(end.area, 4 * start.area) < 1e-4)
     }
 }
 #endif
