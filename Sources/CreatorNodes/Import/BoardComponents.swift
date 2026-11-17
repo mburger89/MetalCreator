@@ -1,11 +1,13 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
 import CreatorPCB
 import Foundation
 
-/// The components of an imported board (KiCad import spec, Components): one solid per footprint, made of its STEP, compressed STEP
-/// or IGES models, each read once, scaled once per distinct scale and placed as KiCad places it.
+/// The components of an imported board (KiCad import spec, Components): one solid per footprint, made of its STEP, compressed STEP,
+/// IGES or IDF models, and one mesh per footprint, made of its VRML, compressed VRML or X3D models; each read once, scaled once per
+/// distinct scale and placed as KiCad places it.
 enum BoardComponents {
     static let maxDistinctModels = 10_000
     static let maxModelBytes = 256 << 20
@@ -14,12 +16,14 @@ enum BoardComponents {
     /// What a board's components came to.
     struct Outcome {
         var solids: [Solid] = []
+        /// One mesh per footprint with a VRML or X3D model, in the same order as the solids.
+        var meshes: [TriangleMesh] = []
+        /// How many footprints have a solid, a mesh or both.
+        var withModel = 0
         var warnings: [String] = []
         var dependencies: [FileDependency] = []
         /// Footprints whose models are all hidden: skipped, neither warned about nor counted as without a model.
         var hiddenOnly = 0
-        /// How many footprints have a component.
-        var withModel: Int { solids.count }
     }
 
     /// Where the node stands: the board in its own frame, and the world frame it is placed in.
@@ -46,6 +50,7 @@ enum BoardComponents {
         case notFound
         case unreadable(name: String, reason: String)
         case solid(Solid, ComponentModelCache.ReadKey, name: String, isCurrent: Bool)
+        case mesh(ImportedModelMesh, name: String)
     }
 
     /// One model of a footprint, placed.
@@ -77,6 +82,7 @@ enum BoardComponents {
             placer.found[path] = try await placer.load(resolved.result)
         }
         var pieces: [Piece] = []
+        var meshPieces: [MeshPiece] = []
         for index in order {
             try Task.checkCancellation()
             guard !visible[index].isEmpty else {
@@ -89,10 +95,18 @@ enum BoardComponents {
                 continue
             }
             for model in visible[index] {
-                if let piece = try await placer.place(model, of: index) { pieces.append(piece) }
+                switch try await placer.place(model, of: index) {
+                case .solid(let piece): pieces.append(piece)
+                case .mesh(let piece): meshPieces.append(piece)
+                case nil: break
+                }
             }
         }
-        outcome.solids = try await assemble(pieces, setting: setting, kernel: kernel, context: context, problems: &placer.problems)
+        let made = try await assemble(pieces, setting: setting, kernel: kernel, context: context, problems: &placer.problems)
+        let joined = joined(meshPieces, board: setting.board, problems: &placer.problems)
+        outcome.solids = made.map(\.solid)
+        outcome.meshes = joined.map(\.mesh)
+        outcome.withModel = Set(made.map(\.footprint)).union(joined.map(\.footprint)).count
         outcome.warnings = placer.problems.sentences()
         return outcome
     }
@@ -141,23 +155,24 @@ enum BoardComponents {
 
     /// Every piece placed in one kernel call, then each footprint's pieces made one solid.
     private static func assemble(_ pieces: [Piece], setting: Setting, kernel: any Kernel, context: EvalContext,
-                                 problems: inout Problems) async throws -> [Solid] {
+                                 problems: inout Problems) async throws -> [(footprint: Int, solid: Solid)] {
         guard !pieces.isEmpty else { return [] }
         let items = pieces.map { KiCadKey.item(for: setting.board.footprints[$0.footprint].identity) }
         let placed = try await PlacementMoves.place(pieces.map(\.tool), planes: pieces.map(\.plane), items: items,
                                                     placedBy: context.node.id, kernel: kernel,
                                                     tag: NodeTag(node: context.node.id, item: 0))
-        var solids: [Solid] = []
+        var solids: [(footprint: Int, solid: Solid)] = []
         var start = 0
         while start < pieces.count {
             var end = start + 1
             while end < pieces.count, pieces[end].footprint == pieces[start].footprint { end += 1 }
             if end - start == 1 {
-                solids.append(placed[start])
+                solids.append((pieces[start].footprint, placed[start]))
             } else {
                 let parts = (start..<end).map { retagged(placed[$0], model: $0 - start) }
                 do {
-                    solids.append(try await kernel.compound(parts, tag: NodeTag(node: context.node.id, item: items[start])))
+                    let joined = try await kernel.compound(parts, tag: NodeTag(node: context.node.id, item: items[start]))
+                    solids.append((pieces[start].footprint, joined))
                 } catch let error as KernelError {
                     let names = pieces[start..<end].map(\.name).joined(separator: " and ")
                     problems.unreadable.append("\(names) (\(ModelFiles.reason(from: error.userMessage)))")
@@ -186,7 +201,7 @@ struct Placer {
     var node: NodeID
     var found: [String: BoardComponents.Found] = [:]
     var problems = Problems()
-    private var memo: [BoardComponents.ScaleID: Solid] = [:]
+    var memo: [BoardComponents.ScaleID: Solid] = [:]
 
     init(setting: BoardComponents.Setting, kernel: any Kernel, cache: ComponentModelCache, node: NodeID) {
         self.setting = setting
@@ -200,7 +215,8 @@ struct Placer {
         case .notFound: return .notFound
         case .unreadable(let name, let reason): return .unreadable(name: name, reason: reason)
         case .file(let path, let format, let stamp):
-            let key = ComponentModelCache.ReadKey(stamp: stamp, format: format.solidFormat)
+            if format.isMesh { return try await loadMesh(path: path, format: format, stamp: stamp) }
+            let key = ComponentModelCache.ReadKey(stamp: stamp, format: format)
             let tag = NodeTag(node: ComponentModelCache.sentinel, item: 0)
             let name = ModelFiles.fileName(of: path)
             let kernel = kernel
@@ -220,13 +236,23 @@ struct Placer {
         switch found[path] ?? .notFound {
         case .notFound: problems.notFound.append(path)
         case .unreadable(let name, let reason): problems.unreadable.append("\(name) (\(reason))")
-        case .solid: break
+        case .solid, .mesh: break
         }
     }
 
+    /// What one placed model came to.
+    enum Placed {
+        case solid(BoardComponents.Piece)
+        case mesh(MeshPiece)
+    }
+
     /// The piece for one model: scaled, tagged with this node and given its world plane; nil (the problem noted) when it can't be.
-    mutating func place(_ model: ModelReference, of index: Int) async throws -> BoardComponents.Piece? {
-        guard case .solid(let solid, let key, let name, let isCurrent) = found[model.path] ?? .notFound else {
+    mutating func place(_ model: ModelReference, of index: Int) async throws -> Placed? {
+        let name: String
+        switch found[model.path] ?? .notFound {
+        case .solid(_, _, let solidName, _): name = solidName
+        case .mesh(_, let meshName): name = meshName
+        default:
             noteProblem(of: model.path)
             return nil
         }
@@ -241,6 +267,18 @@ struct Placer {
             problems.unreadable.append("\(name) (its position isn't valid)")
             return nil
         }
+        switch found[model.path] ?? .notFound {
+        case .mesh(let mesh, _):
+            return try placeMesh(mesh, scale: scale, of: index, plane: plane, name: name).map(Placed.mesh)
+        case .solid(let solid, let key, _, let isCurrent):
+            return try await placeSolid(solid, key: key, isCurrent: isCurrent, scale: scale, at: (index, plane, name)).map(Placed.solid)
+        default: return nil
+        }
+    }
+
+    private mutating func placeSolid(_ solid: Solid, key: ComponentModelCache.ReadKey, isCurrent: Bool, scale: Vector3,
+                                     at target: (footprint: Int, plane: Plane, name: String)) async throws -> BoardComponents.Piece? {
+        let (index, plane, name) = (target.footprint, target.plane, target.name)
         let id = BoardComponents.ScaleID(key: key, scale: scale)
         if let kept = memo[id] { return BoardComponents.Piece(footprint: index, name: name, tool: kept, plane: plane) }
         var tool = solid

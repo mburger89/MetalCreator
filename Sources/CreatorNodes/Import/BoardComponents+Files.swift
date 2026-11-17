@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
 import CreatorPCB
 import Foundation
@@ -26,11 +27,8 @@ enum ModelFiles {
                 guard case .file = stamp else { continue }
                 let name = fileName(of: candidate)
                 switch ModelFormat(fileName: candidate) {
-                case .step, .stepGzip, .iges:
+                case .step, .stepGzip, .iges, .vrml, .vrmlGzip, .x3d, .idf:
                     return (.file(path: candidate, format: ModelFormat(fileName: candidate), stamp: stamp), dependencies)
-                case .vrml, .vrmlGzip: return (.unreadable(name: name, reason: "VRML isn't read yet"), dependencies)
-                case .x3d: return (.unreadable(name: name, reason: "X3D isn't read yet"), dependencies)
-                case .idf: return (.unreadable(name: name, reason: "IDF isn't read yet"), dependencies)
                 case .unknown: return (.unreadable(name: name, reason: "this kind of file isn't read"), dependencies)
                 }
             }
@@ -41,12 +39,13 @@ enum ModelFiles {
     /// The model file's solid: read within the limit, checked against its format, gunzipped when compressed, handed to the kernel.
     static func read(at path: String, format: ModelFormat, stamp: ImageStamp, kernel: any Kernel,
                      tag: NodeTag) async throws -> ComponentModelCache.Made {
+        if format == .idf { return try await readOutline(at: path, stamp: stamp, kernel: kernel, tag: tag) }
         let file = try fileBytes(at: path)
         var bytes = file.data
         let word = format == .iges ? "IGES" : "STEP"
         guard format.matches(bytes) else { throw ModelProblem("the file isn't a \(word) model", isRemembered: true) }
         if format == .stepGzip {
-            bytes = try gunzipped(bytes)
+            bytes = try gunzipped(bytes, limit: BoardComponents.maxModelBytes)
             guard ModelFormat.step.matches(bytes) else { throw ModelProblem("the file isn't a STEP model", isRemembered: true) }
         }
         do {
@@ -65,7 +64,7 @@ enum ModelFiles {
         }
     }
 
-    private static func fileBytes(at path: String) throws -> (data: Data, stamp: ImageStamp) {
+    static func fileBytes(at path: String) throws -> (data: Data, stamp: ImageStamp) {
         do {
             return try ImageResolver.modelFile(at: path, limit: BoardComponents.maxModelBytes)
         } catch {
@@ -74,21 +73,21 @@ enum ModelFiles {
         }
     }
 
-    private static func gunzipped(_ bytes: Data) throws -> Data {
+    static func gunzipped(_ bytes: Data, limit: Int) throws -> Data {
         do {
-            return try Gzip.decompress(bytes, limit: BoardComponents.maxModelBytes, isCancelled: { Task.isCancelled })
+            return try Gzip.decompress(bytes, limit: limit, isCancelled: { Task.isCancelled })
         } catch {
             switch error {
             case .cancelled: throw CancellationError()
             case .tooLarge:
-                throw ModelProblem("it is larger than \(BoardComponents.maxModelBytes >> 20) MB when unpacked", isRemembered: true)
+                throw ModelProblem("it is larger than \(limit >> 20) MB when unpacked", isRemembered: true)
             case .allocationFailed: throw ModelProblem("there isn't enough memory to unpack it")
             case .notGzip, .malformed, .checksumMismatch: throw ModelProblem("the compressed file is damaged", isRemembered: true)
             }
         }
     }
 
-    private static func problem(from error: KernelError) -> ModelProblem {
+    static func problem(from error: KernelError) -> ModelProblem {
         if case .invalidInput = error { return ModelProblem(reason(from: error.userMessage), isRemembered: true) }
         return ModelProblem(reason(from: error.userMessage))
     }
@@ -109,15 +108,13 @@ enum ModelFiles {
     }
 }
 
-extension ModelFormat {
-    var solidFormat: SolidModelFormat { self == .iges ? .iges : .step }
-}
-
 /// What went wrong with a board's components, in the words the node warns in.
 struct Problems: Equatable {
     var noModel: [String] = []
     var notFound: [String] = []
     var unreadable: [String] = []
+    /// Model files with shapes that aren't read, each named once.
+    var skipped: [String] = []
 
     func sentences() -> [String] {
         var result: [String] = []
@@ -131,6 +128,7 @@ struct Problems: Equatable {
         if !bad.isEmpty {
             result.append("\(bad.count.display) model\(bad.count == 1 ? "" : "s") couldn't be read: \(Self.list(bad)).")
         }
+        for name in Self.unique(skipped) { result.append("\(name) has shapes that aren't read (spheres, cylinders and the like).") }
         return result
     }
 

@@ -78,15 +78,16 @@ public enum ImportKiCadBoardNode: NodeDefinition {
             "mounting holes": mounting.map { .plane(Plane(origin: top.point($0.center), normal: top.normal, xAxis: top.xAxis)) },
             "mounting hole diameters": mounting.map { .number($0.diameter) },
             "components": components.solids.map { .solid($0) },
-            "component meshes": [],
+            "component meshes": components.meshes.map { .mesh($0) },
         ]
         outputs.dependencies = components.dependencies
         outputs.facts = BoardFacts.facts(
             file: reference.fileName ?? "Board", board: board, size: Vector2(box.max.x - box.min.x, box.max.y - box.min.y),
             thickness: thickness, holes: BoardFacts.holesText(board: board, mounting: mounting.count, includesVias: includesVias),
-            components: BoardFacts.componentsText(placed: board.footprints.count,
-                                                  withModel: includesComponents ? components.withModel : nil,
-                                                  hidden: components.hiddenOnly))
+            components: BoardFacts.componentsText(
+                placed: board.footprints.count,
+                counts: includesComponents ? (components.solids.count, components.meshes.count, components.withModel) : nil,
+                hidden: components.hiddenOnly))
         return outputs
     }
 

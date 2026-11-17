@@ -1,7 +1,9 @@
 import Foundation
 import CreatorGeometry
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
+import CreatorPCB
 
 /// Why one 3D model could not be used, as the phrase that goes in parentheses after its file's name ("the file isn't a STEP model").
 struct ModelProblem: Error, Sendable, Equatable {
@@ -28,7 +30,7 @@ actor ComponentModelCache {
     /// A model file as read: what it was (stamp), how it was read, and for which node (every face is tagged with the node).
     struct ReadKey: Hashable, Sendable {
         var stamp: ImageStamp
-        var format: SolidModelFormat
+        var format: ModelFormat
     }
 
     /// What a read made, and whether the file was still what the key's stamp says when it was read (else it is not kept).
@@ -51,7 +53,20 @@ actor ComponentModelCache {
         }
     }
 
-    private var entries: [Key: (solid: Solid, bytes: Int, lastUsed: Int)] = [:]
+    /// What a read made: a solid (STEP, IGES, IDF) or a mesh in its file's units (VRML, X3D).
+    private enum Kept: Sendable {
+        case solid(Solid)
+        case mesh(ImportedModelMesh)
+
+        var bytes: Int {
+            switch self {
+            case .solid(let solid): solid.estimatedBytes
+            case .mesh(let model): model.mesh.estimatedBytes
+            }
+        }
+    }
+
+    private var entries: [Key: (kept: Kept, bytes: Int, lastUsed: Int)] = [:]
     private var problems: [Key: (problem: ModelProblem, lastUsed: Int)] = [:]
     private var total = 0
     private var clock = 0
@@ -63,23 +78,44 @@ actor ComponentModelCache {
     /// The model for `key`: the kept one, else what `read` makes. The work runs outside the actor, so one slow model never holds
     /// up another; two evaluations of one new model may both read it.
     nonisolated func solid(for key: ReadKey, read: @Sendable () async throws -> Made) async throws -> Made {
-        try await fetch(.read(key), read)
+        let (kept, isCurrent) = try await fetch(.read(key)) {
+            let made = try await read()
+            return (.solid(made.solid), made.isCurrent)
+        }
+        guard case .solid(let solid) = kept else { throw ModelProblem("the file isn't a model of that kind") }
+        return Made(solid: solid, isCurrent: isCurrent)
+    }
+
+    /// What a mesh read made, and whether the file was still what the key's stamp says when it was read (else it is not kept).
+    struct MadeMesh: Sendable {
+        var model: ImportedModelMesh
+        var isCurrent = true
+    }
+
+    /// The mesh (in its file's units) for `key`, kept by the same budget and rules as a solid.
+    nonisolated func mesh(for key: ReadKey, read: @Sendable () async throws -> MadeMesh) async throws -> MadeMesh {
+        let (kept, isCurrent) = try await fetch(.read(key)) {
+            let made = try await read()
+            return (.mesh(made.model), made.isCurrent)
+        }
+        guard case .mesh(let model) = kept else { throw ModelProblem("the file isn't a model of that kind") }
+        return MadeMesh(model: model, isCurrent: isCurrent)
     }
 
     /// `key`'s model scaled by `factors`, kept the same way.
     nonisolated func scaled(of key: ReadKey, by factors: Vector3, isCurrent: Bool,
                             make: @Sendable () async throws -> Solid) async throws -> Made {
-        try await fetch(.scaled(key, factors.x, factors.y, factors.z)) {
-            Made(solid: try await make(), isCurrent: isCurrent)
-        }
+        let (kept, current) = try await fetch(.scaled(key, factors.x, factors.y, factors.z)) { (.solid(try await make()), isCurrent) }
+        guard case .solid(let solid) = kept else { throw ModelProblem("the file isn't a model of that kind") }
+        return Made(solid: solid, isCurrent: current)
     }
 
-    private nonisolated func fetch(_ key: Key, _ make: @Sendable () async throws -> Made) async throws -> Made {
-        if let kept = try await lookup(key) { return Made(solid: kept) }
+    private nonisolated func fetch(_ key: Key, _ make: @Sendable () async throws -> (Kept, Bool)) async throws -> (Kept, Bool) {
+        if let kept = try await lookup(key) { return (kept, true) }
         await noteRun(key)
         do {
             let made = try await make()
-            if made.isCurrent { await store(made.solid, for: key) }
+            if made.1 { await store(made.0, for: key) }
             return made
         } catch let problem as ModelProblem {
             if problem.isRemembered { await storeProblem(problem, for: key) }
@@ -99,11 +135,11 @@ actor ComponentModelCache {
         log.append(key)
     }
 
-    private func lookup(_ key: Key) throws -> Solid? {
+    private func lookup(_ key: Key) throws -> Kept? {
         clock += 1
         if let kept = entries[key] {
-            entries[key] = (kept.solid, kept.bytes, clock)
-            return kept.solid
+            entries[key] = (kept.kept, kept.bytes, clock)
+            return kept.kept
         }
         if let known = problems[key] {
             problems[key] = (known.problem, clock)
@@ -112,10 +148,10 @@ actor ComponentModelCache {
         return nil
     }
 
-    private func store(_ made: Solid, for key: Key) {
+    private func store(_ made: Kept, for key: Key) {
         guard key.readKey.stamp.isKeepable else { return }
         clock += 1
-        let size = made.estimatedBytes
+        let size = made.bytes
         if let old = entries[key] { total -= old.bytes }
         entries[key] = (made, size, clock)
         total += size
