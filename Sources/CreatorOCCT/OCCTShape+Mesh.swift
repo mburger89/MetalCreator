@@ -37,26 +37,18 @@ extension OCCTShape {
         }
     }
 
-    /// Reads a STEP (`.step`) or IGES model from bytes, in millimetres. Call under `OCCTKernel.serialized`.
-    static func readModel(_ data: Data, format: SolidModelFormat) throws(OCCTError) -> OCCTShape {
-        if format == .iges { return try readIGES(data) }
-        return try data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) throws(OCCTError) in
+    /// Reads a STEP model from bytes, in millimetres, with no copy of them. Call under `OCCTKernel.serialized`.
+    static func readSTEPModel(_ data: Data) throws(OCCTError) -> OCCTShape {
+        try data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) throws(OCCTError) in
             try make { status in
-                buffer.withMemoryRebound(to: CChar.self) { occt_read_model($0.baseAddress, $0.count, 0, status) }
+                buffer.withMemoryRebound(to: CChar.self) { occt_read_model($0.baseAddress, $0.count, status) }
             }
         }
     }
 
-    /// OpenCascade 7.9 reads IGES from a file only, so the bytes go through a uniquely named file that is removed whatever happens.
-    private static func readIGES(_ data: Data) throws(OCCTError) -> OCCTShape {
-        let url = URL.temporaryDirectory.appending(path: "metalcreator-model-\(UUID().uuidString).igs")
-        defer { try? FileManager.default.removeItem(at: url) }
-        do {
-            try data.write(to: url)
-        } catch {
-            throw OCCTError(message: "The IGES model couldn't be read.")
-        }
-        return try make { status in url.withUnsafeFileSystemRepresentation { occt_read_iges_file($0, status) } }
+    /// Reads the IGES file at `url`. Call under `OCCTKernel.serialized`.
+    static func readIGESFile(at url: URL) throws(OCCTError) -> OCCTShape {
+        try make { status in url.withUnsafeFileSystemRepresentation { occt_read_iges_file($0, status) } }
     }
 
     /// A copy scaled about the origin. Call under `OCCTKernel.serialized`.

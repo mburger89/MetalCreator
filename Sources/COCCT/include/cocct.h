@@ -419,17 +419,17 @@ occt_shape *occt_mesh_to_solid(const double *positions, int vertex_count, const 
 occt_shape *occt_make_compound(const occt_shape *const *shapes, int count, occt_status *status);
 /// Reads a STEP file into one shape (a compound for several bodies).
 occt_shape *occt_read_step(const char *path, occt_status *status);
-/// Reads a STEP model (`format` 0) from `size` bytes, in millimetres, as one shape (several roots are a compound). The messages are
+/// Reads a STEP model from `size` bytes, in millimetres, as one shape (several roots are a compound). The messages are
 /// worded for people: "The STEP model couldn't be read." and "The model contains no shapes.". Returns null on failure; the caller
 /// frees the result with occt_shape_free. OpenCascade 7.9 has no IGES stream reader: use occt_read_iges_file.
-occt_shape *occt_read_model(const char *data, size_t size, int format, occt_status *status);
+occt_shape *occt_read_model(const char *data, size_t size, occt_status *status);
 /// Reads the IGES file at `path` like occt_read_model ("The IGES model couldn't be read.").
 occt_shape *occt_read_iges_file(const char *path, occt_status *status);
 /// A copy of `shape` scaled about the origin: a similarity when the three factors are equal, OpenCascade's general transform
 /// otherwise. Faces keep their order in the shape's face map. Every factor must be finite and greater than 0.
 occt_shape *occt_scale(const occt_shape *shape, double sx, double sy, double sz, occt_status *status);
-/// FOR TESTS ONLY. Writes `shape` as an IGES file at `path` (millimetres). Returns 1, or 0 with `status` set.
-int occt_test_write_iges(const occt_shape *shape, const char *path, occt_status *status);
+/// FOR TESTS ONLY. Writes `shape` as an IGES file at `path` in `unit` ("MM", "IN", ...). Returns 1, or 0 with `status` set.
+int occt_test_write_iges(const occt_shape *shape, const char *path, const char *unit, occt_status *status);
 
 #ifdef __cplusplus
 }

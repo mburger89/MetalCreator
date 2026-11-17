@@ -243,6 +243,7 @@ void occt_initialize(void) {
         try {
             STEPControl_Controller::Init();
             Interface_Static::SetCVal("write.step.unit", "MM");
+            Interface_Static::SetCVal("xstep.cascade.unit", "MM");
             Message::DefaultMessenger()->RemovePrinters(STANDARD_TYPE(Message_PrinterOStream));
         } catch (...) {
             // Best effort: OCCT stays usable, only noisier.

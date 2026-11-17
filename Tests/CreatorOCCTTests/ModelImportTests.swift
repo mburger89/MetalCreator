@@ -121,13 +121,37 @@ struct ModelImportTests {
         let kernel = OCCTKernel()
         let first = try await readL(kernel)
         let moved = try await kernel.transform(lShape(kernel), by: Transform(translation: Vector3(100, 0, 0)), tag: newTag())
-        let second = try await kernel.readModel(
-            try await stepBytes(of: moved, kernel),
-            format: .step, tag: NodeTag(node: first.topology.faces[0].tags.first!.node, item: 1 << 32))
+        let read = try await kernel.readModel(try await stepBytes(of: moved, kernel), format: .step, tag: newTag())
+        let secondTag = NodeTag(node: NodeID(), item: 0)
+        var secondTopology = read.topology
+        for index in secondTopology.faces.indices {
+            secondTopology.faces[index].tags = [TopoTag(secondTag, .imported(face: (1 << 32) + index))]
+        }
+        let second = Solid(topology: secondTopology, bounds: read.bounds, storage: read.storage)
         let both = try await kernel.compound([first, second], tag: newTag())
+        #expect(both.topology.faces.suffix(second.topology.faces.count).map(\.tags) == second.topology.faces.map(\.tags))
         #expect(both.topology.faces.map(\.tags) == (first.topology.faces + second.topology.faces).map(\.tags))
         let sum = try await kernel.properties(of: first).volume + kernel.properties(of: second).volume
         #expect(try await kernel.properties(of: both).volume.isApproximatelyEqual(to: sum, relativeTolerance: 1e-9))
+    }
+
+    @Test func compoundRefusesSharedGeometry() async throws {
+        let kernel = OCCTKernel()
+        let model = try await readL(kernel)
+        await #expect(throws: KernelError.self) { try await kernel.compound([model, model], tag: newTag()) }
+    }
+
+    @Test func readsInchIgesAsMillimetres() async throws {
+        let kernel = OCCTKernel()
+        let original = try await lShape(kernel)
+        let shape = try await kernel.shape(of: original)
+        let directory = try folder()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "inch.igs")
+        try OCCTKernel.serialized { () throws in try shape.writeIGES(to: url, unit: "IN") }
+        let model = try await kernel.readModel(try Data(contentsOf: url), format: .iges, tag: newTag())
+        #expect(model.bounds == original.bounds || (model.bounds.max - original.bounds.max).length < 1e-3)
+        #expect(try await kernel.properties(of: model).volume.isApproximatelyEqual(to: 20 * 5 * 3 + 5 * 10 * 3, relativeTolerance: 1e-3))
     }
 
     @Test func fakeKernelRefuses() async throws {

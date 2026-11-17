@@ -12,20 +12,29 @@
 #include <gp_Trsf.hxx>
 
 #include <cmath>
-#include <fstream>
 #include <cstring>
-#include <sstream>
-#include <string>
+#include <istream>
+#include <streambuf>
 
 using namespace cocct;
 
 namespace {
 
+/// A read-only stream buffer over the caller's bytes: nothing is copied.
+class BorrowedBuffer : public std::streambuf {
+public:
+    BorrowedBuffer(const char *data, size_t size) {
+        char *begin = const_cast<char *>(data);
+        setg(begin, begin, begin + size);
+    }
+};
+
 /// Reads `data` through `reader` and transfers its roots. Returns null (and sets `status`) when the bytes aren't a model of
 /// that format or hold no shapes. Any OpenCascade exception while reading is the same "couldn't be read" to the person.
 occt_shape *read_with(XSControl_Reader &reader, const char *data, size_t size, const char *unreadable, occt_status *status) {
     try {
-        std::istringstream stream(std::string(data, size), std::ios::in | std::ios::binary);
+        BorrowedBuffer buffer(data, size);
+        std::istream stream(&buffer);
         if (reader.ReadStream("model", stream) != IFSelect_RetDone) {
             set_error(status, unreadable);
             return nullptr;
@@ -43,20 +52,9 @@ occt_shape *read_with(XSControl_Reader &reader, const char *data, size_t size, c
     return nullptr;
 }
 
-/// Reads an IGES file at `path`, which `occt_read_iges_file` hands over. An IGES file is 80-column records ending in a section letter,
-/// "S" for the first one: anything else is no IGES file, whatever OpenCascade's reader makes of it (text with no entities reads as an
-/// empty model).
+/// Reads the IGES file at `path` (the Swift side has already checked that it looks like IGES).
 occt_shape *read_iges_file(const char *path, occt_status *status) {
     static const char *const unreadable = "The IGES model couldn't be read.";
-    {
-        std::ifstream file(path, std::ios::binary);
-        char line[81] = {0};
-        file.read(line, 80);
-        if (file.gcount() < 73 || line[72] != 'S') {
-            set_error(status, unreadable);
-            return nullptr;
-        }
-    }
     try {
         IGESControl_Reader reader;
         if (reader.ReadFile(path) != IFSelect_RetDone) {
@@ -80,17 +78,13 @@ occt_shape *read_iges_file(const char *path, occt_status *status) {
 
 extern "C" {
 
-occt_shape *occt_read_model(const char *data, size_t size, int format, occt_status *status) {
+occt_shape *occt_read_model(const char *data, size_t size, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         if (!data || size == 0) {
-            set_error(status, format == 1 ? "The IGES model couldn't be read." : "The STEP model couldn't be read.");
+            set_error(status, "The STEP model couldn't be read.");
             return nullptr;
         }
         occt_initialize();
-        if (format == 1) {
-            set_error(status, "IGES is read from a file");
-            return nullptr;
-        }
         STEPControl_Reader reader;
         return read_with(reader, data, size, "The STEP model couldn't be read.", status);
     });
@@ -131,14 +125,14 @@ occt_shape *occt_scale(const occt_shape *shape, double sx, double sy, double sz,
     });
 }
 
-int occt_test_write_iges(const occt_shape *shape, const char *path, occt_status *status) {
+int occt_test_write_iges(const occt_shape *shape, const char *path, const char *unit, occt_status *status) {
     return guarded(status, [&]() -> int {
         if (!path) {
             set_error(status, "no output path");
             return 0;
         }
         occt_initialize();
-        IGESControl_Writer writer("MM", 0);
+        IGESControl_Writer writer(unit ? unit : "MM", 0);
         if (!writer.AddShape(shape->shape)) {
             set_error(status, "IGES transfer failed");
             return 0;

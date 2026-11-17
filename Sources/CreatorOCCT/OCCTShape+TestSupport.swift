@@ -16,8 +16,10 @@ extension OCCTShape {
     /// The largest vertex tolerance in millimetres (the default for a fresh vertex is 1e-7).
     var largestVertexTolerance: Double { occt_test_max_vertex_tolerance(raw) }
 
-    /// Writes the shape as an IGES file (millimetres). Call under `OCCTKernel.serialized`.
-    func writeIGES(to url: URL) throws(OCCTError) {
-        try Self.check { status in url.withUnsafeFileSystemRepresentation { occt_test_write_iges(raw, $0, status) } }
+    /// Writes the shape as an IGES file in `unit` ("MM", "IN"). Call under `OCCTKernel.serialized`.
+    func writeIGES(to url: URL, unit: String = "MM") throws(OCCTError) {
+        try Self.check { status in
+            url.withUnsafeFileSystemRepresentation { path in unit.withCString { occt_test_write_iges(raw, path, $0, status) } }
+        }
     }
 }
