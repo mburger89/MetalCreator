@@ -29,6 +29,12 @@ public enum VRMLReader {
     static var badNumber: MeshImportProblem { .vrml("This VRML file has a bad number.") }
     static var tooDeep: MeshImportProblem { .vrml("This VRML file nests too deeply.") }
     static var tooComplex: MeshImportProblem { .vrml("This VRML file is too complex.") }
+
+    /// The refusals the shared scene makes, worded for `format` ("VRML" or "X3D").
+    static func sceneProblem(_ format: String, _ rest: String) -> MeshImportProblem {
+        let sentence = "This \(format) file \(rest)"
+        return format == "VRML" ? .vrml(sentence) : .x3d(sentence)
+    }
     static var undefinedShape: MeshImportProblem { .vrml("This VRML file uses a shape before it is defined.") }
     static var badIndex: MeshImportProblem { .vrml("This VRML file has a face that names a point it doesn't have.") }
 

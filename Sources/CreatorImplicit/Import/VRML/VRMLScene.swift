@@ -6,6 +6,8 @@ final class VRMLScene {
 
     private(set) var corners: [SIMD3<Float>] = []
     var skippedGeometry = false
+    /// The format named in this scene's refusals.
+    let format: String
     private let triangleLimit: Int
     private let isCancelled: () -> Bool
     private var visits = 0
@@ -15,7 +17,8 @@ final class VRMLScene {
     /// `USE` that doubles a huge face set stops.
     private let workLimit: Int
 
-    init(triangleLimit: Int, isCancelled: @escaping () -> Bool) {
+    init(triangleLimit: Int, format: String = "VRML", isCancelled: @escaping () -> Bool) {
+        self.format = format
         self.triangleLimit = triangleLimit
         workLimit = 4 * triangleLimit + 64_000_000
         self.isCancelled = isCancelled
@@ -24,16 +27,16 @@ final class VRMLScene {
     /// Counts one visit to a node `depth` levels down. A `USE` shares a node, so the same node can be visited many times: the budget
     /// stops a file that doubles itself at each level.
     func visit(depth: Int) throws {
-        guard depth <= VRMLParser.maximumDepth else { throw VRMLReader.tooDeep }
+        guard depth <= VRMLParser.maximumDepth else { throw VRMLReader.sceneProblem(format, "nests too deeply.") }
         visits += 1
-        guard visits <= Self.maximumVisits else { throw VRMLReader.tooComplex }
+        guard visits <= Self.maximumVisits else { throw VRMLReader.sceneProblem(format, "is too complex.") }
         try pulse()
     }
 
     /// One unit of per-point or per-index work, counted against its own budget and asking about cancellation.
     func tick() throws {
         work += 1
-        guard work <= workLimit else { throw VRMLReader.tooComplex }
+        guard work <= workLimit else { throw VRMLReader.sceneProblem(format, "is too complex.") }
         try pulse()
     }
 
@@ -73,8 +76,24 @@ final class VRMLScene {
         }
     }
 
-    /// An `IndexedFaceSet`: `indices` are faces of point indices ended by -1, fanned from their first point.
-    func addFaces(points: [Float], indices: [Float], matrix: VRMLMatrix, counterClockwise: Bool) throws {
+    /// An `IndexedTriangleSet`: every three indices are a triangle; a remainder of one or two is ignored.
+    func addTriangles(points: [Float], indices: [Float], matrix: VRMLMatrix, counterClockwise: Bool) throws {
+        let world = try worldPoints(points, matrix)
+        let flip = counterClockwise == (matrix.determinant < 0)
+        for start in stride(from: 0, to: indices.count - indices.count % 3, by: 3) {
+            try tick()
+            var corner: [SIMD3<Float>] = []
+            for value in indices[start..<(start + 3)] {
+                guard value >= 0, value < Float(world.count), value == value.rounded() else {
+                    throw VRMLReader.sceneProblem(format, "has a face that names a point it doesn't have.")
+                }
+                corner.append(world[Int(value)])
+            }
+            if flip { try addTriangle(corner[0], corner[2], corner[1]) } else { try addTriangle(corner[0], corner[1], corner[2]) }
+        }
+    }
+
+    private func worldPoints(_ points: [Float], _ matrix: VRMLMatrix) throws -> [SIMD3<Float>] {
         let count = points.count / 3
         var world: [SIMD3<Float>] = []
         world.reserveCapacity(count)
@@ -83,6 +102,13 @@ final class VRMLScene {
             world.append(SIMD3<Float>(matrix.apply(SIMD3(Double(points[3 * index]), Double(points[3 * index + 1]),
                                                          Double(points[3 * index + 2])))))
         }
+        return world
+    }
+
+    /// An `IndexedFaceSet`: `indices` are faces of point indices ended by -1, fanned from their first point.
+    func addFaces(points: [Float], indices: [Float], matrix: VRMLMatrix, counterClockwise: Bool) throws {
+        let world = try worldPoints(points, matrix)
+        let count = world.count
         let flip = counterClockwise == (matrix.determinant < 0)
         var face: [Int] = []
         for value in indices {
@@ -92,7 +118,9 @@ final class VRMLScene {
                 face.removeAll(keepingCapacity: true)
                 continue
             }
-            guard value >= 0, value < Float(count), value == value.rounded() else { throw VRMLReader.badIndex }
+            guard value >= 0, value < Float(count), value == value.rounded() else {
+                throw VRMLReader.sceneProblem(format, "has a face that names a point it doesn't have.")
+            }
             face.append(Int(value))
         }
         try fan(face, world, reversed: flip)

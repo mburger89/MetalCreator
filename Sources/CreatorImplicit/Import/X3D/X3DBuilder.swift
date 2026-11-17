@@ -31,7 +31,7 @@ struct X3DBuilder {
     }
 
     /// The `X3D` element and everything under it that is read.
-    mutating func build() throws -> X3DNode {
+    mutating func build(maximumElements: Int = X3DBuilder.maximumElements) throws -> X3DNode {
         var state = State()
         while let event = try scanner.next() {
             try tick()
@@ -39,14 +39,16 @@ struct X3DBuilder {
             case .end:
                 if state.skipping > 0 {
                     state.skipping -= 1
-                } else if let done = state.stack.popLast(), let name = done.def {
-                    state.defined[name] = done.node
+                } else if let done = state.stack.popLast() {
+                    if let name = done.def { state.defined[name] = done.node }
+                    // The root has closed: anything after it is not read.
+                    if state.stack.isEmpty { return done.node }
                 }
             case .start(let tag):
                 if state.skipping > 0 {
                     state.skipping += 1
                 } else {
-                    try start(tag, &state)
+                    try start(tag, &state, maximumElements: maximumElements)
                 }
             }
         }
@@ -58,9 +60,9 @@ struct X3DBuilder {
         Self.containers.contains(type) || Self.leaves.contains(type) || Self.isUnread(type)
     }
 
-    private mutating func start(_ tag: XMLScanner.Tag, _ state: inout State) throws {
+    private mutating func start(_ tag: XMLScanner.Tag, _ state: inout State, maximumElements: Int) throws {
         state.elements += 1
-        guard state.elements <= Self.maximumElements else { throw X3DReader.tooComplex }
+        guard state.elements <= maximumElements else { throw X3DReader.tooComplex }
         let type = localName(tag.name)
         if state.root == nil, type != "X3D" { throw X3DReader.notX3D }
         let parent = state.stack.last?.node
@@ -122,19 +124,25 @@ struct X3DBuilder {
                 def = try scanner.decoded(attribute.value)
             } else if name == "USE" {
                 use = try scanner.decoded(attribute.value)
-            } else if !Self.isUnread(node.type) {
+            } else if Self.attributes[node.type]?.contains(name) == true {
                 try read(attribute, named: name, into: node)
             }
         }
         return (def, use)
     }
 
+    /// The attributes read from each element; any other attribute is never parsed.
+    private static let attributes: [String: Set<String>] = [
+        "Transform": ["translation", "rotation", "scale", "scaleOrientation", "center"],
+        "Coordinate": ["point"], "CoordinateDouble": ["point"], "Box": ["size"],
+        "IndexedFaceSet": ["coordIndex", "ccw"], "IndexedTriangleSet": ["index", "ccw"], "Switch": ["whichChoice"],
+    ]
+
     private mutating func read(_ attribute: XMLScanner.Attribute, named name: String, into node: X3DNode) throws {
         if name == "ccw" {
             node.counterClockwise = !scanner.equals(attribute.value, "false")
             return
         }
-        guard Self.numeric.contains(name) else { return }
         let values = try numbers(attribute.value)
         switch name {
         case "translation": node.translation = values
@@ -142,12 +150,6 @@ struct X3DBuilder {
         case "scale": node.scale = values
         case "scaleOrientation": node.scaleOrientation = values
         case "center": node.center = values
-        default: store(values, named: name, into: node)
-        }
-    }
-
-    private func store(_ values: [Float], named name: String, into node: X3DNode) {
-        switch name {
         case "size": node.size = values
         case "point": node.point = values
         case "whichChoice": node.whichChoice = values.first ?? -1
@@ -155,21 +157,27 @@ struct X3DBuilder {
         }
     }
 
-    private static let numeric: Set<String> = [
-        "translation", "rotation", "scale", "scaleOrientation", "center", "size", "point", "coordIndex", "index", "whichChoice",
-    ]
-
-    /// The numbers of a list separated by white space or commas, read straight from the document's bytes.
+    /// The numbers of a list separated by white space or commas, read straight from the document's bytes (a value with an entity
+    /// is decoded first).
     private mutating func numbers(_ range: Range<Int>) throws -> [Float] {
+        if scanner.contains(range, "&") {
+            let decoded = Array(try scanner.decoded(range).utf8)
+            return try decoded.withUnsafeBufferPointer { try list($0, 0..<$0.count) }
+        }
+        return try list(scanner.typed, range)
+    }
+
+    private mutating func list(_ bytes: UnsafeBufferPointer<UInt8>, _ range: Range<Int>) throws -> [Float] {
         var result: [Float] = []
+        result.reserveCapacity(range.count / 8 + 1)
         var index = range.lowerBound
-        let bytes = scanner.bytes
+        func separates(_ byte: UInt8) -> Bool { XMLScanner.isSpace(byte) || byte == UInt8(ascii: ",") }
         while index < range.upperBound {
-            while index < range.upperBound, XMLScanner.isSpace(bytes[index]) || bytes[index] == UInt8(ascii: ",") { index += 1 }
+            while index < range.upperBound, separates(bytes[index]) { index += 1 }
             let start = index
-            while index < range.upperBound, !(XMLScanner.isSpace(bytes[index]) || bytes[index] == UInt8(ascii: ",")) { index += 1 }
+            while index < range.upperBound, !separates(bytes[index]) { index += 1 }
             guard index > start else { break }
-            guard let value = scanner.float(start..<index) else { throw X3DReader.badNumber }
+            guard let value = ASCIINumber.parse(bytes, start..<index) else { throw X3DReader.badNumber }
             result.append(value)
             try tick()
         }

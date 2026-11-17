@@ -25,7 +25,8 @@ extension VRMLScene {
         case "X3D", "Scene", "Group", "StaticGroup", "Collision", "Billboard", "Anchor", "Shape":
             return node.children
         case "LOD":
-            return Array(node.children.prefix(1))
+            let readable = node.children.first { Self.isReadable($0.type) }
+            return readable.map { [$0] } ?? []
         case "Switch":
             guard node.whichChoice >= 0, node.whichChoice < Float(node.children.count) else { return [] }
             return [node.children[Int(node.whichChoice)]]
@@ -40,14 +41,7 @@ extension VRMLScene {
         case "IndexedFaceSet":
             try addFaces(points: points(of: node), indices: node.index, matrix: matrix, counterClockwise: node.counterClockwise)
         case "IndexedTriangleSet":
-            guard node.index.count % 3 == 0 else { throw VRMLReader.badIndex }
-            var indices: [Float] = []
-            indices.reserveCapacity(node.index.count / 3 * 4)
-            for start in stride(from: 0, to: node.index.count, by: 3) {
-                try tick()
-                indices += [node.index[start], node.index[start + 1], node.index[start + 2], -1]
-            }
-            try addFaces(points: points(of: node), indices: indices, matrix: matrix, counterClockwise: node.counterClockwise)
+            try addTriangles(points: points(of: node), indices: node.index, matrix: matrix, counterClockwise: node.counterClockwise)
         case "Box":
             let size = node.size.flatMap { $0.count >= 3 ? $0 : nil } ?? [2, 2, 2]
             try addBox(size: SIMD3(Double(size[0]), Double(size[1]), Double(size[2])), matrix: matrix, reversed: false)
@@ -55,6 +49,14 @@ extension VRMLScene {
             if X3DBuilder.isUnread(node.type) { skippedGeometry = true }
         }
     }
+
+    private static let readable: Set<String> = [
+        "X3D", "Scene", "Transform", "Group", "StaticGroup", "Collision", "Billboard", "Anchor", "Switch", "LOD", "Shape",
+        "IndexedFaceSet", "IndexedTriangleSet", "Box",
+    ]
+
+    /// Whether an element makes triangles or holds nodes that can.
+    private static func isReadable(_ type: String) -> Bool { readable.contains(type) }
 
     private func points(of node: X3DNode) -> [Float] {
         node.children.first { $0.type == "Coordinate" || $0.type == "CoordinateDouble" }?.point ?? []

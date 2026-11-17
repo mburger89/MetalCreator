@@ -99,8 +99,7 @@ import Testing
         #expect(Self.problem("<html/>") == "This file isn't an X3D file.")
         #expect(Self.problem(String(repeating: "<Group>", count: 300) + String(repeating: "</Group>", count: 300)) != nil)
         let short = "<Shape><IndexedTriangleSet index=\"0 1\"><Coordinate point=\"0 0 0\"/></IndexedTriangleSet></Shape>"
-        #expect(Self.problem(Self.wrap(short))
-            == "This X3D file has a face that names a point it doesn't have.")
+        #expect(Self.problem(Self.wrap(short)) == "This file holds no triangles.")
         #expect(Self.problem(Self.wrap(Self.faceSet), limit: 0) == MeshImportProblem.overTriangleLimit.message)
     }
 
@@ -121,6 +120,69 @@ import Testing
         let points = (0..<70_000).map { "\($0) 0 0" }.joined(separator: " ")
         let text = Self.wrap("<Shape><IndexedFaceSet coordIndex=\"0 1 2 -1\"><Coordinate point=\"\(points)\"/></IndexedFaceSet></Shape>")
         #expect(throws: CancellationError.self) { try X3DReader.read(Data(text.utf8), isCancelled: { true }) }
+    }
+
+    private static func set(_ points: String, _ index: String) -> String {
+        "<Shape><IndexedFaceSet coordIndex=\"\(index)\"><Coordinate point=\"\(points)\"/></IndexedFaceSet></Shape>"
+    }
+
+    @Test func entitiesAndScientificNotationInLists() throws {
+        let text = Self.wrap(Self.set("0&#32;0 0, 1e0 0 0, 0 1E0 +0.0", "0&#x20;1 2 -1"))
+        #expect(try Self.read(text).mesh.triangles.count == 3)
+        #expect(Self.problem(Self.wrap(Self.set("0 0 0 1 0 0 0 1 0", "0 1 2 -1").replacingOccurrences(of: "-1\"", with: "&bogus;\"")))
+            != nil)
+    }
+
+    @Test func switchOutOfRangeAndNegative() {
+        for choice in ["5", "-1", "2"] {
+            let text = Self.wrap("<Switch whichChoice=\"\(choice)\">\(Self.faceSet)</Switch>")
+            #expect(Self.problem(text) == "This file holds no triangles.")
+        }
+    }
+
+    @Test func lodTakesTheFirstReadableChild() throws {
+        let inline = "<Inline url=\"a.x3d\"/>"
+        let result = try Self.read(Self.wrap("<LOD>\(inline)\(Self.faceSet)\(Self.faceSet)</LOD>"))
+        #expect(result.mesh.triangles.count == 3)
+    }
+
+    @Test func coordinateDoubleAndOrderOfAttributes() throws {
+        let text = Self.wrap("""
+        <Shape><IndexedFaceSet coordIndex="0 1 2 -1"><CoordinateDouble point="0 0 0 1 0 0 0 1 0"/></IndexedFaceSet></Shape>
+        """)
+        #expect(try Self.read(text).mesh.triangles.count == 3)
+        let late = Self.wrap("<Shape><IndexedFaceSet><Coordinate point=\"0 0 0 1 0 0 0 1 0\"/></IndexedFaceSet></Shape>")
+        #expect(Self.problem(late) == "This file holds no triangles.")
+    }
+
+    @Test func shortRotationIsIgnored() throws {
+        let text = Self.wrap("<Transform rotation=\"0 0 1\" translation=\"1 0 0\">\(Self.faceSet)</Transform>")
+        #expect(Self.corners(try Self.read(text).mesh) == [[1, 0, 0], [2, 0, 0], [1, 1, 0]])
+    }
+
+    @Test func elementCapAndOversizeMessage() throws {
+        let text = Data(Self.wrap(Self.faceSet).utf8)
+        #expect(throws: MeshImportProblem.x3d("This X3D file is too complex.")) {
+            try X3DReader.read(text, triangleLimit: 100, elementLimit: 3, isCancelled: { false })
+        }
+        let huge = Data(count: VRMLReader.maximumBytes + 1)
+        #expect(throws: MeshImportProblem.x3d("This X3D file is larger than the 64 MB limit.")) {
+            try X3DReader.read(huge, isCancelled: { false })
+        }
+    }
+
+    @Test func prefixedAttributesAndStrayAttributes() throws {
+        let text = Self.wrap("""
+        <Group size="not a number"><Shape x3d:DEF="s"><IndexedFaceSet coordIndex="0 1 2 -1"><Coordinate point="0 0 0 1 0 0 0 1 0"/>
+        </IndexedFaceSet></Shape><Shape USE="s"/></Group>
+        """)
+        #expect(try Self.read(text).mesh.triangles.count == 6)
+    }
+
+    @Test func leftoverTriangleIndicesAndTrailingElements() throws {
+        let text = Self.wrap("<Shape><IndexedTriangleSet index=\"0 1 2 0 1\"><Coordinate point=\"0 0 0 1 0 0 0 1 0\"/>"
+                             + "</IndexedTriangleSet></Shape>") + "<Trailing/>"
+        #expect(try Self.read(text).mesh.triangles.count == 3)
     }
 
     @Test func randomMutationsNeverTrap() {

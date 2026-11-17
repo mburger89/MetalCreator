@@ -19,22 +19,18 @@ public enum X3DReader {
     }
 
     /// `read` with the triangle limit as a parameter, so a test can reach it without a file of millions of triangles.
-    static func read(_ data: Data, triangleLimit: Int, isCancelled: () -> Bool) throws -> ImportedModelMesh {
+    static func read(_ data: Data, triangleLimit: Int, elementLimit: Int = X3DBuilder.maximumElements,
+                     isCancelled: () -> Bool) throws -> ImportedModelMesh {
         guard data.count <= VRMLReader.maximumBytes else {
             throw MeshImportProblem.x3d("This X3D file is larger than the 64 MB limit.")
         }
         return try withoutActuallyEscaping(isCancelled) { escaping in
             try data.withUnsafeBytes { raw in
-                do {
-                    var builder = X3DBuilder(scanner: XMLScanner(bytes: raw), isCancelled: escaping)
-                    let root = try builder.build()
-                    let scene = VRMLScene(triangleLimit: triangleLimit, isCancelled: escaping)
-                    try scene.evaluateX3D(root)
-                    return try VRMLReader.finish(scene, millimetres: false)
-                } catch MeshImportProblem.vrml(let sentence) {
-                    // The shared scene words its refusals for VRML.
-                    throw MeshImportProblem.x3d(sentence.replacingOccurrences(of: "VRML", with: "X3D"))
-                }
+                var builder = X3DBuilder(scanner: XMLScanner(bytes: raw), isCancelled: escaping)
+                let root = try builder.build(maximumElements: elementLimit)
+                let scene = VRMLScene(triangleLimit: triangleLimit, format: "X3D", isCancelled: escaping)
+                try scene.evaluateX3D(root)
+                return try VRMLReader.finish(scene, millimetres: false)
             }
         }
     }
