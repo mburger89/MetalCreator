@@ -64,7 +64,7 @@ struct MeasureSessionTests {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
         defer { gate.release() }
-        await kernel.setMeasureHook { gate.enter() }
+        await kernel.setMeasureHook { await gate.enter() }
         let fixture = await MeasureAppFixture.open(kernel: kernel)
         fixture.app.setMeasure(true)
         let edges = fixture.verticals

@@ -96,7 +96,7 @@ struct MeasureBookTests {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
         defer { gate.release() }
-        await kernel.setMeasureHook { gate.enter() }
+        await kernel.setMeasureHook { await gate.enter() }
         let fixture = try await Fixture.open(kernel: kernel)
         let app = fixture.app
         fixture.book.add(fixture.measurement)
@@ -117,7 +117,7 @@ struct MeasureBookTests {
         let calls = Mutex(0)
         await kernel.setMeasureHook {
             calls.withLock { $0 += 1 }
-            gate.enter()
+            await gate.enter()
         }
         let fixture = try await Fixture.open(kernel: kernel)
         fixture.book.add(fixture.measurement)
@@ -134,7 +134,7 @@ struct MeasureBookTests {
         let kernel = FakeKernel()
         let gate = FirstCallGate()
         defer { gate.release() }
-        await kernel.setMeasureHook { gate.enter() }
+        await kernel.setMeasureHook { await gate.enter() }
         let fixture = try await Fixture.open(kernel: kernel)
         fixture.book.add(fixture.measurement)
         fixture.book.remove(fixture.measurement.id)
@@ -223,10 +223,11 @@ struct MeasureBookTests {
     @Test func aReturningBasisIgnoresTheInFlightResultOfTheOldOne() async throws {
         let kernel = FakeKernel()
         let calls = Mutex(0)
-        let held = Mutex<[Int: DispatchSemaphore]>([2: DispatchSemaphore(value: 0), 3: DispatchSemaphore(value: 0)])
+        let held = [2: HookGate(), 3: HookGate()]
+        defer { for gate in held.values { gate.open() } }
         await kernel.setMeasureHook {
             let number = calls.withLock { count -> Int in count += 1; return count }
-            if let gate = held.withLock({ $0[number] }) { _ = gate.wait(timeout: .now() + 10) }
+            await held[number]?.hold()
         }
         let fixture = await MeasureAppFixture.open(kernel: kernel)
         // The test's own book: the app's refreshes would resolve the anchors against the app's scene.
@@ -254,7 +255,7 @@ struct MeasureBookTests {
         book.refresh(sceneB)
         book.refresh(sceneA)
         #expect(abs(try #require(book.entries[0].distance).distance - 10) < 1e-9)
-        for number in [2, 3] { held.withLock { $0[number] }?.signal() }
+        for number in [2, 3] { held[number]?.open() }
         await book.waitForDistances()
         #expect(abs(try #require(book.entries[0].distance).distance - 10) < 1e-9, "B's late result did not land")
         #expect(!book.entries[0].isMeasuring)

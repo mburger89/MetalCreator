@@ -12,9 +12,9 @@ public actor FakeKernel: Kernel {
     public private(set) var filletTangentOnly: (corners: Int, joins: Int) = (0, 0)
     /// The `angle` of each `tessellate` call, in order.
     public private(set) var tessellationAngles: [Double] = []
-    var sectionHook: (@Sendable () throws -> Void)?
-    var measureHook: (@Sendable () throws -> Void)?
-    var continuityHook: (@Sendable () throws -> Void)?
+    var sectionHook: (@Sendable () async throws -> Void)?
+    var measureHook: (@Sendable () async throws -> Void)?
+    var continuityHook: (@Sendable () async throws -> Void)?
 
     public init() {}
 
@@ -165,8 +165,8 @@ public actor FakeKernel: Kernel {
         }
     }
 
-    public func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
-        try sectionHook?()
+    public func section(_ solid: Solid, by plane: Plane, tolerance: Double) async throws -> PlaneSection {
+        try await sectionHook?()
         try Task.checkCancellation()
         operationLog.append("section")
         return try Self.section(solid, by: plane, tolerance: tolerance)
