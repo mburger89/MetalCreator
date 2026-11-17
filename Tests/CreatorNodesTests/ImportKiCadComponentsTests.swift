@@ -97,7 +97,7 @@ struct ImportKiCadComponentsTests {
         let result = try #require(report.results[node.id])
         #expect(result.dependencies.contains { $0.path.hasSuffix("models/l.step") })
         let facts = Dictionary(uniqueKeysWithValues: (result.facts).map { ($0.label, $0.value) })
-        #expect(facts["Components"] == "1 placed, 1 with a 3D model, 0 without")
+        #expect(facts["Components"] == "1 placed, 1 as solids, 0 as meshes, 0 without a 3D model")
     }
 
     @Test func placesBackComponentRotated() async throws {
@@ -181,7 +181,7 @@ struct ImportKiCadComponentsTests {
         #expect(lines.count == 2)
         #expect(components(report, node).isEmpty)
         let facts = Dictionary(uniqueKeysWithValues: (try #require(report.results[node.id]).facts).map { ($0.label, $0.value) })
-        #expect(facts["Components"] == "2 placed, 0 with a 3D model, 2 without")
+        #expect(facts["Components"] == "2 placed, 0 as solids, 0 as meshes, 2 without a 3D model")
     }
 
     @Test func warnsNoModel() async throws {
@@ -210,7 +210,7 @@ struct ImportKiCadComponentsTests {
         let report = try await go(h, node)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         let facts = Dictionary(uniqueKeysWithValues: (try #require(report.results[node.id]).facts).map { ($0.label, $0.value) })
-        #expect(facts["Components"] == "1 placed, 0 with a 3D model, 0 without")
+        #expect(facts["Components"] == "1 placed, 0 as solids, 0 as meshes, 0 without a 3D model")
         #expect(await ComponentModelCache.shared.reads(containing: key) == 0)
     }
 
@@ -222,13 +222,11 @@ struct ImportKiCadComponentsTests {
         expectBounds(try #require(components(report, node).first), try expectedBox(text: text))
     }
 
-    @Test func vrmlWithoutTwinIsR4() async throws {
-        try write(Data("#VRML V2.0 utf8\n".utf8), "x.wrl")
+    @Test func embeddedModelKeepsItsReason() async throws {
         let embedded = Model(path: "kicad-embed://inside.step")
-        let (h, node, _) = try board([part("U1", models: [model("x.wrl")]), part("U2", x: 60, models: [embedded])])
+        let (h, node, _) = try board([part("U2", x: 60, models: [embedded])])
         let lines = warnings(try await go(h, node), node)
-        let expected = "2 models couldn't be read: x.wrl (VRML isn't read yet), inside.step (models stored in the board aren't read yet)."
-        #expect(lines == [expected])
+        #expect(lines == ["1 model couldn't be read: inside.step (models stored in the board aren't read yet)."])
     }
 
     @Test func modelEditedOnDiskReruns() async throws {

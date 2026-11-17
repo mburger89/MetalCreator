@@ -203,7 +203,7 @@ struct ImportKiCadBoardNodeTests {
         let (hc, withModels) = try node(KiCadBoardText.rectangle(), ["components": .bool(true)])
         let onFacts = try #require(try await run(hc, withModels, OCCTKernel()).results[withModels.id]?.facts)
         let factsOn = Dictionary(uniqueKeysWithValues: onFacts.map { ($0.label, $0.value) })
-        #expect(factsOn["Components"] == "4 placed, 0 with a 3D model, 4 without")
+        #expect(factsOn["Components"] == "4 placed, 0 as solids, 0 as meshes, 4 without a 3D model")
         #expect(ImportKiCadBoardNode.factsTitle == "Board")
         #expect(BoardFacts.versionName(4) == "KiCad 4 (4)")
         #expect(BoardFacts.versionName(20_171_130) == "KiCad 5 (20171130)")
