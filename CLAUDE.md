@@ -106,10 +106,21 @@ and the tools' rulings on an imperfect mesh) code is done; its human checks (gro
 KiCad import, KI-1 (the Import KiCad Board node: spec `docs/superpowers/specs/2026-11-15-kicad-import-design.md`, format facts
 `2026-11-16-kicad-format-facts.md`, plan `docs/superpowers/plans/2026-11-16-ki-1-board.md`; `creator.importKiCadBoard` reads a `.kicad_pcb`
 into a board solid with its pad holes (and, on request, vias) drilled, its outline as a profile, its mounting holes as placements and
-diameters (the `components` and `component meshes` outputs are declared and stay empty until KI-2); `placement`, `origin` (board centre, page, drill/place), `vias` and `components` are its
+diameters (the `component meshes` output is declared and stays empty until KI-3); `placement`, `origin` (board centre, page, drill/place), `vias` and `components` are its
 inputs; `CreatorPCB` is the portable reader; the node's `factsTitle` "Board" hook lists KiCad version, size, thickness, copper layers, holes
 and components; File ▸ Import KiCad Board… inserts it wired to an Output as one step "Import KiCad Board"; the file is
 `NodeSetting.pcbFile`, linked only, never embedded; file format 13) code is done; its human checks (group KI) are pending.
+KiCad import, KI-2 (solid components: plan `docs/superpowers/plans/2026-11-17-ki-2-components.md`; the `components` output is one solid per footprint,
+read from its STEP, compressed STEP (`.stpz`, `.step.gz`) or IGES models, scaled, then placed by KiCad's chain (`ModelPlacement`), the top side at the board's
+thickness and the back side at 0 turned Rx(π); faces are `.imported(face:)`, several models of a footprint are compounded with the face number `(k << 32) + i`; items
+are footprint keys `fp:<token>`; the warnings are "no model", "not found" and "couldn't be read"; the "Components" fact; the `components` toggle) code is done; its human
+checks (group KI) are pending. `CreatorPCB/Models`: `ModelPathResolver` (relative to the board, the project, KiCad's library folders), `KiCadPathVariables`, `ModelFormat` and
+`ModelPlacement`. `Inflate`, `CRC32` and `Gzip` now live in `CreatorGeometry/Compression` (3MF and compressed STEP share them). `Kernel.readModel` (OCCT: STEP read from a
+zero-copy stream, IGES through a 0600 temp file, `xstep.cascade.unit` MM; TKDEIGES is linked on every platform, the Linux Dockerfile included), `Kernel.scaled` and
+`Kernel.compound` (`FakeKernel` refuses all three, as the protocol defaults do). `FileDependency` / `NodeOutputs.dependencies`: a node names the files its result read beyond its settings; the
+evaluator re-stamps them each evaluation and downstream keys include them, so a model edited on disk updates the board. `ComponentModelCache` reads each model once per file
+stamp across nodes (a sentinel tag retargeted per node); `BoardComponents.environment` is a TaskLocal. VRML, X3D and IDF are KI-3 and models stored in the board KI-4:
+until then such a model is a "couldn't be read" warning.
 Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
@@ -225,7 +236,7 @@ Module boundaries (dependency order):
   output, never saved), `ModelDimensionKind` (the kind a pair of picked entities gets) and `MeasuredDimension` (a dimension added at its measured
   value, as a reference when it would over-define).
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
-  the outline's bounds, as OCCT refuses strays). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
+  the outline's bounds, as OCCT refuses strays). `Kernel.readModel(_:format:tag:)` (STEP or IGES bytes to a solid, faces `.imported(face: i)`), `Kernel.scaled(_:by:tag:)` and `Kernel.compound(_:tag:)` refuse by default and in `FakeKernel`; OCCT answers them (KiCad import KI-2). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
   call: copy `i` is a tool moved by a `Transform`, its tags requalified (`Topology.qualified(item:_:)`: node → `qualify(node)`,
   item → `i`, nested blend source edges too). A pattern over a tree renames each copy afterwards
   (`Topology.withInstanceItem(_:)`,
@@ -526,7 +537,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the six Mes
   parses the file, `Board/` reads the board (KiCad's y-down millimetres are negated to y up as every point is read), `Outline/` chains the
   edge cuts into closed loops, and `Identity/` makes the stable keys (`-(Int(fnv1a64(text) & 0x0FFF_FFFF_FFFF_FFFF) + 1)`) that name a pad's
   walls. **A board file is untrusted input**: 256 MB, nesting depth 64, strings 1 MB, 100,000 footprints and 1,000,000 pads, cancellation
-  asked every 65,536 tokens, and every refusal a full sentence. Tests: `swift test --filter CreatorPCBTests`.
+  asked every 65,536 tokens, and every refusal a full sentence. `Models/` (KI-2) resolves a footprint's model paths, expands KiCad's variables and builds the placement chain; it reads no model (the kernel does). Tests: `swift test --filter CreatorPCBTests`.
 - `CreatorMCP`: the Model Context Protocol server (MCP-1; `docs/mcp.md`). Portable (declared everywhere); depends on `CreatorGraph`, `CreatorKernel` and
   `CreatorGeometry`, **never on the editor or the app**: the tools drive a `DocumentSession` protocol that `CreatorApp`'s `AppDocumentSession`
   implements (tests use one over `DocumentModel` and `FakeKernel`). Our own JSON-RPC subset (`initialize`, `notifications/initialized`, `ping`,

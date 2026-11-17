@@ -11,6 +11,25 @@ enum KiCadBoardText {
         var drill = 3.2
         var slot: Double?
         var plated = false
+        /// The footprint's angle, its side and whether it has a pad (a part with models and no hole has none).
+        var angle = 0.0
+        var back = false
+        var hasPad = true
+        var models: [Model] = []
+    }
+
+    /// A `(model …)` line of a footprint.
+    struct Model {
+        var path: String
+        var offset = (0.0, 0.0, 0.0)
+        var scale = (1.0, 1.0, 1.0)
+        var rotate = (0.0, 0.0, 0.0)
+        var hidden = false
+
+        var text: String {
+            "    (model \"\(path)\" (offset (xyz \(offset.0) \(offset.1) \(offset.2))) (scale (xyz \(scale.0) \(scale.1) \(scale.2))) "
+                + "(rotate (xyz \(rotate.0) \(rotate.1) \(rotate.2)))\(hidden ? " (hide yes)" : ""))\n"
+        }
     }
 
     static let header = "(kicad_pcb (version 20260206) (generator \"pcbnew\")\n"
@@ -20,9 +39,15 @@ enum KiCadBoardText {
     static func uuid(_ n: Int) -> String { String(format: "00000000-0000-0000-0000-%012d", n) }
 
     static func footprint(_ part: Part, number: Int) -> String {
-        var text = "  (footprint \"\(part.library)\" (layer \"F.Cu\") (uuid \"\(uuid(9000 + number))\") (at \(part.x) \(part.y))\n"
+        let side = part.back ? "B.Cu" : "F.Cu"
+        var text = "  (footprint \"\(part.library)\" (layer \"\(side)\") (uuid \"\(uuid(9000 + number))\") "
+            + "(at \(part.x) \(part.y) \(part.angle))\n"
         text += "    (property \"Reference\" \"\(part.reference)\" (at 0 -4 0) (layer \"F.Cu\"))\n"
         let kind = part.plated ? "thru_hole" : "np_thru_hole"
+        text += part.models.map(\.text).joined()
+        if !part.hasPad {
+            return text + "  )\n"
+        }
         if let slot = part.slot {
             text += "    (pad \"1\" \(kind) oval (at 0 0) (size \(slot + 1) \(part.drill + 1)) (drill oval \(slot) \(part.drill)) "
                 + "(layers \"*.Cu\" \"*.Mask\"))\n"

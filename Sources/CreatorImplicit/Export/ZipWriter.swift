@@ -1,3 +1,4 @@
+import CreatorGeometry
 import Foundation
 
 /// Writes a zip file entry by entry, streaming (implicit spec §5.3): each entry's data goes to the file as it is given, with its

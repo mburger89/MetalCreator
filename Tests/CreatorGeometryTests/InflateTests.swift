@@ -1,8 +1,6 @@
 import Foundation
 import Testing
 @testable import CreatorGeometry
-@testable import CreatorGraph
-@testable import CreatorImplicit
 #if canImport(Compression)
 import Compression
 #endif
@@ -44,11 +42,11 @@ struct InflateTests {
         }
     }
 
-    /// Every valid stream the suite pins, with its plain size and SHA-256.
-    static let pinned: [(name: String, stream: [UInt8], size: Int, hash: String)] = [
-        ("fixed", fixedStream, fixedPlain.count, "eac13dc78da3f79858440011e4db4107e9301314511e6d0073320b14c535b824"),
-        ("zlib dynamic", InflateFixtures.zlibDynamic, InflateFixtures.zlibDynamicPlain.count, InflateFixtures.zlibDynamicHash),
-        ("every symbol", InflateFixtures.everySymbol, InflateFixtures.everySymbolSize, InflateFixtures.everySymbolHash),
+    /// Every valid stream the suite pins, with its plain size and CRC-32.
+    static let pinned: [(name: String, stream: [UInt8], size: Int, crc: UInt32)] = [
+        ("fixed", fixedStream, fixedPlain.count, 0x8D3D_51E3),
+        ("zlib dynamic", InflateFixtures.zlibDynamic, InflateFixtures.zlibDynamicPlain.count, 0x540E_C8CC),
+        ("every symbol", InflateFixtures.everySymbol, InflateFixtures.everySymbolSize, 0x9DFC_C93A),
     ]
 
     @Test func storedFixedAndDynamicBlocks() throws {
@@ -67,7 +65,7 @@ struct InflateTests {
     @Test func pinnedStreamsAgreeEverywhere() throws {
         for item in Self.pinned {
             let plain = try inflate(item.stream, size: item.size)
-            #expect(SHA256.hex(of: plain) == item.hash, "\(item.name)")
+            #expect(CRC32.checksum(plain) == item.crc, "\(item.name)")
         }
     }
 
@@ -263,7 +261,7 @@ struct InflateTests {
     }
 
     @Test func aTruncatedStreamIsMalformedNotATrap() {
-        for item in Self.pinned + [("stored", Self.storedStream, 7, "")] {
+        for item in Self.pinned + [("stored", Self.storedStream, 7, 0)] {
             for cut in 0..<item.stream.count {
                 #expect(error(Array(item.stream[0..<cut]), size: item.size + 10) == .malformed, "\(item.name) cut at \(cut)")
             }

@@ -81,6 +81,18 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
+    public func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid {
+        try refuse()
+    }
+
+    public func scaled(_ solid: Solid, by factors: Vector3, tag: NodeTag) throws -> Solid {
+        try refuse()
+    }
+
+    public func compound(_ solids: [Solid], tag: NodeTag) throws -> Solid {
+        try refuse()
+    }
+
     /// Checks for cancellation on entry, as every kernel does, then refuses.
     private func refuse() throws -> Never {
         try Task.checkCancellation()

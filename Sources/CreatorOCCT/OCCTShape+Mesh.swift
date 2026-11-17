@@ -37,6 +37,25 @@ extension OCCTShape {
         }
     }
 
+    /// Reads a STEP model from bytes, in millimetres, with no copy of them. Call under `OCCTKernel.serialized`.
+    static func readSTEPModel(_ data: Data) throws(OCCTError) -> OCCTShape {
+        try data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) throws(OCCTError) in
+            try make { status in
+                buffer.withMemoryRebound(to: CChar.self) { occt_read_model($0.baseAddress, $0.count, status) }
+            }
+        }
+    }
+
+    /// Reads the IGES file at `url`. Call under `OCCTKernel.serialized`.
+    static func readIGESFile(at url: URL) throws(OCCTError) -> OCCTShape {
+        try make { status in url.withUnsafeFileSystemRepresentation { occt_read_iges_file($0, status) } }
+    }
+
+    /// A copy scaled about the origin. Call under `OCCTKernel.serialized`.
+    func scaled(by factors: Vector3) throws(OCCTError) -> OCCTShape {
+        try Self.make { status in occt_scale(raw, factors.x, factors.y, factors.z, status) }
+    }
+
     /// Reads a STEP file. Used by the conformance tests; STEP import as a node is deferred (spec §11).
     static func readSTEP(_ url: URL) throws(OCCTError) -> OCCTShape {
         try make { status in url.withUnsafeFileSystemRepresentation { occt_read_step($0, status) } }

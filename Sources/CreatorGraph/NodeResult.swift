@@ -10,14 +10,17 @@ public struct NodeResult: Sendable {
     public var sketchTrace: SketchTrace?
     /// The facts the node returned (`NodeOutputs.facts`); the first iteration's. Empty for a node with none and when it failed.
     public var facts: [PayloadFact] = []
+    /// The files the node reported (`NodeOutputs.dependencies`), every iteration's, without repeats. Empty when it failed.
+    public var dependencies: [FileDependency] = []
 
     public init(state: NodeState, outputs: [SocketName: Value]? = nil, dimensions: [DimensionSpec] = [], sketchTrace: SketchTrace? = nil,
-                facts: [PayloadFact] = []) {
+                facts: [PayloadFact] = [], dependencies: [FileDependency] = []) {
         self.state = state
         self.outputs = outputs
         self.dimensions = dimensions
         self.sketchTrace = sketchTrace
         self.facts = facts
+        self.dependencies = dependencies
     }
 
     public var estimatedBytes: Int {

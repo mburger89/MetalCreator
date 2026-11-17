@@ -19,6 +19,9 @@ public struct NodeOutputs: Sendable {
     /// Labelled facts about what the node made (an imported board's size, thickness, hole count), listed read-only in the inspector
     /// under `NodeDefinition.factsTitle`. A node that runs once per item keeps the first iteration's.
     public var facts: [PayloadFact] = []
+    /// Files the run read or looked for, each stamped by the node BEFORE it read it. The evaluator reuses the cached result only
+    /// while every one still has that stamp, so a file changed, deleted or created on disk runs the node again.
+    public var dependencies: [FileDependency] = []
 
     public init(_ values: [SocketName: Scalar] = [:], warnings: [String] = []) {
         self.values = values

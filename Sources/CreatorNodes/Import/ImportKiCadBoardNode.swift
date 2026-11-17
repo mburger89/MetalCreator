@@ -46,6 +46,7 @@ public enum ImportKiCadBoardNode: NodeDefinition {
         else { throw NodeError.invalidValue("“placement” has no direction.") }
         let frame = Plane(origin: placement.origin, normal: normal, xAxis: across)
         let includesVias = try inputs.bool("vias")
+        let includesComponents = try inputs.bool("components")
 
         let parsed = try await load(reference, context.images)
         let board = parsed.board
@@ -59,21 +60,16 @@ public enum ImportKiCadBoardNode: NodeDefinition {
         }
         let origin = origin(originChoice, board: board, box: box, warnings: &warnings)
 
-        let outer = parsed.outline.outer.map { BoardFrame.moved($0, by: origin) }
-        let cutouts = parsed.outline.holes.map { $0.map { BoardFrame.moved($0, by: origin) } }
-        let base = try await kernel.extrude(Profile2D(plane: .xy, outer: outer), distance: thickness,
-                                            mode: .oneSided, tag: context.tag)
-        let drilled = BoardHoles.placed(board, origin: origin, vias: includesVias)
-        let cutters = zip(cutouts, parsed.outline.holeKeys).compactMap { loop, keys in
-            keys.min().map { Cutter(loop: loop, item: $0) }
-        }
-        var solid = try await drill(base, holes: drilled, cutters: cutters, thickness: thickness, kernel: kernel, context: context)
-        if let move = frame.placement, move != .identity {
-            solid = try await kernel.transform(solid, by: move, tag: context.tag)
-        }
+        let layout = Layout(origin: origin, thickness: thickness, frame: frame, includesVias: includesVias)
+        let (solid, outer, cutouts) = try await boardSolid(parsed, layout, kernel: kernel, context: context)
 
         let top = frame.offset(by: thickness)
         let mounting = BoardHoles.mounting(board, origin: origin)
+        let folder = BoardComponents.normalisedFolder(context.images.folder(of: reference)?.path(percentEncoded: false) ?? "")
+        let components = try await components(
+            includesComponents, BoardComponents.Setting(board: board, origin: origin, thickness: thickness, frame: frame, folder: folder),
+            kernel: kernel, context: context)
+        warnings += components.warnings
         var outputs = NodeOutputs([
             "board": .solid(solid),
             "outline": .profile(Profile2D(plane: top, outer: outer, holes: cutouts)),
@@ -81,14 +77,51 @@ public enum ImportKiCadBoardNode: NodeDefinition {
         outputs.lists = [
             "mounting holes": mounting.map { .plane(Plane(origin: top.point($0.center), normal: top.normal, xAxis: top.xAxis)) },
             "mounting hole diameters": mounting.map { .number($0.diameter) },
-            "components": [],
+            "components": components.solids.map { .solid($0) },
             "component meshes": [],
         ]
+        outputs.dependencies = components.dependencies
         outputs.facts = BoardFacts.facts(
-            file: reference.fileName ?? "Board", board: board,
-            width: box.max.x - box.min.x, height: box.max.y - box.min.y, thickness: thickness,
-            holes: BoardFacts.holesText(board: board, mounting: mounting.count, includesVias: includesVias))
+            file: reference.fileName ?? "Board", board: board, size: Vector2(box.max.x - box.min.x, box.max.y - box.min.y),
+            thickness: thickness, holes: BoardFacts.holesText(board: board, mounting: mounting.count, includesVias: includesVias),
+            components: BoardFacts.componentsText(placed: board.footprints.count,
+                                                  withModel: includesComponents ? components.withModel : nil,
+                                                  hidden: components.hiddenOnly))
         return outputs
+    }
+
+    /// Where the board stands: the point of the file that is the frame's origin, its thickness and the plane it is placed on.
+    private struct Layout {
+        var origin: Vector2
+        var thickness: Double
+        var frame: Plane
+        var includesVias: Bool
+    }
+
+    /// The board extruded, drilled, cut out and moved onto the placement plane, with its outline loops in the board's frame.
+    private static func boardSolid(_ parsed: ParsedBoard, _ layout: Layout, kernel: any Kernel,
+                                   context: EvalContext) async throws -> (solid: Solid, outer: [Segment2D], cutouts: [[Segment2D]]) {
+        let outer = parsed.outline.outer.map { BoardFrame.moved($0, by: layout.origin) }
+        let cutouts = parsed.outline.holes.map { $0.map { BoardFrame.moved($0, by: layout.origin) } }
+        let base = try await kernel.extrude(Profile2D(plane: .xy, outer: outer), distance: layout.thickness,
+                                            mode: .oneSided, tag: context.tag)
+        let drilled = BoardHoles.placed(parsed.board, origin: layout.origin, vias: layout.includesVias)
+        let cutters = zip(cutouts, parsed.outline.holeKeys).compactMap { loop, keys in
+            keys.min().map { Cutter(loop: loop, item: $0) }
+        }
+        var solid = try await drill(base, holes: drilled, cutters: cutters, thickness: layout.thickness, kernel: kernel,
+                                    context: context)
+        if let move = layout.frame.placement, move != .identity {
+            solid = try await kernel.transform(solid, by: move, tag: context.tag)
+        }
+        return (solid, outer, cutouts)
+    }
+
+    /// The components, when the node includes them: each footprint's models found beside the board and read.
+    private static func components(_ included: Bool, _ setting: BoardComponents.Setting, kernel: any Kernel,
+                                   context: EvalContext) async throws -> BoardComponents.Outcome {
+        guard included else { return BoardComponents.Outcome() }
+        return try await BoardComponents.build(setting, kernel: kernel, context: context)
     }
 
     private static func load(_ reference: ImageReference, _ resolver: ImageResolver) async throws -> ParsedBoard {

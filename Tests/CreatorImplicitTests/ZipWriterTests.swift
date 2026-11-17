@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CreatorGeometry
 @testable import CreatorImplicit
 
 /// Our own zip writer and reader (implicit spec §5.3): valid, checked by CRC, the same bytes every time.

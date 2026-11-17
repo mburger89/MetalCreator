@@ -1,14 +1,14 @@
 import CreatorGeometry
 
 extension FakeKernel {
-    /// A test knob: runs at the start of every `shortestDistance`, on the kernel's thread; it may throw to refuse the measurement or
-    /// block to hold it. `nil` (the default) does nothing.
-    public func setMeasureHook(_ hook: (@Sendable () throws -> Void)?) {
+    /// A test knob: runs at the start of every `shortestDistance`; it may throw to refuse the measurement or suspend to hold it
+    /// (never block: a blocked hook holds a thread of Swift's shared pool). `nil` (the default) does nothing.
+    public func setMeasureHook(_ hook: (@Sendable () async throws -> Void)?) {
         measureHook = hook
     }
 
-    public func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance {
-        try measureHook?()
+    public func shortestDistance(between first: MeasureElement, and second: MeasureElement) async throws -> ShapeDistance {
+        try await measureHook?()
         try Task.checkCancellation()
         let a = try Self.measurable(first), b = try Self.measurable(second)
         var best: ShapeDistance?

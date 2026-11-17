@@ -1,3 +1,4 @@
+import CreatorGeometry
 import Foundation
 
 /// Reads a zip, ours or another tool's (Zip64 included): the central directory, then each entry checked against its CRC. The file is
