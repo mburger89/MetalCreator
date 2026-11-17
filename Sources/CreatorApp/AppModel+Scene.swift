@@ -147,7 +147,18 @@ extension AppModel {
         meshRefinement.follow(bases)
         let scene = MeshScene(solids: meshSolids, refined: meshRefinement.refined)
         meshSolids.keep(Set(bases.map(\.id)).union(meshRefinement.refined.values.map(\.id)).union(Self.meshIDs(in: results, shown: shown)))
+        meshSolids.keep(curves: Self.curves(in: results, lastGood: document.lastGoodOutputs, shown: shown))
         return scene
+    }
+
+    /// The curves in the shown nodes' results, so a curve keeps its display solid while it is shown.
+    private static func curves(in results: [NodeID: NodeResult], lastGood: [NodeID: [SocketName: Value]],
+                               shown: [NodeID]) -> [Curve] {
+        shown.flatMap { id in
+            (Array(results[id]?.outputs?.values ?? [:].values) + Array(lastGood[id]?.values ?? [:].values)).flatMap { value in
+                value.items.compactMap { if case .curve(let curve) = $0 { curve } else { nil } }
+            }
+        }
     }
 
     /// The IDs of every mesh in the shown nodes' results, so a mesh that cannot be refined keeps its solid.

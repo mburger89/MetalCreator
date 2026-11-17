@@ -15,7 +15,7 @@ extension ViewportModel {
                                         selectedFaces: item.selectedFaces, selectedEdges: item.selectedEdges,
                                         isGuide: item.isGuide, fieldValues: item.fieldValues, fieldRamp: item.fieldRamp,
                                         warningFaces: item.warningFaces,
-                                        openShellFaces: Set(item.solid.topology.faces.filter(\.isOnOpenShell).map(\.id)),
+                                        openShellFaces: cached.openShellFaces,
                                         isCurve: item.isCurve))
         }
         return ViewportFrame(pose: shown, size: viewSize, sceneBounds: sceneBounds, items: frameItems, shading: shading,

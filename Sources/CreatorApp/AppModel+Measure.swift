@@ -31,7 +31,7 @@ extension AppModel {
     /// What Measure resolves its anchors against: the shown solids, which a pick may land on, and the section's pieces and plane.
     func measureScene() -> MeasureScene {
         let items = viewport.items
-        return MeasureScene(solids: items.map(\.solid), pickable: items.map { !$0.isGhost && !$0.isGuide },
+        return MeasureScene(solids: items.map(\.solid), pickable: items.map { !$0.isGhost && !$0.isGuide && !$0.isCurve },
                             parts: sectionCaps.parts, plane: sectionCaps.plane)
     }
 

@@ -32,5 +32,13 @@ struct SheetBackRenderTests {
         let closedBack = color(try rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: false)), 100, 100)
         #expect(closedBack != back, "without bit 8 a back face keeps its plain shade: \(closedBack) \(back)")
     }
+
+    /// A ghost looks like a ghost: the open-shell flag doesn't give a ghost sheet's back its own colour.
+    @Test func aGhostSheetSeenFromBehindLooksLikeAnyGhostBackFace() throws {
+        let rig = try RendererCacheTests.Rig()
+        let open = color(try rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: true, ghost: true)), 100, 100)
+        let closed = color(try rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: false, ghost: true)), 100, 100)
+        #expect(open == closed, "\(open) against \(closed)")
+    }
 }
 #endif

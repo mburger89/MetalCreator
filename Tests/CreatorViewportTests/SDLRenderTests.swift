@@ -301,6 +301,21 @@ struct SDLSheetCurveTests {
         #expect(closedBack != back)
     }
 
+    @Test func aGhostSheetSeenFromBehindLooksLikeAnyGhostBackFace() async throws {
+        let rig = try Rig()
+        let open = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: true, ghost: true)), 100, 100)
+        let closed = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: false, ghost: true)), 100, 100)
+        #expect(open == closed, "\(open) against \(closed)")
+    }
+
+    @Test func aGhostCurveIsDrawnFadedNotHidden() async throws {
+        let rig = try Rig()
+        let ghost = Rig.color(try await rig.draw(SheetFixtures.curveFrame(ghost: true)), 100, 100)
+        let solid = Rig.color(try await rig.draw(SheetFixtures.curveFrame()), 100, 100)
+        let background = Rig.color(try await rig.draw(SheetFixtures.curveFrame()), 150, 100)
+        #expect(ghost != background && ghost != solid, "\(ghost) against \(solid) on \(background)")
+    }
+
     @Test(arguments: ShadingMode.allCases)
     func aCurvesPixelsAreTheReferenceColourAndTheIDPassReadsEmpty(_ shading: ShadingMode) async throws {
         let rig = try Rig()

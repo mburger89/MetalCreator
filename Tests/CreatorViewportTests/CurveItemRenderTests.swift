@@ -23,6 +23,15 @@ struct CurveItemRenderTests {
         for channel in 0..<3 { #expect(abs(seen[channel] - expected[channel]) <= 3, "\(shading): \(seen) against \(expected)") }
     }
 
+    @Test func aGhostCurveIsDrawnFadedNotHidden() throws {
+        let rig = try RendererCacheTests.Rig()
+        let ghost = color(try rig.draw(SheetFixtures.curveFrame(ghost: true)), 100, 100)
+        let solid = color(try rig.draw(SheetFixtures.curveFrame()), 100, 100)
+        let background = color(try rig.draw(SheetFixtures.curveFrame()), 150, 100)
+        #expect(ghost != background, "a ghost curve is drawn: \(ghost) on \(background)")
+        #expect(ghost != solid, "and faded: \(ghost) against \(solid)")
+    }
+
     @Test func theIDPassReadsEmptyWhereACurveIs() throws {
         let device = try #require(MTLCreateSystemDefaultDevice())
         let picker = try ViewportPicker(renderer: try ViewportRenderer(device: device))

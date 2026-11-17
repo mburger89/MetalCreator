@@ -44,6 +44,12 @@ struct ThemeFileTests {
         #expect(theme == ColorTheme(id: "custom-2", name: "Pink", isDark: true, colors: expected))
     }
 
+    /// A `.mctheme` written before the sheet's back colour existed has no `sheetBack`: it reads Dracula's.
+    @Test func aFileWithoutSheetBackReadsDraculas() throws {
+        let theme = try decode(##"{ "version": 1, "name": "Old", "dark": false, "colors": { "selection": "#00ff00" } }"##)
+        #expect(theme.colors.sheetBack == ColorTheme.dracula.colors.quantized.sheetBack)
+    }
+
     @Test func unknownRolesAndKeysAreIgnored() throws {
         let theme = try decode(##"""
         { "version": 1, "name": "Later", "dark": true, "author": "someone",

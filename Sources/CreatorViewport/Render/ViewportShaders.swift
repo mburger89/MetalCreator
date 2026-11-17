@@ -95,7 +95,7 @@ fragment float4 mesh_fragment(MeshOut in [[stage_in]],
     }
     // Looking into a cut part, the inside of its far wall stands for the cut face: the part's colour, darkened and flat.
     // A face on an open shell (bit 8) has a back that is no inside: it takes the sheet-back colour, lit with the flipped normal.
-    if ((flags & 8u) != 0u && !front) {
+    if ((flags & 8u) != 0u && !front && draw.ghost == 0u) {
         float backDiffuse = saturate(dot(-n, key));
         color = shade.back.rgb * (0.7 + 0.3 * backDiffuse);
     } else if (clip.enabled != 0u && !front) {

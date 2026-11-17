@@ -81,7 +81,7 @@ public enum SceneBuilder {
                                                               warningFaces: flagged),
                                            source: Endpoint(node: node.id, socket: socket)))
                 case .curve(let curve):
-                    items.append(SceneItem(item: ViewportItem(curve: curve, isGhost: isGhost),
+                    items.append(SceneItem(item: ViewportItem(curveSolid: meshes.solids.solid(forCurve: curve), isGhost: isGhost),
                                            source: Endpoint(node: node.id, socket: socket)))
                 default:
                     continue

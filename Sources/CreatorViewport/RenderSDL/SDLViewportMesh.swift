@@ -43,7 +43,7 @@ final class SDLViewportMesh: @unchecked Sendable {
         if let cached = edgeBuffers[key] { return cached }
         let instances = GPUGeometry.edgeInstances(polylines, solid: key.solid, selected: key.selected,
                                                   selectedOnly: key.selectedOnly, scale: key.scale, palette: palette,
-                                                  hidden: key.hidden, isCurve: key.isCurve)
+                                                  hidden: key.hidden, isCurve: key.isCurve, isGhost: key.isGhost)
         guard let buffer = uploader.storageBuffer(instances) else { return nil }
         if edgeBuffers.count >= 4 { edgeBuffers.removeAll() }
         edgeBuffers[key] = (buffer, instances.count)

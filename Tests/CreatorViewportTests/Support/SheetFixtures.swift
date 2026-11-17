@@ -15,21 +15,23 @@ enum SheetFixtures {
                            triangleFaces: [FaceID(0), FaceID(0)], edgePolylines: [:])
     }
 
-    static func sheetFrame(facingEye: Bool, openShell: Bool) -> ViewportFrame {
+    static func sheetFrame(facingEye: Bool, openShell: Bool, ghost: Bool = false) -> ViewportFrame {
         var frame = TestFrames.frame(mesh: sheet(facingEye: facingEye), pose: RenderFixtures.front, size: RenderFixtures.size,
                                      bounds: RenderFixtures.bounds)
         frame.items[0].openShellFaces = openShell ? [FaceID(0)] : []
+        frame.items[0].isGhost = ghost
         // The GPU keeps a mesh by serial, and a serial is one mesh with one set of open faces: each variant has its own.
-        frame.items[0].meshSerial = (facingEye ? 10 : 20) + (openShell ? 1 : 0)
+        frame.items[0].meshSerial = (facingEye ? 10 : 20) + (openShell ? 1 : 0) + (ghost ? 100 : 0)
         return frame
     }
 
     /// A curve item: no triangles, one polyline up the middle of the view (x = 0, y = 0, z 0…30).
-    static func curveFrame(shading: ShadingMode = .shaded) -> ViewportFrame {
+    static func curveFrame(shading: ShadingMode = .shaded, ghost: Bool = false) -> ViewportFrame {
         let mesh = DisplayMesh(positions: [], normals: [], indices: [], triangleFaces: [],
                                edgePolylines: [EdgeID(0): [Vector3(0, 0, 0), Vector3(0, 0, 30)]])
         var frame = TestFrames.frame(mesh: mesh, pose: RenderFixtures.front, size: RenderFixtures.size, bounds: RenderFixtures.bounds)
         frame.items[0].isCurve = true
+        frame.items[0].isGhost = ghost
         frame.shading = shading
         return frame
     }

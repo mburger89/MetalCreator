@@ -30,14 +30,14 @@ enum GPUGeometry {
     /// still shows the rule's edges).
     static func edgeInstances(_ polylines: [EdgeID: [Vector3]], solid: Int, selected: Set<EdgeID>,
                               selectedOnly: Bool, scale: Float, palette: ViewportPalette = .dracula,
-                              hidden: Bool = false, isCurve: Bool = false) -> [LineInstance] {
+                              hidden: Bool = false, isCurve: Bool = false, isGhost: Bool = false) -> [LineInstance] {
         var instances: [LineInstance] = []
         let selectionColor = hidden ? palette.hiddenSelection : palette.selection
         for edge in polylines.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             let isSelected = selected.contains(edge)
             guard isSelected || !selectedOnly, let points = polylines[edge], points.count >= 2 else { continue }
             let id = PickID.encode(.edge(solid: solid, edge)) ?? 0
-            let color = isSelected ? selectionColor : isCurve ? palette.dimensionReference : palette.edge
+            let color = isSelected ? selectionColor : isCurve ? (isGhost ? palette.ghostCurve : palette.dimensionReference) : palette.edge
             let width = (isSelected ? 2.5 : edgeWidth) * scale
             for (a, b) in zip(points, points.dropFirst()) {
                 instances.append(LineInstance(a: float3(a), b: float3(b), color: color, width: width, id: id))

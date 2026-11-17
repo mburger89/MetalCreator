@@ -91,7 +91,7 @@ final class SectionCapModel {
             return
         }
         // An open body (a sheet) has no inside to fill: no cap, outline only, and no failure for it (ruling R4).
-        let capped = items.filter { !$0.isGhost && !$0.isGuide }.map(\.solid).filter { !$0.hasOpenShell }
+        let capped = items.filter { !$0.isGhost && !$0.isGuide && !$0.isCurve }.map(\.solid).filter { !$0.hasOpenShell }
         // A weld of a part that is no longer shown (a preview pass replaced it) is of no use again.
         welds.removeAll { weld in !capped.contains { $0 === weld.solid } }
         let key = Key(clip: clip, solids: capped, tolerance: tolerance ?? defaultTolerance)
