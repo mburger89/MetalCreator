@@ -17,7 +17,7 @@ struct FrameUniforms {
 };
 struct MeshVertex { float3 position; float3 normal; uint face; };
 struct DrawUniforms { uint pickBase; uint ghost; uint faceCount; float padding; };
-struct ShadeUniforms { float4 light; float4 dark; float4 hover; float4 selection; float4 warning; };
+struct ShadeUniforms { float4 light; float4 dark; float4 hover; float4 selection; float4 warning; float4 back; };
 struct BackgroundUniforms { float4 top; float4 bottom; };
 struct LineInstance { float3 a; float3 b; float4 color; float width; uint id; };
 struct LineUniforms { float widthOverride; float depthBias; float padding0; float padding1; };
@@ -94,7 +94,11 @@ fragment float4 mesh_fragment(MeshOut in [[stage_in]],
         color = mix(color, shade.warning.rgb, 0.7);
     }
     // Looking into a cut part, the inside of its far wall stands for the cut face: the part's colour, darkened and flat.
-    if (clip.enabled != 0u && !front) {
+    // A face on an open shell (bit 8) has a back that is no inside: it takes the sheet-back colour, lit with the flipped normal.
+    if ((flags & 8u) != 0u && !front) {
+        float backDiffuse = saturate(dot(-n, key));
+        color = shade.back.rgb * (0.7 + 0.3 * backDiffuse);
+    } else if (clip.enabled != 0u && !front) {
         color = mix(shade.dark.rgb, shade.light.rgb, 0.5) * 0.55;
     }
     color = saturate(color);

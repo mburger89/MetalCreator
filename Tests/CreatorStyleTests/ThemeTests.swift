@@ -14,7 +14,7 @@ struct ThemeTests {
             (c.accent, 0xbd93f9), (c.focus, 0x8be9fd), (c.selection, 0xff79c6), (c.valueHeader, 0x6272a4),
             (c.profileHeader, 0x50fa7b), (c.solidHeader, 0xbd93f9), (c.selectionHeader, 0xff79c6),
             (c.featureHeader, 0xffb86c), (c.outputHeader, 0x8be9fd), (c.success, 0x50fa7b), (c.warning, 0xf1fa8c),
-            (c.error, 0xff5555), (c.shadeLight, 0xc5c8de), (c.shadeDark, 0x6f739a), (c.gridMinor, 0x44475a),
+            (c.error, 0xff5555), (c.shadeLight, 0xc5c8de), (c.shadeDark, 0x6f739a), (c.sheetBack, 0x6272a4), (c.gridMinor, 0x44475a),
             (c.gridMajor, 0x6272a4), (c.cubeFace, 0x282a36), (c.cubeRim, 0x21222c), (c.cubeLabel, 0xf8f8f2),
             (c.axisX, 0xff5555), (c.axisY, 0x50fa7b), (c.axisZ, 0x8be9fd), (c.sketchUnderConstrained, 0x8be9fd),
             (c.sketchFullyConstrained, 0xf8f8f2), (c.sketchConflicting, 0xff5555), (c.sketchConstruction, 0x6272a4),
@@ -27,6 +27,12 @@ struct ThemeTests {
     @Test(arguments: dracula)
     func draculaFollowsTheSpecTable(_ colour: HexColor, _ rgb: UInt32) {
         #expect(colour == HexColor(rgb))
+    }
+
+    @Test func everyBuiltInHasItsSheetBack() {
+        #expect(ColorTheme.dracula.colors.sheetBack == HexColor(0x6272a4))
+        #expect(ColorTheme.alucard.colors.sheetBack == HexColor(0x635d97))
+        #expect(ColorTheme.nord.colors.sheetBack == HexColor(0x5e81ac))
     }
 
     @Test func draculasTranslucentRolesHaveTheirOpacities() {

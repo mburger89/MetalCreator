@@ -11,6 +11,8 @@ final class SDLViewportMesh: @unchecked Sendable {
     /// One more than the highest face ID, so face flags can be indexed by ID.
     let faceCount: Int
     private let polylines: [EdgeID: [Vector3]]
+    /// The faces on an open shell (face flag bit 8); fixed for the mesh, since a mesh belongs to one solid.
+    let openShellFaces: Set<FaceID>
     private var edgeBuffers: [EdgeInstanceKey: (buffer: SDLGPUBuffer, count: Int)] = [:]
     /// The palette `edgeBuffers` were built in; another one (the theme changed) drops them.
     private var edgePalette = ViewportPalette.dracula
@@ -22,7 +24,8 @@ final class SDLViewportMesh: @unchecked Sendable {
     /// Field value buffers made so far. Tests use it to tell "kept" from "rebuilt".
     private(set) var fieldUploads = 0
 
-    init(uploader: SDLViewportUploader, mesh: DisplayMesh) {
+    init(uploader: SDLViewportUploader, mesh: DisplayMesh, openShellFaces: Set<FaceID> = []) {
+        self.openShellFaces = openShellFaces
         let vertices = GPUGeometry.meshVertices(mesh)
         vertexBuffer = uploader.storageBuffer(vertices)
         vertexCount = vertices.count
@@ -40,7 +43,7 @@ final class SDLViewportMesh: @unchecked Sendable {
         if let cached = edgeBuffers[key] { return cached }
         let instances = GPUGeometry.edgeInstances(polylines, solid: key.solid, selected: key.selected,
                                                   selectedOnly: key.selectedOnly, scale: key.scale, palette: palette,
-                                                  hidden: key.hidden)
+                                                  hidden: key.hidden, isCurve: key.isCurve)
         guard let buffer = uploader.storageBuffer(instances) else { return nil }
         if edgeBuffers.count >= 4 { edgeBuffers.removeAll() }
         edgeBuffers[key] = (buffer, instances.count)
@@ -74,7 +77,8 @@ final class SDLViewportMesh: @unchecked Sendable {
         if let cached = flagBuffer, cached.hovered == hovered, cached.selected == selected, cached.warning == warning {
             return cached.buffer
         }
-        let flags = GPUGeometry.faceFlags(count: max(faceCount, 1), hovered: hovered, selected: selected, warning: warning)
+        let flags = GPUGeometry.faceFlags(count: max(faceCount, 1), hovered: hovered, selected: selected, warning: warning,
+                                          openShell: openShellFaces)
         guard let buffer = uploader.storageBuffer(flags) else { return nil }
         flagBuffer = (hovered, selected, warning, buffer)
         return buffer

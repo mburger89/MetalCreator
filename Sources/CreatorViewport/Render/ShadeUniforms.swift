@@ -6,6 +6,8 @@ struct ShadeUniforms {
     var selection: SIMD4<Float>
     /// The theme's warning colour: a check's highlighted triangles.
     var warning: SIMD4<Float>
+    /// The theme's sheet-back colour: the back of an open shell's face (face flag bit 8).
+    var back: SIMD4<Float>
 
     init(_ palette: ViewportPalette) {
         light = palette.shadeLight
@@ -13,5 +15,6 @@ struct ShadeUniforms {
         hover = palette.hover
         selection = palette.selection
         warning = palette.warning
+        back = palette.sheetBack
     }
 }

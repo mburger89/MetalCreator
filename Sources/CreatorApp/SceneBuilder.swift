@@ -80,6 +80,9 @@ public enum SceneBuilder {
                     items.append(SceneItem(item: ViewportItem(solid: meshes.solids.solid(for: shown), isGhost: isGhost,
                                                               warningFaces: flagged),
                                            source: Endpoint(node: node.id, socket: socket)))
+                case .curve(let curve):
+                    items.append(SceneItem(item: ViewportItem(curve: curve, isGhost: isGhost),
+                                           source: Endpoint(node: node.id, socket: socket)))
                 default:
                     continue
                 }

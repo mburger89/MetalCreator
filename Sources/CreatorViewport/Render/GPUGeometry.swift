@@ -30,14 +30,14 @@ enum GPUGeometry {
     /// still shows the rule's edges).
     static func edgeInstances(_ polylines: [EdgeID: [Vector3]], solid: Int, selected: Set<EdgeID>,
                               selectedOnly: Bool, scale: Float, palette: ViewportPalette = .dracula,
-                              hidden: Bool = false) -> [LineInstance] {
+                              hidden: Bool = false, isCurve: Bool = false) -> [LineInstance] {
         var instances: [LineInstance] = []
         let selectionColor = hidden ? palette.hiddenSelection : palette.selection
         for edge in polylines.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             let isSelected = selected.contains(edge)
             guard isSelected || !selectedOnly, let points = polylines[edge], points.count >= 2 else { continue }
             let id = PickID.encode(.edge(solid: solid, edge)) ?? 0
-            let color = isSelected ? selectionColor : palette.edge
+            let color = isSelected ? selectionColor : isCurve ? palette.dimensionReference : palette.edge
             let width = (isSelected ? 2.5 : edgeWidth) * scale
             for (a, b) in zip(points, points.dropFirst()) {
                 instances.append(LineInstance(a: float3(a), b: float3(b), color: color, width: width, id: id))
@@ -114,12 +114,14 @@ enum GPUGeometry {
     /// A region is active when the view direction is within about 0.5° of it.
     static let activeRegionCosine = 0.99996
 
-    /// One entry per face: bit 1 hovered, bit 2 selected, bit 4 warning (a check's highlight). IDs outside `count` are ignored.
-    static func faceFlags(count: Int, hovered: FaceID?, selected: Set<FaceID>, warning: Set<FaceID> = []) -> [UInt32] {
+    /// One entry per face: bit 1 hovered, bit 2 selected, bit 4 warning (a check's highlight), bit 8 on an open shell (a sheet: its back takes the sheet-back colour). IDs outside `count` are ignored.
+    static func faceFlags(count: Int, hovered: FaceID?, selected: Set<FaceID>, warning: Set<FaceID> = [],
+                          openShell: Set<FaceID> = []) -> [UInt32] {
         var flags = [UInt32](repeating: 0, count: max(count, 0))
         if let hovered, flags.indices.contains(hovered.rawValue) { flags[hovered.rawValue] |= 1 }
         for face in selected where flags.indices.contains(face.rawValue) { flags[face.rawValue] |= 2 }
         for face in warning where flags.indices.contains(face.rawValue) { flags[face.rawValue] |= 4 }
+        for face in openShell where flags.indices.contains(face.rawValue) { flags[face.rawValue] |= 8 }
         return flags
     }
 

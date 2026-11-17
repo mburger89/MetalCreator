@@ -8,6 +8,8 @@ struct ViewportPalette: Hashable, Sendable {
     var backgroundBottom: SIMD4<Float>
     var shadeLight: SIMD4<Float>
     var shadeDark: SIMD4<Float>
+    /// The back of a sheet (an open shell).
+    var sheetBack: SIMD4<Float>
     var edge: SIMD4<Float>
     /// Viewport hover, and the view cube's hovered and active regions: the theme's focus colour.
     var hover: SIMD4<Float>
@@ -51,6 +53,7 @@ struct ViewportPalette: Hashable, Sendable {
         backgroundBottom = colors.backgroundBottom.rgba
         shadeLight = colors.shadeLight.rgba
         shadeDark = colors.shadeDark.rgba
+        sheetBack = colors.sheetBack.rgba
         edge = colors.edge.rgba
         hover = colors.focus.rgba
         selection = colors.selection.rgba
