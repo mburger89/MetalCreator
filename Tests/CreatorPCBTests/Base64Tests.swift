@@ -42,6 +42,12 @@ struct Base64Tests {
         #expect(Base64.decode(big[...].utf8, limit: 3_000_000)?.count == 3_000_000)
     }
 
+    @Test func decodingSaysWhyItFailed() {
+        #expect(Base64.decoding("Zm9v!"[...].utf8, limit: 10) == .failure(.malformed))
+        #expect(Base64.decoding("Zm9vYmFy"[...].utf8, limit: 5) == .failure(.tooLarge))
+        #expect(Base64.decoding("Zm9vYmFy"[...].utf8, limit: 6) == .success(Data("foobar".utf8)))
+    }
+
     @Test func limit() {
         #expect(decode("Zm9vYmFy", limit: 6) == "foobar")
         #expect(decode("Zm9vYmFy", limit: 5) == nil)

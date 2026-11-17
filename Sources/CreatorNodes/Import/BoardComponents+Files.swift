@@ -12,7 +12,7 @@ enum ModelFiles {
         case unreadable(name: String, reason: String)
         case file(path: String, format: ModelFormat, stamp: ImageStamp)
         /// A model stored in the board: its name, base64 text and format.
-        case stored(name: String, base64: String, format: ModelFormat)
+        case stored(name: String, base64: String, hash: ImageHash, format: ModelFormat)
     }
 
     /// Where a model's bytes come from.
@@ -23,14 +23,15 @@ enum ModelFiles {
 
     /// The first candidate for `path` that is a file; every candidate looked at is a dependency, with the stamp it had.
     static func resolve(_ path: String, folder: String, variables: KiCadPathVariables,
-                        stored: (String) -> EmbeddedFile? = { _ in nil }) -> (result: Result, dependencies: [FileDependency]) {
+                        stored: (String) -> (file: EmbeddedFile, hash: ImageHash)? = { _ in nil })
+        -> (result: Result, dependencies: [FileDependency]) {
         switch ModelPathResolver.locate(path, boardFolder: folder, variables: variables, platform: .current) {
         case .embedded(let name):
-            guard let file = stored(name) else { return (.notFound, []) }
+            guard let (file, hash) = stored(name) else { return (.notFound, []) }
             if file.base64.allSatisfy(\.isWhitespace) { return (.unreadable(name: name, reason: "it is empty"), []) }
             let format = ModelFormat(fileName: name)
             if format == .unknown { return (.unreadable(name: name, reason: "this kind of file isn't read"), []) }
-            return (.stored(name: name, base64: file.base64, format: format), [])
+            return (.stored(name: name, base64: file.base64, hash: hash, format: format), [])
         case .files(let candidates):
             var dependencies: [FileDependency] = []
             for candidate in candidates {
@@ -94,8 +95,11 @@ enum ModelFiles {
             let file = try fileBytes(at: path, limit: limit)
             return (file.data, file.stamp == stamp)
         case .stored(let base64):
-            guard let frame = Base64.decode(base64[...].utf8, limit: limit) else {
-                throw ModelProblem("it is damaged", isRemembered: true)
+            let frame: Data
+            switch Base64.decoding(base64[...].utf8, limit: limit) {
+            case .success(let data): frame = data
+            case .failure(.tooLarge): throw ModelProblem(readerReason(ZstdProblem.larger(than: limit).message), isRemembered: true)
+            case .failure(.malformed): throw ModelProblem("it is damaged", isRemembered: true)
             }
             do {
                 return (try ZstdDecoder.decode(frame, limit: limit, isCancelled: { Task.isCancelled }), true)

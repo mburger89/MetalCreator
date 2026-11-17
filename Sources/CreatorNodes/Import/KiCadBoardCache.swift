@@ -5,6 +5,8 @@ import CreatorPCB
 struct ParsedBoard: Sendable {
     var board: KiCadBoard
     var outline: BoardOutline
+    /// The hashes of the board's stored models, made as they are used and kept as long as the board is.
+    var storedHashes = StoredModelHashes()
 }
 
 /// Parsed boards kept by what they were read from (`ImageStamp`: a linked file's path, modification date and size), so moving or

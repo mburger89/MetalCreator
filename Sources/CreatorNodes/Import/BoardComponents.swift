@@ -33,6 +33,7 @@ enum BoardComponents {
         var thickness: Double
         var frame: Plane
         var folder: String
+        var storedHashes = StoredModelHashes()
     }
 
     /// Where path variables come from: the process environment and KiCad's settings folders under the home folder. The tests
@@ -75,15 +76,7 @@ enum BoardComponents {
         let variables = KiCadPathVariables.merged(environment: environment.variables,
                                                   settings: settings.variables, platform: .current)
         var placer = Placer(setting: setting, kernel: kernel, cache: cache, node: context.node.id)
-        for entry in paths {
-            try Task.checkCancellation()
-            let footprint = setting.board.footprints[entry.footprint]
-            let resolved = ModelFiles.resolve(entry.path, folder: setting.folder, variables: variables) { name in
-                (footprint.embeddedModels + setting.board.embeddedModels).first { $0.name == name }
-            }
-            outcome.dependencies += resolved.dependencies
-            placer.found[entry.key] = try await placer.load(resolved.result)
-        }
+        outcome.dependencies += try await loadModels(paths, variables: variables, setting: setting, into: &placer)
         var pieces: [Piece] = []
         var meshPieces: [MeshPiece] = []
         for index in order {
@@ -117,6 +110,30 @@ enum BoardComponents {
         return outcome
     }
 
+    /// Resolves and reads each distinct model into `placer.found`; the files looked at are the dependencies returned.
+    private static func loadModels(_ paths: [Entry], variables: KiCadPathVariables, setting: Setting,
+                                   into placer: inout Placer) async throws -> [FileDependency] {
+        var dependencies: [FileDependency] = []
+        for entry in paths {
+            try Task.checkCancellation()
+            let resolved = ModelFiles.resolve(entry.path, folder: setting.folder, variables: variables) {
+                storedModel($0, footprint: entry.footprint, setting)
+            }
+            dependencies += resolved.dependencies
+            placer.found[entry.key] = try await placer.load(resolved.result)
+        }
+        return dependencies
+    }
+
+    /// The stored model `name` and its hash: the footprint's own table first, then the board's (ruling R2).
+    static func storedModel(_ name: String, footprint: Int, _ setting: Setting) -> (file: EmbeddedFile, hash: ImageHash)? {
+        if let own = setting.board.footprints[footprint].embeddedModels.first(where: { $0.name == name }) {
+            return (own, setting.storedHashes.hash(of: own, owner: footprint))
+        }
+        guard let file = setting.board.embeddedModels.first(where: { $0.name == name }) else { return nil }
+        return (file, setting.storedHashes.hash(of: file, owner: nil))
+    }
+
     /// One distinct model: its path, the key it is found under and the first footprint (in natural order) that names it.
     struct Entry {
         var path: String
@@ -127,9 +144,8 @@ enum BoardComponents {
     /// The key a model's result is kept under: its path, except that a stored model the footprint's own table holds is a
     /// different model from the board's of the same name (ruling R2), so the footprint's identity joins the key.
     static func foundKey(_ path: String, of footprint: Footprint) -> String {
-        let prefix = "kicad-embed://"
-        guard path.lowercased().hasPrefix(prefix) else { return path }
-        let name = String(path.dropFirst(prefix.count))
+        guard let name = ModelPathResolver.embeddedName(of: path) else { return path }
+        assert(!footprint.identity.isEmpty, "KeyAssigner gives every footprint its identity before the components are read")
         return footprint.embeddedModels.contains { $0.name == name } ? path + "\u{1}" + footprint.identity : path
     }
 
@@ -246,9 +262,9 @@ struct Placer {
         case .unreadable(let name, let reason): return .unreadable(name: name, reason: reason)
         case .file(let path, let format, let stamp):
             return try await load(.file(path), name: ModelFiles.fileName(of: path), format: format, stamp: stamp)
-        case .stored(let name, let base64, let format):
+        case .stored(let name, let base64, let hash, let format):
             // The stamp is the SHA-256 of the base64 text (ruling R3): the same stored bytes are read once, whatever file holds them.
-            let stamp = ImageStamp.embedded(ImageHash(of: Data(base64.utf8)), isPresent: true)
+            let stamp = ImageStamp.embedded(hash, isPresent: true)
             return try await load(.stored(base64: base64), name: name, format: format, stamp: stamp)
         }
     }

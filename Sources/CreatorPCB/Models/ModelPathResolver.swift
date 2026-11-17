@@ -10,12 +10,16 @@ public enum ModelLocation: Sendable, Equatable {
 
 /// Turns a model path as KiCad stores it into candidate files. Pure: it never touches the file system.
 public enum ModelPathResolver {
+    /// The name in a `kicad-embed://name` path (the prefix in any case), or `nil` for any other path.
+    public static func embeddedName(of path: String) -> String? {
+        let prefix = "kicad-embed://"
+        guard path.lowercased().hasPrefix(prefix) else { return nil }
+        return String(path.dropFirst(prefix.count))
+    }
+
     public static func locate(_ path: String, boardFolder: String, variables: KiCadPathVariables,
                               platform: KiCadPlatform) -> ModelLocation {
-        let embedPrefix = "kicad-embed://"
-        if path.lowercased().hasPrefix(embedPrefix) {
-            return .embedded(name: String(path.dropFirst(embedPrefix.count)))
-        }
+        if let name = embeddedName(of: path) { return .embedded(name: name) }
         var board = boardFolder
         if board.count > 1, board.hasSuffix("/") || board.hasSuffix("\\") { board.removeLast() }
         var vars = variables.values

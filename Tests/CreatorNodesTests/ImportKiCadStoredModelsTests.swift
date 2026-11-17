@@ -141,6 +141,69 @@ struct ImportKiCadStoredModelsTests {
         #expect(await ComponentModelCache.shared.reads(containing: hash) == 1)
     }
 
+    @Test func oneBoardLevelModelNamedByTwoFootprintsIsReadOnceAndHashedOnce() async throws {
+        let step = try await ComponentFixtures.step(kernel, scaledBy: 1.53)
+        let base64 = ZstdRawFrame.base64(step)
+        let hash = ImageHash(ofUTF8: base64).hex
+        let parts = [part("U1", models: [stored("m.step")]), part("U2", x: 60, models: [stored("m.step")])]
+        let (h, node, text) = try board(parts, embedded: [("m.step", base64)])
+        for _ in 0..<2 {
+            let report = try await go(h, [node])
+            #expect(solids(report, node).count == 2)
+        }
+        #expect(await ComponentModelCache.shared.reads(containing: hash) == 1)
+        // The parsed board is kept between evaluations, with its hash: the second evaluation hashed nothing (a busy run may have
+        // evicted the board from the shared cache, which then parses it anew and has hashed nothing yet).
+        let file = folder.url.appending(path: "board.kicad_pcb")
+        let kept = try await KiCadBoardCache.shared.board(for: ImageResolver.stamp(ofFileAt: file.path(percentEncoded: false))) {
+            try ImportKiCadBoardNode.parse(Data(text.utf8))
+        }
+        #expect(kept.storedHashes.computed <= 1)
+    }
+
+    @Test func aHashIsMadeOncePerOwnerAndName() {
+        let hashes = StoredModelHashes()
+        let file = EmbeddedFile(name: "m.step", base64: "QUJD")
+        let first = hashes.hash(of: file, owner: nil)
+        #expect(hashes.hash(of: file, owner: nil) == first)
+        #expect(hashes.computed == 1)
+        #expect(hashes.hash(of: file, owner: 3) == first)
+        #expect(hashes.computed == 2)
+        #expect(first == ImageHash(of: Data("QUJD".utf8)))
+    }
+
+    @Test func aWrappedFrameWithBarsAcrossLinesReads() async throws {
+        let step = try await ComponentFixtures.step(kernel, scaledBy: 1.61)
+        let (h, node, _) = try board([part("U1", models: [stored("m.step")])],
+                                     embedded: [("m.step", ZstdRawFrame.base64(step, wrapped: true))])
+        let report = try await go(h, [node])
+        #expect(report.isOK(node), "\(String(describing: report.state(node)))")
+        #expect(warnings(report, node).isEmpty)
+        #expect(solids(report, node).count == 1)
+    }
+
+    @Test func tooLargeAndDictionaryFramesSaySo() async throws {
+        let step = try await ComponentFixtures.step(kernel)
+        let bigText = String(repeating: "AAAA", count: 6_000_000) // 18 MB of bytes, over an IDF's 16 MB
+        let embedded = [
+            ("huge.idf", bigText),
+            ("claims.step", ZstdRawFrame.base64(step, claiming: 0x7FFF_FFFF)),
+            ("dict.step", ZstdRawFrame.base64(step, dictionary: 7)),
+        ]
+        let (h, node, _) = try board([part("U1", models: embedded.map { stored($0.0) })], embedded: embedded)
+        let lines = warnings(try await go(h, [node]), node)
+        let sentence = "3 models couldn't be read: huge.idf (it is larger than 16 MB), claims.step (it is larger than 256 MB), "
+            + "dict.step (it uses a zstd dictionary)."
+        #expect(lines == [sentence])
+    }
+
+    @Test func everyFootprintHasItsIdentityWhenParsed() throws {
+        let parts = [part("U1", models: []), part("U1", x: 50, models: [])]
+        let parsed = try ImportKiCadBoardNode.parse(Data(KiCadBoardText.rectangle(parts: parts).utf8))
+        #expect(parsed.board.footprints.allSatisfy { !$0.identity.isEmpty })
+        #expect(Set(parsed.board.footprints.map(\.identity)).count == 2)
+    }
+
     @Test func componentsOffDecodesNothing() async throws {
         let step = try await ComponentFixtures.step(kernel, scaledBy: 1.41)
         let base64 = ZstdRawFrame.base64(step)

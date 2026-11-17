@@ -5,9 +5,26 @@ public enum Base64 {
     /// Standard alphabet, `=` padding, whitespace ignored; any other byte, misplaced padding or a bad length is `nil`.
     /// `nil` too when the result would exceed `limit` bytes (checked after one counting pass, before anything is allocated).
     public static func decode(_ text: Substring.UTF8View, limit: Int) -> Data? {
-        guard let symbolCount = count(text) else { return nil }
+        try? decoding(text, limit: limit).get()
+    }
+
+    /// Why a text did not decode.
+    public enum Failure: Error, Sendable, Equatable {
+        /// A stray byte, misplaced padding or a bad length.
+        case malformed
+        /// A well-formed text whose result would exceed the limit.
+        case tooLarge
+    }
+
+    /// `decode`, saying whether the text is no base64 or only too large (checked after one counting pass, before anything is allocated).
+    public static func decoding(_ text: Substring.UTF8View, limit: Int) -> Result<Data, Failure> {
+        guard let symbolCount = count(text) else { return .failure(.malformed) }
         let size = symbolCount / 4 * 3 + max(0, symbolCount % 4 - 1)
-        guard size <= limit else { return nil }
+        guard size <= limit else { return .failure(.tooLarge) }
+        return .success(bytes(of: text, size: size))
+    }
+
+    private static func bytes(of text: Substring.UTF8View, size: Int) -> Data {
         var out = [UInt8]()
         out.reserveCapacity(size)
         var word: UInt32 = 0
