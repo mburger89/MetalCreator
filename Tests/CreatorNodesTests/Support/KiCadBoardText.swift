@@ -16,6 +16,8 @@ enum KiCadBoardText {
         var back = false
         var hasPad = true
         var models: [Model] = []
+        /// The footprint's own `(embedded_files …)` models: a name and its base64 text.
+        var stored: [(name: String, base64: String)] = []
     }
 
     /// A `(model …)` line of a footprint.
@@ -32,6 +34,11 @@ enum KiCadBoardText {
         }
     }
 
+    /// The `(file …)` entries of an `embedded_files` list (put the result between "(embedded_files" and ")" in `extra`).
+    static func storedFiles(_ files: [(name: String, base64: String)]) -> String {
+        files.map { " (file (name \"\($0.name)\") (type model) (data |\($0.base64)|))" }.joined()
+    }
+
     static let header = "(kicad_pcb (version 20260206) (generator \"pcbnew\")\n"
 
     static func stroke(_ id: String) -> String { "(layer \"Edge.Cuts\") (stroke (width 0.15) (type default)) (uuid \"\(id)\")" }
@@ -44,6 +51,7 @@ enum KiCadBoardText {
             + "(at \(part.x) \(part.y) \(part.angle))\n"
         text += "    (property \"Reference\" \"\(part.reference)\" (at 0 -4 0) (layer \"F.Cu\"))\n"
         let kind = part.plated ? "thru_hole" : "np_thru_hole"
+        if !part.stored.isEmpty { text += "    (embedded_files" + storedFiles(part.stored) + ")\n" }
         text += part.models.map(\.text).joined()
         if !part.hasPad {
             return text + "  )\n"

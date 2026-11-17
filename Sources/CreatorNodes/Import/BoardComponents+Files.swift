@@ -11,14 +11,26 @@ enum ModelFiles {
         case notFound
         case unreadable(name: String, reason: String)
         case file(path: String, format: ModelFormat, stamp: ImageStamp)
+        /// A model stored in the board: its name, base64 text and format.
+        case stored(name: String, base64: String, format: ModelFormat)
+    }
+
+    /// Where a model's bytes come from.
+    enum Source: Sendable {
+        case file(String)
+        case stored(base64: String)
     }
 
     /// The first candidate for `path` that is a file; every candidate looked at is a dependency, with the stamp it had.
-    static func resolve(_ path: String, folder: String,
-                        variables: KiCadPathVariables) -> (result: Result, dependencies: [FileDependency]) {
+    static func resolve(_ path: String, folder: String, variables: KiCadPathVariables,
+                        stored: (String) -> EmbeddedFile? = { _ in nil }) -> (result: Result, dependencies: [FileDependency]) {
         switch ModelPathResolver.locate(path, boardFolder: folder, variables: variables, platform: .current) {
         case .embedded(let name):
-            return (.unreadable(name: name, reason: "models stored in the board aren't read yet"), [])
+            guard let file = stored(name) else { return (.notFound, []) }
+            if file.base64.allSatisfy(\.isWhitespace) { return (.unreadable(name: name, reason: "it is empty"), []) }
+            let format = ModelFormat(fileName: name)
+            if format == .unknown { return (.unreadable(name: name, reason: "this kind of file isn't read"), []) }
+            return (.stored(name: name, base64: file.base64, format: format), [])
         case .files(let candidates):
             var dependencies: [FileDependency] = []
             for candidate in candidates {
@@ -37,10 +49,10 @@ enum ModelFiles {
     }
 
     /// The model file's solid: read within the limit, checked against its format, gunzipped when compressed, handed to the kernel.
-    static func read(at path: String, format: ModelFormat, stamp: ImageStamp, kernel: any Kernel,
+    static func read(_ source: Source, format: ModelFormat, stamp: ImageStamp, kernel: any Kernel,
                      tag: NodeTag) async throws -> ComponentModelCache.Made {
-        if format == .idf { return try await readOutline(at: path, stamp: stamp, kernel: kernel, tag: tag) }
-        let file = try fileBytes(at: path, limit: BoardComponents.maxModelBytes)
+        if format == .idf { return try await readOutline(source, stamp: stamp, kernel: kernel, tag: tag) }
+        let file = try bytes(of: source, format: format, stamp: stamp)
         var bytes = file.data
         let word = format == .iges ? "IGES" : "STEP"
         guard format.matches(bytes) else { throw ModelProblem("the file isn't a \(word) model", isRemembered: true) }
@@ -50,7 +62,7 @@ enum ModelFiles {
         }
         do {
             let solid = try await kernel.readModel(bytes, format: format == .iges ? .iges : .step, tag: tag)
-            return ComponentModelCache.Made(solid: solid, isCurrent: file.stamp == stamp)
+            return ComponentModelCache.Made(solid: solid, isCurrent: file.isCurrent)
         } catch let error as KernelError {
             throw problem(from: error)
         }
@@ -61,6 +73,35 @@ enum ModelFiles {
             return try await kernel.scaled(solid, by: factors, tag: tag)
         } catch let error as KernelError {
             throw problem(from: error)
+        }
+    }
+
+    /// The most bytes a model of `format` may have (a stored one is limited the same way, both as its frame and unpacked).
+    static func limit(for format: ModelFormat) -> Int {
+        switch format {
+        case .idf: IDFReader.maximumBytes
+        case .vrml, .x3d: VRMLReader.maximumBytes
+        default: BoardComponents.maxModelBytes
+        }
+    }
+
+    /// The model's bytes: a file read within the limit, or a stored model's base64 text decoded and unpacked from its zstd frame.
+    /// Whether they are still what `stamp` says (always, for a stored model).
+    static func bytes(of source: Source, format: ModelFormat, stamp: ImageStamp) throws -> (data: Data, isCurrent: Bool) {
+        let limit = limit(for: format)
+        switch source {
+        case .file(let path):
+            let file = try fileBytes(at: path, limit: limit)
+            return (file.data, file.stamp == stamp)
+        case .stored(let base64):
+            guard let frame = Base64.decode(base64[...].utf8, limit: limit) else {
+                throw ModelProblem("it is damaged", isRemembered: true)
+            }
+            do {
+                return (try ZstdDecoder.decode(frame, limit: limit, isCancelled: { Task.isCancelled }), true)
+            } catch let problem as ZstdProblem {
+                throw ModelProblem(readerReason(problem.message), isRemembered: true)
+            }
         }
     }
 

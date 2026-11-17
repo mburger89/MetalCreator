@@ -222,11 +222,11 @@ struct ImportKiCadComponentsTests {
         expectBounds(try #require(components(report, node).first), try expectedBox(text: text))
     }
 
-    @Test func embeddedModelKeepsItsReason() async throws {
+    @Test func storedModelNotInTheBoardIsNotFound() async throws {
         let embedded = Model(path: "kicad-embed://inside.step")
         let (h, node, _) = try board([part("U2", x: 60, models: [embedded])])
         let lines = warnings(try await go(h, node), node)
-        #expect(lines == ["1 model couldn't be read: inside.step (models stored in the board aren't read yet)."])
+        #expect(lines == ["1 model wasn't found: kicad-embed://inside.step."])
     }
 
     @Test func modelEditedOnDiskReruns() async throws {
