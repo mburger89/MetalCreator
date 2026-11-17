@@ -31,7 +31,7 @@ struct ModelFormatTests {
 
     @Test func matchesOwnBytes() {
         for (format, bytes) in Self.samples { #expect(format.matches(bytes), "\(format)") }
-        #expect(Data("#VRML V1.0 ascii".utf8).count > 0 && ModelFormat.vrml.matches(Data("#VRML V1.0 ascii".utf8)))
+        #expect(ModelFormat.vrml.matches(Data("#VRML V1.0 ascii".utf8)))
     }
 
     @Test func pngMatchesNothing() {
@@ -39,5 +39,20 @@ struct ModelFormatTests {
         for format in [ModelFormat.step, .stepGzip, .iges, .vrml, .vrmlGzip, .x3d, .idf, .unknown] {
             #expect(!format.matches(png), "\(format)")
         }
+    }
+
+    @Test func nearMisses() {
+        let igesWrong = Data((String(repeating: " ", count: 72) + "G      1\n").utf8)
+        #expect(!ModelFormat.iges.matches(igesWrong))
+        #expect(!ModelFormat.iges.matches(Data("short S\n".utf8)))
+        #expect(!ModelFormat.step.matches(Data("ISO-10303-22;".utf8)))
+        var late = Data(repeating: 0x20, count: 4096)
+        late.append(Data("<X3D>".utf8))
+        #expect(!ModelFormat.x3d.matches(late))
+        #expect(!ModelFormat.step.matches(Data([0x1F, 0x8B, 0x08, 0x00])))
+        #expect(!ModelFormat.vrml.matches(Data(" #VRML V2.0 utf8".utf8)))
+        #expect(!ModelFormat.vrml.matches(Data("#VRML V3.0".utf8)))
+        #expect(!ModelFormat.stepGzip.matches(Data([0x1F])))
+        #expect(!ModelFormat.idf.matches(Data("BOARD\n.HEADER".utf8)))
     }
 }

@@ -35,4 +35,15 @@ struct KiCadPathVariablesTests {
         let appData = ["APPDATA": "C:\\A"]
         #expect(KiCadPlatform.windows.settingsFolder(version: "9.0", environment: appData, home: "C:\\h") == "C:\\A\\kicad\\9.0")
     }
+
+    @Test func environmentBeatsADefault() {
+        let merged = KiCadPathVariables.merged(environment: ["KICAD9_3DMODEL_DIR": "/env"], settings: KiCadPathVariables(),
+                                               platform: .macOS)
+        #expect(merged.values["KICAD9_3DMODEL_DIR"] == "/env")
+    }
+
+    @Test func nonStringValuesAreDropped() {
+        let json = #"{"environment":{"vars":{"A":"x","B":3,"C":null,"D":["y"]}}}"#
+        #expect(KiCadPathVariables.parsingCommonSettings(Data(json.utf8)).values == ["A": "x"])
+    }
 }
