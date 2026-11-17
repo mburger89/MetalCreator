@@ -29,6 +29,7 @@ public enum PatternFeatureNode: NodeDefinition {
         let op: BooleanOp = [.union, .subtract][try inputs.choice("operation", options: operations)]
         let part = try inputs.solid("part")
         let grid = try InstanceGrid(inputs, ["placements", "tool"])
+        try ClosedSolidCheck.requireInput(part, "part")
         guard grid.count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
         let request = PatternApply.Request(operation: op, part: part, tools: try grid.solids("tool"), planes: try grid.planes("placements"),
                                            grid: grid, nouns: PatternApply.Nouns(singular: "feature", plural: "features"))
