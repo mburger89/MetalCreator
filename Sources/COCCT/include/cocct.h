@@ -431,6 +431,57 @@ occt_shape *occt_scale(const occt_shape *shape, double sx, double sy, double sz,
 /// FOR TESTS ONLY. Writes `shape` as an IGES file at `path` in `unit` ("MM", "IN", ...). Returns 1, or 0 with `status` set.
 int occt_test_write_iges(const occt_shape *shape, const char *path, const char *unit, occt_status *status);
 
+/// One piece of a curve for occt_make_curve. kind 0 is a line from `a` to `b`; kind 1 an arc about `a` (centre) with unit normal `b`
+/// from `c` (a point on the circle) through `sweep` radians, signed about the normal; kind 2 a B-spline.
+typedef struct {
+    int kind;
+    double a[3];
+    double b[3];
+    double c[3];
+    double radius;
+    double sweep;
+    int degree;
+    int pole_count;
+    const double *poles;     // pole_count * 3
+    const double *weights;   // pole_count, or null
+    int knot_count;
+    const double *knots;     // knot_count
+    const int *multiplicities; // knot_count
+} occt_curve_piece;
+
+/// What the Swift side reads of a curve (a wire). `polyline` is shim-owned: free it with occt_curve_info_free.
+typedef struct {
+    int piece_count;
+    int is_closed;
+    int planar;
+    double plane_origin[3];
+    double plane_normal[3];
+    double plane_x[3];
+    double length;
+    double min[3];
+    double max[3];
+    double *polyline;
+    int polyline_count;
+} occt_curve_info;
+
+/// A wire over `count` pieces that join end to end within 1e-6 mm. Null with `status` set otherwise.
+occt_shape *occt_make_curve(const occt_curve_piece *pieces, int count, occt_status *status);
+/// A curve through `count` points (xyz triples) of degree 3 (GeomAPI_Interpolate, optional end tangents, never with `closed`) or
+/// degree 5 (GeomAPI_PointsToBSpline, no tangents), returned as a one-edge wire. A degree-5 curve more than `max_deviation` mm from
+/// any point is refused. `start_tangent` and `end_tangent` are xyz triples or null.
+occt_shape *occt_interpolate_curve(const double *points, int count, int degree, int closed, const double *start_tangent,
+                                   const double *end_tangent, double max_deviation, occt_status *status);
+/// Reads a wire made by the functions above. Returns 1, or 0 with `status` set; free `out->polyline` with occt_curve_info_free.
+int occt_curve_info_of(const occt_shape *wire, occt_curve_info *out, occt_status *status);
+void occt_curve_info_free(occt_curve_info *info);
+/// The wires that `edge_indices` (1-based, in `shape`'s edge map) chain into, as one compound ordered by each wire's lowest edge index.
+occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indices, int count, occt_status *status);
+/// The number of children of a compound made by occt_curves_from_edges, and the child at `index` (0-based).
+int occt_compound_child_count(const occt_shape *compound);
+occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_status *status);
+/// FOR TESTS ONLY. The shortest distance from the point to the curve (a wire).
+double occt_test_curve_distance(const occt_shape *wire, double x, double y, double z, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif

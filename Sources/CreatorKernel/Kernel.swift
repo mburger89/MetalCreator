@@ -91,7 +91,7 @@ public protocol Kernel: Actor {
                      tag: NodeTag) throws -> Curve
     /// The curves of `edges` of `solid`, chained end to end. The default refuses.
     func curves(from edges: [EdgeID], of solid: Solid, tag: NodeTag) throws -> [Curve]
-    /// A sheet (or, for a closed curve with `makesSolid`-style callers, a solid) swept from `curve` along `direction`. The default refuses.
+    /// The sheet (open surface) swept by `curve` moved along `direction` by `distance`, on both sides of the curve when `symmetric`. The default refuses.
     func extrude(_ curve: Curve, direction: Vector3, distance: Double, symmetric: Bool, tag: NodeTag) throws -> Solid
     /// `curve` turned about `axis` through `angle`. The default refuses.
     func revolve(_ curve: Curve, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid

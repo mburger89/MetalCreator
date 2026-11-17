@@ -26,4 +26,15 @@ struct FakeCurveTests {
         let curve = try await FakeKernel().makeCurve([.spline(spline)], tag: tag)
         #expect(curve.polyline == poles && !curve.isClosed && abs(curve.length - 5) < 1e-9)
     }
+
+    @Test func aMalformedSplineIsRefused() async throws {
+        let empty = BSplineCurve3D(degree: 5, poles: [], knots: [0, 1], multiplicities: [6, 6])
+        let counts = BSplineCurve3D(degree: 3, poles: [.zero, .unitX, .unitY, .unitZ], knots: [0, 1], multiplicities: [3, 3])
+        let degree = BSplineCurve3D(degree: 0, poles: [.zero, .unitX], knots: [0, 1], multiplicities: [1, 1])
+        for spline in [empty, counts, degree] {
+            await #expect(throws: KernelError.invalidInput("The curve's spline is malformed.")) {
+                try await FakeKernel().makeCurve([.spline(spline)], tag: tag)
+            }
+        }
+    }
 }

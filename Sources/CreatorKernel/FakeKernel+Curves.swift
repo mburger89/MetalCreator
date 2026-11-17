@@ -7,6 +7,7 @@ extension FakeKernel {
         try Task.checkCancellation()
         operationLog.append("makeCurve")
         guard !pieces.isEmpty else { throw KernelError.invalidInput("A curve needs at least one piece.") }
+        for case .spline(let spline) in pieces where !spline.isWellFormed { throw KernelError.malformedSpline }
         for (a, b) in zip(pieces, pieces.dropFirst()) where (a.end - b.start).length > 1e-6 {
             throw KernelError.invalidInput("The curve's pieces don't join end to end.")
         }
