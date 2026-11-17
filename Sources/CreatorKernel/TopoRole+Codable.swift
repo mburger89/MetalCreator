@@ -2,8 +2,8 @@
 /// written only when it isn't 0, so outer-wall tags encode exactly as they did before holes, and a
 /// missing loop decodes as 0 (format version 2 files).
 extension TopoRole: Codable {
-    private enum CodingKeys: String, CodingKey { case role, loop, segment, edge, face }
-    private enum Kind: String, Codable { case startCap, endCap, side, blend, unnamed, imported }
+    private enum CodingKeys: String, CodingKey { case role, loop, segment, edge, face, boundary }
+    private enum Kind: String, Codable { case startCap, endCap, side, blend, unnamed, imported, boundary }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -20,6 +20,7 @@ extension TopoRole: Codable {
         case .blend: self = .blend(sourceEdge: try container.decode(EdgeKey.self, forKey: .edge))
         case .unnamed: self = .unnamed(face: try container.decode(Int.self, forKey: .face))
         case .imported: self = .imported(face: try container.decode(Int.self, forKey: .face))
+        case .boundary: self = .boundary(try container.decode(BoundaryRole.self, forKey: .boundary))
         }
     }
 
@@ -49,6 +50,9 @@ extension TopoRole: Codable {
         case .imported(let face):
             try container.encode(Kind.imported, forKey: .role)
             try container.encode(face, forKey: .face)
+        case .boundary(let role):
+            try container.encode(Kind.boundary, forKey: .role)
+            try container.encode(role, forKey: .boundary)
         }
     }
 }

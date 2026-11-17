@@ -13,6 +13,9 @@ public final class Solid: Sendable {
         self.storage = storage
     }
 
+    /// Whether no edge has exactly one face: a solid, never a sheet.
+    public var isClosed: Bool { !topology.edges.contains(where: \.isBoundary) }
+
     public var estimatedBytes: Int {
         storage.estimatedBytes + (topology.faces.count + topology.edges.count) * 128
     }

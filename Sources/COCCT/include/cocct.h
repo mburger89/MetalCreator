@@ -93,11 +93,14 @@ typedef struct {
     int has_axis;
     double radius;
     double axis_point[3];
+    /// 1 when the face lies on a shell that is not closed (a sheet), or on no shell at all.
+    int on_open_shell;
 } occt_face_info;
 
 /// Curve kinds: 0 line, 1 circle, 2 ellipse, 3 bspline, 4 other.
 /// Convexity: 0 convex, 1 concave, 2 smooth, 3 unknown.
-/// face_a/face_b: 1-based face indices; equal for a seam; both 0 for a free edge.
+/// face_a/face_b: 1-based face indices; equal for a seam; both 0 for a free edge. A boundary edge (a sheet's free
+/// edge: one face, not closed on it, not degenerate) has `boundary` 1, face_a its face and face_b 0.
 /// For projecting edges into a sketch (S4): when has_ends, `start` and `end` are the curve's points at
 /// its first and last parameter. For a circle, `center` and `radius` are its own, and the edge runs
 /// counter-clockwise about `direction` from `start` through `sweep` radians (2π for a full circle).
@@ -116,6 +119,7 @@ typedef struct {
     double center[3];
     double radius;
     double sweep;
+    int boundary;
 } occt_edge_info;
 
 typedef struct {
@@ -483,6 +487,32 @@ occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_stat
 int occt_test_curve_spline_info(const occt_shape *wire, int *degree, int *pole_count, occt_status *status);
 /// FOR TESTS ONLY. The shortest distance from the point to the curve (a wire).
 double occt_test_curve_distance(const occt_shape *wire, double x, double y, double z, occt_status *status);
+
+/// What a sheet builder says about the names of its boundary edges (NURBS spec, Task 3). `kind` 0 none (the edge is
+/// not named), 1 start, 2 end, 3 rail (`a` 0 for an open curve's start, 1 for its end), 4 piece (`a` the loop, `b` the
+/// segment), 5 imported (`a` the edge's index in the file's edge map).
+typedef struct {
+    int kind;
+    int a;
+    int b;
+} occt_boundary_role;
+
+/// One role per edge of the returned shape, in its TopExp::MapShapes(TopAbs_EDGE) order (index n is edge map index
+/// n + 1), so the table lines up with `occt_topology.edges`. Free with occt_boundary_roles_free.
+typedef struct {
+    occt_boundary_role *roles;
+    int count;
+} occt_boundary_roles;
+
+void occt_boundary_roles_free(occt_boundary_roles *roles);
+
+/// A planar surface (one face) bounded by closed `loops` (wires made by occt_make_curve), all in `plane` within 1e-6 mm:
+/// one outer loop that contains every other, which are holes. The result's loop 0 is the outer one and the holes follow in
+/// input order. `plane`'s normal gives the face its direction. History: the face is OCCT_FROM_START_CAP. Roles: loop i's
+/// edge k (in wire order) is kind 4 with a = i, b = k. Refuses with "The curves must be one outer loop with holes inside
+/// it." and "The curve isn't closed, so it can't be filled.".
+occt_shape *occt_planar_surface(const occt_shape *const *loops, int loop_count, const occt_plane *plane,
+                                occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
 #ifdef __cplusplus
 }

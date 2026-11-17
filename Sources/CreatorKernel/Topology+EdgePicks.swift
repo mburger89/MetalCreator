@@ -1,8 +1,14 @@
 extension Topology {
     /// Whether `key` names `edge`. Each side of the key must be a subset of the tags of one of the
     /// edge's two faces (a union merges coplanar faces and their tag sets, so a merged face still
-    /// matches). Seams never match.
+    /// matches). A boundary edge matches a key whose one side is a subset of its face's tags and whose other is a
+    /// subset of its own. Seams never match.
     public func edge(_ edge: EdgeInfo, matches key: EdgeKey) -> Bool {
+        if edge.isBoundary {
+            guard !edge.tags.isEmpty, let face = face(edge.faces[0])?.tags else { return false }
+            return (key.first.isSubset(of: face) && key.second.isSubset(of: edge.tags))
+                || (key.first.isSubset(of: edge.tags) && key.second.isSubset(of: face))
+        }
         guard !edge.isSeam, edge.faces.count == 2,
               let a = face(edge.faces[0])?.tags, let b = face(edge.faces[1])?.tags else { return false }
         return (key.first.isSubset(of: a) && key.second.isSubset(of: b))

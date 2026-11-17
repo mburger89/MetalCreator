@@ -1,10 +1,13 @@
 extension Topology {
-    /// This topology as copy `item` of a placed tool: every face's tags qualified (`TopoTag.qualified`). Faces,
+    /// This topology as copy `item` of a placed tool: every face's and boundary edge's tags qualified (`TopoTag.qualified`). Faces,
     /// edges and their order are untouched.
     public func qualified(item: Int, _ qualify: (NodeID) -> NodeID) -> Topology {
         var copy = self
         for index in copy.faces.indices {
             copy.faces[index].tags = Set(copy.faces[index].tags.map { $0.qualified(item: item, qualify) })
+        }
+        for index in copy.edges.indices {
+            copy.edges[index].tags = Set(copy.edges[index].tags.map { $0.qualified(item: item, qualify) })
         }
         return copy
     }
@@ -15,6 +18,9 @@ extension Topology {
         var copy = self
         for index in copy.faces.indices {
             copy.faces[index].tags = Set(copy.faces[index].tags.map { $0.withItem(item) })
+        }
+        for index in copy.edges.indices {
+            copy.edges[index].tags = Set(copy.edges[index].tags.map { $0.withItem(item) })
         }
         return copy
     }
