@@ -104,7 +104,6 @@ public actor Evaluator {
                 level.keys[node.id] = key
                 return NodeResult(state: .ok(duration: .zero), outputs: inputs)
             default:
-                level.keys[node.id] = key
                 if let cached = cache.result(for: key), cached.dependencies.allSatisfy(\.isCurrent) {
                     level.keys[node.id] = key.including(cached.dependencies)
                     return cached

@@ -10,6 +10,12 @@ public struct FileDependency: Sendable, Hashable {
         self.stamp = stamp
     }
 
+    /// A dependency on the file at `path` as it is now. The stamp must equal `ImageResolver.stamp(ofFileAt: path)`, taken before the
+    /// node reads the file.
+    public init(stampingFileAt path: String) {
+        self.init(path: path, stamp: ImageResolver.stamp(ofFileAt: path))
+    }
+
     /// Whether the file at `path` still has the stamp this dependency recorded.
     var isCurrent: Bool { ImageResolver.stamp(ofFileAt: path) == stamp }
 }

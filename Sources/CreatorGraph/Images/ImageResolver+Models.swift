@@ -13,7 +13,7 @@ extension ImageResolver {
     }
 
     /// A regular file of at most `limit` bytes, read whole through the one descriptor that was opened and checked. The stamp is
-    /// taken first, so a file changed while it is read is read newer than its stamp says and runs the node again next time.
+    /// taken first (it equals `stamp(ofFileAt:)` of `path`), so a file changed while it is read is read newer than its stamp says and runs the node again next time.
     public static func modelFile(at path: String, limit: Int) throws(ModelFileProblem) -> (data: Data, stamp: ImageStamp) {
         let stamp = stamp(ofFileAt: path)
         switch stamp {
@@ -27,7 +27,8 @@ extension ImageResolver {
             do {
                 data = try opened.handle.read(upToCount: limit + 1) ?? Data()
             } catch {
-                throw .unreadable(error.localizedDescription)
+                let words = error.localizedDescription
+                throw .unreadable(words.hasSuffix(".") ? String(words.dropLast()) : words)
             }
             guard data.count <= limit else { throw .tooLarge(limit: limit) }
             return (data, stamp)
@@ -43,7 +44,10 @@ extension ImageResolver {
             case .notAFile: throw .notAFile
             case .tooManyBytes: throw .tooLarge(limit: limit)
             case .notFound: throw .missing
-            case .unreadable(_, let reason): throw .unreadable(reason)
+            case .unreadable(_, let reason):
+                // ENOENT: the file went between the stamp and the open.
+                if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { throw .missing }
+                throw .unreadable(reason.hasSuffix(".") ? String(reason.dropLast()) : reason)
             case .embeddedMissing, .notChosen, .tooManyPixels, .unsupportedType, .undecodable:
                 throw .unreadable("it isn't a regular file")
             }
