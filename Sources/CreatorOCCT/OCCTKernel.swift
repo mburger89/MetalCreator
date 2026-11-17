@@ -143,9 +143,16 @@ public actor OCCTKernel: Kernel {
     }
 
     public func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws {
+        try export(solids, curves: [], format: format, to: url)
+    }
+
+    /// STEP holds the solids, sheets (as shells) and curves (as wires) in one compound. STL holds the solids and sheets only: a
+    /// wire has no triangles, so the curves are left out (the app says so).
+    public func export(_ solids: [Solid], curves: [Curve], format: ExportFormat, to url: URL) throws {
         try Task.checkCancellation()
-        guard !solids.isEmpty else { throw KernelError.invalidInput("There is nothing to export.") }
-        let shapes = try solids.map { try shape(of: $0) }
+        let written = format == .step ? curves : []
+        guard !solids.isEmpty || !written.isEmpty else { throw KernelError.invalidInput("There is nothing to export.") }
+        let shapes = try solids.map { try shape(of: $0) } + written.map { try curveShape(of: $0) }
         do {
             // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
             try Self.serialized { () throws in
