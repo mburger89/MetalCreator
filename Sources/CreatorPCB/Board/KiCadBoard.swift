@@ -66,6 +66,8 @@ public struct Footprint: Sendable {
     /// Every pad, SMD ones too.
     public var padCount: Int
     public var models: [ModelReference]
+    /// "fp:<token>" (the reference when unique, else the uuid, else the place in the file), filled by the key assigner; "" when read.
+    public var identity = ""
 
     public init(reference: String, libraryID: String, uuid: String?, isBack: Bool, place: Placement2D,
                 holes: [DrilledHole], padCount: Int? = nil, models: [ModelReference]) {

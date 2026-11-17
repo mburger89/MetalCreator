@@ -61,10 +61,19 @@ struct KeyAssignerTests {
             try KeyAssigner.assign(&board, hash: { _ in 7 })
             Issue.record("expected a refusal")
         } catch let problem as KiCadProblem {
-            #expect(problem.message == "Two items in this board share an internal name (pad:A:1 and pad:B:1). "
+            #expect(problem.message == "Two items in this board share an internal name (fp:A and pad:A:1). "
                 + "Rename one in KiCad and try again.")
         } catch {
             Issue.record("wrong error")
         }
+    }
+
+    @Test func footprintsGetIdentitiesFromTheirTokens() throws {
+        let footprints = [footprint("H1", uuid: "u1", numbers: []), footprint("H1", uuid: "u2", numbers: []),
+                          footprint("J1", numbers: ["1"]), footprint("", numbers: []),
+        ]
+        var board = KiCadBoard(footprints: footprints)
+        try KeyAssigner.assign(&board)
+        #expect(board.footprints.map(\.identity) == ["fp:uuid:u1", "fp:uuid:u2", "fp:J1", "fp:fp#3"])
     }
 }

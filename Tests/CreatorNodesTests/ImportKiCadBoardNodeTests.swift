@@ -15,7 +15,8 @@ struct ImportKiCadBoardNodeTests {
         let file = try folder.write(Data(text.utf8), to: name)
         var h = Harness()
         let reference = ImageReference.linked(relativePath: nil, absolutePath: file.path(percentEncoded: false))
-        let board = h.add(ImportKiCadBoardNode.self, values.merging([NodeSetting.pcbFile: .pcbFile(reference)]) { _, new in new })
+        let board = h.add(ImportKiCadBoardNode.self, values.merging([NodeSetting.pcbFile: .pcbFile(reference)]) { _, new in new }
+            .merging(["components": .bool(false)]) { given, _ in given })
         return (h, board)
     }
 
@@ -199,6 +200,10 @@ struct ImportKiCadBoardNodeTests {
         #expect(facts["Thickness"] == "1.6 mm")
         #expect(facts["Holes"] == "4 drilled, 4 mounting")
         #expect(facts["Components"] == "4 placed")
+        let (hc, withModels) = try node(KiCadBoardText.rectangle(), ["components": .bool(true)])
+        let onFacts = try #require(try await run(hc, withModels, OCCTKernel()).results[withModels.id]?.facts)
+        let factsOn = Dictionary(uniqueKeysWithValues: onFacts.map { ($0.label, $0.value) })
+        #expect(factsOn["Components"] == "4 placed, 0 with a 3D model, 4 without")
         #expect(ImportKiCadBoardNode.factsTitle == "Board")
         #expect(BoardFacts.versionName(4) == "KiCad 4 (4)")
         #expect(BoardFacts.versionName(20_171_130) == "KiCad 5 (20171130)")

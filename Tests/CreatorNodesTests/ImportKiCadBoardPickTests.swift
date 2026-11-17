@@ -16,7 +16,7 @@ struct ImportKiCadBoardPickTests {
         let file = try folder.write(Data(text.utf8), to: "board.kicad_pcb")
         var h = Harness()
         let reference = ImageReference.linked(relativePath: nil, absolutePath: file.path(percentEncoded: false))
-        let board = h.add(ImportKiCadBoardNode.self, [NodeSetting.pcbFile: .pcbFile(reference)])
+        let board = h.add(ImportKiCadBoardNode.self, [NodeSetting.pcbFile: .pcbFile(reference), "components": .bool(false)])
         return (h, board, file)
     }
 

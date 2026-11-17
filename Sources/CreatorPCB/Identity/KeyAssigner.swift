@@ -1,6 +1,6 @@
 import Foundation
 
-/// Gives every drilled hole its identity string and refuses two different strings that hash to one key.
+/// Gives every footprint and drilled hole its identity string and refuses two different strings that hash to one key.
 public enum KeyAssigner {
     public static func assign(_ board: inout KiCadBoard, isCancelled: () -> Bool = { false }) throws {
         try assign(&board, hash: KiCadKey.fnv1a64, isCancelled: isCancelled)
@@ -40,6 +40,8 @@ public enum KeyAssigner {
             board.edgeItems[index].identity = unique(board.edgeItems[index].identity)
         }
         for index in board.footprints.indices {
+            try tick()
+            board.footprints[index].identity = unique("fp:\(tokens[index])")
             var seen: [String: Int] = [:]
             for hole in board.footprints[index].holes.indices {
                 try tick()

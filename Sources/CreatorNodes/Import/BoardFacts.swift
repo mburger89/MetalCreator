@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import CreatorPCB
 
@@ -14,16 +15,23 @@ enum BoardFacts {
         return "\(name) (\(version))"
     }
 
-    static func facts(file: String, board: KiCadBoard, width: Double, height: Double, thickness: Double, holes: String) -> [PayloadFact] {
+    static func facts(file: String, board: KiCadBoard, size: Vector2, thickness: Double, holes: String,
+                      components: String) -> [PayloadFact] {
         [
             PayloadFact("File", file),
             PayloadFact("KiCad version", versionName(board.version)),
-            PayloadFact("Size", "\(width.display) × \(height.display) mm"),
+            PayloadFact("Size", "\(size.x.display) × \(size.y.display) mm"),
             PayloadFact("Thickness", "\(thickness.display) mm"),
             PayloadFact("Copper layers", board.copperLayers.display),
             PayloadFact("Holes", holes),
-            PayloadFact("Components", "\(board.footprints.count.display) placed"),
+            PayloadFact("Components", components),
         ]
+    }
+
+    /// "63 placed, 58 with a 3D model, 5 without"; just "63 placed" when the node leaves components out.
+    static func componentsText(placed: Int, withModel: Int?) -> String {
+        guard let withModel else { return "\(placed.display) placed" }
+        return "\(placed.display) placed, \(withModel.display) with a 3D model, \((placed - withModel).display) without"
     }
 
     /// "189 drilled, 4 mounting": pad holes only; vias, when the node includes them, add ", 120 vias".
