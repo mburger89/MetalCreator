@@ -77,7 +77,31 @@ struct GzipTests {
     }
 
     @Test func cancels() {
+        // Relies on `Inflate` asking `isCancelled` before it reads the first block.
         let file = Self.gzip(Self.payload)
         #expect(throws: GzipError.cancelled) { try read(file, cancelled: { true }) }
+    }
+
+    @Test func readsHeaderCRC() throws {
+        let fixed: [UInt8] = [0x1F, 0x8B, 8, 2, 0, 0, 0, 0, 0, 3]
+        let good = UInt16(truncatingIfNeeded: CRC32.checksum(fixed))
+        #expect(try read(Self.gzip(Self.payload, flags: 2, header: [UInt8(good & 255), UInt8(good >> 8)])) == Self.payload)
+        let bad = good ^ 1
+        #expect(throws: GzipError.malformed) {
+            try read(Self.gzip(Self.payload, flags: 2, header: [UInt8(bad & 255), UInt8(bad >> 8)]))
+        }
+    }
+
+    @Test func refusesHostileHeaders() {
+        let tiny = Data("x".utf8)
+        #expect(throws: GzipError.malformed) { try read(Self.gzip(tiny, flags: 4, header: [0xFF, 0xFF, 1, 2, 3])) }
+        #expect(throws: GzipError.malformed) { try read(Self.gzip(tiny, flags: 8, header: Array("name".utf8))) }
+        #expect(throws: GzipError.malformed) { try read(Self.gzip(tiny, flags: 0x20)) }
+    }
+
+    @Test func checksTheLimitBeforeInflating() {
+        var bytes: [UInt8] = [0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 0, 3]
+        bytes += [UInt8](repeating: 0xFF, count: 20) + Self.le32(0) + Self.le32(300)
+        #expect(throws: GzipError.tooLarge(limit: 200)) { try read(Data(bytes), limit: 200) }
     }
 }

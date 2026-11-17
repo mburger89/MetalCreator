@@ -30,7 +30,6 @@ enum InflateFixtures {
             "ZGJlZmFkaGVmYmRhYmNmZGhkY2ViZ2NiYWVnYWNkaGZmZmZoZWhmZWFoY2FoaGVsbG8gaGVsbG8gaGVsbG9oZWxsbyBoZWxsbyBo",
             "ZWxsb2hlbGxvIGhlbGxvIGhlbGxv",
         ])) }
-    static let zlibDynamicHash = "acb95f62162ce54251b7189121a220332b9bada85574b0b38f931981947f4be0"
 
     /// Four pieces in one stream, written by Python's zlib with a full flush between them: a fixed block, a dynamic block, a fixed block
     /// and a final stored block (each flush adds an empty stored block). Its data is `mixedBlocksPlain`.
@@ -69,7 +68,6 @@ enum InflateFixtures {
             "b2chAUjoraQPC+AyqEPBGBNonWABOqcQAf8A",
         ])
     static let everySymbolSize = 36574
-    static let everySymbolHash = "f756ad5d5d9df65a8bcfa22a67f4c4a1c104f938c9820da0d4e0f9f52636c762"
 
     static let hostile: [Hostile] = [
         Hostile("hlit 287", [
