@@ -1,7 +1,8 @@
 #include "cocct_internal.hpp"
 
 #include <BRepBuilderAPI_GTransform.hxx>
-#include <BRepBuilderAPI_MakeWire.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <TopTools_HSequenceOfShape.hxx>
 #include <BRep_Tool.hxx>
 #include <IGESData_BasicEditor.hxx>
 #include <IGESData_GlobalSection.hxx>
@@ -36,6 +37,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
 
+#include <algorithm>
 #include <cmath>
 #include <cctype>
 #include <cstdlib>
@@ -111,12 +113,12 @@ struct found_shape {
 };
 
 /// Walks `shape` through its compounds (the locations and orientations accumulate) and sorts what is free in it.
-void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found) {
+void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found, std::vector<TopoDS_Edge> &loose) {
     switch (shape.ShapeType()) {
     case TopAbs_COMPOUND:
     case TopAbs_COMPSOLID:
         for (TopoDS_Iterator it(shape); it.More(); it.Next()) {
-            classify(it.Value(), found);
+            classify(it.Value(), found, loose);
         }
         break;
     case TopAbs_SOLID:
@@ -146,21 +148,65 @@ void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found) {
     case TopAbs_FACE:
         found.push_back({shape, 1});
         break;
-    case TopAbs_WIRE:
-        found.push_back({shape, 2});
+    case TopAbs_WIRE: {
+        // A STEP curve set can come back as a wire per edge: those chain with the loose edges, whole wires stay as they are.
+        TopoDS_Iterator it(shape);
+        const TopoDS_Shape first = it.More() ? it.Value() : TopoDS_Shape();
+        if (it.More()) {
+            it.Next();
+        }
+        if (!first.IsNull() && !it.More() && first.ShapeType() == TopAbs_EDGE) {
+            const TopoDS_Edge edge = TopoDS::Edge(first);
+            if (!BRep_Tool::Degenerated(edge)) {
+                loose.push_back(edge);
+            }
+        } else {
+            found.push_back({shape, 2});
+        }
         break;
+    }
     case TopAbs_EDGE: {
         const TopoDS_Edge edge = TopoDS::Edge(shape);
         if (!BRep_Tool::Degenerated(edge)) {
-            BRepBuilderAPI_MakeWire wire(edge);
-            if (wire.IsDone()) {
-                found.push_back(found_shape{TopoDS_Shape(wire.Wire()), 2});
-            }
+            loose.push_back(edge); // chained with the others after the walk
         }
         break;
     }
     default:
         break; // a free vertex is no shape of ours
+    }
+}
+
+/// Chains the free edges of a read into wires (a STEP curve set comes back as loose edges): one curve per connected chain,
+/// in the order of each chain's lowest edge.
+void chain_loose_edges(const std::vector<TopoDS_Edge> &loose, std::vector<found_shape> &found) {
+    if (loose.empty()) {
+        return;
+    }
+    Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape();
+    for (const TopoDS_Edge &edge : loose) {
+        edges->Append(edge);
+    }
+    Handle(TopTools_HSequenceOfShape) wires;
+    ShapeAnalysis_FreeBounds::ConnectEdgesToWires(edges, 1e-6, Standard_False, wires);
+    std::vector<std::pair<size_t, TopoDS_Shape>> chains;
+    if (!wires.IsNull()) {
+        for (Standard_Integer i = 1; i <= wires->Length(); ++i) {
+            const TopoDS_Shape wire = wires->Value(i);
+            size_t lowest = loose.size();
+            for (TopoDS_Iterator it(wire); it.More(); it.Next()) {
+                for (size_t k = 0; k < loose.size() && k < lowest; ++k) {
+                    if (loose[k].IsSame(it.Value())) {
+                        lowest = k;
+                    }
+                }
+            }
+            chains.emplace_back(lowest, wire);
+        }
+    }
+    std::stable_sort(chains.begin(), chains.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+    for (const auto &chain : chains) {
+        found.push_back(found_shape{chain.second, 2});
     }
 }
 
@@ -183,7 +229,9 @@ int sort_into(XSControl_Reader &reader, double file_unit_millimetres, bool trans
         return 0;
     }
     std::vector<found_shape> found;
-    classify(root, found);
+    std::vector<TopoDS_Edge> loose;
+    classify(root, found, loose);
+    chain_loose_edges(loose, found);
     if (found.empty()) {
         set_error(status, "The model contains no shapes.");
         return 0;

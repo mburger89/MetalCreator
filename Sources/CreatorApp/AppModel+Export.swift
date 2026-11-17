@@ -29,12 +29,12 @@ extension AppModel {
                 if case .solid(let solid) = item { solid } else { nil }
             }
             plan.solids += solids
-            if solids.contains(where: \.hasOpenShell) { plan.sheetOutputs.append(output.name) }
+            if solids.contains(where: \.hasOpenShell), !plan.sheetOutputs.contains(output.name) { plan.sheetOutputs.append(output.name) }
             let curves = (result.outputs?["curve"]?.items ?? []).compactMap { item -> Curve? in
                 if case .curve(let curve) = item { curve } else { nil }
             }
             plan.curves += curves
-            if !curves.isEmpty { plan.curveOutputs.append(output.name) }
+            if !curves.isEmpty, !plan.curveOutputs.contains(output.name) { plan.curveOutputs.append(output.name) }
             if result.outputs?["mesh"]?.items.isEmpty == false { plan.meshOutputs.append(output.name) }
         }
         guard !plan.solids.isEmpty || plan.hasMeshes || !plan.curves.isEmpty else {
@@ -73,8 +73,10 @@ extension AppModel {
     static func formatWarnings(for kind: ExportKind, _ plan: ExportPlan) -> [String] {
         guard kind != .step else { return [] }
         var warnings: [String] = []
-        if kind == .stl { warnings += plan.sheetOutputs.map { "\($0): The surface is open, so the STL is open there." } }
-        warnings += plan.curveOutputs.map { "\($0): Curves aren't written to \(kind.title)." }
+        let sheets = plan.sheetOutputs.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let curves = plan.curveOutputs.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        if kind == .stl { warnings += sheets.map { "\($0): The surface is open, so the STL is open there." } }
+        warnings += curves.map { "\($0): Curves aren't written to \(kind.title)." }
         return warnings
     }
 
@@ -103,7 +105,8 @@ extension AppModel {
             }
             return Self.warnings(in: document.results, graph: document.graph, outputs: outputNodes) + formatWarnings
         }
-        return try await exportStreamed(kind, to: url) + formatWarnings
+        guard let written = try await exportStreamed(kind, to: url) else { return [] }
+        return written + formatWarnings
     }
 
     /// Export STEP…, STL… or 3MF…: says what's wrong before asking where, then the save panel, then the file.
@@ -139,7 +142,7 @@ extension AppModel {
         var warnings: [String] = []
     }
 
-    private func exportStreamed(_ kind: ExportKind, to url: URL) async throws(AppProblem) -> [String] {
+    private func exportStreamed(_ kind: ExportKind, to url: URL) async throws(AppProblem) -> [String]? {
         let run = ExportRun(title: "Exporting “\(exportName)”")
         exportRun = run
         defer { exportRun = nil }
@@ -149,7 +152,7 @@ extension AppModel {
         do {
             warnings = try await work.value
         } catch is CancellationError {
-            return []
+            return nil
         } catch let problem as AppProblem {
             throw problem
         } catch {
