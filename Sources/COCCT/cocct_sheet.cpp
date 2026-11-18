@@ -4,6 +4,17 @@
 #include <BRepAlgoAPI_Check.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepAdaptor_CompCurve.hxx>
+#include <BRepFill_TypeOfContact.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <GeomAPI_PointsToBSpline.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <gp_Ax1.hxx>
+#include <gp_Trsf.hxx>
 #include <BRepBuilderAPI_TransitionMode.hxx>
 #include <Law_Linear.hxx>
 #include <TopTools_MapOfShape.hxx>
@@ -540,12 +551,97 @@ std::vector<bool> grow_chain(const std::vector<std::pair<gp_Pnt, gp_Pnt>> &candi
     return claimed;
 }
 
+/// The auxiliary spine of a twisted sweep: the path offset by a unit direction that is carried along the path
+/// (minimal rotation) and turned by `twist_degrees` over its length, so a profile turns by that much from end to end.
+TopoDS_Wire twist_spine(const TopoDS_Wire &path, double twist_degrees) {
+    BRepAdaptor_CompCurve curve(path);
+    const double first = curve.FirstParameter();
+    const double last = curve.LastParameter();
+    const double length = GCPnts_AbscissaPoint::Length(curve, first, last);
+    if (length < 1e-9) {
+        throw user_error("The sweep couldn't be made along this path.");
+    }
+    const int count = static_cast<int>(std::ceil(64 * std::max(1.0, std::abs(twist_degrees) / 90))) + 1;
+    TColgp_Array1OfPnt points(1, count);
+    gp_Vec direction;
+    double previous_t = 0;
+    for (int i = 0; i < count; ++i) {
+        const double t = static_cast<double>(i) / (count - 1);
+        double u = first;
+        if (i == count - 1) {
+            u = last;
+        } else if (i > 0) {
+            GCPnts_AbscissaPoint at(curve, length * t, first);
+            u = at.IsDone() ? at.Parameter() : first + (last - first) * t;
+        }
+        gp_Pnt point;
+        gp_Vec tangent;
+        curve.D1(u, point, tangent);
+        if (tangent.Magnitude() < 1e-12) {
+            throw user_error("The sweep couldn't be made along this path.");
+        }
+        const gp_Dir axis(tangent);
+        if (i == 0) {
+            // The turn is measured from here, so the starting direction only has to stand across the path.
+            gp_Vec reference(1, 0, 0);
+            if (std::abs(axis.X()) > 0.9) {
+                reference = gp_Vec(0, 1, 0);
+            }
+            direction = reference - gp_Vec(axis) * reference.Dot(gp_Vec(axis));
+        } else {
+            direction -= gp_Vec(axis) * direction.Dot(gp_Vec(axis));
+            gp_Trsf turn;
+            turn.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), axis), twist_degrees * (cocct::kPi / 180) * (t - previous_t));
+            direction.Transform(turn);
+        }
+        direction.Normalize();
+        previous_t = t;
+        points.SetValue(i + 1, point.Translated(direction));
+    }
+    GeomAPI_PointsToBSpline fit(points, 3, 3);
+    if (!fit.IsDone()) {
+        throw user_error("The sweep couldn't be made along this path.");
+    }
+    return BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(fit.Curve()).Edge()).Wire();
+}
+
+/// True when every point of `wire` lies on one straight line: it has no plane to turn in.
+bool is_collinear(const TopoDS_Wire &wire) {
+    std::vector<gp_Pnt> points;
+    for (const TopoDS_Edge &edge : wire_edges(wire)) {
+        BRepAdaptor_Curve curve(edge);
+        for (int i = 0; i <= 16; ++i) {
+            points.push_back(curve.Value(curve.FirstParameter() + (curve.LastParameter() - curve.FirstParameter()) * i / 16));
+        }
+    }
+    if (points.size() < 2) {
+        return true;
+    }
+    std::size_t farthest = 0;
+    for (std::size_t i = 1; i < points.size(); ++i) {
+        if (points.front().Distance(points[i]) > points.front().Distance(points[farthest])) {
+            farthest = i;
+        }
+    }
+    const gp_Vec axis(points.front(), points[farthest]);
+    if (axis.Magnitude() < 1e-9) {
+        return true;
+    }
+    for (const gp_Pnt &point : points) {
+        if (gp_Vec(points.front(), point).Crossed(axis).Magnitude() / axis.Magnitude() > 1e-6) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 extern "C" {
 
-occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int frenet,
-                              const double binormal[3], double end_scale, int make_solid, occt_history *history,
+occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int mode,
+                              const double binormal[3], double end_scale, int make_solid, const occt_shape *guide,
+                              double twist_degrees, occt_history *history,
                               occt_boundary_roles *roles, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         occt_initialize();
@@ -560,6 +656,18 @@ occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, cons
         if (end_scale != 1 && count != 1) {
             throw user_error("An end scale needs exactly one profile.");
         }
+        if (!std::isfinite(twist_degrees) || std::abs(twist_degrees) > 3600) {
+            throw user_error("The twist must be between −3,600° and 3,600°.");
+        }
+        if (mode < 0 || mode > 3) {
+            throw user_error(kSweepFailed);
+        }
+        if (twist_degrees != 0 && mode >= 2) {
+            throw user_error("Twist can't be combined with a rail or a guide surface.");
+        }
+        if (mode >= 2 && (!guide || guide->shape.IsNull())) {
+            throw user_error(mode == 2 ? "Wire a rail curve." : "Wire a guide surface.");
+        }
         const TopoDS_Wire spine = curve_wire(path);
         std::vector<TopoDS_Wire> wires;
         bool all_closed = true;
@@ -570,7 +678,23 @@ occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, cons
         BRepOffsetAPI_MakePipeShell pipe(spine);
         // A sharp corner in the path is rounded rather than mitred, which would fold the inside over itself.
         pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
-        if (frenet) {
+        if (mode == 2) {
+            const TopoDS_Wire rail = curve_wire(guide);
+            for (const TopoDS_Wire &wire : wires) {
+                if (is_collinear(wire)) {
+                    throw user_error("A rail sweep needs profiles that aren't straight lines.");
+                }
+                BRepExtrema_DistShapeShape distance(rail, wire);
+                if (!distance.IsDone() || distance.Value() > 1e-4) {
+                    throw user_error("The rail must touch every profile.");
+                }
+            }
+            pipe.SetMode(rail, Standard_True, BRepFill_ContactOnBorder);
+        } else if (mode == 3) {
+            pipe.SetMode(guide->shape);
+        } else if (twist_degrees != 0) {
+            pipe.SetMode(twist_spine(spine, twist_degrees), Standard_False, BRepFill_NoContact);
+        } else if (mode == 0) {
             pipe.SetMode(Standard_True);
         } else {
             const gp_Vec direction(binormal[0], binormal[1], binormal[2]);

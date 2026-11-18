@@ -63,6 +63,32 @@ struct SurfaceNodeTests {
         #expect(controls(1).contains(.vector("binormal")))
     }
 
+    @Test func sweepShowsItsTwistForFrenetAndFixedOnly() {
+        func controls(_ orientation: Int) -> [InspectorControl] {
+            var node = BuiltInNodes.registry.makeNode(SweepNode.typeID)
+            node.inputValues["orientation"] = .integer(orientation)
+            return SweepNode.inspector(for: node).flatMap(\.controls)
+        }
+        #expect(controls(0).contains(.slider("twist")) && controls(1).contains(.slider("twist")))
+        #expect(!controls(2).contains(.slider("twist")) && !controls(3).contains(.slider("twist")))
+        let names = SweepNode.inputs.map(\.name)
+        #expect(names.contains("rail") && names.contains("guide"))
+    }
+
+    @Test(arguments: [(2, "Wire a rail curve."), (3, "Wire a guide surface.")])
+    func aRailOrGuideSweepNeedsItsInput(orientation: Int, sentence: String) async throws {
+        var h = Harness()
+        let circle = h.add(CircleNode.self, ["diameter": .number(4)])
+        let path = h.add(CurveThroughPointsNode.self)
+        let source = points(&h, count: 3, step: 10, along: true)
+        h.wire(source, "vector", to: path, "points")
+        let node = h.add(SweepNode.self, ["orientation": .integer(orientation)])
+        h.wire(circle, "profile", to: node, "profiles")
+        h.wire(path, "curve", to: node, "path")
+        let report = try await h.run([node], kernel: kernel)
+        #expect(report.error(node) == sentence)
+    }
+
     @Test func extrudeCurveHasADistanceHandle() {
         #expect(ExtrudeCurveNode.handles == [HandleSpec.linear("distance")])
     }

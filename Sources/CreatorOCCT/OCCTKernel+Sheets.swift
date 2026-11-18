@@ -81,7 +81,8 @@ extension OCCTKernel {
         return try buildSheet("loft", tag: tag) { try OCCTShape.loftCurves(wires, ruled: ruled, closed: closed) }
     }
 
-    public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid {
+    public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, guide: SweepGuide?,
+                      tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         guard let first = profiles.first else { throw KernelError.invalidInput("A sweep needs at least one profile.") }
         guard profiles.allSatisfy({ $0.pieceCount == first.pieceCount }) else {
@@ -92,7 +93,36 @@ extension OCCTKernel {
         }
         let wires = try profiles.map { try curveShape(of: $0) }
         let spine = try curveShape(of: path)
-        return try buildSheet("sweep", tag: tag) { try OCCTShape.sweepCurves(wires, along: spine, options: options) }
+        guard options.twist.isFinite, abs(options.twist) <= 3600 else {
+            throw KernelError.invalidInput("The twist must be between \u{2212}3,600\u{00B0} and 3,600\u{00B0}.")
+        }
+        let guideShape = try guideShape(for: options.orientation, guide)
+        if options.twist != 0, guideShape != nil {
+            throw KernelError.invalidInput("Twist can't be combined with a rail or a guide surface.")
+        }
+        return try buildSheet("sweep", tag: tag) {
+            try OCCTShape.sweepCurves(wires, along: spine, options: options, guide: guideShape)
+        }
+    }
+
+    /// The OCCT shape of the rail or guide surface the orientation asks for; refuses a missing or surplus one.
+    func guideShape(for orientation: SweepOrientation, _ guide: SweepGuide?) throws -> OCCTShape? {
+        switch (orientation, guide) {
+        case (.secondRail, .rail(let rail)?):
+            return try curveShape(of: rail)
+        case (.guideSurface, .surface(let surface)?):
+            guard let storage = surface.storage as? OCCTSolidStorage else {
+                throw KernelError.invalidInput("This surface was made by a different kernel.")
+            }
+            return storage.shape
+        case (.secondRail, _):
+            throw KernelError.invalidInput("Wire a rail curve.")
+        case (.guideSurface, _):
+            throw KernelError.invalidInput("Wire a guide surface.")
+        default:
+            guard guide == nil else { throw KernelError.invalidInput("This orientation takes no rail or guide surface.") }
+            return nil
+        }
     }
 
     /// Runs a sheet builder under the kernel's lock and names the result.

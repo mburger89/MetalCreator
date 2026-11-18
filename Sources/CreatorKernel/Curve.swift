@@ -27,16 +27,25 @@ public final class Curve: Sendable {
     public var estimatedBytes: Int { 128 + polyline.count * 24 + storage.estimatedBytes }
 }
 
-public enum SweepOrientation: Int, Sendable { case frenet = 0, fixedBinormal = 1 }
+public enum SweepOrientation: Int, Sendable { case frenet = 0, fixedBinormal = 1, secondRail = 2, guideSurface = 3 }
+
+/// What a rail or guide-surface sweep follows besides its path.
+public enum SweepGuide: Sendable {
+    case rail(Curve)
+    case surface(Solid)
+}
 
 public struct SweepOptions: Hashable, Sendable {
     public var orientation: SweepOrientation
     public var binormal: Vector3
     public var endScale: Double
     public var makesSolid: Bool
+    /// Degrees the profile turns from the path's start to its end (Frenet and Fixed only).
+    public var twist: Double
 
     public init(orientation: SweepOrientation = .frenet, binormal: Vector3 = .unitZ, endScale: Double = 1,
-                makesSolid: Bool = false) {
+                makesSolid: Bool = false, twist: Double = 0) {
+        self.twist = twist
         self.orientation = orientation
         self.binormal = binormal
         self.endScale = endScale

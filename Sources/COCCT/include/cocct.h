@@ -554,14 +554,18 @@ occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int r
                              occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
 /// The shape made by sweeping `count` profile curves (wires) along `path` (a wire): BRepOffsetAPI_MakePipeShell, each profile added
-/// as given (no contact, with correction). `frenet` 1 keeps the Frenet frame, else `binormal` is fixed. An `end_scale` other than 1
+/// as given (no contact, with correction). `mode` 0 keeps the Frenet frame, 1 fixes `binormal`, 2 follows `guide` as a second rail
+/// (a wire that must touch every profile: "The rail must touch every profile."), 3 keeps the profile against `guide` as a guide
+/// surface. `twist_degrees` (|twist| at most 3,600; refused beyond: "The twist must be between −3,600° and 3,600°.") turns the profile
+/// that much along the path through an auxiliary spine, with mode 0 or 1 only ("Twist can't be combined with a rail or a guide surface."). An `end_scale` other than 1
 /// scales the one profile linearly along the path (refused with several: "An end scale needs exactly one profile."). With `make_solid`
 /// and every profile closed the result is a solid: history OCCT_FROM_START_CAP / OCCT_FROM_END_CAP for the caps; otherwise a sheet.
 /// Sides are OCCT_FROM_SEGMENT (operand 0, index = the profile's piece). Roles: start and end edges (kinds 1, 2) and, for open
 /// profiles, rails 0 and 1. Refuses "The sweep runs into itself; shorten the path or shrink the profile." and "The sweep couldn't be
 /// made along this path.".
-occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int frenet,
-                              const double binormal[3], double end_scale, int make_solid, occt_history *history,
+occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int mode,
+                              const double binormal[3], double end_scale, int make_solid, const occt_shape *guide,
+                              double twist_degrees, occt_history *history,
                               occt_boundary_roles *roles, occt_status *status);
 
 /// A flag another thread sets to stop a long shim call; the call polls it between steps and refuses with "The operation was cancelled.".

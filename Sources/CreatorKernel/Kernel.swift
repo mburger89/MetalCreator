@@ -105,6 +105,8 @@ public protocol Kernel: Actor {
     func loftSurface(_ sections: [Curve], ruled: Bool, closed: Bool, tag: NodeTag) throws -> Solid
     /// `profiles` swept along `path`. The default refuses.
     func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid
+    /// `profiles` swept along `path`, held to a second rail or a guide surface. The default refuses.
+    func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, guide: SweepGuide?, tag: NodeTag) throws -> Solid
     /// A planar surface bounded by `loops`. The default refuses.
     func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid
     /// The Gordon surface through a grid of `u` and `v` curves, which may come in any order and direction and must cross
@@ -190,6 +192,10 @@ extension Kernel {
     }
 
     public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid {
+        try sweep(profiles, along: path, options: options, guide: nil, tag: tag)
+    }
+
+    public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, guide: SweepGuide?, tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("sweeping")
     }
 
