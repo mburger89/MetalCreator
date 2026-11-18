@@ -55,6 +55,7 @@ public enum HandleBuilder {
     typealias Placement = (anchor: Vector3, direction: Vector3, scale: Double)
 
     static func linearPlacement(_ node: Node, graph: Graph, results: [NodeID: NodeResult]) -> Placement? {
+        if let curve = curvePlacement(node, graph: graph, results: results) { return curve }
         guard case .profile(let profile)? = upstream(node, "profile", graph: graph, results: results),
               let centre = profile.bounds?.center else { return nil }
         let normal = profile.plane.normal.normalized ?? .unitZ
@@ -63,6 +64,25 @@ public enum HandleBuilder {
         }
         let reversed = node.inputValues["reversed"] == .bool(true)
         return (centre, reversed ? -normal : normal, 1)
+    }
+
+    /// A node with a `curve` input (Extrude Curve): the arrow starts at the centre of the curve's bounds and
+    /// points along the node's `direction`, wired or set (default +Z). A symmetric curve extrusion runs from -distance to +distance, so
+    /// its knob sits on the far side at full scale.
+    private static func curvePlacement(_ node: Node, graph: Graph, results: [NodeID: NodeResult]) -> Placement? {
+        guard graph.incomingLink(to: Endpoint(node: node.id, socket: "curve")) != nil else { return nil }
+        guard case .curve(let curve)? = upstream(node, "curve", graph: graph, results: results) else { return nil }
+        let centre = curve.bounds.center
+        let direction: Vector3
+        if case .vector(let wired)? = upstream(node, "direction", graph: graph, results: results) {
+            direction = wired
+        } else if case .vector(let set)? = node.inputValues["direction"] {
+            direction = set
+        } else {
+            direction = .unitZ
+        }
+        guard let unit = direction.normalized else { return nil }
+        return (centre, unit, 1)
     }
 
     static func radialPlacement(_ node: Node, graph: Graph, results: [NodeID: NodeResult]) -> Placement? {

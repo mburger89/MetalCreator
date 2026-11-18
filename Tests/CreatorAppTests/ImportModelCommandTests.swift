@@ -39,6 +39,8 @@ struct ImportModelCommandTests {
         #expect(node.inputValues[NodeSetting.modelFile]?.fileReference?.isEmbedded == false)
         #expect(app.document.graph.links.contains(Link(from: Endpoint(node: node.id, socket: "solids"),
                                                        to: Endpoint(node: output.id, socket: "solid"))))
+        #expect(app.document.graph.links.contains(Link(from: Endpoint(node: node.id, socket: "curves"),
+                                                       to: Endpoint(node: output.id, socket: "curve"))))
         #expect(app.document.undoName == "Import Model" && app.editor.selection == [node.id])
         app.document.undo()
         #expect(app.document.graph.nodes.isEmpty)

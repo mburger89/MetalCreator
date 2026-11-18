@@ -42,7 +42,7 @@ extension AppModel {
     }
 
     /// File ▸ Import Model…: the open panel, then an Import Model node linked to the chosen file and, at the top level, an Output node
-    /// wired to its `solids`, as one undo step. Inside a group the node goes in alone (an Output node can't live in a group). Does
+    /// wired to its `solids` and `curves`, as one undo step. Inside a group the node goes in alone (an Output node can't live in a group). Does
     /// nothing while a sketch or a pick is running.
     public func importModel(using picker: any FilePicker) async {
         let picker = tracked(picker)
@@ -79,6 +79,8 @@ extension AppModel {
             commands.append(.addNode(output))
             commands.append(.connect(Link(from: Endpoint(node: model.id, socket: "solids"),
                                           to: Endpoint(node: output.id, socket: "solid"))))
+            commands.append(.connect(Link(from: Endpoint(node: model.id, socket: "curves"),
+                                          to: Endpoint(node: output.id, socket: "curve"))))
         }
         do {
             try document.perform(.batch(commands), at: path, name: UndoName.importModel)
