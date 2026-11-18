@@ -413,7 +413,9 @@ typedef struct {
 } occt_edge_continuity;
 int occt_edge_continuity_of(const occt_shape *shape, int edge_index, occt_edge_continuity *out, occt_status *status);
 /// The same grading between the free edge `edge_index` (1-based) of `first`, a sheet, and face `face_index` (1-based) of `second`: samples
-/// are projected onto the face, normals compared up to sign, samples over 1 mm away skipped. Fails with "The edge must be a surface's
+/// are projected onto the face (a sample over 1 mm away, or outside the trimmed face, is skipped), curvature signs follow the normals
+/// compared up to sign, and the angle is that between A's direction continuing past the edge and B's direction leaving it, so a face
+/// folded back over A reads 180 degrees though it shares A's tangent plane. Fewer than half the samples usable is refused. Fails with "The edge must be a surface's
 /// free edge." or "The edge doesn't run along that face.".
 int occt_edge_continuity_against(const occt_shape *first, int edge_index, const occt_shape *second, int face_index,
                                  occt_edge_continuity *out, occt_status *status);

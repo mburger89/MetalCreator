@@ -5,6 +5,7 @@
 #include <BRep_Tool.hxx>
 #include <Geom2d_Curve.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <BRepClass_FaceClassifier.hxx>
 #include <Geom_Surface.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
@@ -110,7 +111,47 @@ side_sample sample_projected(const face_side &side, const opencascade::handle<Ge
     }
     double u = 0, v = 0;
     projection.LowerDistanceParameters(u, v);
+    // A point on the surface but off the trimmed face (beyond its boundary) is no sample.
+    if (BRepClass_FaceClassifier(side.face, gp_Pnt2d(u, v), 1e-6).State() == TopAbs_OUT) {
+        return side_sample{};
+    }
     return sample_side_at(side, gp_Pnt2d(u, v), tangent);
+}
+
+constexpr double kSideStep = 0.01;
+
+/// Whether `q`, projected onto the face's surface, lies strictly inside the trimmed face.
+bool strictly_inside(const TopoDS_Face &face, const opencascade::handle<Geom_Surface> &surface, const gp_Pnt &q) {
+    GeomAPI_ProjectPointOnSurf projection(q, surface);
+    if (projection.NbPoints() < 1) {
+        return false;
+    }
+    double u = 0, v = 0;
+    projection.LowerDistanceParameters(u, v);
+    return BRepClass_FaceClassifier(face, gp_Pnt2d(u, v), 1e-6).State() == TopAbs_IN;
+}
+
+/// The unit direction in the face's tangent plane, perpendicular to `tangent`, that runs from `p` into the face (`normal` is the
+/// face's unit normal there). `found` is false when neither side is inside; `both` when both are (the edge is in the face's interior).
+struct inward {
+    gp_Vec direction;
+    bool found = false;
+    bool both = false;
+};
+inward inward_direction(const TopoDS_Face &face, const opencascade::handle<Geom_Surface> &surface, const gp_Pnt &p,
+                        const gp_Vec &normal, const gp_Vec &tangent) {
+    inward out;
+    gp_Vec across = normal.Crossed(tangent);
+    if (across.Magnitude() < 1e-12) {
+        return out;
+    }
+    across.Normalize();
+    const bool plus = strictly_inside(face, surface, p.Translated(across * kSideStep));
+    const bool minus = strictly_inside(face, surface, p.Translated(across.Reversed() * kSideStep));
+    out.found = plus || minus;
+    out.both = plus && minus;
+    out.direction = plus ? across : across.Reversed();
+    return out;
 }
 
 } // namespace cocct::continuity_detail
@@ -128,6 +169,7 @@ occt_edge_continuity grade_samples(const TopoDS_Edge &edge, const TopoDS_Face &f
     const double margin = 0.01 * (hi - lo);
     const face_side side_a(edge, face_a);
     const face_side side_b = project_b ? face_side(face_b) : face_side(edge, face_b);
+    const opencascade::handle<Geom_Surface> surface_a = project_b ? BRep_Tool::Surface(face_a) : opencascade::handle<Geom_Surface>();
     const opencascade::handle<Geom_Surface> surface_b = project_b ? BRep_Tool::Surface(face_b) : opencascade::handle<Geom_Surface>();
     double position = 0, angle = 0, relative = 0, absolute = 0;
     int used = 0;
@@ -145,14 +187,28 @@ occt_edge_continuity grade_samples(const TopoDS_Edge &edge, const TopoDS_Face &f
         if (!s1.ok || !s2.ok) {
             continue;
         }
-        if (project_b && s1.normal.Dot(s2.normal) < 0) {
+        double sample_angle = 0;
+        if (project_b) {
             // Two bodies have no shared orientation: compare the normals up to sign, the curvature following the flip.
-            s2.normal.Reverse();
-            s2.curvature = -s2.curvature;
+            if (s1.normal.Dot(s2.normal) < 0) {
+                s2.normal.Reverse();
+                s2.curvature = -s2.curvature;
+            }
+            // Which way each face runs from the edge: a smooth join leaves A's inward direction continuing into B, a fold
+            // returns on A's side. The deviation is the angle between A's continuation and B's inward direction.
+            const inward a_in = inward_direction(face_a, surface_a, p, s1.normal, tangent);
+            const inward b_in = inward_direction(face_b, surface_b, s2.point, s2.normal, tangent);
+            if (!a_in.found || !b_in.found) {
+                continue;
+            }
+            const gp_Vec continued = a_in.direction.Reversed();
+            sample_angle = b_in.both ? 0 : std::atan2(continued.Crossed(b_in.direction).Magnitude(), continued.Dot(b_in.direction));
+        } else {
+            sample_angle = std::atan2(s1.normal.Crossed(s2.normal).Magnitude(), s1.normal.Dot(s2.normal));
         }
         ++used;
         position = std::max(position, std::max(s1.point.Distance(s2.point), std::max(s1.point.Distance(p), s2.point.Distance(p))));
-        angle = std::max(angle, std::atan2(s1.normal.Crossed(s2.normal).Magnitude(), s1.normal.Dot(s2.normal)));
+        angle = std::max(angle, sample_angle);
         const double k1 = s1.curvature, k2 = s2.curvature;
         const double diff = std::fabs(k1 - k2);
         const double larger = std::max(std::fabs(k1), std::fabs(k2));
@@ -163,7 +219,7 @@ occt_edge_continuity grade_samples(const TopoDS_Edge &edge, const TopoDS_Face &f
             relative = std::max(relative, diff / larger);
         }
     }
-    if (used == 0) {
+    if (used == 0 || (project_b && used * 2 < samples)) {
         throw user_error(project_b ? "The edge doesn't run along that face." : "The surfaces along this edge can't be compared.");
     }
     out.position_gap = position;

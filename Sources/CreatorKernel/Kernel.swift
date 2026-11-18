@@ -77,9 +77,10 @@ public protocol Kernel: Actor {
     /// `KernelError.invalidInput`. Like every operation it checks for cancellation on entry. The default refuses.
     func continuity(along edge: EdgeID, of solid: Solid) async throws -> EdgeContinuity
     /// How smoothly the free edge `edge` of the sheet `first` meets `face` of `second` (NS-2): the same gaps as `continuity(along:of:)`,
-    /// each sample of the edge projected onto the face, the normals compared up to sign. An edge that isn't a free edge is
-    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (every sample over
-    /// 1 mm away) "The edge doesn't run along that face.". The default refuses.
+    /// each sample of the edge projected onto the face (samples over 1 mm away or off the trimmed face are skipped), the normals compared up to
+    /// sign for the curvature, and the angle gap measured between A's direction continuing past the edge and B's direction leaving it,
+    /// so a face folded back over the sheet reads π. An edge that isn't a free edge is
+    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (under half the samples usable) "The edge doesn't run along that face.". The default refuses.
     func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) async throws -> EdgeContinuity
     /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
     /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.
