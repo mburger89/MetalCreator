@@ -249,7 +249,7 @@ extension BoundaryPatchG2Tests {
         var lines: [Curve] = []
         for k in 0..<6 { lines.append(try await line(points[k], points[(k + 1) % 6])) }
         let result = try await patch(edges: [], of: nil, curves: lines)
-        #expect(result.warnings == ["No bounding edge lies on a surface, so the patch is only G0."])
+        #expect(result.warnings == ["No bounding edge is a sheet's open edge, so the patch is only G0."])
     }
 
     @Test func sixSheetsAtG2AreRefused() async throws {
@@ -266,24 +266,37 @@ extension BoundaryPatchG2Tests {
         } throws: { message(of: $0) == "A G2 patch needs 3 or 4 sides; this loop has 6." }
     }
 
-    @Test func g2WithInteriorPointsIsRefused() async throws {
-        let square = try await unitSquare()
+    @Test func g2WithInteriorPointsOnASheetEdgeIsRefused() async throws {
+        let (part, edges) = try await squareHole()
         let wording = "A G2 patch can't pass through interior points or curves."
         await #expect {
-            try await kernel.boundaryPatch(PatchBoundary(curves: square, edges: [], part: nil), interior: [Vector3(5, 5, 1)],
+            try await kernel.boundaryPatch(PatchBoundary(curves: [], edges: edges, part: part), interior: [Vector3(5, 5, 1)],
                                            interior: [], continuity: .g2, tag: tag)
         } throws: { message(of: $0) == wording }
         let ridge = try await line(Vector3(3, 5, 0.5), Vector3(7, 5, 0.5))
         await #expect {
-            try await kernel.boundaryPatch(PatchBoundary(curves: square, edges: [], part: nil), interior: [], interior: [ridge],
+            try await kernel.boundaryPatch(PatchBoundary(curves: [], edges: edges, part: part), interior: [], interior: [ridge],
                                            continuity: .g2, tag: tag)
         } throws: { message(of: $0) == wording }
+    }
+
+    @Test func g2WithInteriorPointsAndNoSheetPieceIsHeldAtG0() async throws {
+        // R2 first: no piece lies on a sheet, so the request is only G0 (and G0 takes interior points and curves).
+        let square = try await unitSquare()
+        let warning = "No bounding edge is a sheet's open edge, so the patch is only G0."
+        let dimple = try await kernel.boundaryPatch(PatchBoundary(curves: square, edges: [], part: nil),
+                                                    interior: [Vector3(5, 5, 1)], interior: [], continuity: .g2, tag: tag)
+        #expect(dimple.warnings == [warning])
+        let ridge = try await line(Vector3(3, 5, 0.5), Vector3(7, 5, 0.5))
+        let ridged = try await kernel.boundaryPatch(PatchBoundary(curves: square, edges: [], part: nil),
+                                                    interior: [], interior: [ridge], continuity: .g2, tag: tag)
+        #expect(ridged.warnings == [warning])
     }
 
     @Test func g2WithOnlyCurvesWarnsLikeG1() async throws {
         let square = try await unitSquare()
         let result = try await patch(edges: [], of: nil, curves: square)
-        #expect(result.warnings == ["No bounding edge lies on a surface, so the patch is only G0."])
+        #expect(result.warnings == ["No bounding edge is a sheet's open edge, so the patch is only G0."])
     }
 
     @Test func aWholeCircleInFourArcsIsTooComplexForAQuintic() async throws {

@@ -109,7 +109,7 @@ struct BoundaryPatchNodeOCCTTests {
         let node = h.add(BoundaryPatchNode.self)
         h.wire(rect, "profile", to: node, "curves")
         let report = try await h.run([node], kernel: kernel)
-        #expect(report.warning(node) == "No bounding edge lies on a surface, so the patch is only G0.")
+        #expect(report.warning(node) == "No bounding edge is a sheet's open edge, so the patch is only G0.")
     }
 
     @Test func pickedEdgesOfALoftedBellsOpenTopBuildAPatchAtG1() async throws {

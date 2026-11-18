@@ -14,8 +14,9 @@ public enum SweepNode: NodeDefinition {
     public static let guideRefusal = "Wire a guide surface."
     public static let manyRailsRefusal = "Sweep takes one rail curve."
     public static let twistRefusal = "Twist can't be combined with a rail or a guide surface."
+    public static let unusedGuideWarning = "The rail and guide are used only when the orientation is Rail or Guide."
     public static let pathRefusal = "Sweep needs exactly one path."
-    public static var singleValuesRefusal: String? { "Sweep takes one path, end scale and binormal at a time." }
+    public static var singleValuesRefusal: String? { "Sweep takes one path, guide, orientation, binormal, twist, end scale and solid choice at a time." }
     public static let inputs = [
         SocketSpec("profiles", .curve, access: .list),
         SocketSpec("path", .curve),
@@ -75,6 +76,8 @@ public enum SweepNode: NodeDefinition {
                                    endScale: try inputs.number("end scale"), makesSolid: try inputs.bool("solid"),
                                    twist: twist)
         let surface = try await kernel.sweep(profiles, along: path, options: options, guide: guide, tag: context.tag)
-        return NodeOutputs(["surface": .solid(surface)])
+        // A rail or guide wired under Frenet or Fixed is ignored; say so rather than build a different sweep silently.
+        let ignored = orientation.rawValue <= 1 && (inputs.has("rail") || inputs.has("guide"))
+        return NodeOutputs(["surface": .solid(surface)], warnings: ignored ? [unusedGuideWarning] : [])
     }
 }

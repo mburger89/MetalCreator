@@ -113,7 +113,7 @@ struct BoundaryPatchTests {
         let boundary = PatchBoundary(curves: [curve], edges: [edge.id], part: block)
         let result = try await kernel.boundaryPatch(boundary, interior: [], interior: [],
                                                     continuity: .g1, tag: tag)
-        #expect(result.warnings == ["No bounding edge lies on a surface, so the patch is only G0."])
+        #expect(result.warnings == ["No bounding edge is a sheet's open edge, so the patch is only G0."])
     }
 
     @Test func twoLoopsAreRefused() async throws {
@@ -139,7 +139,7 @@ struct BoundaryPatchTests {
 
     @Test func g1WithOnlyCurvesWarns() async throws {
         let result = try await patch(try await square(), continuity: .g1)
-        #expect(result.warnings == ["No bounding edge lies on a surface, so the patch is only G0."])
+        #expect(result.warnings == ["No bounding edge is a sheet's open edge, so the patch is only G0."])
     }
 
     @Test func namesThePieces() async throws {

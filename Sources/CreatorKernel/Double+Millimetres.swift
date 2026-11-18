@@ -7,7 +7,7 @@ extension Double {
         formatted(.number.precision(.fractionLength(0...2)).locale(locale))
     }
 
-    /// A gap or count for a message: at least two significant figures below 10 ("0.003", "0.00042"), else as `millimetreText`.
+    /// A gap or count for a message: up to two significant figures below 10 ("0.003", "0.00042"), else as `millimetreText`.
     package func gapText(locale: Locale = .messages) -> String {
         guard abs(self) < 10, self != 0 else { return millimetreText(locale: locale) }
         return formatted(.number.precision(.significantDigits(1...2)).locale(locale))

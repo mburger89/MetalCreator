@@ -49,7 +49,7 @@ extension OCCTShape {
 extension OCCTKernel {
     static let patchCannotHoldTangent = "The patch isn't tangent to the surface along piece %d; the hole may be too sharp for G1."
     static let patchNotMade = "The patch couldn't be made from these pieces."
-    static let patchOnlyG0 = "No bounding edge lies on a surface, so the patch is only G0."
+    static let patchOnlyG0 = "No bounding edge is a sheet's open edge, so the patch is only G0."
     static let patchNotCurvatureContinuous = "The patch can't be made curvature continuous along piece %d."
 
     /// The shim's inputs for `boundary`, and which picked edges (by index) lie on a face of the part.
@@ -82,7 +82,12 @@ extension OCCTKernel {
                               continuity: PatchContinuity, tag: NodeTag) async throws -> PatchResult {
         try Task.checkCancellation()
         guard points.allSatisfy(\.isFinite) else { throw KernelError.invalidInput("A point must be finite.") }
-        let (inputs, supported) = try patchInputs(boundary, points: points, interior: curves, continuity: continuity)
+        let built = try patchInputs(boundary, points: points, interior: curves, continuity: continuity)
+        let supported = built.supported
+        var inputs = built.inputs
+        // R2 comes first: with no piece on a sheet a G1 or G2 request is only G0, so the G2 limits (no interior points or
+        // curves, three or four sides) don't apply to what is really built.
+        if supported.isEmpty { inputs.continuity = .g0 }
         let flag = OCCTCancelFlag()
         var pieces = PatchPieces()
         let sheet: Solid
