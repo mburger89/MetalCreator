@@ -1064,6 +1064,22 @@ BENCH g2-fillet-drag G2 fillet, release (G2 built), edit to preview: median 332.
 
 Corner fix (same day): the G1 corner refill no longer tries the circular corner as an initial surface first. A square pyramid's apex (four hip fillets, `aFourFilletCornerIsCountedOrRefused`) took 25.7 s before (the failed first attempt in `Plate_Plate::SolveTI1`) and 0.040 s for the whole test after; the three non-orthogonal corner tests take 0.19 s together.
 
+## Control points (`surface-3`)
+
+NS-3's spec target is 60 fps while a control point is dragged. Row `surface-3` drags one point of a 30 x 30 net: a 60 x 40 Rectangle, Profile to Curves, Planar Surface, Rebuild Surface (degree 3, 27 spans each way), Edit Surface, Output, driven through `ControlNetSession` (`dragBegan`, 40 `dragMoved` steps of 0.03 mm, `dragEnded`) as the viewport's tool does, each step timed from the pointer move until `settle()` (the evaluation, the scene and its meshes). `DocumentModel.isScrubbing` holds for the steps. The §7.2 bracket is in the same document with its Fillet at Curvature (G2), so the flag reaches a node that reads it and the fillet builds at G1 for the steps; it is a second branch of the graph and not downstream of the surface, since a fillet refuses a sheet. Release, `Tests/CreatorAppTests/Bench/SurfaceBench.swift`, 2026-11-18, Mac18,5, 12 cores. Load averages (1, 5, 15 min) 1.82 / 3.71 / 5.04 before the run and 1.85 / 3.26 / 4.74 after (not saturated).
+
+| Row | median (p95; max) |
+| --- | --- |
+| `surface-3` 30x30 net, one drag step to the preview | 441.98 ms (450.71; 450.72) |
+| `surface-3` release (the G2 fillet comes back from the cache) | 5.80 ms (one sample) |
+
+A drag step is far over the 16.7 ms of 60 fps: it is about 26 frames. Where the time goes was not profiled (a step moves the pole in the kernel, checks the moved surface's edges and folds, and meshes the sheet); recorded for the user's decision, nothing here gates a merge. The release is cheap because the bracket's G2 fillet was built before the drag and its cache entry (key without the scrubbing flag) is still there.
+
+```text
+BENCH surface-3 30x30 net, one drag step to the preview: median 441.98 ms, p95 450.71 ms, max 450.72 ms (n 35); budget 16.67 ms: missed
+BENCH surface-3 release (the G2 fillet built), to the preview: median 5.80 ms, p95 5.80 ms, max 5.80 ms (n 1)
+```
+
 ## Raw output
 
 The 2026-10-20 idle run (MetalCreator `5e4069e`, MetalUI `711ab9c4`; the machine and load lines are the scripts', copied from their
