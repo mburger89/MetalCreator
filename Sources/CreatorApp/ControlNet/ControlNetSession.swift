@@ -54,8 +54,9 @@ struct ScreenRect: Equatable {
 final class ControlNetSession: ViewportTool {
     enum Kind: Hashable { case surface, curve }
 
-    /// How a report of moves came about: a drag step, the release of a drag, or a value typed into the inspector.
-    enum DragPhase: Hashable { case changed, ended, typed }
+    /// How a report of moves came about: a drag step, the release of a drag, a value typed into the inspector, or a cancelled drag
+    /// (the moves are then every selected point's offset from before it).
+    enum DragPhase: Hashable { case changed, ended, typed, cancelled }
 
     enum AxisLock: Hashable { case x, y, z, normal }
 
@@ -84,6 +85,8 @@ final class ControlNetSession: ViewportTool {
     internal(set) var boxRect: ScreenRect?
     @ObservationIgnored var events: Events
     @ObservationIgnored var drag: Drag?
+    /// A net shown while a drag was under way, applied when it ends.
+    @ObservationIgnored var pendingNet: (net: ControlNetGrid, moves: [PoleMove])?
 
     init(node: NodeID, kind: Kind, events: Events) {
         self.node = node
@@ -91,9 +94,12 @@ final class ControlNetSession: ViewportTool {
         self.events = events
     }
 
-    /// Shows `net` with `moves` applied. A net of another size clears the selection; while a drag is under way the net on screen stays.
+    /// Shows `net` with `moves` applied. A net of another size clears the selection; while a drag is under way the net on screen stays and the newer one waits for its end.
     func showNet(_ net: ControlNetGrid, moves: [PoleMove]) {
-        guard drag == nil else { return }
+        guard drag == nil else {
+            pendingNet = (net, moves)
+            return
+        }
         if net.uCount != self.net.uCount || net.vCount != self.net.vCount { selection = [] }
         self.net = net
         offsets = [:]
@@ -125,15 +131,6 @@ final class ControlNetSession: ViewportTool {
         offsets[index] = offset
         events.moved([PoleMove(index: index, offset: offset)], .typed)
     }
-
-    /// Esc and Done: the mode ends.
-    func cancel() {
-        drag = nil
-        boxRect = nil
-        events.ended()
-    }
-
-    func done() { cancel() }
 
     // MARK: - ViewportTool
 

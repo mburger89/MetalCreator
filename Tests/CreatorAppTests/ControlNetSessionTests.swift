@@ -9,25 +9,25 @@ import Testing
 /// The control-net tool's picking, box selection, dragging and overlay, with an orthographic projector at 1 mm per point.
 @MainActor
 struct ControlNetSessionTests {
-    private final class Log {
+    final class Log {
         var moves: [([PoleMove], ControlNetSession.DragPhase)] = []
         var ended = 0
     }
 
     /// An orthographic camera 200 points square showing 200 mm, so a point is a millimetre. Looks down -Z by default.
-    private static func projector(yaw: Double = 0, pitch: Double = .pi / 2) -> ViewportProjector {
+    static func projector(yaw: Double = 0, pitch: Double = .pi / 2) -> ViewportProjector {
         let distance = 100 / tan(CameraPose.fieldOfView / 2)
         return ViewportProjector(pose: CameraPose(target: .zero, distance: distance, yaw: yaw, pitch: pitch, projection: .orthographic),
                                  size: ViewportSize(width: 200, height: 200))
     }
 
-    private static func grid(_ u: Int, _ v: Int, normal: Vector3 = .unitZ, spacing: Double = 20) -> ControlNetGrid {
+    static func grid(_ u: Int, _ v: Int, normal: Vector3 = .unitZ, spacing: Double = 20) -> ControlNetGrid {
         var poles: [Vector3] = []
         for i in 0..<u { for j in 0..<v { poles.append(Vector3(Double(i) * spacing, Double(j) * spacing, 0)) } }
         return ControlNetGrid(poles: poles, uCount: u, vCount: v, normals: Array(repeating: normal, count: u * v))
     }
 
-    private func make(_ net: ControlNetGrid, kind: ControlNetSession.Kind = .surface) -> (ControlNetSession, Log) {
+    func make(_ net: ControlNetGrid, kind: ControlNetSession.Kind = .surface) -> (ControlNetSession, Log) {
         let log = Log()
         let session = ControlNetSession(node: NodeID(), kind: kind, events: .init(
             moved: { log.moves.append(($0, $1)) }, ended: { log.ended += 1 }
@@ -36,7 +36,7 @@ struct ControlNetSessionTests {
         return (session, log)
     }
 
-    private func screen(_ world: Vector3, _ projector: ViewportProjector) -> ScreenPoint {
+    func screen(_ world: Vector3, _ projector: ViewportProjector) -> ScreenPoint {
         projector.screenPoint(of: world) ?? .zero
     }
 
