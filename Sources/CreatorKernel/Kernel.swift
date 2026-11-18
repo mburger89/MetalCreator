@@ -141,6 +141,9 @@ public protocol Kernel: Actor {
     /// `curve` (one piece) with its net's poles moved by `moves` (`PoleIndex.j` 0), weights kept; a periodic curve stays periodic
     /// (NS-3). An index outside the net is refused `.invalidInput`. The default refuses.
     func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve
+    /// Whether any face of `sheet` folds over itself (NS-3): neighbouring samples of its surface normal pointing opposite ways, or
+    /// a collapsed spot beside an ordinary one. A pole of a degenerate edge (a cone's apex) is not a fold. The default refuses.
+    func folds(_ sheet: Solid) throws -> Bool
 }
 
 extension Kernel {
@@ -252,6 +255,10 @@ extension Kernel {
 
     public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {
         throw KernelError.unsupported("moving control points")
+    }
+
+    public func folds(_ sheet: Solid) throws -> Bool {
+        throw KernelError.unsupported("fold detection")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {

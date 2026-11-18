@@ -70,6 +70,21 @@ extension OCCTShape {
         }
     }
 
+    /// Whether this shape's faces, edges and vertices correspond one to one, in map order, to `other`'s. Call under `OCCTKernel.serialized`.
+    func hasSameStructure(as other: OCCTShape) throws(OCCTError) -> Bool {
+        var status = occt_status()
+        let result = occt_same_structure(raw, other.raw, &status)
+        guard status.ok != 0 else { throw OCCTError(message: status.messageText) }
+        return result != 0
+    }
+
+    /// Whether face `faceIndex` (0-based) folds over itself. Call under `OCCTKernel.serialized`.
+    func surfaceFolds(ofFace faceIndex: Int) throws(OCCTError) -> Bool {
+        var folds: Int32 = 0
+        try Self.check { status in occt_surface_folds(self.raw, Int32(faceIndex + 1), &folds, status) }
+        return folds != 0
+    }
+
     /// FOR TESTS ONLY. The same shape with its orientation reversed. Call under `OCCTKernel.serialized`.
     func reversedCopy() throws(OCCTError) -> OCCTShape {
         try Self.make { status in occt_test_reversed_copy(self.raw, status) }
@@ -148,14 +163,29 @@ extension OCCTKernel {
         return try controlNetCall("surface info") { try shape.surfaceInfo(ofFace: face.rawValue) }
     }
 
+    /// The tag every carried face already has; used only if a face somehow has none (it then reads "unnamed" under this tag).
+    private static let unusedTag = NodeTag(node: NodeID(rawValue: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))), item: 0)
+
     public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
         try Task.checkCancellation()
         // The same refusals as the net: a closed solid or a sheet of other than one face has no net to move.
         _ = try controlNet(of: surface)
         let source = try shape(of: surface)
         let moved = try controlNetCall("move control points") { try source.movingPoles(ofFace: 0, by: moves) }
-        return try solid(from: moved, keepingTagsOf: [surface], tag: NodeTag(node: NodeID(), item: 0), operation: "move control points",
-                         carriesEdgeTags: true)
+        let sameStructure = try controlNetCall("move control points") { try moved.hasSameStructure(as: source) }
+        guard sameStructure else {
+            throw KernelError.operationFailed(operation: "move control points",
+                                              reason: "its faces and edges couldn't be matched to the originals.")
+        }
+        let result = try solid(from: moved, keepingTagsOf: [surface], tag: Self.unusedTag, operation: "move control points",
+                               carriesEdgeTags: true)
+        // Tags are carried by position, so the edges must agree one by one before they are trusted.
+        guard result.topology.edges.map(\.faces) == surface.topology.edges.map(\.faces) else {
+            assertionFailure("an edge's faces changed under a pole move")
+            throw KernelError.operationFailed(operation: "move control points",
+                                              reason: "its edges couldn't be matched to the originals.")
+        }
+        return result
     }
 
     public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {
@@ -165,10 +195,24 @@ extension OCCTKernel {
             guard move.index.j == 0, net.poles.indices.contains(move.index.i) else {
                 throw KernelError.invalidInput("That control point no longer exists.")
             }
-            net.poles[move.index.i] += move.offset
+            let target = net.poles[move.index.i] + move.offset
+            guard move.offset.isFinite, target.isFinite else {
+                throw KernelError.invalidInput("Moving these control points makes an invalid curve.")
+            }
+            net.poles[move.index.i] = target
         }
         let wire = try curveShape("move control points") { try OCCTShape.makeCurve([.spline(net)]) }
         return try self.curve(from: wire, operation: "move control points")
+    }
+
+    public func folds(_ sheet: Solid) throws -> Bool {
+        try Task.checkCancellation()
+        guard sheet.hasOpenShell else { throw KernelError.invalidInput("Folds are checked on a sheet; this is a closed solid.") }
+        let shape = try shape(of: sheet)
+        for face in sheet.topology.faces.indices where try controlNetCall("fold check", { try shape.surfaceFolds(ofFace: face) }) {
+            return true
+        }
+        return false
     }
 
     /// FOR TESTS ONLY. `sheet` with its face orientation reversed on the same surface.

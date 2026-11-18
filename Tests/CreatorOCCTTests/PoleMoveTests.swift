@@ -73,6 +73,57 @@ struct PoleMoveTests {
             }
         }
         #expect(throughCorner == 2)
+        // The rebuilt edges lie on the new surface all along, not only at their ends, and the moved face tessellates.
+        for edge in moved.topology.edges.indices {
+            let curve = try #require(try await kernel.curves(from: [EdgeID(edge)], of: moved, tag: tag).first)
+            let distances = try await kernel.distances(from: curve.polyline, to: .solid(moved), signed: false)
+            #expect(distances.count == curve.polyline.count && curve.polyline.count > 1)
+            #expect((distances.max() ?? 1) < 1e-6)
+        }
+        let mesh = try await kernel.tessellate(moved, tolerance: 0.05, angle: 0.5)
+        #expect(!mesh.indices.isEmpty && mesh.positions.count > 3)
+    }
+
+    @Test func boundaryRolesSurviveByPosition() async throws {
+        let sheet = try await loftedSheet()
+        #expect(sheet.topology.edges.count == 4)
+        #expect(sheet.topology.edges.allSatisfy { $0.tags.count == 1 })
+        let moved = try await kernel.movingPoles(
+            of: sheet, by: [PoleMove(index: PoleIndex(i: 1, j: 1), offset: Vector3(0, 0, 3))])
+        #expect(Set(moved.topology.edges.map(\.tags)).count == 4)
+        for edge in sheet.topology.edges.indices {
+            #expect(moved.topology.edges[edge].tags == sheet.topology.edges[edge].tags)
+            // An interior move leaves every boundary edge where it was, so edge k is still the edge at k's place.
+            let before = try await endpoints(of: edge, in: sheet)
+            let after = try await endpoints(of: edge, in: moved)
+            #expect((before.0 - after.0).length < 1e-6 && (before.1 - after.1).length < 1e-6)
+        }
+    }
+
+    @Test func untouchedStraightEdgesStayLines() async throws {
+        let square = try await kernel.makeCurve([
+            .line(Vector3(0, 0, 0), Vector3(10, 0, 0)), .line(Vector3(10, 0, 0), Vector3(10, 10, 0)),
+            .line(Vector3(10, 10, 0), Vector3(0, 10, 0)), .line(Vector3(0, 10, 0), Vector3(0, 0, 0)),
+        ], tag: tag)
+        let sheet = try await kernel.planarSurface([square], tag: tag)
+        let net = try await kernel.controlNet(of: sheet).surface
+        #expect(sheet.topology.edges.allSatisfy { $0.kind == .line })
+        // Lift the corner pole opposite the origin: the two edges that don't reach it are untouched.
+        let far = (0..<net.uCount).flatMap { i in (0..<net.vCount).map { (i, $0) } }
+            .first { (net.pole($0.0, $0.1) - Vector3(10, 10, 0)).length < 1e-9 }
+        let index = try #require(far)
+        let moved = try await kernel.movingPoles(
+            of: sheet, by: [PoleMove(index: PoleIndex(i: index.0, j: index.1), offset: Vector3(0, 0, 4))])
+        var kept = 0
+        for (before, after) in zip(sheet.topology.edges, moved.topology.edges) {
+            guard case .line(let a, let b)? = before.curve else { continue }
+            let touches = [a, b].contains { ($0 - Vector3(10, 10, 0)).length < 1e-9 }
+            if !touches {
+                kept += 1
+                #expect(after.kind == .line && after.curve == before.curve && after.direction == before.direction)
+            }
+        }
+        #expect(kept == 2)
     }
 
     @Test func topologyIsTheInputs() async throws {
@@ -114,10 +165,21 @@ struct PoleMoveTests {
         let line = try await kernel.makeCurve([.line(Vector3(5, 0, 0), Vector3(5, 0, 10))], tag: tag)
         let sheet = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: Vector3(0, 0, 1)), angle: .degrees(360), tag: tag)
         let before = try await kernel.controlNet(of: sheet).surface
-        let moved = try await kernel.movingPoles(of: sheet, by: [PoleMove(index: PoleIndex(i: 0, j: 0), offset: Vector3(0, 0, 1))])
+        #expect(before.isPeriodicU || before.isPeriodicV)
+        let seams = sheet.topology.edges.filter { $0.faces.count == 2 && $0.faces[0] == $0.faces[1] }.count
+        #expect(seams == 1)
+        let offset = Vector3(0, 0, 1)
+        let moved = try await kernel.movingPoles(of: sheet, by: [PoleMove(index: PoleIndex(i: 0, j: 0), offset: offset)])
         let after = try await kernel.controlNet(of: moved).surface
         #expect(after.isPeriodicU == before.isPeriodicU && after.isPeriodicV == before.isPeriodicV)
+        #expect(after.poles.count == before.poles.count && after.isWellFormed)
+        #expect((after.pole(0, 0) - (before.pole(0, 0) + offset)).length < 1e-9)
+        #expect(zip(before.poles, after.poles).filter { ($0 - $1).length > 1e-9 }.count == 1)
+        // The seam is still one edge closed on the one face, and the result is a valid shape that tessellates.
+        #expect(moved.topology.edges.filter { $0.faces.count == 2 && $0.faces[0] == $0.faces[1] }.count == seams)
         #expect(structure(moved.topology) == structure(sheet.topology))
+        let mesh = try await kernel.tessellate(moved, tolerance: 0.05, angle: 0.5)
+        #expect(!mesh.indices.isEmpty)
     }
 
     @Test func aMissingPoleIsRefused() async throws {
@@ -127,20 +189,66 @@ struct PoleMoveTests {
         }
     }
 
-    /// OpenCascade's checker is lenient about folds: a corner dragged across the net, a row collapsed to a point, a pole a billion
-    /// millimetres away and the whole face collapsed to a point all pass `BRepCheck_Analyzer`. What it does reject is a surface
-    /// that stops being a surface, a pole pushed to a number that isn't one, and that is what the result gate is tested with.
-    @Test func aFoldingMoveIsRefused() async throws {
+}
+
+/// The refusals, fold checks and curve moves.
+extension PoleMoveTests {
+    /// OpenCascade's checker is lenient about geometry (see `folds`), but it rejects a pole that isn't a number, so that is what
+    /// the result gate refuses, along with a move whose sum overflows.
+    @Test func aNonFiniteMoveIsRefused() async throws {
         let sheet = try await kernel.bsplineSheet(uCount: 3, vCount: 3, degree: 1, tag: tag)
+        let invalid = KernelError.invalidInput("Moving these control points makes an invalid surface.")
         for offset in [Vector3(.nan, 0, 0), Vector3(0, .infinity, 0)] {
-            await #expect(throws: KernelError.invalidInput("Moving these control points makes an invalid surface.")) {
+            await #expect(throws: invalid) {
                 try await kernel.movingPoles(of: sheet, by: [PoleMove(index: PoleIndex(i: 1, j: 1), offset: offset)])
             }
         }
-        // The folded move is still a valid B-rep to OpenCascade, and the sheet it makes keeps its topology.
+        // Each offset is finite; the second addition overflows.
+        let big = Vector3(1.7e308, 0, 0)
+        await #expect(throws: invalid) {
+            try await kernel.movingPoles(of: sheet, by: [
+                PoleMove(index: PoleIndex(i: 1, j: 1), offset: big), PoleMove(index: PoleIndex(i: 1, j: 1), offset: big),
+            ])
+        }
+    }
+
+    @Test func aNonFiniteCurveMoveIsRefused() async throws {
+        let curve = try await spline([Vector3(0, 0, 0), Vector3(2, 1, 0), Vector3(4, -1, 0), Vector3(6, 1, 0), Vector3(8, 0, 0)])
+        let invalid = KernelError.invalidInput("Moving these control points makes an invalid curve.")
+        for offset in [Vector3(.nan, 0, 0), Vector3(0, .infinity, 0)] {
+            await #expect(throws: invalid) {
+                try await kernel.movingPoles(of: curve, by: [PoleMove(index: PoleIndex(i: 2), offset: offset)])
+            }
+        }
+        let big = Vector3(1.7e308, 0, 0)
+        await #expect(throws: invalid) {
+            try await kernel.movingPoles(of: curve, by: [
+                PoleMove(index: PoleIndex(i: 2), offset: big), PoleMove(index: PoleIndex(i: 2), offset: big),
+            ])
+        }
+    }
+
+    @Test func aFoldedNetFolds() async throws {
+        let sheet = try await kernel.bsplineSheet(uCount: 3, vCount: 3, degree: 1, tag: tag)
+        #expect(try await kernel.folds(sheet) == false)
+        // The corner pole dragged across the net: OpenCascade still calls the B-rep valid, folds says what it is.
         let folded = try await kernel.movingPoles(
             of: sheet, by: [PoleMove(index: PoleIndex(i: 0, j: 0), offset: Vector3(6, 6, 0))])
         #expect(structure(folded.topology) == structure(sheet.topology))
+        #expect(try await kernel.folds(folded))
+    }
+
+    @Test func aPlainNetDoesNotFold() async throws {
+        #expect(try await kernel.folds(try await loftedSheet()) == false)
+        let axis = Axis(origin: .zero, direction: Vector3(0, 0, 1))
+        // A cone from the axis and a disc swept from it have a degenerate edge at the axis by design.
+        for end in [Vector3(5, 0, 10), Vector3(5, 0, 0)] {
+            let line = try await kernel.makeCurve([.line(.zero, end)], tag: tag)
+            let sheet = try await kernel.revolve(line, axis: axis, angle: .degrees(360), tag: tag)
+            #expect(try await kernel.folds(sheet) == false, "from the axis to \(end)")
+        }
+        let wall = try await kernel.makeCurve([.line(Vector3(5, 0, 0), Vector3(5, 0, 10))], tag: tag)
+        #expect(try await kernel.folds(try await kernel.revolve(wall, axis: axis, angle: .degrees(90), tag: tag)) == false)
     }
 
     @Test func aCurvesPoleMoves() async throws {
@@ -157,6 +265,48 @@ struct PoleMoveTests {
         await #expect(throws: KernelError.invalidInput("That control point no longer exists.")) {
             try await kernel.movingPoles(of: curve, by: [PoleMove(index: PoleIndex(i: 99), offset: offset)])
         }
+    }
+
+    @Test func aRationalCurvesPoleMoves() async throws {
+        let arc = try await kernel.makeCurve([
+            .arc(center: .zero, normal: Vector3(0, 0, 1), radius: 5, start: Vector3(5, 0, 0), sweep: .pi / 2),
+        ], tag: tag)
+        let before = try await kernel.controlNet(of: arc).curve
+        let weights = try #require(before.weights)
+        let moved = try await kernel.movingPoles(of: arc, by: [PoleMove(index: PoleIndex(i: 1), offset: Vector3(0, 0, 2))])
+        let after = try await kernel.controlNet(of: moved).curve
+        #expect(after.weights == weights)
+        #expect((after.poles[1] - (before.poles[1] + Vector3(0, 0, 2))).length < 1e-9)
+        #expect((after.poles[0] - before.poles[0]).length < 1e-9 && (after.poles[2] - before.poles[2]).length < 1e-9)
+    }
+
+    @Test func anEndPoleMovesTheCurveEnd() async throws {
+        let curve = try await spline([Vector3(0, 0, 0), Vector3(2, 1, 0), Vector3(4, -1, 0), Vector3(6, 1, 0), Vector3(8, 0, 0)])
+        let before = try await kernel.controlNet(of: curve).curve
+        let offset = Vector3(0, 2, 0)
+        let moved = try await kernel.movingPoles(
+            of: curve, by: [PoleMove(index: PoleIndex(i: 0), offset: offset), PoleMove(index: PoleIndex(i: 4), offset: -offset)])
+        let after = try await kernel.controlNet(of: moved).curve
+        #expect((after.startPoint - (before.startPoint + offset)).length < 1e-9)
+        #expect((after.endPoint - (before.endPoint - offset)).length < 1e-9)
+        let line = try #require(moved.polyline)
+        #expect((try #require(line.first) - after.startPoint).length < 1e-6)
+        #expect((try #require(line.last) - after.endPoint).length < 1e-6)
+    }
+
+    @Test func movingAClosedCurvesEndPoleOpensIt() async throws {
+        let square = [Vector3(0, 0, 0), Vector3(4, 0, 0), Vector3(4, 4, 0), Vector3(0, 4, 0), Vector3(0, 0, 0)]
+        let curve = try await spline(square)
+        #expect(curve.isClosed)
+        let net = try await kernel.controlNet(of: curve)
+        #expect(!net.isPeriodic)
+        let moved = try await kernel.movingPoles(of: curve, by: [PoleMove(index: PoleIndex(i: 0), offset: Vector3(0, -1, 0))])
+        #expect(!moved.isClosed)
+        let both = try await kernel.movingPoles(
+            of: curve, by: [PoleMove(index: PoleIndex(i: 0), offset: Vector3(0, -1, 0)),
+                            PoleMove(index: PoleIndex(i: 4), offset: Vector3(0, -1, 0)),
+                           ])
+        #expect(both.isClosed)
     }
 
     @Test func aPeriodicCurveStaysPeriodic() async throws {

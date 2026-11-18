@@ -571,6 +571,13 @@ void occt_curve_net_free(occt_curve_net *net);
 /// result BRepCheck_Analyzer rejects (when the input passed it), is refused. Never changes `shape` or geometry it shares.
 occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const int *indices, const double *offsets, int count,
                                  occt_status *status);
+/// 1 when `a` and `b` have the same faces, edges and vertices in their maps: the same counts, each edge between the same vertex indices
+/// (first and last, as the edge runs), and each face's edges in the same order. 0 otherwise (or on a null shape).
+int occt_same_structure(const occt_shape *a, const occt_shape *b, occt_status *status);
+/// Sets `*folds` to 1 when face `face_index` (1-based) folds over itself: on a 33 x 33 grid of its parameter range (samples inside the
+/// face only, none on a degenerate edge's point) two neighbouring unit normals have a negative dot product, or one sample's
+/// |du x dv| is under 1e-12 x the face's bounding size squared and its neighbour's is not.
+int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt_status *status);
 /// FOR TESTS ONLY. The same shape with the opposite orientation (its faces are TopAbs_REVERSED), geometry untouched.
 occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status);
 /// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x

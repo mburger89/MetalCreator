@@ -3,7 +3,10 @@
 #include "cocct_sheet.hpp"
 
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
+#include <BRepClass_FaceClassifier.hxx>
+#include <Bnd_Box.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepLib.hxx>
@@ -277,7 +280,7 @@ void fill_net(const Handle(Geom_BSplineSurface) &surface, bool normals, bool fli
 
 namespace cocct {
 
-TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface) {
+TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface, const TopoDS_Face &original) {
     const TopoDS_Face face = TopoDS::Face(given.Oriented(TopAbs_FORWARD));
     BRep_Builder builder;
     const double tolerance = std::max(BRep_Tool::Tolerance(face), 1e-7);
@@ -289,6 +292,10 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
         Handle(Geom2d_Curve) second;
         double start = 0;
         double end = 0;
+        bool rebuild = false; // the old 3D curve no longer lies on the new surface
+        Handle(Geom_Curve) reinstated; // the original's curve, put back when it fits and the converted one doesn't
+        double reinstated_first = 0;
+        double reinstated_last = 0;
     };
     std::vector<edge_curves> edges;
     const TopTools_IndexedMapOfShape edge_map = map_of(face, TopAbs_EDGE);
@@ -305,6 +312,55 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
             entry.second = BRep_Tool::CurveOnSurface(TopoDS::Edge(entry.edge.Oriented(TopAbs_REVERSED)), face, s, e);
         }
         edges.push_back(entry);
+    }
+
+    // An edge whose 3D curve still lies on the new surface (a straight edge of a plane the move left alone) is kept as it is, so
+    // lines and circles stay lines and circles. The others are rebuilt from their pcurves.
+    TopTools_IndexedMapOfShape original_edges;
+    if (!original.IsNull()) {
+        original_edges = map_of(original, TopAbs_EDGE);
+        if (original_edges.Extent() != static_cast<int>(edges.size())) {
+            original_edges.Clear();
+        }
+    }
+    const auto lies_on = [&](const Handle(Geom_Curve) &curve, double first, double last, const edge_curves &entry) {
+        if (curve.IsNull()) {
+            return false;
+        }
+        for (int k = 0; k <= 8; ++k) {
+            const double w = k / 8.0;
+            const gp_Pnt2d uv = entry.first->Value(entry.start + (entry.end - entry.start) * w);
+            if (curve->Value(first + (last - first) * w).Distance(surface->Value(uv.X(), uv.Y())) > 1e-7) {
+                return false;
+            }
+        }
+        return true;
+    };
+    for (size_t k = 0; k < edges.size(); ++k) {
+        edge_curves &entry = edges[k];
+        if (BRep_Tool::Degenerated(entry.edge)) {
+            continue;
+        }
+        // The original's curve first, since it is the exact line or circle the conversion made a B-spline of.
+        if (original_edges.Extent() > 0) {
+            const TopoDS_Edge source = TopoDS::Edge(original_edges(static_cast<int>(k) + 1));
+            double source_first = 0;
+            double source_last = 0;
+            const Handle(Geom_Curve) source_curve = BRep_Tool::Curve(source, source_first, source_last);
+            if (lies_on(source_curve, source_first, source_last, entry)) {
+                entry.reinstated = source_curve;
+                entry.reinstated_first = source_first;
+                entry.reinstated_last = source_last;
+                continue;
+            }
+        }
+        double first = 0;
+        double last = 0;
+        const Handle(Geom_Curve) old_curve = BRep_Tool::Curve(entry.edge, first, last);
+        if (lies_on(old_curve, first, last, entry)) {
+            continue;
+        }
+        entry.rebuild = true;
     }
 
     builder.UpdateFace(face, surface, TopLoc_Location(), tolerance);
@@ -332,24 +388,26 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
         }
     }
     for (const edge_curves &entry : edges) {
-        if (BRep_Tool::Degenerated(entry.edge)) {
+        if (!entry.reinstated.IsNull()) {
+            builder.UpdateEdge(entry.edge, entry.reinstated, TopLoc_Location(), 1e-7);
+            builder.Range(entry.edge, entry.reinstated_first, entry.reinstated_last);
+            BRepLib::SameParameter(entry.edge, 1e-6, Standard_True);
+            continue;
+        }
+        if (!entry.rebuild) {
             continue;
         }
         builder.UpdateEdge(entry.edge, Handle(Geom_Curve)(), 0.0);
+        if (!BRepLib::BuildCurve3d(entry.edge, 1e-6, GeomAbs_C0, 14, 60)) {
+            throw user_error("The edges couldn't be rebuilt on the new surface.");
+        }
+        BRepLib::SameParameter(entry.edge, 1e-6, Standard_True);
     }
-    if (!BRepLib::BuildCurves3d(face, 1e-6, GeomAbs_C0, 14, 60)) {
-        throw user_error("The edges couldn't be rebuilt on the new surface.");
-    }
-    BRepLib::SameParameter(face, 1e-6, Standard_True);
     BRepLib::UpdateTolerances(face);
     return TopoDS::Face(face.Oriented(given.Orientation()));
 }
 
 } // namespace cocct
-
-namespace {
-
-} // namespace
 
 extern "C" {
 
@@ -390,6 +448,7 @@ occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const 
         BRepBuilderAPI_Copy copier(shape->shape, Standard_True, Standard_False);
         TopoDS_Shape work = copier.Shape();
         occt_shape holder{work};
+        TopoDS_Face original_face = face_at(&holder, face_index);
         converted_face converted = convert_face(&holder, face_index);
         if (converted.converted) {
             // The conversion of the whole copy, so the face stays in its shell; the same conversion the net read made.
@@ -415,13 +474,143 @@ occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const 
                 throw user_error("That control point no longer exists.");
             }
             const gp_Pnt pole = moved->Pole(i + 1, j + 1);
-            moved->SetPole(i + 1, j + 1, gp_Pnt(pole.X() + offsets[3 * k], pole.Y() + offsets[3 * k + 1], pole.Z() + offsets[3 * k + 2]));
+            const gp_Pnt target(pole.X() + offsets[3 * k], pole.Y() + offsets[3 * k + 1], pole.Z() + offsets[3 * k + 2]);
+            if (!std::isfinite(target.X()) || !std::isfinite(target.Y()) || !std::isfinite(target.Z())) {
+                throw user_error("Moving these control points makes an invalid surface.");
+            }
+            moved->SetPole(i + 1, j + 1, target);
         }
-        replace_face_surface(face_at(&holder, face_index), moved);
+        replace_face_surface(face_at(&holder, face_index), moved, converted.converted ? original_face : TopoDS_Face());
         if (input_valid && !BRepCheck_Analyzer(work).IsValid()) {
             throw user_error("Moving these control points makes an invalid surface.");
         }
         return new occt_shape{work};
+    });
+}
+
+int occt_same_structure(const occt_shape *a, const occt_shape *b, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        if (!a || !b) {
+            return 0;
+        }
+        const TopTools_IndexedMapOfShape faces_a = map_of(a->shape, TopAbs_FACE);
+        const TopTools_IndexedMapOfShape faces_b = map_of(b->shape, TopAbs_FACE);
+        const TopTools_IndexedMapOfShape edges_a = map_of(a->shape, TopAbs_EDGE);
+        const TopTools_IndexedMapOfShape edges_b = map_of(b->shape, TopAbs_EDGE);
+        const TopTools_IndexedMapOfShape vertices_a = map_of(a->shape, TopAbs_VERTEX);
+        const TopTools_IndexedMapOfShape vertices_b = map_of(b->shape, TopAbs_VERTEX);
+        if (faces_a.Extent() != faces_b.Extent() || edges_a.Extent() != edges_b.Extent() ||
+            vertices_a.Extent() != vertices_b.Extent()) {
+            return 0;
+        }
+        for (int k = 1; k <= edges_a.Extent(); ++k) {
+            const TopoDS_Edge ea = TopoDS::Edge(edges_a(k));
+            const TopoDS_Edge eb = TopoDS::Edge(edges_b(k));
+            const int a0 = vertices_a.FindIndex(TopExp::FirstVertex(ea, Standard_True));
+            const int a1 = vertices_a.FindIndex(TopExp::LastVertex(ea, Standard_True));
+            const int b0 = vertices_b.FindIndex(TopExp::FirstVertex(eb, Standard_True));
+            const int b1 = vertices_b.FindIndex(TopExp::LastVertex(eb, Standard_True));
+            if (a0 != b0 || a1 != b1 || BRep_Tool::Degenerated(ea) != BRep_Tool::Degenerated(eb)) {
+                return 0;
+            }
+        }
+        for (int f = 1; f <= faces_a.Extent(); ++f) {
+            std::vector<int> list_a;
+            std::vector<int> list_b;
+            for (TopExp_Explorer it(faces_a(f), TopAbs_EDGE); it.More(); it.Next()) {
+                list_a.push_back(edges_a.FindIndex(it.Current()));
+            }
+            for (TopExp_Explorer it(faces_b(f), TopAbs_EDGE); it.More(); it.Next()) {
+                list_b.push_back(edges_b.FindIndex(it.Current()));
+            }
+            if (list_a != list_b) {
+                return 0;
+            }
+        }
+        return 1;
+    });
+}
+
+int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        occt_initialize();
+        const TopoDS_Face face = face_at(shape, face_index);
+        const Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) {
+            throw user_error("That face has no surface.");
+        }
+        double u0, u1, v0, v1;
+        BRepTools::UVBounds(face, u0, u1, v0, v1);
+        Bnd_Box box;
+        BRepBndLib::Add(face, box);
+        double x0, y0, z0, x1, y1, z1;
+        box.Get(x0, y0, z0, x1, y1, z1);
+        const double size = std::max({x1 - x0, y1 - y0, z1 - z0, 1e-9});
+        const double tiny = 1e-12 * size * size;
+        std::vector<gp_Pnt> degenerate_points;
+        for (TopExp_Explorer it(face, TopAbs_EDGE); it.More(); it.Next()) {
+            const TopoDS_Edge edge = TopoDS::Edge(it.Current());
+            if (BRep_Tool::Degenerated(edge)) {
+                degenerate_points.push_back(BRep_Tool::Pnt(TopExp::FirstVertex(edge)));
+            }
+        }
+        constexpr int kGrid = 33;
+        BRepClass_FaceClassifier classifier;
+        struct sample {
+            bool inside = false;
+            bool ignored = false;
+            bool degenerate = false;
+            gp_Vec normal;
+        };
+        std::vector<sample> grid(kGrid * kGrid);
+        for (int a = 0; a < kGrid; ++a) {
+            for (int b = 0; b < kGrid; ++b) {
+                sample &out = grid[a * kGrid + b];
+                const double u = u0 + (u1 - u0) * a / (kGrid - 1);
+                const double v = v0 + (v1 - v0) * b / (kGrid - 1);
+                classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
+                out.inside = classifier.State() == TopAbs_IN || classifier.State() == TopAbs_ON;
+                if (!out.inside) {
+                    continue;
+                }
+                gp_Pnt point;
+                gp_Vec du, dv;
+                surface->D1(u, v, point, du, dv);
+                for (const gp_Pnt &pole : degenerate_points) {
+                    out.ignored = out.ignored || point.Distance(pole) <= 1e-6 * size;
+                }
+                const gp_Vec n = du.Crossed(dv);
+                out.degenerate = n.Magnitude() < tiny;
+                out.normal = out.degenerate ? gp_Vec() : n.Normalized();
+            }
+        }
+        *folds = 0;
+        const int steps[2][2] = {{1, 0}, {0, 1}};
+        for (int a = 0; a < kGrid && !*folds; ++a) {
+            for (int b = 0; b < kGrid && !*folds; ++b) {
+                const sample &here = grid[a * kGrid + b];
+                if (!here.inside || here.ignored) {
+                    continue;
+                }
+                for (const auto &step : steps) {
+                    const int na = a + step[0];
+                    const int nb = b + step[1];
+                    if (na >= kGrid || nb >= kGrid) {
+                        continue;
+                    }
+                    const sample &next = grid[na * kGrid + nb];
+                    if (!next.inside || next.ignored) {
+                        continue;
+                    }
+                    if (here.degenerate != next.degenerate) {
+                        *folds = 1;
+                    } else if (!here.degenerate && here.normal.Dot(next.normal) < 0) {
+                        *folds = 1;
+                    }
+                }
+            }
+        }
+        return 1;
     });
 }
 
