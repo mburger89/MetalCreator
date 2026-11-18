@@ -37,7 +37,7 @@ public enum BuiltInNodes {
         ImportKiCadBoardNode.self,
         ImportModelNode.self,
         CurveThroughPointsNode.self, CurveFromEdgesNode.self, ProfileToCurvesNode.self, ExtrudeCurveNode.self, RevolveCurveNode.self,
-        LoftSurfaceNode.self, SweepNode.self, PlanarSurfaceNode.self, NetworkSurfaceNode.self,
+        LoftSurfaceNode.self, SweepNode.self, PlanarSurfaceNode.self, NetworkSurfaceNode.self, BoundaryPatchNode.self,
         OutputNode.self,
     ]
 
