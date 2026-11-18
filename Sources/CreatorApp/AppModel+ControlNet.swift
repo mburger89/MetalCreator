@@ -19,6 +19,15 @@ final class ControlNetFeed {
     var sentMoves: [PoleMove] = []
     var dragSerial = 0
     var isDragging = false
+    /// Whether the drag in progress has recorded a step, so a cancel takes out only what it made.
+    var recordedStep = false
+    /// Drag serials count up for the whole run, so no two drags (of any session) share an undo key.
+    private static var lastSerial = 0
+
+    static func nextSerial() -> Int {
+        lastSerial += 1
+        return lastSerial
+    }
 
     init(session: ControlNetSession) {
         self.session = session
@@ -44,7 +53,7 @@ extension AppModel {
     /// Starts the mode on an Edit Surface or Edit Curve node (its inspector button, a double click). Refused inside a group and for a
     /// node that gets a list; ends Measure and the model dimension tool; does nothing while a sketch is open or a pick runs.
     public func editControlPoints(of id: NodeID) {
-        guard sketch == nil, pick == nil else { return }
+        guard sketch == nil else { return }
         if controlNet?.node == id { return }
         guard let node = editor.graph.nodes[id], let kind = Self.controlNetKind(of: node) else { return }
         editor.commitPendingEntry()
@@ -55,11 +64,10 @@ extension AppModel {
             return
         }
         if case .several(let count) = controlNetInput(of: node, kind: kind) {
-            let noun = kind == .surface ? "surface" : "curve"
-            alert = .problem(AppProblem("The control points can't be edited",
-                                        "Edit Control Points works on one \(noun); this node gets \(count)."))
+            alert = .problem(AppProblem("The control points can't be edited", Self.listSentence(kind: kind, count: count)))
             return
         }
+        pick = nil
         endMeasure()
         endModelDimension()
         endControlPoints()
@@ -95,6 +103,23 @@ extension AppModel {
         controlNetProblem = nil
         followControlNet()
         showMeasureOverlay()
+    }
+
+    /// Keeps the Edit node's source in demand while its net is shown (Final preview evaluates only what the Outputs need).
+    private func followControlNetDemand(_ source: NodeID?) {
+        if let source {
+            if document.extraDemand == nil || document.extraDemand == controlNetDemand {
+                document.extraDemand = source
+                controlNetDemand = source
+            }
+        } else if let mine = controlNetDemand {
+            if document.extraDemand == mine { document.extraDemand = nil }
+            controlNetDemand = nil
+        }
+    }
+
+    static func listSentence(kind: ControlNetSession.Kind, count: Int) -> String {
+        "Edit Control Points works on one \(kind == .surface ? "surface" : "curve"); this node gets \(count)."
     }
 
     static func controlNetKind(of node: Node) -> ControlNetSession.Kind? {
@@ -145,12 +170,20 @@ extension AppModel {
             controlNetFeed = shown.map { ControlNetFeed(session: $0) }
             if let feed = controlNetFeed { watchControlNetOverlay(feed) }
         }
-        guard let feed = controlNetFeed, let node = document.graph.nodes[feed.session.node] else { return }
+        guard let feed = controlNetFeed, let node = document.graph.nodes[feed.session.node] else {
+            followControlNetDemand(nil)
+            return
+        }
+        let socket: SocketName = feed.session.kind == .surface ? "surface" : "curve"
+        followControlNetDemand(document.graph.incomingLink(to: Endpoint(node: node.id, socket: socket))?.from.node)
         let stored = storedPoleMoves(of: node.id)
         switch controlNetInput(of: node, kind: feed.session.kind) {
         case .loading:
             break
         case .none, .several:
+            if case .several(let count) = controlNetInput(of: node, kind: feed.session.kind) {
+                controlNetProblem = Self.listSentence(kind: feed.session.kind, count: count)
+            }
             if feed.requested != nil || feed.grid != nil {
                 feed.requested = nil
                 feed.grid = nil
@@ -203,12 +236,16 @@ extension AppModel {
         }
     }
 
-    private func controlNetLanded(_ feed: ControlNetFeed, token: Int, result: Result<ControlNetGrid, any Error>) {
+    func controlNetLanded(_ feed: ControlNetFeed, token: Int, result: Result<ControlNetGrid, any Error>) {
         guard controlNetFeed === feed, token == feed.token else { return }
         controlNetRead = nil
         switch result {
         case .failure(let error):
+            // The net on screen belongs to an input that is gone: nothing is shown or draggable until a net can be read.
             controlNetProblem = (error as? KernelError)?.userMessage ?? "\(error)"
+            feed.grid = nil
+            feed.session.showNet(ControlNetGrid(poles: [], uCount: 0, vCount: 0, normals: []), moves: [])
+            showMeasureOverlay()
         case .success(let grid):
             controlNetProblem = nil
             let moves = storedPoleMoves(of: feed.session.node)
@@ -264,16 +301,16 @@ extension AppModel {
         case .changed:
             if !feed.isDragging {
                 feed.isDragging = true
-                feed.dragSerial += 1
+                feed.recordedStep = false
+                feed.dragSerial = ControlNetFeed.nextSerial()
             }
             document.isScrubbing = true
             store(moves, in: feed, key: feed.dragKey, name: UndoName.moveControlPoints)
         case .ended:
-            if !feed.isDragging {
-                feed.dragSerial += 1
-            }
+            if !feed.isDragging { feed.dragSerial = ControlNetFeed.nextSerial() }
             store(moves, in: feed, key: feed.dragKey, name: UndoName.moveControlPoints)
             feed.isDragging = false
+            feed.recordedStep = false
             document.endCoalescing()
             document.isScrubbing = false
         case .typed:
@@ -281,8 +318,11 @@ extension AppModel {
         case .cancelled:
             // The drag leaves no step: its run of steps is taken out of the history, and only when there is none the offsets from
             // before it are written back.
-            if !document.discardCoalescedStep(key: feed.dragKey) { store(moves, in: feed, key: nil, name: UndoName.moveControlPoints) }
+            if feed.recordedStep, !document.discardCoalescedStep(key: feed.dragKey) {
+                store(moves, in: feed, key: nil, name: UndoName.moveControlPoints)
+            }
             feed.isDragging = false
+            feed.recordedStep = false
             document.endCoalescing()
             document.isScrubbing = false
             feed.sentMoves = storedPoleMoves(of: session.node)
@@ -301,6 +341,7 @@ extension AppModel {
         do {
             try document.perform(.setInput(node, NodeSetting.poleMoves, .poleMoves(list)), coalescingKey: key, name: name)
             feed.sentMoves = list
+            if key != nil { feed.recordedStep = true }
         } catch {
             alert = .problem(AppProblem("The control points couldn't be moved", error.message))
         }

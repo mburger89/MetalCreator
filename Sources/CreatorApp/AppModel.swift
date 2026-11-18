@@ -82,6 +82,8 @@ public final class AppModel {
     /// Why the net could not be read, in the kernel's words; `nil` while it can.
     var controlNetProblem: String?
     @ObservationIgnored var controlNetOverlayPending = false
+    /// The source node `extraDemand` was set to for the shown net.
+    @ObservationIgnored var controlNetDemand: NodeID?
     /// Counts requests to open a sketch, so one that waited for its plane's evaluation can tell it was superseded.
     var sketchRequest = 0
     public var alert: AppAlert?
@@ -179,6 +181,7 @@ public final class AppModel {
         endControlPoints()
         controlNetPreview = nil
         controlNetFeed = nil
+        controlNetDemand = nil
         controlNetRead?.cancel()
         controlNetRead = nil
         measureBook.stop()

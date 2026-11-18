@@ -13,12 +13,13 @@ import Testing
 #if canImport(CreatorOCCT)
 /// A one-face B-spline sheet with a `u` x `v` net (the kernel's test helper) at 1 mm spacing; `count` copies make a list, and a
 /// `hold` of 1 holds the evaluation at `ControlNetModeTests.gate` until the test lets it through.
-private enum NetSheetNode: NodeDefinition {
+enum NetSheetNode: NodeDefinition {
     static let typeID = "test.netSheet"
     static let displayName = "Net Sheet"
     static let category = NodeCategory.surface
     static let inputs = [SocketSpec("u", .integer, defaultValue: .integer(6)), SocketSpec("v", .integer, defaultValue: .integer(8)),
                          SocketSpec("count", .integer, defaultValue: .integer(1)), SocketSpec("hold", .integer, defaultValue: .integer(0)),
+                         SocketSpec("kind", .integer, defaultValue: .integer(0)),
     ]
     static let outputs = [SocketSpec("surface", .solid)]
     static let kernel = OCCTKernel()
@@ -26,9 +27,29 @@ private enum NetSheetNode: NodeDefinition {
 
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         if try inputs.integer("hold") == 1 { await gate.hold() }
+        if try inputs.integer("kind") == 1 {
+            // A closed solid, which has no control net to edit.
+            let box = try await Self.kernel.extrude(Profile2D.rectangle(width: 10, height: 10, plane: .xy), distance: 5, mode: .oneSided,
+                                                    tag: context.tag)
+            return NodeOutputs(["surface": .solid(box)])
+        }
         let sheet = try await Self.kernel.bsplineSheet(uCount: try inputs.integer("u"), vCount: try inputs.integer("v"), degree: 1,
                                                        tag: context.tag)
         return NodeOutputs(lists: ["surface": Array(repeating: Scalar.solid(sheet), count: try inputs.integer("count"))])
+    }
+}
+
+/// `count` straight curves, for an Edit Curve node that gets a list.
+enum CurveListNode: NodeDefinition {
+    static let typeID = "test.curveList"
+    static let displayName = "Curve List"
+    static let category = NodeCategory.surface
+    static let inputs = [SocketSpec("count", .integer, defaultValue: .integer(3))]
+    static let outputs = [SocketSpec("curve", .curve)]
+
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        let curve = try await NetSheetNode.kernel.makeCurve([.line(.zero, Vector3(10, 0, 0))], tag: context.tag)
+        return NodeOutputs(lists: ["curve": Array(repeating: Scalar.curve(curve), count: try inputs.integer("count"))])
     }
 }
 
@@ -42,7 +63,7 @@ struct ControlNetModeTests {
         let output: Node
     }
 
-    static let registry = NodeRegistry(BuiltInNodes.all + [NetSheetNode.self])
+    static let registry = NodeRegistry(BuiltInNodes.all + [NetSheetNode.self, CurveListNode.self])
 
     func open(_ settings: [SocketName: ConstantValue] = [:]) async -> Fixture {
         var source = Self.registry.makeNode(NetSheetNode.typeID, at: .zero)
