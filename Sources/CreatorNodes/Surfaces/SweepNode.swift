@@ -16,7 +16,9 @@ public enum SweepNode: NodeDefinition {
     public static let twistRefusal = "Twist can't be combined with a rail or a guide surface."
     public static let unusedGuideWarning = "The rail and guide are used only when the orientation is Rail or Guide."
     public static let pathRefusal = "Sweep needs exactly one path."
-    public static var singleValuesRefusal: String? { "Sweep takes one path, guide, orientation, binormal, twist, end scale and solid choice at a time." }
+    public static var singleValuesRefusal: String? {
+        "Sweep takes one path, guide, orientation, binormal, twist, end scale and solid choice at a time."
+    }
     public static let inputs = [
         SocketSpec("profiles", .curve, access: .list),
         SocketSpec("path", .curve),
