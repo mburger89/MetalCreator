@@ -96,7 +96,7 @@ extension OCCTKernel {
     }
 
     /// Runs a sheet builder under the kernel's lock and names the result.
-    private func buildSheet(_ operation: String, tag: NodeTag, _ body: () throws -> OCCTShape.SheetBuild) throws -> Solid {
+    func buildSheet(_ operation: String, tag: NodeTag, _ body: () throws -> OCCTShape.SheetBuild) throws -> Solid {
         let built: OCCTShape.SheetBuild
         do {
             // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure.

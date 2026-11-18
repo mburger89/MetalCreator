@@ -107,6 +107,9 @@ public protocol Kernel: Actor {
     func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid
     /// A planar surface bounded by `loops`. The default refuses.
     func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid
+    /// The Gordon surface through a grid of `u` and `v` curves, which may come in any order and direction and must cross
+    /// pairwise within `tolerance`. The default refuses.
+    func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) throws -> Solid
     /// `curve` scaled about the origin by `factor`. (A solid or sheet is scaled with `scaled(_:by:tag:)`, which keeps its face and edge tags.) The default refuses.
     func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve
     /// Every solid, sheet and curve in a model file. The default refuses.
@@ -187,6 +190,10 @@ extension Kernel {
 
     public func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("planar surfaces")
+    }
+
+    public func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("network surfaces")
     }
 
     public func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve {

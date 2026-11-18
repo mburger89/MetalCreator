@@ -564,6 +564,15 @@ occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, cons
                               const double binormal[3], double end_scale, int make_solid, occt_history *history,
                               occt_boundary_roles *roles, occt_status *status);
 
+/// The Gordon surface through a grid of curves (wires): `u_count` curves one way and `v_count` the other, in any order and
+/// direction (they are sorted and turned here; each pair must cross within `tolerance`). One face, non-rational. History: the
+/// face is OCCT_FROM_SEGMENT (0, 0). Roles: the first and last u curve's edges are kinds 1 and 2, the first and last v curve's
+/// are kind 3 with a = 0 and 1 (in the sorted order). Numbers in refusals are wrapped in \x01 ... \x02 so the caller can write
+/// them in its locale. Refuses with sentences such as "u curve 2 and v curve 3 miss each other by 0.4 mm.".
+occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count, const occt_shape *const *v_curves,
+                                 int v_count, double tolerance, occt_history *history, occt_boundary_roles *roles,
+                                 occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif
