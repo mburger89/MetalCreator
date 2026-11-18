@@ -30,7 +30,8 @@ struct AnySocketTests {
         #expect(NodeCategory.value.title == "Value")
         #expect(NodeCategory.allCases.last == .output)
         #expect(NodeCategory.allCases == [
-            .value, .profile, .solid, .selection, .feature, .patterns, .lists, .fields, .implicit, .mesh, .output,
+            .value, .profile, .solid, .selection, .feature, .patterns, .lists, .fields, .implicit, .mesh, .surface,
+            .output,
         ])
     }
 }

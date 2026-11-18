@@ -18,6 +18,8 @@ public enum Scalar: Sendable {
     case implicit(ImplicitReference)
     /// A triangle mesh (implicit spec §2.2). Computed, never saved.
     case mesh(any MeshPayload)
+    /// A 3D curve (NURBS spec). Computed, never saved.
+    case curve(Curve)
 
     public var type: SocketType {
         switch self {
@@ -33,6 +35,7 @@ public enum Scalar: Sendable {
         case .field: .field
         case .implicit: .implicit
         case .mesh: .mesh
+        case .curve: .curve
         }
     }
 
@@ -44,7 +47,7 @@ public enum Scalar: Sendable {
         case .bool(let value): self = .bool(value)
         case .vector(let value): self = .vector(value)
         case .plane(let value): self = .plane(value)
-        case .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile: return nil
+        case .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile, .modelFile: return nil
         }
     }
 
@@ -62,6 +65,8 @@ public enum Scalar: Sendable {
         // Meshing is work, and needs the run's quality and cancellation, so this conversion can't happen here: an implicit
         // wired into a mesh socket passes as it is, and the node that takes it meshes it (`MeshInput` in CreatorNodes).
         case (.implicit, .mesh): return self
+        // A profile stays a profile on a curve socket: the node that takes it makes its loops into curves (`CurveInput`).
+        case (.profile, .curve): return self
         default: return nil
         }
     }
@@ -75,6 +80,7 @@ public enum Scalar: Sendable {
         case .field(let field): field.estimatedBytes
         case .implicit(let solid): solid.payload.estimatedBytes
         case .mesh(let mesh): mesh.estimatedBytes
+        case .curve(let curve): curve.estimatedBytes
         case .number, .integer, .bool, .vector, .plane: 32
         }
     }

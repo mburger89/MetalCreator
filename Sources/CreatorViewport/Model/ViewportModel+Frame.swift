@@ -14,7 +14,9 @@ extension ViewportModel {
                                         isGhost: item.isGhost, hoveredFace: hoveredFace,
                                         selectedFaces: item.selectedFaces, selectedEdges: item.selectedEdges,
                                         isGuide: item.isGuide, fieldValues: item.fieldValues, fieldRamp: item.fieldRamp,
-                                        warningFaces: item.warningFaces))
+                                        warningFaces: item.warningFaces,
+                                        openShellFaces: cached.openShellFaces,
+                                        isCurve: item.isCurve))
         }
         return ViewportFrame(pose: shown, size: viewSize, sceneBounds: sceneBounds, items: frameItems, shading: shading,
                              gridSpacing: gridSpacing(for: shown), handles: handles, cube: cubeLayout,

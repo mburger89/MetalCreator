@@ -13,6 +13,8 @@ public indirect enum TopoRole: Hashable, Sendable {
     /// A face of an imported board (KiCad import): `face` is a stable key of the face's identity in the file, so a pick
     /// survives other parts changing.
     case imported(face: Int)
+    /// A sheet's boundary edge (`BoundaryRole`). Only edges carry it: a face never does.
+    case boundary(BoundaryRole)
 
     /// A deterministic text form, used to order tags canonically. Outer walls keep the
     /// pre-hole form `side(k)`; hole walls are `side(loop:k)`.
@@ -25,6 +27,7 @@ public indirect enum TopoRole: Hashable, Sendable {
         case .blend(let edge): "blend(\(edge.sortKey))"
         case .unnamed(let face): "unnamed(\(face))"
         case .imported(let face): "imported(\(face))"
+        case .boundary(let role): "boundary(\(role.sortKey))"
         }
     }
 }

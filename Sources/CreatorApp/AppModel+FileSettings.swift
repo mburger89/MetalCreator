@@ -30,6 +30,19 @@ extension AppModel {
         }
     }
 
+    /// Links, or embeds, the STEP or IGES file at `url` on the Import Model `node` of the top level, as one undo step, or throws why not.
+    public func setModelFile(_ url: URL, on node: NodeID, embed: Bool) throws(AppProblem) {
+        do {
+            try attachModelFile(url, embed: embed, to: topLevelTarget(node))
+        } catch let problem as AppProblem {
+            throw problem
+        } catch let problem as ModelImportProblem {
+            throw AppProblem("That model file can't be used", problem.message)
+        } catch {
+            throw AppProblem("The model file couldn't be changed", Evaluator.message(for: error))
+        }
+    }
+
     /// Links the KiCad board at `url` on the Import KiCad Board `node` of the top level, as one undo step, or throws why not.
     /// A board is linked only: `embed` is refused.
     public func setBoardFile(_ url: URL, on node: NodeID, embed: Bool) throws(AppProblem) {
@@ -82,5 +95,31 @@ extension AppModel {
             throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
         }
         try setMeshFile(.embedded(document.addImage(bytes)), on: target, named: UndoName.embedMeshFile)
+    }
+}
+
+extension AppModel {
+    /// The shared core for a model file: only a regular file is accepted (what it holds is the node's to say), then linked or embedded.
+    func attachModelFile(_ url: URL, embed: Bool, to target: FileActionTarget, linkName: String = UndoName.chooseModelFile) throws {
+        let reference = linkedReference(to: url)
+        try checkModelFile(reference)
+        if embed {
+            try embedModel(reference, to: target)
+        } else {
+            try setModelFile(reference, on: target, named: linkName)
+        }
+    }
+
+    /// Reads the file `reference` names into the document, up to the size an embedded file may be (the mesh files' limit).
+    func embedModel(_ reference: ImageReference, to target: FileActionTarget) throws {
+        // The size is read from the file's attributes, so a file over the limit is refused without being read.
+        if case .file(_, _, let size) = document.imageResolver.stamp(of: reference), size > MeshImportLimits.maxEmbeddedBytes {
+            throw AppProblem("That model file can't be used", MeshImportLimits.embeddingRefusal)
+        }
+        let bytes = try document.imageResolver.modelFileBytes(of: reference)
+        guard bytes.count <= MeshImportLimits.maxEmbeddedBytes else {
+            throw AppProblem("That model file can't be used", MeshImportLimits.embeddingRefusal)
+        }
+        try setModelFile(.embedded(document.addImage(bytes)), on: target, named: UndoName.embedModelFile)
     }
 }

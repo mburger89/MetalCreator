@@ -9,6 +9,9 @@ extension ContentType {
     /// ISO 10303 STEP, for CNC and machinists (spec §1).
     public static let step = ContentType("public.step", conformingTo: [.data], filenameExtensions: ["step", "stp"],
                                           localizedDescription: "STEP model")
+    /// IGES, read by the Import Model node.
+    public static let iges = ContentType("public.iges", conformingTo: [.data], filenameExtensions: ["igs", "iges"],
+                                         localizedDescription: "IGES model")
     /// Stereolithography mesh, for 3D printing (spec §1).
     public static let stl = ContentType("public.standard-tesselated-geometry-format", conformingTo: [.data],
                                         filenameExtensions: ["stl"], localizedDescription: "STL mesh")

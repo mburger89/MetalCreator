@@ -7,5 +7,12 @@ struct ExportPlan {
     /// The names of the Output nodes that hold meshes. A mesh can go to STL and 3MF, never to STEP.
     var meshOutputs: [String] = []
 
+    /// The free curves of every Output node, in ID order.
+    var curves: [Curve] = []
+    /// The names of the Output nodes that hold sheets (a solid with a face on an open shell).
+    var sheetOutputs: [String] = []
+    /// The names of the Output nodes that hold curves.
+    var curveOutputs: [String] = []
+
     var hasMeshes: Bool { !meshOutputs.isEmpty }
 }

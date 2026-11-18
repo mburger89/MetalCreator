@@ -17,4 +17,8 @@ struct FrameItem {
     var fieldRamp: FieldRamp?
     /// The faces drawn in the warning colour (`ViewportItem.warningFaces`).
     var warningFaces: Set<FaceID> = []
+    /// The faces of the solid that lie on an open shell (a sheet): their backs draw in the sheet-back colour.
+    var openShellFaces: Set<FaceID> = []
+    /// A curve (`ViewportItem.isCurve`): only its edges are drawn, in the reference colour, in every display mode.
+    var isCurve = false
 }

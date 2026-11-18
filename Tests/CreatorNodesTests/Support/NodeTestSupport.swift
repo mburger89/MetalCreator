@@ -94,6 +94,7 @@ extension Value {
     var planes: [Plane]? { typed { if case .plane(let v) = $0 { v } else { nil } } }
     var profiles: [Profile2D]? { typed { if case .profile(let v) = $0 { v } else { nil } } }
     var solids: [Solid]? { typed { if case .solid(let v) = $0 { v } else { nil } } }
+    var curves: [Curve]? { typed { if case .curve(let v) = $0 { v } else { nil } } }
     var edgeSets: [EdgeSet]? { typed { if case .edgeSet(let v) = $0 { v } else { nil } } }
 }
 

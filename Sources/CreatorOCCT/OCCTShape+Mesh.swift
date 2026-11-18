@@ -61,3 +61,29 @@ extension OCCTShape {
         try make { status in url.withUnsafeFileSystemRepresentation { occt_read_step($0, status) } }
     }
 }
+
+extension OCCTShape {
+    /// What a model file holds, sorted: each shape with the kind the shim gave it (0 solid, 1 sheet, 2 curve), and the file's length
+    /// unit in millimetres. Reads the STEP `data`, or the IGES file at `igesURL`. Call under `OCCTKernel.serialized`.
+    static func readShapes(_ data: Data, igesURL: URL?) throws(OCCTError) -> (shapes: [(shape: OCCTShape, kind: Int)], unit: Double) {
+        var models = occt_model_shapes()
+        defer { occt_model_shapes_free(&models) }
+        try check { status in
+            data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Int32 in
+                buffer.withMemoryRebound(to: CChar.self) { bytes in
+                    if let igesURL {
+                        return igesURL.withUnsafeFileSystemRepresentation { occt_read_shapes(nil, 0, $0, &models, status) }
+                    }
+                    return occt_read_shapes(bytes.baseAddress, bytes.count, nil, &models, status)
+                }
+            }
+        }
+        var shapes: [(shape: OCCTShape, kind: Int)] = []
+        for index in 0..<Int(models.count) {
+            guard let pointer = models.shapes[index] else { continue }
+            models.shapes[index] = nil  // now owned by the wrapper
+            shapes.append((OCCTShape(raw: pointer), Int(models.kinds[index])))
+        }
+        return (shapes, models.file_unit_mm)
+    }
+}

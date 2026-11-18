@@ -31,7 +31,7 @@ extension SDLViewportRenderer {
     func idPassInputs(for frame: ViewportFrame, width: Int, height: Int) -> SDLIDPassInputs? {
         var solids: [SDLIDPassInputs.Solid] = []
         var edges: [(buffer: SDLGPUBuffer, count: Int)] = []
-        for item in frame.items where !item.isGuide {
+        for item in frame.items where !item.isGuide && !item.isCurve {
             guard let mesh = meshes[item.meshSerial], mesh.hasPickEdges(solid: item.solidIndex) else { return nil }
             if let vertices = mesh.vertexBuffer, let base = PickID.base(kind: PickID.faceKind, solid: item.solidIndex) {
                 solids.append(SDLIDPassInputs.Solid(vertices: vertices, vertexCount: mesh.vertexCount, pickBase: base))

@@ -93,11 +93,14 @@ typedef struct {
     int has_axis;
     double radius;
     double axis_point[3];
+    /// 1 when the face lies on a shell that is not closed (a sheet), or on no shell at all.
+    int on_open_shell;
 } occt_face_info;
 
 /// Curve kinds: 0 line, 1 circle, 2 ellipse, 3 bspline, 4 other.
 /// Convexity: 0 convex, 1 concave, 2 smooth, 3 unknown.
-/// face_a/face_b: 1-based face indices; equal for a seam; both 0 for a free edge.
+/// face_a/face_b: 1-based face indices; equal for a seam; both 0 for a free edge. A boundary edge (a sheet's free
+/// edge: one face, not closed on it, not degenerate) has `boundary` 1, face_a its face and face_b 0.
 /// For projecting edges into a sketch (S4): when has_ends, `start` and `end` are the curve's points at
 /// its first and last parameter. For a circle, `center` and `radius` are its own, and the edge runs
 /// counter-clockwise about `direction` from `start` through `sweep` radians (2π for a full circle).
@@ -116,6 +119,7 @@ typedef struct {
     double center[3];
     double radius;
     double sweep;
+    int boundary;
 } occt_edge_info;
 
 typedef struct {
@@ -425,11 +429,133 @@ occt_shape *occt_read_step(const char *path, occt_status *status);
 occt_shape *occt_read_model(const char *data, size_t size, occt_status *status);
 /// Reads the IGES file at `path` like occt_read_model ("The IGES model couldn't be read.").
 occt_shape *occt_read_iges_file(const char *path, occt_status *status);
+/// What a model file holds, sorted (NURBS spec, Import Model): `count` shapes, each a solid (kind 0), a sheet (kind 1: a free shell or
+/// face) or a curve (kind 2: a free wire, or a free edge as a wire), in the file's order, read in millimetres. `file_unit_mm` (0 when the file names no length unit OpenCascade can give a factor for) is the
+/// length unit the file was written in, in millimetres. The caller takes the shapes it uses (setting the entry to null) and frees
+/// the rest with occt_model_shapes_free.
+typedef struct {
+    occt_shape **shapes;
+    int *kinds;
+    int count;
+    double file_unit_mm;
+} occt_model_shapes;
+void occt_model_shapes_free(occt_model_shapes *models);
+/// Reads a STEP model from `size` bytes, or, when `iges_path` is not null, the IGES file at that path (the bytes are then ignored).
+/// Refuses with "The STEP model couldn't be read.", "The IGES model couldn't be read." and "The model contains no shapes.". Returns 1,
+/// or 0 with `status` set.
+int occt_read_shapes(const char *data, size_t size, const char *iges_path, occt_model_shapes *out, occt_status *status);
+/// FOR TESTS ONLY. Writes `shape` as a STEP file at `path` with the file's length unit `unit` ("MM", "INCH", ...).
+int occt_test_write_step_units(const occt_shape *shape, const char *path, const char *unit, occt_status *status);
 /// A copy of `shape` scaled about the origin: a similarity when the three factors are equal, OpenCascade's general transform
 /// otherwise. Faces keep their order in the shape's face map. Every factor must be finite and greater than 0.
 occt_shape *occt_scale(const occt_shape *shape, double sx, double sy, double sz, occt_status *status);
 /// FOR TESTS ONLY. Writes `shape` as an IGES file at `path` in `unit` ("MM", "IN", ...). Returns 1, or 0 with `status` set.
 int occt_test_write_iges(const occt_shape *shape, const char *path, const char *unit, occt_status *status);
+
+/// One piece of a curve for occt_make_curve. kind 0 is a line from `a` to `b`; kind 1 an arc about `a` (centre) with unit normal `b`
+/// from `c` (a point on the circle) through `sweep` radians, signed about the normal; kind 2 a B-spline.
+typedef struct {
+    int kind;
+    double a[3];
+    double b[3];
+    double c[3];
+    double radius;
+    double sweep;
+    int degree;
+    int pole_count;
+    const double *poles;     // pole_count * 3
+    const double *weights;   // pole_count, or null
+    int knot_count;
+    const double *knots;     // knot_count
+    const int *multiplicities; // knot_count
+} occt_curve_piece;
+
+/// What the Swift side reads of a curve (a wire). `polyline` is shim-owned: free it with occt_curve_info_free.
+typedef struct {
+    int piece_count;
+    int is_closed;
+    int planar;
+    double plane_origin[3];
+    double plane_normal[3];
+    double plane_x[3];
+    double length;
+    double min[3];
+    double max[3];
+    double *polyline;
+    int polyline_count;
+} occt_curve_info;
+
+/// A wire over `count` pieces that join end to end within 1e-6 mm. Null with `status` set otherwise.
+occt_shape *occt_make_curve(const occt_curve_piece *pieces, int count, occt_status *status);
+/// A curve through `count` points (xyz triples) of degree 3 (GeomAPI_Interpolate, optional end tangents, never with `closed`) or
+/// degree 5 (GeomAPI_PointsToBSpline, no tangents), returned as a one-edge wire. A degree-5 curve more than `max_deviation` mm from
+/// any point is refused. `start_tangent` and `end_tangent` are xyz triples or null.
+occt_shape *occt_interpolate_curve(const double *points, int count, int degree, int closed, const double *start_tangent,
+                                   const double *end_tangent, double max_deviation, occt_status *status);
+/// Reads a wire made by the functions above. Returns 1, or 0 with `status` set; free `out->polyline` with occt_curve_info_free.
+int occt_curve_info_of(const occt_shape *wire, occt_curve_info *out, occt_status *status);
+void occt_curve_info_free(occt_curve_info *info);
+/// The wires that `edge_indices` (1-based, in `shape`'s edge map) chain into, as one compound ordered by each wire's lowest edge index.
+occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indices, int count, occt_status *status);
+/// The number of children of a compound made by occt_curves_from_edges, and the child at `index` (0-based).
+int occt_compound_child_count(const occt_shape *compound);
+occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_status *status);
+/// FOR TESTS ONLY. The degree and pole count of the first edge of a wire, which must be a B-spline.
+int occt_test_curve_spline_info(const occt_shape *wire, int *degree, int *pole_count, occt_status *status);
+/// FOR TESTS ONLY. The shortest distance from the point to the curve (a wire).
+double occt_test_curve_distance(const occt_shape *wire, double x, double y, double z, occt_status *status);
+
+/// What a sheet builder says about the names of its boundary edges (NURBS spec, Task 3). `kind` 0 none (the edge is
+/// not named), 1 start, 2 end, 3 rail (`a` 0 for an open curve's start, 1 for its end), 4 piece (`a` the loop, `b` the
+/// segment), 5 imported (`a` the edge's index in the file's edge map).
+typedef struct {
+    int kind;
+    int a;
+    int b;
+} occt_boundary_role;
+
+/// One role per edge of the returned shape, in its TopExp::MapShapes(TopAbs_EDGE) order (index n is edge map index
+/// n + 1), so the table lines up with `occt_topology.edges`. Free with occt_boundary_roles_free.
+typedef struct {
+    occt_boundary_role *roles;
+    int count;
+} occt_boundary_roles;
+
+void occt_boundary_roles_free(occt_boundary_roles *roles);
+
+/// A planar surface (one face) bounded by closed `loops` (wires made by occt_make_curve), all in `plane` within 1e-6 mm:
+/// one outer loop that contains every other, which are holes. The result's loop 0 is the outer one and the holes follow in
+/// input order. `plane`'s normal gives the face its direction. History: the face is OCCT_FROM_START_CAP. Roles: loop i's
+/// edge k (in wire order) is kind 4 with a = i, b = k. Refuses with "The curves must be one outer loop with holes inside
+/// it." and "The curve isn't closed, so it can't be filled.".
+occt_shape *occt_planar_surface(const occt_shape *const *loops, int loop_count, const occt_plane *plane,
+                                occt_history *history, occt_boundary_roles *roles, occt_status *status);
+
+/// The sheet swept by `curve` (a wire) moved along `direction` by `distance` (both sides when `symmetric`: from -distance to
+/// +distance). History: the face from piece k is OCCT_FROM_SEGMENT (operand 0, index k). Roles: start and end edges (kinds 1, 2), and
+/// for an open curve the edges traced by its first and last vertex (kind 3, a = 0 and 1). Refuses with "The direction can't be zero.".
+occt_shape *occt_extrude_curve(const occt_shape *curve, const double direction[3], double distance, int symmetric,
+                               occt_history *history, occt_boundary_roles *roles, occt_status *status);
+/// The sheet swept by turning `curve` about the axis through `angle` radians (0 < angle <= 2π). History as occt_extrude_curve. Roles:
+/// start and end edges only for a partial turn; rails as occt_extrude_curve, except one that collapses onto the axis, which is not named.
+occt_shape *occt_revolve_curve(const occt_shape *curve, const double axis_origin[3], const double axis_direction[3],
+                               double angle, occt_history *history, occt_boundary_roles *roles, occt_status *status);
+/// The surface through `count` section curves (wires; ThruSections with isSolid false). `closed` returns to the first section.
+/// History: the face from piece k of the first section is OCCT_FROM_SEGMENT (0, k). Roles: start and end edges unless `closed`;
+/// for open sections the edges joining the sections' first vertices are rail 0 and their last vertices rail 1.
+occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int ruled, int closed,
+                             occt_history *history, occt_boundary_roles *roles, occt_status *status);
+
+/// The shape made by sweeping `count` profile curves (wires) along `path` (a wire): BRepOffsetAPI_MakePipeShell, each profile added
+/// as given (no contact, with correction). `frenet` 1 keeps the Frenet frame, else `binormal` is fixed. An `end_scale` other than 1
+/// scales the one profile linearly along the path (refused with several: "An end scale needs exactly one profile."). With `make_solid`
+/// and every profile closed the result is a solid: history OCCT_FROM_START_CAP / OCCT_FROM_END_CAP for the caps; otherwise a sheet.
+/// Sides are OCCT_FROM_SEGMENT (operand 0, index = the profile's piece). Roles: start and end edges (kinds 1, 2) and, for open
+/// profiles, rails 0 and 1. Refuses "The sweep runs into itself; shorten the path or shrink the profile." and "The sweep couldn't be
+/// made along this path.".
+occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int frenet,
+                              const double binormal[3], double end_scale, int make_solid, occt_history *history,
+                              occt_boundary_roles *roles, occt_status *status);
 
 #ifdef __cplusplus
 }

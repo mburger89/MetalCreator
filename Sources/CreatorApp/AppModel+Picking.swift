@@ -28,12 +28,22 @@ extension AppModel {
             beginSketch(for: request.node)
         case .chooseImage, .linkImage, .relinkImage, .embedImage:
             handleImage(request)
-        case .chooseMeshFile, .relinkMeshFile, .embedMeshFile:
-            handleMeshFile(request)
-        case .choosePCBFile, .relinkPCBFile:
-            handleBoardFile(request)
+        case .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile,
+             .embedModelFile:
+            handleFileButton(request)
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
+        }
+    }
+
+    /// A file button of the Import Mesh, Import KiCad Board or Import Model inspector.
+    private func handleFileButton(_ request: InspectorRequest) {
+        switch request.action {
+        case .chooseMeshFile, .relinkMeshFile, .embedMeshFile: handleMeshFile(request)
+        case .choosePCBFile, .relinkPCBFile: handleBoardFile(request)
+        case .chooseModelFile, .relinkModelFile, .embedModelFile: handleModelFile(request)
+        case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
+             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup: break
         }
     }
 

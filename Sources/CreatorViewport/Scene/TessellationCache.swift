@@ -33,7 +33,9 @@ final class TessellationCache {
                 tessellationCount += 1
             }
             try Task.checkCancellation()
-            entries[key] = Entry(solid: solid, tolerance: tolerance, angle: angle, cached: CachedMesh(serial: nextSerial, mesh: mesh))
+            let openShell = Set(solid.topology.faces.filter(\.isOnOpenShell).map(\.id))
+            let cached = CachedMesh(serial: nextSerial, mesh: mesh, openShellFaces: openShell)
+            entries[key] = Entry(solid: solid, tolerance: tolerance, angle: angle, cached: cached)
             nextSerial += 1
         }
         try Task.checkCancellation()

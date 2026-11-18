@@ -49,6 +49,12 @@ public enum UndoName {
     public static let relinkMeshFile = "Relink Mesh File"
     public static let embedMeshFile = "Embed Mesh File"
 
+    // MARK: Model files (NURBS spec, Import Model)
+    public static let importModel = "Import Model"
+    public static let chooseModelFile = "Choose Model File"
+    public static let relinkModelFile = "Relink Model File"
+    public static let embedModelFile = "Embed Model File"
+
     // MARK: Board files (KiCad import spec)
     public static let importKiCadBoard = "Import KiCad Board"
     public static let chooseBoardFile = "Choose Board File"

@@ -12,6 +12,7 @@ struct OCCTRawTopology: Sendable {
         var centroid: Vector3
         var radius: Double?
         var axisPoint: Vector3?
+        var isOnOpenShell = false
     }
 
     struct Edge: Sendable {
@@ -20,8 +21,8 @@ struct OCCTRawTopology: Sendable {
         var length: Double
         var midpoint: Vector3
         var convexity: Convexity
-        /// 0-based face indices: two distinct for a normal edge, the same twice for a seam,
-        /// none for a free edge.
+        /// 0-based face indices: two distinct for a normal edge, the same twice for a seam, one for a
+        /// boundary edge (a sheet's free edge), none for a free edge.
         var faces: [Int]
         /// The exact line or circle, when the shim reported its ends.
         var curve: EdgeCurve?
@@ -38,15 +39,21 @@ struct OCCTRawTopology: Sendable {
             Face(kind: surfaceKind(info.kind), normal: info.has_normal != 0 ? vector(info.normal) : nil,
                  area: info.area, centroid: vector(info.centroid),
                  radius: info.has_axis != 0 ? info.radius : nil,
-                 axisPoint: info.has_axis != 0 ? vector(info.axis_point) : nil)
+                 axisPoint: info.has_axis != 0 ? vector(info.axis_point) : nil,
+                 isOnOpenShell: info.on_open_shell != 0)
         }
         let edges = UnsafeBufferPointer(start: raw.edges, count: Int(raw.edge_count)).map { info in
             Edge(kind: curveKind(info.kind), direction: info.has_direction != 0 ? vector(info.direction) : nil,
                  length: info.length, midpoint: vector(info.midpoint), convexity: convexity(info.convexity),
-                 faces: info.face_a > 0 && info.face_b > 0 ? [Int(info.face_a) - 1, Int(info.face_b) - 1] : [],
+                 faces: edgeFaces(of: info),
                  curve: curve(info))
         }
         return OCCTRawTopology(faces: faces, edges: edges)
+    }
+
+    private static func edgeFaces(of info: occt_edge_info) -> [Int] {
+        if info.boundary != 0, info.face_a > 0 { return [Int(info.face_a) - 1] }
+        return info.face_a > 0 && info.face_b > 0 ? [Int(info.face_a) - 1, Int(info.face_b) - 1] : []
     }
 
     /// The edge's line or circle from the shim's ends, centre, radius and sweep.

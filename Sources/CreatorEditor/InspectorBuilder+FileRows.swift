@@ -26,18 +26,28 @@ extension InspectorBuilder {
 
     /// A mesh file setting's rows: "No file chosen", "Embedded · a1b2c3d4" or "Linked · part.stl", then the buttons for that state.
     static func meshFileRows(_ setting: SocketName, node: Node) -> [InspectorRow] {
+        fileRows(setting, node: node, choose: .chooseMeshFile, relink: .relinkMeshFile, embed: .embedMeshFile)
+    }
+
+    /// A model file setting's rows (Import Model): the same states and buttons as a mesh file's.
+    static func modelFileRows(_ setting: SocketName, node: Node) -> [InspectorRow] {
+        fileRows(setting, node: node, choose: .chooseModelFile, relink: .relinkModelFile, embed: .embedModelFile)
+    }
+
+    private static func fileRows(_ setting: SocketName, node: Node, choose: InspectorAction, relink: InspectorAction,
+                                 embed: InspectorAction) -> [InspectorRow] {
         let status: String
         let buttons: [(title: String, action: InspectorAction)]
         switch node.inputValues[setting]?.fileReference {
         case nil:
             status = "No file chosen"
-            buttons = [("Choose File…", .chooseMeshFile)]
+            buttons = [("Choose File…", choose)]
         case .embedded(let hash)?:
             status = "Embedded · \(hash.short)"
-            buttons = [("Choose File…", .chooseMeshFile)]
+            buttons = [("Choose File…", choose)]
         case let reference?:
             status = "Linked · \(reference.fileName ?? "")"
-            buttons = [("Relink…", .relinkMeshFile), ("Embed", .embedMeshFile)]
+            buttons = [("Relink…", relink), ("Embed", embed)]
         }
         return [.readOnly(label: "File", text: status)] + buttons.map { .button(title: $0.title, action: $0.action) }
     }

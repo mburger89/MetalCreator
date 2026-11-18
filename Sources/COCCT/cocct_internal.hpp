@@ -5,6 +5,7 @@
 #include <string>
 #include "cocct.h"
 
+#include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
@@ -119,6 +120,13 @@ inline std::vector<TopoDS_Face> distinct_faces(const TopoDS_Shape &edge,
         }
     }
     return faces;
+}
+
+/// Whether an edge with exactly one distinct face is a boundary edge, the free edge of a sheet: it is not closed on that face
+/// (a seam is, having two pcurves on it) and not degenerate (the pole of a sphere or the apex of a cone). `adjacent` is
+/// `distinct_faces(edge, ...)`.
+inline bool is_boundary_edge(const TopoDS_Edge &edge, const std::vector<TopoDS_Face> &adjacent) {
+    return adjacent.size() == 1 && !BRep_Tool::Degenerated(edge) && !BRep_Tool::IsClosed(edge, adjacent[0]);
 }
 
 /// How smoothly `face_a` and `face_b` meet along `edge` over `samples` parameters (see `occt_edge_continuity_of`). Throws

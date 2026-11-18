@@ -38,7 +38,7 @@ extension AppModel {
             case .embedMeshFile: try embedMeshFile(target)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
                  .editSketch, .editGroup, .makeUnique, .ungroup, .chooseImage, .linkImage, .relinkImage, .embedImage,
-                 .choosePCBFile, .relinkPCBFile: break
+                 .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile, .embedModelFile: break
             }
         }
         reportMeshFile(failure, title: "The mesh file couldn't be changed")

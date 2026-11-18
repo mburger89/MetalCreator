@@ -13,6 +13,8 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
     case implicit
     /// Meshes (implicit spec §3.6): the Mesh node, and in later sub-projects the mesh tools and checks. After Implicit.
     case mesh
+    /// Curves and surfaces (NURBS spec): curve makers and the nodes that turn curves into sheets. After Mesh, before `output`.
+    case surface
     case output
 
     /// The node library's sub-groups of this category, in the order it shows them (a node's `librarySubgroup` names one).
@@ -26,6 +28,7 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
         case .fields: ["Sources", "Maths", "Using"]
         case .implicit: ["Shapes", "Combine", "Modify", "Lattices"]
         case .mesh: ["Make", "Check", "Tools"]
+        case .surface: ["Curves", "Make"]
         default: []
         }
     }
@@ -34,6 +37,7 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
     public var title: String {
         switch self {
         case .lists: "Lists & Trees"
+        case .surface: "Surfaces"
         default: rawValue.prefix(1).uppercased() + rawValue.dropFirst()
         }
     }

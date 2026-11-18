@@ -281,3 +281,50 @@ struct SDLRenderTests {
     }
 }
 #endif
+
+#if canImport(MetalUISDLGPU)
+/// Sheets and curves on SDL_GPU, as `SheetBackRenderTests` and `CurveItemRenderTests` read them on Metal.
+@MainActor
+@Suite(.enabled(if: SDLTestDevice.isAvailable, "needs an SDL_GPU device"))
+struct SDLSheetCurveTests {
+    typealias Rig = SDLRenderRig
+
+    @Test func aSheetSeenFromBehindIsTheSheetBackColourAndFromTheFrontTheUsualShade() async throws {
+        let rig = try Rig()
+        let back = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: true)), 100, 100)
+        let expected = SheetFixtures.backExpected(.dracula, seenNormalZ: 1)
+        for channel in 0..<3 { #expect(abs(back[channel] - expected[channel]) <= 3, "\(back) against \(expected)") }
+        let front = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: true, openShell: true)), 100, 100)
+        let plain = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: true, openShell: false)), 100, 100)
+        #expect(front == plain && front != back)
+        let closedBack = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: false)), 100, 100)
+        #expect(closedBack != back)
+    }
+
+    @Test func aGhostSheetSeenFromBehindLooksLikeAnyGhostBackFace() async throws {
+        let rig = try Rig()
+        let open = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: true, ghost: true)), 100, 100)
+        let closed = Rig.color(try await rig.draw(SheetFixtures.sheetFrame(facingEye: false, openShell: false, ghost: true)), 100, 100)
+        #expect(open == closed, "\(open) against \(closed)")
+    }
+
+    @Test func aGhostCurveIsDrawnFadedNotHidden() async throws {
+        let rig = try Rig()
+        let ghost = Rig.color(try await rig.draw(SheetFixtures.curveFrame(ghost: true)), 100, 100)
+        let solid = Rig.color(try await rig.draw(SheetFixtures.curveFrame()), 100, 100)
+        let background = Rig.color(try await rig.draw(SheetFixtures.curveFrame()), 150, 100)
+        #expect(ghost != background && ghost != solid, "\(ghost) against \(solid) on \(background)")
+    }
+
+    @Test(arguments: ShadingMode.allCases)
+    func aCurvesPixelsAreTheReferenceColourAndTheIDPassReadsEmpty(_ shading: ShadingMode) async throws {
+        let rig = try Rig()
+        let frame = SheetFixtures.curveFrame(shading: shading)
+        let seen = Rig.color(try await rig.draw(frame), 100, 100)
+        let reference = ViewportPalette.dracula.dimensionReference
+        let expected = [reference.x, reference.y, reference.z].map { Int(($0 * 255).rounded()) }
+        for channel in 0..<3 { #expect(abs(seen[channel] - expected[channel]) <= 3, "\(shading): \(seen) against \(expected)") }
+        #expect(try await rig.pick(at: ScreenPoint(100, 100), in: frame) == nil)
+    }
+}
+#endif

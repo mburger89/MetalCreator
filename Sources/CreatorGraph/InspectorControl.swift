@@ -26,6 +26,8 @@ public enum InspectorControl: Sendable, Equatable {
     /// A board file setting (Import KiCad Board's `NodeSetting.pcbFile`): "No file chosen" or "Linked · name", with "Choose File…" or
     /// "Relink…". A board is linked only.
     case pcbFile(SocketName)
+    /// A model file setting (Import Model's `NodeSetting.modelFile`): "No file chosen", "Linked · name" or "Embedded", with the buttons that fit.
+    case modelFile(SocketName)
     /// A read-only line showing what the named output socket holds now (Convert Units' converted number): "No result yet" before
     /// the node has run, a list as its values separated by commas, cut when long. It edits nothing.
     case result(SocketName)

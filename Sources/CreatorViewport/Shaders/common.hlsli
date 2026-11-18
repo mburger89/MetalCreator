@@ -39,6 +39,7 @@ struct ShadeUniforms {
     float4 hover;
     float4 selection;
     float4 warning;
+    float4 back;
 };
 
 struct LineInstance {

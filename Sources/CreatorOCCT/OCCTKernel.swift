@@ -77,7 +77,9 @@ public actor OCCTKernel: Kernel {
         try Task.checkCancellation()
         try Self.validate(transform)
         let source = try shape(of: solid)
-        return try build("transform", inputs: [solid.topology], tag: tag) { try source.transformed(by: transform) }
+        return try build("transform", inputs: [solid.topology], tag: tag, carriesEdgeTags: true) {
+            try source.transformed(by: transform)
+        }
     }
 
     /// One call for every copy (patterns spec §3, §7): each copy moves its tool's shape (the tool is built once and
@@ -96,7 +98,9 @@ public actor OCCTKernel: Kernel {
             let (tool, transform) = (pair.0, pair.1)
             try Self.validate(transform)
             let source = try shape(of: tool)
-            let moved = try build("place", inputs: [tool.topology], tag: tag) { try source.transformed(by: transform) }
+            let moved = try build("place", inputs: [tool.topology], tag: tag, carriesEdgeTags: true) {
+                try source.transformed(by: transform)
+            }
             copies.append(Solid(topology: moved.topology.qualified(item: index, qualify), bounds: moved.bounds, storage: moved.storage))
         }
         return copies
@@ -139,9 +143,16 @@ public actor OCCTKernel: Kernel {
     }
 
     public func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws {
+        try export(solids, curves: [], format: format, to: url)
+    }
+
+    /// STEP holds the solids, sheets (as shells) and curves (as wires) in one compound. STL holds the solids and sheets only: a
+    /// wire has no triangles, so the curves are left out (the app says so).
+    public func export(_ solids: [Solid], curves: [Curve], format: ExportFormat, to url: URL) throws {
         try Task.checkCancellation()
-        guard !solids.isEmpty else { throw KernelError.invalidInput("There is nothing to export.") }
-        let shapes = try solids.map { try shape(of: $0) }
+        let written = format == .step ? curves : []
+        guard !solids.isEmpty || !written.isEmpty else { throw KernelError.invalidInput("There is nothing to export.") }
+        let shapes = try solids.map { try shape(of: $0) } + written.map { try curveShape(of: $0) }
         do {
             // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
             try Self.serialized { () throws in
@@ -244,7 +255,7 @@ public actor OCCTKernel: Kernel {
     }
 
     /// Runs a shim builder, then reads topology and bounds (no mass properties) and applies tags.
-    func build(_ operation: String, inputs: [Topology], tag: NodeTag,
+    func build(_ operation: String, inputs: [Topology], tag: NodeTag, carriesEdgeTags: Bool = false,
                _ body: () throws -> (OCCTShape, [OCCTHistoryRecord])) throws -> Solid {
         let built: (OCCTShape, [OCCTHistoryRecord])
         do {
@@ -252,11 +263,13 @@ public actor OCCTKernel: Kernel {
         } catch let error as OCCTError {
             throw KernelError.occt(operation, error)
         }
-        return try solid(from: built.0, history: built.1, inputs: inputs, tag: tag, operation: operation)
+        return try solid(from: built.0, history: built.1, inputs: inputs, tag: tag, operation: operation,
+                         carriesEdgeTags: carriesEdgeTags)
     }
 
+    /// `boundaryRoles` and `carriesEdgeTags` are `OCCTTagger.topology`'s: the names of a sheet's boundary edges.
     func solid(from shape: OCCTShape, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
-               operation: String) throws -> Solid {
+               operation: String, boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false) throws -> Solid {
         do {
             // Untyped throws on purpose: Swift 6.4 crashes ("unsupported collection upcast kind") with typed throws returning a tuple. Revert once fixed.
             let (raw, bounds) = try Self.serialized { () throws -> (OCCTRawTopology, BoundingBox) in
@@ -265,7 +278,8 @@ public actor OCCTKernel: Kernel {
             guard !raw.faces.isEmpty else {
                 throw KernelError.operationFailed(operation: operation, reason: "the result is empty.")
             }
-            let topology = OCCTTagger.topology(raw: raw, history: history, inputs: inputs, tag: tag)
+            let topology = OCCTTagger.topology(raw: raw, history: history, inputs: inputs, tag: tag,
+                                               boundaryRoles: boundaryRoles, carriesEdgeTags: carriesEdgeTags)
             return Solid(topology: topology, bounds: bounds,
                          storage: OCCTSolidStorage(shape: shape, faceCount: raw.faces.count))
         } catch let error as OCCTError {

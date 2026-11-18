@@ -13,7 +13,7 @@ struct ImplicitLibraryTests {
 
     @Test func theImplicitSectionFollowsFieldsAndPrecedesOutput() {
         let titles = sections.map(\.title)
-        #expect(titles.suffix(4) == ["Fields", "Implicit", "Mesh", "Output"])
+        #expect(titles.suffix(5) == ["Fields", "Implicit", "Mesh", "Surfaces", "Output"])
     }
 
     @Test func theImplicitSectionHoldsTheImplicitNodesInOrder() {

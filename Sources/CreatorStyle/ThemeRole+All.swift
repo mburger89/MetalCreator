@@ -27,6 +27,7 @@ extension ThemeRole {
         ThemeRole("error", "Error", .status, \.error),
         ThemeRole("shadeLight", "Shading, lit", .model, \.shadeLight),
         ThemeRole("shadeDark", "Shading, unlit", .model, \.shadeDark),
+        ThemeRole("sheetBack", "Sheet back", .model, \.sheetBack),
         ThemeRole("edge", "Edges", .model, \.edge, allowsOpacity: true),
         ThemeRole("gridMinor", "Grid, minor lines", .model, \.gridMinor),
         ThemeRole("gridMajor", "Grid, major lines", .model, \.gridMajor),

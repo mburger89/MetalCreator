@@ -153,6 +153,7 @@ enum ValueSummary {
         switch type {
         case .edgeSet: "edge set"
         case .faceSet: "face set"
+        case .curve: "curve"
         default: type.rawValue
         }
     }

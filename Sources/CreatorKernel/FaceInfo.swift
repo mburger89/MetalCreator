@@ -12,9 +12,11 @@ public struct FaceInfo: Hashable, Sendable {
     public var radius: Double?
     /// A point on a cylinder's axis; nil for every other face.
     public var axisPoint: Vector3?
+    /// Whether the face belongs to a shell that isn't closed, a sheet.
+    public var isOnOpenShell: Bool
 
     public init(id: FaceID, kind: SurfaceKind, normal: Vector3?, area: Double, centroid: Vector3, tags: Set<TopoTag>,
-                radius: Double? = nil, axisPoint: Vector3? = nil) {
+                radius: Double? = nil, axisPoint: Vector3? = nil, isOnOpenShell: Bool = false) {
         self.id = id
         self.kind = kind
         self.normal = normal
@@ -23,5 +25,6 @@ public struct FaceInfo: Hashable, Sendable {
         self.tags = tags
         self.radius = radius
         self.axisPoint = axisPoint
+        self.isOnOpenShell = isOnOpenShell
     }
 }

@@ -20,8 +20,13 @@ extension SDLViewportRenderer {
         // B-rep edges of opaque solids. "Shaded" mode still shows the edges a rule selected.
         let edgeStyle = LineUniforms(widthOverride: 0, depthBias: Float(Self.edgeDepthBias(frame)), padding0: 0, padding1: 0)
         let selectedOnly = frame.shading == .shaded
-        for item in frame.items where !item.isGhost && !item.isGuide && (!selectedOnly || !item.selectedEdges.isEmpty) {
-            let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: selectedOnly, scale: scale)
+        // A ghost curve is drawn, faded, so a sketch's scene keeps its curves in view; a ghost solid's edges are not.
+        for item in frame.items where (!item.isGhost || item.isCurve) && !item.isGuide
+            && (!selectedOnly || item.isCurve || !item.selectedEdges.isEmpty) {
+            // A curve is all edges, in every display mode.
+            let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges,
+                                      selectedOnly: selectedOnly && !item.isCurve, scale: scale, isCurve: item.isCurve,
+                                      isGhost: item.isGhost)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, uploader: uploader) else { continue }
             plan.edges.append(SDLFramePlan.Lines(buffer: edges.buffer, count: edges.count, style: edgeStyle, clip: clip))
         }

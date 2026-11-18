@@ -84,7 +84,7 @@ struct ImplicitValueTests {
 
     @Test func theCategoriesComeAfterFieldsAndBeforeOutput() {
         #expect(NodeCategory.implicit.title == "Implicit" && NodeCategory.mesh.title == "Mesh")
-        #expect(NodeCategory.allCases.suffix(4) == [.fields, .implicit, .mesh, .output])
+        #expect(NodeCategory.allCases.suffix(5) == [.fields, .implicit, .mesh, .surface, .output])
     }
 }
 

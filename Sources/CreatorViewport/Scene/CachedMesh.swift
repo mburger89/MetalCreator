@@ -5,4 +5,6 @@ import CreatorKernel
 struct CachedMesh: Sendable {
     let serial: Int
     let mesh: DisplayMesh
+    /// The solid's faces on an open shell, found when the mesh is cached (once, not on every frame).
+    var openShellFaces: Set<FaceID> = []
 }

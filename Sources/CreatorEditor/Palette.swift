@@ -54,7 +54,8 @@ public struct Palette: Hashable, Sendable {
         switch category {
         case .value: colors.valueHeader
         case .profile: colors.profileHeader
-        case .solid: colors.solidHeader
+        // Surfaces share the Solid colour: a sheet is a kind of solid on the wire.
+        case .solid, .surface: colors.solidHeader
         case .selection: colors.selectionHeader
         case .feature, .patterns: colors.featureHeader
         // Lists & Trees shares the Value colour: the theme files have no role of its own.
@@ -76,7 +77,7 @@ public struct Palette: Hashable, Sendable {
         switch type {
         case .profile: header(for: .profile)
         case .solid: header(for: .solid)
-        case .edgeSet, .faceSet: header(for: .selection)
+        case .edgeSet, .faceSet, .curve: header(for: .selection)
         case .number, .integer, .bool, .vector, .plane: header(for: .value)
         case .field: header(for: .fields)
         case .implicit: header(for: .implicit)

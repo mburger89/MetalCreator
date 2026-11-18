@@ -110,6 +110,7 @@ public enum InspectorBuilder {
         if case .faceStatus(let setting) = control { return [faceRow(setting, node: node)] }
         if case .meshFile(let setting) = control { return meshFileRows(setting, node: node) }
         if case .pcbFile(let setting) = control { return pcbFileRows(setting, node: node) }
+        if case .modelFile(let setting) = control { return modelFileRows(setting, node: node) }
         return [row(for: control, node: node, inputs: inputs, outputs: outputs, graph: graph, results: results)]
     }
 

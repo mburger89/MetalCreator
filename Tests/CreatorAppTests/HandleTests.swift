@@ -33,6 +33,25 @@ struct HandleTests {
         #expect(symmetric.knob == Vector3(0, 0, 5), "the knob sits on the far cap")
     }
 
+    @Test func anExtrudeCurveHasADistanceArrowFromItsCurvesCentre() async throws {
+        var builder = GraphBuilder()
+        let rectangle = builder.add(RectangleNode.self)
+        let curves = builder.add(ProfileToCurvesNode.self)
+        let extrude = builder.add(ExtrudeCurveNode.self, ["distance": .number(7), "direction": .vector(Vector3(0, 0, 2))])
+        let output = builder.add(OutputNode.self)
+        builder.wire(rectangle, "profile", to: curves, "profile")
+        builder.wire(curves, "curves", to: extrude, "curve")
+        builder.wire(extrude, "surface", to: output, "solid")
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [extrude.id]
+        await app.settle()
+        let handle = try #require(app.viewport.handles.first)
+        #expect(handle.value == 7 && handle.direction == .unitZ && handle.scale == 1)
+        #expect(handle.anchor == .zero, "the rectangle's centre")
+        app.handleChanged(handle.id, 12, .ended)
+        #expect(app.document.graph.nodes[extrude.id]?.inputValues["distance"] == .number(12))
+    }
+
     @Test func aWiredDistanceHasNoHandle() async throws {
         var builder = GraphBuilder()
         let box = builder.box()

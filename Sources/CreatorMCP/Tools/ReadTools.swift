@@ -247,7 +247,8 @@ import Foundation
             for control in section.controls {
                 switch control {
                 case .segmented(let name, let choices): options[name] = choices
-                case .text(let name), .image(let name), .meshFile(let name), .pcbFile(let name), .faceStatus(let name):
+                case .text(let name), .image(let name), .meshFile(let name), .pcbFile(let name), .modelFile(let name),
+                     .faceStatus(let name):
                     controlNames.append(name)
                 default: break
                 }

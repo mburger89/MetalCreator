@@ -31,7 +31,11 @@ float4 main(In input, bool front : SV_IsFrontFace) : SV_Target0 {
         color = lerp(color, shade.warning.rgb, 0.7);
     }
     // Looking into a cut part, the inside of its far wall stands for the cut face: the part's colour, darkened and flat.
-    if (clip.enabled.x != 0u && !front) {
+    // A face on an open shell (bit 8) has a back that is no inside: it takes the sheet-back colour, lit with the flipped normal.
+    if ((flags & 8u) != 0u && !front && draw.ghost == 0u) {
+        float backDiffuse = saturate(dot(-n, key));
+        color = shade.back.rgb * (0.7 + 0.3 * backDiffuse);
+    } else if (clip.enabled.x != 0u && !front) {
         color = lerp(shade.dark.rgb, shade.light.rgb, 0.5) * 0.55;
     }
     color = saturate(color);

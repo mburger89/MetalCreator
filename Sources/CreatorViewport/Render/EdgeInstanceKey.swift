@@ -8,4 +8,8 @@ struct EdgeInstanceKey: Hashable {
     var selectedOnly: Bool
     var scale: Float
     var hidden = false
+    /// A curve item: every edge, in the reference colour.
+    var isCurve = false
+    /// A ghost curve: drawn faded.
+    var isGhost = false
 }

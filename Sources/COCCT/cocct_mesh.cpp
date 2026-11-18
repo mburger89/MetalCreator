@@ -92,7 +92,8 @@ int occt_tessellate(const occt_shape *shape, double tolerance, double angle, occ
         for (int e = 1; e <= edges.Extent(); ++e) {
             const TopoDS_Edge edge = TopoDS::Edge(edges(e));
             const std::vector<TopoDS_Face> adjacent = distinct_faces(edge, edge_faces);
-            const bool seam = adjacent.size() == 1;
+            // A seam borders one face on both sides; a boundary edge (a sheet's free edge) is drawn like any other.
+            const bool seam = adjacent.size() == 1 && !is_boundary_edge(edge, adjacent);
             if (!BRep_Tool::Degenerated(edge) && !seam) {
                 if (!append_polygon_on_triangulation(edge, adjacent, edge_points)) {
                     append_sampled_curve(edge, tolerance, edge_points);

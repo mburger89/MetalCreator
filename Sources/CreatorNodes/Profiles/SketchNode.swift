@@ -25,6 +25,7 @@ public enum SketchNode: NodeDefinition {
     public static let outputs = [
         SocketSpec("profiles", .profile),
         SocketSpec("measurements", .number),
+        SocketSpec("curves", .curve),
     ]
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.sketch: .sketch(Sketch())]
     /// "Edit sketch" opens the sketch editor in the viewport (sketcher spec §8, S5).
@@ -33,6 +34,7 @@ public enum SketchNode: NodeDefinition {
     static let missingSketch = "This sketch's drawing is missing. Undo the last change, or add a new Sketch."
     static let unreadableSketch = "This sketch's drawing can't be read. Undo the last change, or add a new Sketch."
     static let wiredPlaneMissing = "Wire a plane into “plane”: this sketch is drawn on the wired plane."
+    static let curvesFailed = "The sketch's curves couldn't be made:"
     static let ignoredPlane = "“plane” is wired, but this sketch is drawn on its own plane, so the wire has no effect."
 
     /// True for a name an exposed dimension can't take: a fixed input, a setting or a projection setting (the sketch
@@ -75,14 +77,37 @@ public enum SketchNode: NodeDefinition {
             sketch.dimensions[id]?.value = try inputs.number(spec.name)
         }
         let output = try SketchSolve.run(sketch, on: plane)
-        let lists: [SocketName: [Scalar]] = [
+        var lists: [SocketName: [Scalar]] = [
             "profiles": output.profiles.map(Scalar.profile),
             "measurements": output.measurements.map(Scalar.number),
         ]
-        var outputs = NodeOutputs(lists: lists, warnings: warnings + output.warnings)
+        let made = try await curves(of: output.sketch, on: plane, kernel: kernel, node: context.node.id)
+        lists["curves"] = made.curves
+        var outputs = NodeOutputs(lists: lists, warnings: warnings + output.warnings + made.warnings)
         outputs.dimensions = dimensions(of: output, on: plane)
         outputs.sketchTrace = output.trace
         return outputs
+    }
+
+    /// One curve per chain of the sketch; a kernel that refuses gives none and a warning, never a failed node.
+    private static func curves(of sketch: Sketch, on plane: Plane, kernel: any Kernel,
+                               node: NodeID) async throws -> (curves: [Scalar], warnings: [String]) {
+        var made: [Scalar] = []
+        for (index, chain) in SketchChains.find(in: sketch).enumerated() {
+            let pieces = CurvePiece.pieces(of: chain.segments, on: plane)
+            do {
+                made.append(.curve(try await kernel.makeCurve(pieces, tag: NodeTag(node: node, item: index))))
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                return ([], ["\(curvesFailed) \(reason(of: error))"])
+            }
+        }
+        return (made, [])
+    }
+
+    private static func reason(of error: any Error) -> String {
+        (error as? KernelError)?.userMessage ?? (error as? NodeError)?.message ?? "the kernel refused them."
     }
 
     /// The projected entity of `trace.sketch` whose stored pick (`NodeSetting.projection(reference)` on `node`) locates

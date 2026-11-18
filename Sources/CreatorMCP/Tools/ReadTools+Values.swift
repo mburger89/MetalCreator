@@ -20,7 +20,7 @@ extension ReadTools {
         case .edgePicks(let picks): .string(picks.count == 1 ? "1 edge pick" : "\(picks.count) edge picks")
         case .sketch: .string("sketch")
         case .facePick: .string("face pick")
-        case .image(let reference), .meshFile(let reference), .pcbFile(let reference): fileStatus(reference)
+        case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): fileStatus(reference)
         }
     }
 

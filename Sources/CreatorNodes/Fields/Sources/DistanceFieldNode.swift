@@ -25,6 +25,9 @@ public enum DistanceFieldNode: NodeDefinition {
         guard inputs.has("target") else { throw NodeError.invalidValue("Distance Field needs a target: \(wiring)") }
         let signed = try inputs.choice("mode", options: modes) == 1
         let source = try source(of: try inputs.scalar("target"))
+        if signed, case .kernel(.solid(let solid)) = source, solid.hasOpenShell {
+            throw NodeError.invalidValue("A signed distance needs a closed solid; use Unsigned for a sheet.")
+        }
         try checkSelection(source)
         return NodeOutputs(["field": .field(.distance(source, signed: signed))])
     }

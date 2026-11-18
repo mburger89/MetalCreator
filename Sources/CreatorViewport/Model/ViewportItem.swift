@@ -22,9 +22,14 @@ public struct ViewportItem: Sendable {
     public var fieldRamp: FieldRamp?
     /// Faces drawn in the theme's warning colour: the triangles a mesh check flagged (implicit spec §5.1).
     public var warningFaces: Set<FaceID>
+    /// A curve (`init(curve:)`): its solid has no faces, only one edge polyline, and the viewport draws every edge in the
+    /// reference colour in every display mode. It is never in the ID pass, so it picks nothing and opens no face menu; its
+    /// bounds count in `sceneBounds`.
+    public var isCurve: Bool
 
     public init(solid: Solid, isGhost: Bool = false, selectedFaces: Set<FaceID> = [], selectedEdges: Set<EdgeID> = [],
-                isGuide: Bool = false, fieldValues: [Float]? = nil, fieldRamp: FieldRamp? = nil, warningFaces: Set<FaceID> = []) {
+                isGuide: Bool = false, fieldValues: [Float]? = nil, fieldRamp: FieldRamp? = nil, warningFaces: Set<FaceID> = [],
+                isCurve: Bool = false) {
         self.solid = solid
         self.isGhost = isGhost
         self.selectedFaces = selectedFaces
@@ -33,5 +38,25 @@ public struct ViewportItem: Sendable {
         self.fieldValues = fieldValues
         self.fieldRamp = fieldRamp
         self.warningFaces = warningFaces
+        self.isCurve = isCurve
+    }
+
+    /// A curve on display: a faceless solid around the curve's bounds that shows the curve's polyline as its one edge. The
+    /// viewport takes a display-only mesh as it is, so no kernel call is made (the curve's own storage is not used).
+    public init(curve: Curve, isGhost: Bool = false) {
+        self.init(solid: Self.displaySolid(for: curve), isGhost: isGhost, isCurve: true)
+    }
+
+    /// The faceless display solid of `curve`. A viewport tells solids apart by identity, so a host that rebuilds its scene keeps
+    /// one per curve and passes it to `init(curveSolid:)`.
+    public static func displaySolid(for curve: Curve) -> Solid {
+        let mesh = DisplayMesh(positions: [], normals: [], indices: [], triangleFaces: [],
+                               edgePolylines: curve.polyline.count >= 2 ? [EdgeID(0): curve.polyline] : [:])
+        return Solid(topology: Topology(faces: [], edges: []), bounds: curve.bounds, storage: DisplayMeshStorage(mesh))
+    }
+
+    /// A curve on display from a solid `displaySolid(for:)` made.
+    public init(curveSolid: Solid, isGhost: Bool = false) {
+        self.init(solid: curveSolid, isGhost: isGhost, isCurve: true)
     }
 }

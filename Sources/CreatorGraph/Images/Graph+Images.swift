@@ -1,5 +1,5 @@
 extension Graph {
-    /// This graph with every `image`, `meshFile` and `pcbFile` setting replaced by `transform` of it.
+    /// This graph with every `image`, `meshFile`, `pcbFile` and `modelFile` setting replaced by `transform` of it.
     func mappingImages(_ transform: (ImageReference) -> ImageReference) -> Graph {
         var graph = self
         for (id, node) in nodes {
@@ -8,6 +8,7 @@ extension Graph {
                 case .image(let reference): graph.nodes[id]?.inputValues[name] = .image(transform(reference))
                 case .meshFile(let reference): graph.nodes[id]?.inputValues[name] = .meshFile(transform(reference))
                 case .pcbFile(let reference): graph.nodes[id]?.inputValues[name] = .pcbFile(transform(reference))
+                case .modelFile(let reference): graph.nodes[id]?.inputValues[name] = .modelFile(transform(reference))
                 default: continue
                 }
             }

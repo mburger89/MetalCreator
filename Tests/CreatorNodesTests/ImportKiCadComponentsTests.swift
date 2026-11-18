@@ -100,6 +100,20 @@ struct ImportKiCadComponentsTests {
         #expect(facts["Components"] == "1 placed, 1 as solids, 0 as meshes, 0 without a 3D model")
     }
 
+    @Test func shellBasedModelStaysASolid() async throws {
+        try write(try await ComponentFixtures.shellStep(kernel), "l.step")
+        let (h, node, text) = try board([part("U1", models: [model()])])
+        let report = try await go(h, node)
+        #expect(report.isOK(node), "\(String(describing: report.state(node)))")
+        let solid = try #require(components(report, node).first)
+        // A solid, so a 3MF export plan lists no sheet output and Boolean and the section cap accept it.
+        #expect(!solid.hasOpenShell)
+        #expect(solid.topology.faces.count == 8)
+        expectBounds(solid, try expectedBox(text: text))
+        let volume = try await kernel.properties(of: solid).volume
+        #expect(abs(volume - 54) < 1e-6)
+    }
+
     @Test func placesBackComponentRotated() async throws {
         try write(try await ComponentFixtures.step(kernel), "l.step")
         let rotated = model(offset: (1.5, -2, 0.7), rotate: (20, 35, 50))

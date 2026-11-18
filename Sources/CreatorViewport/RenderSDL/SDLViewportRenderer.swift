@@ -106,9 +106,9 @@ final class SDLViewportRenderer: @unchecked Sendable {
         let shown = Set(frame.items.map(\.meshSerial))
         meshes = meshes.filter { shown.contains($0.key) }
         for item in frame.items {
-            let mesh = meshes[item.meshSerial] ?? SDLViewportMesh(uploader: uploader, mesh: item.mesh)
+            let mesh = meshes[item.meshSerial] ?? SDLViewportMesh(uploader: uploader, mesh: item.mesh, openShellFaces: item.openShellFaces)
             meshes[item.meshSerial] = mesh
-            if !item.isGuide { _ = mesh.pickEdges(solid: item.solidIndex, uploader: uploader) }
+            if !item.isGuide && !item.isCurve { _ = mesh.pickEdges(solid: item.solidIndex, uploader: uploader) }
         }
     }
 }

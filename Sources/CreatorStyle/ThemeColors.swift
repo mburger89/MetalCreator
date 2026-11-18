@@ -58,6 +58,8 @@ public struct ThemeColors: Hashable, Sendable {
     /// The part shading ramp, lit to unlit.
     public var shadeLight: HexColor
     public var shadeDark: HexColor
+    /// The back of a sheet (an open surface), which has no inside to be darkened.
+    public var sheetBack: HexColor
     /// B-rep edges drawn over the part.
     public var edge: HexColor
     /// The ground grid's minor and major lines.

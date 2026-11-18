@@ -19,4 +19,6 @@ public enum InspectorAction: String, Sendable, Codable {
     /// Import KiCad Board's file (KiCad import spec): "Choose File…" (a file, linked) and "Relink…" (another file for a link). A board
     /// is never embedded.
     case choosePCBFile, relinkPCBFile
+    /// Import Model's file (NURBS spec): "Choose File…" (linked), "Relink…" and "Embed", carried out like Import Mesh's.
+    case chooseModelFile, relinkModelFile, embedModelFile
 }

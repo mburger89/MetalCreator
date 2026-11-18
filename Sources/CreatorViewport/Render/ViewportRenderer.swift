@@ -122,7 +122,7 @@ final class ViewportRenderer {
         }
         drawCaps(frame, uniforms, ids: true, encoder)
         let style = LineUniforms(widthOverride: 6, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
-        for item in frame.items where !item.isGuide {
+        for item in frame.items where !item.isGuide && !item.isCurve {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: [], selectedOnly: false, scale: 1)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style, clip: clip,
@@ -194,7 +194,7 @@ final class ViewportRenderer {
         let length = gpu.faceCount * MemoryLayout<UInt32>.stride
         if length > 0, length <= Self.inlineBytesLimit {
             let flags = GPUGeometry.faceFlags(count: gpu.faceCount, hovered: item.hoveredFace, selected: item.selectedFaces,
-                                              warning: item.warningFaces)
+                                              warning: item.warningFaces, openShell: gpu.openShellFaces)
             flags.withUnsafeBytes { bytes in
                 if let base = bytes.baseAddress { encoder.setFragmentBytes(base, length: bytes.count, index: 1) }
             }
@@ -210,9 +210,13 @@ final class ViewportRenderer {
                            _ encoder: any MTLRenderCommandEncoder) {
         let style = LineUniforms(widthOverride: 0, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
         let selectedOnly = frame.shading == .shaded
-        for item in frame.items where !item.isGhost && !item.isGuide && (!selectedOnly || !item.selectedEdges.isEmpty) {
-            let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: selectedOnly,
-                                      scale: scale)
+        // A ghost curve is drawn, faded, so a sketch's scene keeps its curves in view; a ghost solid's edges are not.
+        for item in frame.items where (!item.isGhost || item.isCurve) && !item.isGuide
+            && (!selectedOnly || item.isCurve || !item.selectedEdges.isEmpty) {
+            // A curve is all edges, in every display mode.
+            let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges,
+                                      selectedOnly: selectedOnly && !item.isCurve, scale: scale, isCurve: item.isCurve,
+                                      isGhost: item.isGhost)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style,
                       clip: ClipUniforms(frame.clip), encoder)
@@ -304,7 +308,7 @@ final class ViewportRenderer {
         let shown = Set(frame.items.map(\.meshSerial))
         meshes = meshes.filter { shown.contains($0.key) }
         for item in frame.items where meshes[item.meshSerial] == nil {
-            meshes[item.meshSerial] = GPUMesh(device: device, mesh: item.mesh)
+            meshes[item.meshSerial] = GPUMesh(device: device, mesh: item.mesh, openShellFaces: item.openShellFaces)
         }
     }
 }

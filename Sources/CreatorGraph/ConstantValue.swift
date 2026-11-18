@@ -25,12 +25,15 @@ public enum ConstantValue: Hashable, Sendable {
     /// An Import KiCad Board node's file, linked only (KiCad import spec): the same reference as an image. A setting,
     /// never a socket value.
     case pcbFile(ImageReference)
+    /// An Import Model node's file (NURBS spec, Import Model): the same reference as an image, embedded or linked, its embedded
+    /// bytes in the document's `images` table. A setting, never a socket value.
+    case modelFile(ImageReference)
 
     /// The reference of an `image`, `meshFile` or `pcbFile` setting: what paths, stamps, hashes and the clipboard read, because both
     /// kinds are held, resolved and embedded the same way.
     public var fileReference: ImageReference? {
         switch self {
-        case .image(let reference), .meshFile(let reference), .pcbFile(let reference): reference
+        case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): reference
         default: nil
         }
     }
@@ -39,6 +42,7 @@ public enum ConstantValue: Hashable, Sendable {
         switch self {
         case .meshFile: .meshFile
         case .pcbFile: .pcbFile
+        case .modelFile: .modelFile
         default: .image
         }
     }
@@ -50,7 +54,7 @@ public enum ConstantValue: Hashable, Sendable {
         case .vector(let vector): vector.isFinite
         case .plane(let plane): plane.origin.isFinite && plane.normal.isFinite && plane.xAxis.isFinite
         case .sketch(let sketch): sketch.isFinite
-        case .integer, .bool, .text, .edgePicks, .facePick, .image, .meshFile, .pcbFile: true
+        case .integer, .bool, .text, .edgePicks, .facePick, .image, .meshFile, .pcbFile, .modelFile: true
         }
     }
 }
@@ -58,13 +62,14 @@ public enum ConstantValue: Hashable, Sendable {
 extension ConstantValue: Codable {
     private enum CodingKeys: String, CodingKey { case type, value }
     private enum Kind: String, Codable {
-        case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image, meshFile, pcbFile
+        case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image, meshFile, pcbFile, modelFile
     }
 
     private static func fileSetting(of kind: Kind, _ reference: ImageReference) -> ConstantValue {
         switch kind {
         case .meshFile: .meshFile(reference)
         case .pcbFile: .pcbFile(reference)
+        case .modelFile: .modelFile(reference)
         default: .image(reference)
         }
     }
@@ -82,7 +87,7 @@ extension ConstantValue: Codable {
         case .edgePicks: self = .edgePicks(try container.decode([EdgePick].self, forKey: .value))
         case .sketch: self = .sketch(try container.decode(Sketch.self, forKey: .value))
         case .facePick: self = .facePick(try container.decode(FacePick.self, forKey: .value))
-        case .image, .meshFile, .pcbFile:
+        case .image, .meshFile, .pcbFile, .modelFile:
             self = Self.fileSetting(of: kind, try container.decode(ImageReference.self, forKey: .value))
         }
     }
@@ -99,7 +104,7 @@ extension ConstantValue: Codable {
         case .edgePicks(let value): try container.encode(Kind.edgePicks, forKey: .type); try container.encode(value, forKey: .value)
         case .sketch(let value): try container.encode(Kind.sketch, forKey: .type); try container.encode(value, forKey: .value)
         case .facePick(let value): try container.encode(Kind.facePick, forKey: .type); try container.encode(value, forKey: .value)
-        case .image(let value), .meshFile(let value), .pcbFile(let value):
+        case .image(let value), .meshFile(let value), .pcbFile(let value), .modelFile(let value):
             try container.encode(fileKind, forKey: .type)
             try container.encode(value, forKey: .value)
         }

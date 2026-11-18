@@ -13,6 +13,9 @@ public enum KernelError: Error, Equatable, Sendable {
     /// The refusal every kernel gives a loft through profiles with holes, and the Loft node gives it first.
     public static let loftWithHoles = KernelError.invalidInput("A loft can't use profiles with holes yet.")
 
+    /// What a kernel says to a curve piece whose spline's poles, knots and multiplicities don't agree.
+    public static let malformedSpline = KernelError.invalidInput("The curve's spline is malformed.")
+
     /// What a kernel that only builds lines and arcs says to a profile with a spline.
     public static let splinesUnsupported = KernelError.invalidInput("Splines aren't supported by this kernel yet.")
 
