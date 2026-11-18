@@ -139,4 +139,21 @@ struct SurfaceNodeRefusalTests {
         let report = try await run([rectangle, node], links, demand: node)
         #expect(report.error(node) == message)
     }
+
+    @Test func aRailSweepShowsAStaleTwistSoItCanBeCleared() {
+        func showsTwist(_ node: Node) -> Bool {
+            SweepNode.inspector(for: node).flatMap(\.controls).contains { control in
+                if case .slider(let name) = control { name == "twist" } else { false }
+            }
+        }
+        var node = BuiltInNodes.registry.makeNode(SweepNode.typeID)
+        node.inputValues["orientation"] = .integer(2)
+        node.inputValues["twist"] = .number(0)
+        #expect(!showsTwist(node))
+        node.inputValues["twist"] = .number(30)
+        #expect(showsTwist(node))
+        node.inputValues["orientation"] = .integer(0)
+        node.inputValues["twist"] = .number(0)
+        #expect(showsTwist(node))
+    }
 }

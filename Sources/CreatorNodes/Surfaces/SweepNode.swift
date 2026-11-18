@@ -28,20 +28,24 @@ public enum SweepNode: NodeDefinition {
         SocketSpec("solid", .bool, defaultValue: .bool(true)),
     ]
     public static let outputs = [SocketSpec("surface", .solid)]
-    private static func sections(orientation: Int) -> [InspectorSection] {
+    private static func sections(orientation: Int, showsTwist: Bool) -> [InspectorSection] {
         var controls: [InspectorControl] = [.segmented("orientation", options: orientations)]
         if orientation == 1 { controls.append(.vector("binormal")) }
-        if orientation <= 1 { controls.append(.slider("twist")) }
+        if showsTwist { controls.append(.slider("twist")) }
         controls += [.slider("end scale"), .toggle("solid", label: "Make a solid")]
         return [InspectorSection(title: "Sweep", controls: controls)]
     }
 
-    public static let inspector = sections(orientation: 1)
+    public static let inspector = sections(orientation: 1, showsTwist: true)
 
-    /// The binormal is shown for Fixed, the twist for Frenet and Fixed; the rail and guide are wired, never typed.
+    /// The binormal is shown for Fixed, the twist for Frenet and Fixed (and while a Rail or Guide node still holds one); the rail and guide are wired, never typed.
     public static func inspector(for node: Node) -> [InspectorSection] {
-        if case .integer(let value)? = node.inputValues["orientation"] { return sections(orientation: value) }
-        return sections(orientation: 0)
+        var orientation = 0
+        if case .integer(let value)? = node.inputValues["orientation"] { orientation = value }
+        // A twist left over from Frenet or Fixed stays visible under Rail or Guide, which refuse it, so it can be cleared.
+        var staleTwist = false
+        if case .number(let twist)? = node.inputValues["twist"] { staleTwist = twist != 0 }
+        return sections(orientation: orientation, showsTwist: orientation <= 1 || staleTwist)
     }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
