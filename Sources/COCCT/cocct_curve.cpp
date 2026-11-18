@@ -155,6 +155,118 @@ PieceCurve build_piece(const occt_curve_piece &piece) {
     return out;
 }
 
+/// The degree-5 B-spline through `count` (at least 6) xyz points: chord-length parameters on [0, 1], de Boor's averaged knots, and
+/// the banded collocation system solved by elimination (the matrix is totally positive, so no pivoting is needed).
+Handle(Geom_BSplineCurve) interpolate_quintic(const double *points, int count) {
+    constexpr int p = 5;
+    if (count < p + 1) {
+        throw user_error("A degree-5 curve needs at least six points.");
+    }
+    std::vector<double> t(count, 0.0);
+    for (int i = 1; i < count; ++i) {
+        const gp_Pnt a(points[3 * (i - 1)], points[3 * (i - 1) + 1], points[3 * (i - 1) + 2]);
+        const gp_Pnt b(points[3 * i], points[3 * i + 1], points[3 * i + 2]);
+        t[i] = t[i - 1] + a.Distance(b);
+    }
+    if (!(t[count - 1] > 0)) {
+        throw user_error("The curve can't pass through these points at degree 5; try degree 3.");
+    }
+    for (int i = 0; i < count; ++i) {
+        t[i] /= t[count - 1];
+    }
+    t[count - 1] = 1.0;
+    // The full knot vector: count + p + 1 knots, clamped, interior ones averaged over p parameters.
+    const int knot_total = count + p + 1;
+    std::vector<double> flat(knot_total, 0.0);
+    for (int i = 0; i <= p; ++i) {
+        flat[knot_total - 1 - i] = 1.0;
+    }
+    for (int j = 1; j <= count - p - 1; ++j) {
+        double sum = 0;
+        for (int i = j; i < j + p; ++i) {
+            sum += t[i];
+        }
+        flat[j + p] = sum / p;
+    }
+    const int width = 2 * p + 1;
+    std::vector<double> band(static_cast<size_t>(count) * width, 0.0);
+    const auto at = [&](int row, int col) -> double & { return band[static_cast<size_t>(row) * width + (col - row + p)]; };
+    for (int row = 0; row < count; ++row) {
+        // Cox-de Boor: the p + 1 basis functions that don't vanish at t[row].
+        int span = p;
+        while (span < count - 1 && t[row] >= flat[span + 1]) {
+            ++span;
+        }
+        double basis[p + 1];
+        double left[p + 1];
+        double right[p + 1];
+        basis[0] = 1.0;
+        for (int j = 1; j <= p; ++j) {
+            left[j] = t[row] - flat[span + 1 - j];
+            right[j] = flat[span + j] - t[row];
+            double saved = 0.0;
+            for (int r = 0; r < j; ++r) {
+                const double denominator = right[r + 1] + left[j - r];
+                const double term = denominator > 0 ? basis[r] / denominator : 0.0;
+                basis[r] = saved + right[r + 1] * term;
+                saved = left[j - r] * term;
+            }
+            basis[j] = saved;
+        }
+        for (int k = 0; k <= p; ++k) {
+            const int col = span - p + k;
+            if (col - row > p || row - col > p) {
+                throw user_error("The curve can't pass through these points at degree 5; try degree 3.");
+            }
+            at(row, col) = basis[k];
+        }
+    }
+    std::vector<double> rhs(points, points + 3 * static_cast<size_t>(count));
+    for (int k = 0; k < count; ++k) {
+        const double pivot = at(k, k);
+        if (!(std::abs(pivot) > 1e-14)) {
+            throw user_error("The curve can't pass through these points at degree 5; try degree 3.");
+        }
+        for (int row = k + 1; row < count && row <= k + p; ++row) {
+            const double factor = at(row, k) / pivot;
+            if (factor == 0.0) {
+                continue;
+            }
+            for (int col = k; col < count && col <= k + p; ++col) {
+                at(row, col) -= factor * at(k, col);
+            }
+            for (int axis = 0; axis < 3; ++axis) {
+                rhs[3 * row + axis] -= factor * rhs[3 * k + axis];
+            }
+        }
+    }
+    for (int row = count - 1; row >= 0; --row) {
+        for (int axis = 0; axis < 3; ++axis) {
+            double value = rhs[3 * row + axis];
+            for (int col = row + 1; col < count && col <= row + p; ++col) {
+                value -= at(row, col) * rhs[3 * col + axis];
+            }
+            rhs[3 * row + axis] = value / at(row, row);
+        }
+    }
+    TColgp_Array1OfPnt poles(1, count);
+    for (int i = 0; i < count; ++i) {
+        poles(i + 1) = gp_Pnt(rhs[3 * i], rhs[3 * i + 1], rhs[3 * i + 2]);
+    }
+    const int interior = count - p - 1;
+    TColStd_Array1OfReal knots(1, interior + 2);
+    TColStd_Array1OfInteger mults(1, interior + 2);
+    knots(1) = 0.0;
+    mults(1) = p + 1;
+    for (int j = 1; j <= interior; ++j) {
+        knots(j + 1) = flat[j + p];
+        mults(j + 1) = 1;
+    }
+    knots(interior + 2) = 1.0;
+    mults(interior + 2) = p + 1;
+    return new Geom_BSplineCurve(poles, knots, mults, p);
+}
+
 TopoDS_Vertex vertex_at(const gp_Pnt &p) {
     TopoDS_Vertex v = BRepBuilderAPI_MakeVertex(p);
     BRep_Builder().UpdateVertex(v, kVertexTolerance);
@@ -275,11 +387,7 @@ occt_shape *occt_interpolate_curve(const double *points, int count, int degree, 
             for (int i = 0; i < count; ++i) {
                 array(i + 1) = gp_Pnt(points[3 * i], points[3 * i + 1], points[3 * i + 2]);
             }
-            GeomAPI_PointsToBSpline fit(array, 5, 5, GeomAbs_C2, 1e-7);
-            if (!fit.IsDone()) {
-                throw user_error("The curve can't pass through these points at degree 5; try degree 3.");
-            }
-            curve = fit.Curve();
+            curve = interpolate_quintic(points, count);
             for (int i = 0; i < count; ++i) {
                 GeomAPI_ProjectPointOnCurve projection(array(i + 1), curve);
                 const double gap = projection.NbPoints() > 0 ? projection.LowerDistance() : 1e300;

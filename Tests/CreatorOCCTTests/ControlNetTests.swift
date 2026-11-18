@@ -165,6 +165,19 @@ struct ControlNetTests {
         }
     }
 
+    @Test(arguments: [6, 7, 8, 10, 12])
+    func aDegreeFiveCurveIsDegreeFive(count: Int) async throws {
+        let points = (0..<count).map { Vector3(Double($0), sin(Double($0)), 0) }
+        let curve = try await kernel.interpolate(points, degree: 5, closed: false, startTangent: nil, endTangent: nil, tag: tag)
+        let net = try await kernel.controlNet(of: curve)
+        #expect(net.curve.degree == 5)
+        #expect(net.curve.poles.count == count)
+        #expect(net.curve.isWellFormed)
+        for point in points {
+            #expect(try await kernel.distance(from: point, to: curve) < 1e-7)
+        }
+    }
+
     @Test func aSheetOfTwoFacesIsRefused() async throws {
         let a = try await kernel.makeCurve([.line(Vector3(0, 0, 0), Vector3(10, 0, 0))], tag: tag)
         let b = try await kernel.makeCurve([.line(Vector3(0, 5, 0), Vector3(10, 5, 0))], tag: tag)
