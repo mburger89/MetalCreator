@@ -602,7 +602,47 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
                 degenerate_points.push_back(BRep_Tool::Pnt(TopExp::FirstVertex(edge)));
             }
         }
-        constexpr int kGrid = 33;
+        // Samples sit inside each knot span (cell centred), and only neighbours of one span are compared: across an interior knot a
+        // surface may have a sharp crease that is not a fold; inside a span it is smooth, so opposite normals there are a fold.
+        struct line_sample {
+            double parameter;
+            int span;
+        };
+        const Handle(Geom_BSplineSurface) spline = Handle(Geom_BSplineSurface)::DownCast(unwrapped(surface));
+        auto spans_of = [](const Handle(Geom_BSplineSurface) &s, bool is_u, double lo, double hi) {
+            std::vector<double> cuts{lo};
+            if (!s.IsNull()) {
+                const int count = is_u ? s->NbUKnots() : s->NbVKnots();
+                for (int k = 1; k <= count; ++k) {
+                    const double knot = is_u ? s->UKnot(k) : s->VKnot(k);
+                    if (knot > lo + 1e-12 * (hi - lo) && knot < hi - 1e-12 * (hi - lo)) {
+                        cuts.push_back(knot);
+                    }
+                }
+            }
+            cuts.push_back(hi);
+            return cuts;
+        };
+        const std::vector<double> cuts_u = spans_of(spline, true, u0, u1);
+        const std::vector<double> cuts_v = spans_of(spline, false, v0, v1);
+        const double span_count = double(cuts_u.size() - 1) * double(cuts_v.size() - 1);
+        int per_span = 8;
+        while (per_span > 1 && span_count * per_span * per_span > 1.0e6) {
+            --per_span;
+        }
+        auto lines_of = [per_span](const std::vector<double> &cuts) {
+            std::vector<line_sample> lines;
+            for (size_t k = 0; k + 1 < cuts.size(); ++k) {
+                for (int i = 0; i < per_span; ++i) {
+                    lines.push_back({cuts[k] + (cuts[k + 1] - cuts[k]) * (i + 0.5) / per_span, int(k)});
+                }
+            }
+            return lines;
+        };
+        const std::vector<line_sample> lines_u = lines_of(cuts_u);
+        const std::vector<line_sample> lines_v = lines_of(cuts_v);
+        const int count_u = int(lines_u.size());
+        const int count_v = int(lines_v.size());
         BRepClass_FaceClassifier classifier;
         struct sample {
             bool inside = false;
@@ -610,12 +650,12 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
             bool degenerate = false;
             gp_Vec normal;
         };
-        std::vector<sample> grid(kGrid * kGrid);
-        for (int a = 0; a < kGrid; ++a) {
-            for (int b = 0; b < kGrid; ++b) {
-                sample &out = grid[a * kGrid + b];
-                const double u = u0 + (u1 - u0) * a / (kGrid - 1);
-                const double v = v0 + (v1 - v0) * b / (kGrid - 1);
+        std::vector<sample> grid(size_t(count_u) * size_t(count_v));
+        for (int a = 0; a < count_u; ++a) {
+            for (int b = 0; b < count_v; ++b) {
+                sample &out = grid[size_t(a) * count_v + b];
+                const double u = lines_u[a].parameter;
+                const double v = lines_v[b].parameter;
                 classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
                 out.inside = classifier.State() == TopAbs_IN || classifier.State() == TopAbs_ON;
                 if (!out.inside) {
@@ -633,20 +673,22 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
             }
         }
         *folds = 0;
-        const int steps[2][2] = {{1, 0}, {0, 1}};
-        for (int a = 0; a < kGrid && !*folds; ++a) {
-            for (int b = 0; b < kGrid && !*folds; ++b) {
-                const sample &here = grid[a * kGrid + b];
+        for (int a = 0; a < count_u && !*folds; ++a) {
+            for (int b = 0; b < count_v && !*folds; ++b) {
+                const sample &here = grid[size_t(a) * count_v + b];
                 if (!here.inside || here.ignored) {
                     continue;
                 }
-                for (const auto &step : steps) {
-                    const int na = a + step[0];
-                    const int nb = b + step[1];
-                    if (na >= kGrid || nb >= kGrid) {
+                for (int direction = 0; direction < 2; ++direction) {
+                    const int na = a + (direction == 0 ? 1 : 0);
+                    const int nb = b + (direction == 1 ? 1 : 0);
+                    if (na >= count_u || nb >= count_v) {
                         continue;
                     }
-                    const sample &next = grid[na * kGrid + nb];
+                    if (lines_u[na].span != lines_u[a].span || lines_v[nb].span != lines_v[b].span) {
+                        continue;
+                    }
+                    const sample &next = grid[size_t(na) * count_v + nb];
                     if (!next.inside || next.ignored) {
                         continue;
                     }

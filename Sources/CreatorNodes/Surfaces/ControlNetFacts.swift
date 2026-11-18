@@ -14,7 +14,7 @@ enum ControlNetFacts {
             PayloadFact("Knots", "\(net.knotsU.count.display) × \(net.knotsV.count.display)"),
             PayloadFact("Rational", net.weights == nil ? "no" : "yes"),
         ]
-        if let kind { facts.append(PayloadFact("Note", "Converted exactly from \(article(for: kind.rawValue))")) }
+        if let kind { facts.append(PayloadFact("Converted", "Converted exactly from \(article(for: kind.rawValue))")) }
         return facts
     }
 
@@ -26,7 +26,7 @@ enum ControlNetFacts {
             PayloadFact("Knots", net.knots.count.display),
             PayloadFact("Rational", net.weights == nil ? "no" : "yes"),
         ]
-        if let kind { facts.append(PayloadFact("Note", "Converted exactly from \(article(for: kind.rawValue))")) }
+        if let kind { facts.append(PayloadFact("Converted", "Converted exactly from \(article(for: kind.rawValue))")) }
         return facts
     }
 

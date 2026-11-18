@@ -238,6 +238,20 @@ extension PoleMoveTests {
         #expect(try await kernel.folds(folded))
     }
 
+    @Test func aSharpCreaseIsNotAFold() async throws {
+        let sheet = try await kernel.bsplineSheet(uCount: 3, vCount: 3, degree: 1, tag: tag)
+        for height in [4.0, 20.0] {
+            let tent = try await kernel.movingPoles(of: sheet, by: [PoleMove(index: PoleIndex(i: 1, j: 1), offset: Vector3(0, 0, height))])
+            #expect(try await kernel.folds(tent) == false, "raised \(height)")
+        }
+    }
+
+    @Test func aSteepBumpIsNotAFold() async throws {
+        let sheet = try await kernel.bsplineSheet(uCount: 6, vCount: 6, degree: 3, tag: tag)
+        let bump = try await kernel.movingPoles(of: sheet, by: [PoleMove(index: PoleIndex(i: 2, j: 3), offset: Vector3(0, 0, 20))])
+        #expect(try await kernel.folds(bump) == false)
+    }
+
     @Test func aPlainNetDoesNotFold() async throws {
         #expect(try await kernel.folds(try await loftedSheet()) == false)
         let axis = Axis(origin: .zero, direction: Vector3(0, 0, 1))

@@ -68,24 +68,24 @@ struct EditSurfaceNodeTests {
     }
 
     @Test func aMoveMovesThePole() async throws {
-        let (report, source, edit, _) = try await run([move(2, 3, Vector3(0, 0, 0.3))])
+        let (report, source, edit, _) = try await run([move(2, 3, Vector3(0, 0, 4))])
         let before = try #require(report.value(source, "surface")?.solids?.first)
         let after = try #require(report.value(edit, "surface")?.solids?.first)
         #expect(report.isOK(edit), "\(String(describing: report.state(edit)))")
         let delta = try await pole(after, 2, 3) - pole(before, 2, 3)
-        #expect((delta - Vector3(0, 0, 0.3)).length < 1e-9)
+        #expect((delta - Vector3(0, 0, 4)).length < 1e-9)
         #expect(report.isOK(edit))
     }
 
-    @Test func staleMovesWarnAndStayInTheSetting() async throws {
-        let moves = [move(7, 0, Vector3(0, 0, 1)), move(0, 9, Vector3(0, 0, 1)), move(1, 1, Vector3(0, 0, 0.2))]
+    @Test func staleMovesWarnAndAreNotApplied() async throws {
+        let moves = [move(7, 0, Vector3(0, 0, 1)), move(0, 9, Vector3(0, 0, 1)), move(1, 1, Vector3(0, 0, 2))]
         let (report, source, edit, _) = try await run(moves)
         #expect(report.warning(edit) == "2 control point moves no longer fit the surface's 6 × 8 net.")
         let before = try #require(report.value(source, "surface")?.solids?.first)
         let after = try #require(report.value(edit, "surface")?.solids?.first)
-        #expect(try await (pole(after, 1, 1) - pole(before, 1, 1) - Vector3(0, 0, 0.2)).length < 1e-9)
-        // Evaluation never rewrites the setting.
-        #expect(edit.inputValues[NodeSetting.poleMoves]?.poleMoves?.count == 3)
+        #expect(try await (pole(after, 1, 1) - pole(before, 1, 1) - Vector3(0, 0, 2)).length < 1e-9)
+        // Only the fitting move moved anything.
+        #expect(try await pole(after, 0, 0) == pole(before, 0, 0))
     }
 
     @Test func oneStaleMoveIsSingular() async throws {
@@ -97,7 +97,7 @@ struct EditSurfaceNodeTests {
         let folded = try await run([move(0, 0, Vector3(6, 6, 0))], u: 3, v: 3)
         #expect(folded.0.warning(folded.2)
                 == "The moved surface folds over itself; zebra stripes, thickening and offsets will misbehave there.")
-        let plain = try await run([move(1, 1, Vector3(0, 0, 1))], u: 3, v: 3)
+        let plain = try await run([move(1, 1, Vector3(0, 0, 4))], u: 3, v: 3)
         #expect(plain.0.isOK(plain.2))
     }
 
