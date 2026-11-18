@@ -26,7 +26,8 @@ public enum BoundaryPatchNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let sources = inputs.has("curves") ? try inputs.curves("curves") : []
-        let edgeSet = inputs.has("edges") ? try inputs.edgeSet("edges") : nil
+        let wiredEdges = inputs.has("edges") ? try inputs.edgeSet("edges") : nil
+        let edgeSet = wiredEdges?.edges.isEmpty == false ? wiredEdges : nil
         guard !sources.isEmpty || edgeSet != nil else { throw NodeError.invalidValue(boundaryRefusal) }
         let points = inputs.has("points") ? try inputs.list("points").map { scalar -> Vector3 in
             guard case .vector(let point) = scalar else { throw NodeError.typeMismatch("points", expected: .vector) }

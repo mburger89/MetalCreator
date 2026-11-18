@@ -7,6 +7,24 @@ import Testing
 import CreatorOCCT
 #endif
 
+/// A profile with a hole (the built-in profile nodes make none).
+private enum HoledProfileNode: NodeDefinition {
+    static let typeID = "test.patchHoledProfile"
+    static let displayName = "Holed Profile"
+    static let category = NodeCategory.profile
+    static let inputs: [SocketSpec] = []
+    static let outputs = [SocketSpec("profile", .profile)]
+
+    static func square(_ side: Double, at origin: Vector2 = .zero) -> [Segment2D] {
+        let p = [origin, origin + Vector2(side, 0), origin + Vector2(side, side), origin + Vector2(0, side)]
+        return (0..<4).map { .line(p[$0], p[($0 + 1) % 4]) }
+    }
+
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        NodeOutputs(["profile": .profile(Profile2D(plane: .xy, outer: square(10), holes: [square(2, at: Vector2(4, 4))]))])
+    }
+}
+
 /// NS-2 Task 6: the Boundary Patch node.
 struct BoundaryPatchNodeTests {
     @Test func theNodeIsInTheSurfaceLibraryUnderMake() {
@@ -21,6 +39,15 @@ struct BoundaryPatchNodeTests {
         let node = h.add(BoundaryPatchNode.self)
         let report = try await h.run([node])
         #expect(report.error(node) == "Wire the curves or edges that bound the patch.")
+    }
+
+    @Test func aProfileWithHolesIsRefusedInWords() async throws {
+        let registry = NodeRegistry(BuiltInNodes.all + [HoledProfileNode.self])
+        let source = registry.makeNode(HoledProfileNode.typeID), node = registry.makeNode(BoundaryPatchNode.typeID)
+        let link = Link(from: Endpoint(node: source.id, socket: "profile"), to: Endpoint(node: node.id, socket: "curves"))
+        let report = try await Evaluator(registry: registry, kernel: FakeKernel())
+            .evaluate(Graph(nodes: [source.id: source, node.id: node], links: [link]), demand: [node.id], images: ImageResolver())
+        #expect(report.error(node) == "Profile 1 has holes; a patch boundary is one loop.")
     }
 
     @Test func moreThanAThousandPointsAreRefused() async throws {
@@ -42,8 +69,7 @@ struct BoundaryPatchNodeTests {
         let node = h.add(BoundaryPatchNode.self)
         h.wire(rect, "profile", to: node, "curves")
         let report = try await h.run([node])
-        let message = report.error(node)
-        #expect(message?.contains("Boundary patches") == true, "\(String(describing: message))")
+        #expect(report.error(node) == "Boundary patches isn't supported by this kernel yet.")
     }
 }
 
@@ -64,6 +90,26 @@ struct BoundaryPatchNodeOCCTTests {
         let sheet = try #require(report.value(node, "surface")?.solids?.first, "\(String(describing: report.error(node)))")
         #expect(report.isOK(node))
         #expect(isClose(try await kernel.properties(of: sheet).surfaceArea, 100, relative: 1e-6))
+    }
+
+    @Test func anEmptyEdgeSetIsLikeAnUnwiredOne() async throws {
+        var h = Harness()
+        let box = h.box(10, 10, 10)
+        let byTag = h.add(EdgesByTagNode.self)
+        h.wire(box, "solid", to: byTag, "solid")
+        let node = h.add(BoundaryPatchNode.self)
+        h.wire(byTag, "edges", to: node, "edges")
+        let report = try await h.run([node], kernel: kernel)
+        #expect(report.error(node) == "Wire the curves or edges that bound the patch.")
+    }
+
+    @Test func aKernelWarningBecomesTheNodesWarning() async throws {
+        var h = Harness()
+        let rect = h.add(RectangleNode.self)
+        let node = h.add(BoundaryPatchNode.self)
+        h.wire(rect, "profile", to: node, "curves")
+        let report = try await h.run([node], kernel: kernel)
+        #expect(report.warning(node) == "No bounding edge lies on a surface, so the patch is only G0.")
     }
 
     @Test func pickedEdgesOfALoftedBellsOpenTopBuildAPatchAtG1() async throws {
