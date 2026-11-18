@@ -269,11 +269,12 @@ public actor OCCTKernel: Kernel {
 
     /// `boundaryRoles` and `carriesEdgeTags` are `OCCTTagger.topology`'s: the names of a sheet's boundary edges.
     func solid(from shape: OCCTShape, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
-               operation: String, boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false) throws -> Solid {
+               operation: String, boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false,
+               hullBounds: Bool = false) throws -> Solid {
         do {
             // Untyped throws on purpose: Swift 6.4 crashes ("unsupported collection upcast kind") with typed throws returning a tuple. Revert once fixed.
             let (raw, bounds) = try Self.serialized { () throws -> (OCCTRawTopology, BoundingBox) in
-                (try OCCTRawTopology.read(shape), try shape.bounds())
+                (try OCCTRawTopology.read(shape), try shape.bounds(hull: hullBounds))
             }
             guard !raw.faces.isEmpty else {
                 throw KernelError.operationFailed(operation: operation, reason: "the result is empty.")

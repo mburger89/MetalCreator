@@ -1064,6 +1064,22 @@ BENCH g2-fillet-drag G2 fillet, release (G2 built), edit to preview: median 332.
 
 Corner fix (same day): the G1 corner refill no longer tries the circular corner as an initial surface first. A square pyramid's apex (four hip fillets, `aFourFilletCornerIsCountedOrRefused`) took 25.7 s before (the failed first attempt in `Plate_Plate::SolveTI1`) and 0.040 s for the whole test after; the three non-orthogonal corner tests take 0.19 s together.
 
+## Control points (`surface-3`)
+
+NS-3's spec target is 60 fps while a control point is dragged. Row `surface-3` drags one point of a 30 x 30 net: a 60 x 40 Rectangle, Profile to Curves, Planar Surface, Rebuild Surface (degree 3, 27 spans each way), Edit Surface, Output, driven through `ControlNetSession` (`dragBegan`, 40 `dragMoved` steps of 0.03 mm, `dragEnded`) as the viewport's tool does, each step timed from the pointer move until `settle()` (the evaluation, the scene and its meshes). `DocumentModel.isScrubbing` holds for the steps. The §7.2 bracket is in the same document with its Fillet at Curvature (G2), so the document also holds a node that reads the flag; that fillet is a separate branch, not downstream of the surface (a fillet refuses a sheet), and the scrubbing flag does not reach anything downstream of the surface. Release, `Tests/CreatorAppTests/Bench/SurfaceBench.swift`, 2026-11-18, Mac18,5, 12 cores. Re-run 2026-11-18 after the review fixes (Mac18,5, 12 cores): load averages (1, 5, 15 min) 3.87 / 5.05 / 5.24 before the run and 3.21 / 4.85 / 5.16 after, so a Mac carrying other work: recorded, not a verdict. The first run of the table (before the review fixes) read 9.34 ms at a load of 8.2 before and 3.3 after.
+
+| Row | median (p95; max) |
+| --- | --- |
+| `surface-3` 30x30 net, one drag step to the preview | 8.63 ms (9.44; 9.58) |
+| `surface-3` release (the fold query and the G2 fillet built), to the preview | 43.68 ms (one sample) |
+
+Task 9b (same day) took the step from 441.98 ms (a Mac at load 1.8) to 9.34 ms (load 8.2 before and 3.3 after the run, so a loaded Mac: the number is saturated, not a verdict; the 16.7 ms budget of 60 fps is met); the review fixes' re-run reads 8.63 ms (table above). Where the 442 ms went (release, temporary timers, removed): the fold query 420 ms (47,000 `BRepClass_FaceClassifier` points on an untrimmed face), the move itself (copy, `SetPole`, edge check, `BRepCheck_Analyzer` twice, `occt_same_structure`) under 1 ms, reading the net 0.3 ms twice, tessellation 3 ms. After the fold was gone 24 ms remained: bounds of the moved sheet 15 ms (`BRepBndLib::AddOptimal` minimises over a 900-pole surface), the topology read 4.5 ms (`BRepGProp` area and centroid per face), tessellation 3 ms. What changed: Edit Surface skips `Kernel.folds` while `DocumentModel.isScrubbing` (it reads the flag only when it has moves, `readsScrubbing(for:)`), so the fold warning appears when the drag ends (the release row holds that query and the tight bounds: 28.5 ms in the first run, 43.68 ms in the re-run, one sample each); `occt_surface_folds` classifies no sample on an untrimmed face (one wire of four straight sides on the surface's natural boundary, whatever curve class the pcurves are), so the query takes about 17 ms on a rebuilt 12 x 12 sheet in a debug build; and the result of a move built while a slider or handle is dragged (`Kernel.movingPoles(of:by:previewing:)`) takes the pole hull as the bounds of a face on a B-spline surface of more than 400 poles instead of `AddOptimal` (a true bound, so that preview's `Solid.bounds` is looser, by at most the control polygon's excess); every other result, the one after the drag included, has tight bounds.
+
+```text
+BENCH surface-3 30x30 net, one drag step to the preview: median 8.63 ms, p95 9.44 ms, max 9.58 ms (n 35); budget 16.67 ms: met
+BENCH surface-3 release (the G2 fillet built), to the preview: median 43.68 ms, p95 43.68 ms, max 43.68 ms (n 1)
+```
+
 ## Raw output
 
 The 2026-10-20 idle run (MetalCreator `5e4069e`, MetalUI `711ab9c4`; the machine and load lines are the scripts', copied from their

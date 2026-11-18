@@ -31,6 +31,8 @@ extension AppModel {
         case .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile,
              .embedModelFile:
             handleFileButton(request)
+        case .editControlPoints:
+            editControlPoints(of: request.node)
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }
@@ -43,7 +45,8 @@ extension AppModel {
         case .choosePCBFile, .relinkPCBFile: handleBoardFile(request)
         case .chooseModelFile, .relinkModelFile, .embedModelFile: handleModelFile(request)
         case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup: break
+             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup,
+             .editControlPoints: break
         }
     }
 
@@ -53,6 +56,7 @@ extension AppModel {
     /// - a feature whose edges come from another rule picks on that rule's solid, starting from its edges, and Done
     ///   wires a new Edges by Tag rule in its place.
     public func beginPick(for id: NodeID) {
+        guard controlNet == nil else { return }
         editor.commitPendingEntry()
         // The banner's Escape and Return are button shortcuts, which run before the palette's keys in `onInput`.
         editor.closePalette()

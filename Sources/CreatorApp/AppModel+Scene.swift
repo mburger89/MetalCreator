@@ -85,6 +85,7 @@ extension AppModel {
         }
         // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
         layoutOverlayCache = pick == nil ? layoutOverlay : ViewportOverlay()
+        followControlNet()
         showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
         followSection()
@@ -199,6 +200,7 @@ extension AppModel {
             _ = previewMode
             _ = pick
             _ = sketch
+            _ = controlNet
             _ = panelWidth
             _ = panelHeight
             _ = themes.current

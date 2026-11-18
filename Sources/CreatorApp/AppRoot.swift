@@ -58,6 +58,10 @@ public struct AppRoot: Component {
                 .padding(bannerPadding)
             }
             if let session = model.sketch { PointerReadoutView(model: session.editor) }
+            if let session = model.controlNet {
+                ControlNetKeys(model: model, session: session)
+                ControlNetBoxView(session: session)
+            }
             FieldLegendDock(model: model)
             MeshBadgeDock(model: model)
             SlowEvaluationDock(model: model)

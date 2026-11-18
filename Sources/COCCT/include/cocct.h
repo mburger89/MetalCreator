@@ -79,8 +79,9 @@ typedef struct {
 } occt_properties;
 
 int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_status *status);
-/// The shape's tight axis-aligned bounds, without computing mass properties. Returns 1 on success.
-int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], occt_status *status);
+/// The shape's tight axis-aligned bounds, without computing mass properties. `pole_hull` nonzero bounds a face on a B-spline surface
+/// of over 400 poles by its pole hull instead (loose but free; a control-point preview's). Returns 1 on success.
+int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], int pole_hull, occt_status *status);
 
 /// Surface kinds: 0 plane, 1 cylinder, 2 cone, 3 sphere, 4 torus, 5 bspline, 6 other.
 typedef struct {
@@ -475,6 +476,7 @@ typedef struct {
     int knot_count;
     const double *knots;     // knot_count
     const int *multiplicities; // knot_count
+    int periodic;            // spline only: poles and knots are one period's, as OpenCascade keeps them (NS-3)
 } occt_curve_piece;
 
 /// What the Swift side reads of a curve (a wire). `polyline` is shim-owned: free it with occt_curve_info_free.
@@ -511,6 +513,81 @@ occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_stat
 int occt_test_curve_spline_info(const occt_shape *wire, int *degree, int *pole_count, occt_status *status);
 /// FOR TESTS ONLY. The shortest distance from the point to the curve (a wire).
 double occt_test_curve_distance(const occt_shape *wire, double x, double y, double z, occt_status *status);
+
+/// A B-spline surface's net (NS-3). `poles` is u_count * v_count xyz triples, row-major (pole (i, j) at i * v_count + j);
+/// `weights` is null unless rational. `kind` is the face's surface kind before conversion: 0 plane, 1 cylinder, 2 cone, 3 sphere,
+/// 4 torus, 5 B-spline, 6 other, 7 Bezier, 8 revolution, 9 extrusion, 10 offset; `converted_from` is that kind when the net was
+/// made by conversion, else -1. `normals` (3 per pole, at its Greville point, oriented by the face) only from
+/// occt_control_net_of_face. All arrays are shim-owned: free with occt_surface_net_free.
+typedef struct {
+    int kind;
+    int converted_from;
+    int degree_u;
+    int degree_v;
+    int u_count;
+    int v_count;
+    int periodic_u;
+    int periodic_v;
+    int rational;
+    int knot_u_count;
+    int knot_v_count;
+    double *poles;
+    double *weights;
+    double *knots_u;
+    int *mult_u;
+    double *knots_v;
+    int *mult_v;
+    double *normals;
+} occt_surface_net;
+
+/// The B-spline net of face `face_index` (1-based, in `shape`'s face map), converting any other surface exactly. More than
+/// `max_poles` poles (0: no limit) is refused with the pole count marked as a number. Returns 1, or 0 with `status` set.
+int occt_control_net_of_face(const occt_shape *shape, int face_index, int max_poles, occt_surface_net *out, occt_status *status);
+/// The kind of face `face_index`'s surface and, for a Bezier or B-spline one, its net as it stands (no normals, no conversion
+/// of other kinds: `poles` is null for them).
+int occt_surface_info(const occt_shape *shape, int face_index, occt_surface_net *out, occt_status *status);
+void occt_surface_net_free(occt_surface_net *net);
+
+/// A curve of one piece as one B-spline (NS-3). `converted_from` -1 for a B-spline, 0 line, 1 arc, 2 other. A periodic spline
+/// keeps its periodic form and unique poles (`periodic` 1) unless the edge trims it, when it is cut to a clamped segment
+/// (`periodic` 0). Free with occt_curve_net_free.
+typedef struct {
+    int converted_from;
+    int periodic;
+    int degree;
+    int rational;
+    int pole_count;
+    int knot_count;
+    double *poles;
+    double *weights;
+    double *knots;
+    int *multiplicities;
+} occt_curve_net;
+
+int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_status *status);
+void occt_curve_net_free(occt_curve_net *net);
+/// A copy of `shape` with the poles of face `face_index` (1-based) moved: `count` moves, move k naming pole (indices[2k], indices[2k+1])
+/// (0-based i along u, j along v, as occt_surface_net lays them out) and the offset offsets[3k..3k+2]. Weights are kept. The face is
+/// converted to a B-spline first when it isn't one (as occt_control_net_of_face does), keeps its pcurves, and its edges' 3D curves and
+/// vertices are rebuilt on the moved surface; the faces and edges keep their order in the shape's maps. A pole that doesn't exist, or a
+/// result BRepCheck_Analyzer rejects (when the input passed it), is refused. Never changes `shape` or geometry it shares.
+occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const int *indices, const double *offsets, int count,
+                                 occt_status *status);
+/// 1 when `a` and `b` have the same faces, edges and vertices in their maps: the same counts, each edge between the same vertex indices
+/// (first and last, as the edge runs), and each face's edges in the same order. 0 otherwise (or on a null shape).
+int occt_same_structure(const occt_shape *a, const occt_shape *b, occt_status *status);
+/// Sets `*folds` to 1 when face `face_index` (1-based) folds over itself: on a 33 x 33 grid of its parameter range (samples inside the
+/// face only, none on a degenerate edge's point) two neighbouring unit normals have a negative dot product, or one sample's
+/// |du x dv| is under 1e-12 x the face's bounding size squared and its neighbour's is not.
+int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt_status *status);
+/// FOR TESTS ONLY. The same shape with the opposite orientation (its faces are TopAbs_REVERSED), geometry untouched.
+occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status);
+/// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x
+/// `v_count` poles.
+occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status);
+/// FOR TESTS ONLY. Over every pole's Greville point of face `face_index`'s B-spline net: the largest |normal . tangent| / |tangent|
+/// and the largest distance from the surface point there to the pole.
+int occt_test_net_gaps(const occt_shape *shape, int face_index, double *normal_error, double *pole_gap, occt_status *status);
 
 /// What a sheet builder says about the names of its boundary edges (NURBS spec, Task 3). `kind` 0 none (the edge is
 /// not named), 1 start, 2 end, 3 rail (`a` 0 for an open curve's start, 1 for its end), 4 piece (`a` the loop, `b` the
@@ -597,6 +674,24 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
                                 int point_count, const occt_shape *const *interior_curves, int interior_count,
                                 int continuity, const occt_cancel *cancel, int *piece_order, int piece_capacity,
                                 int *total_pieces, occt_history *history, occt_boundary_roles *roles, occt_status *status);
+
+/// A copy of `shape` whose face `face_index` (1-based) is refitted by least squares to a non-rational B-spline of the given degrees
+/// and span counts (equal spans; clamped, or periodic with `spans` poles in a direction the source is periodic in; fewer than degree + 1 spans there is refused) over the parameter range of the face's own B-spline net (a surface of another kind is
+/// converted exactly first), so the face keeps its pcurves, trims and the order of faces and edges. Samples per direction are
+/// 4 x (degree + spans) + 1, fitted rows then columns; `*deviation` is the largest distance from the source surface to the result
+/// on a grid twice as dense inside the face's parameter box. Refuses a degree outside 1 to 11, under one span, over 100,000 poles
+/// (numbers wrapped in \x01 ... \x02) and a result BRepCheck_Analyzer rejects (when the input passed it). `cancel` may be NULL.
+occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degree_u, int degree_v, int spans_u, int spans_v,
+                              const occt_cancel *cancel, double *deviation, occt_status *status);
+/// A curve (wire) of any pieces fitted by one non-rational B-spline of `degree` and `spans` equal spans: clamped with its end poles pinned to
+/// the curve's ends, or periodic (`out->periodic` 1, `spans` poles) when the wire is one edge of a periodic B-spline run for its period
+/// (fewer than degree + 1 spans is refused). Samples 4 x (degree + spans) + 1, evenly in the parametrization by arc length between pieces. Fills `out` (free with occt_curve_net_free) and `*deviation`
+/// (largest distance from the source on a grid twice as dense). `cancel` may be NULL.
+int occt_rebuild_curve(const occt_shape *wire, int degree, int spans, const occt_cancel *cancel, occt_curve_net *out,
+                       double *deviation, occt_status *status);
+
+/// FOR TESTS ONLY. The largest tolerance of any edge of `shape`.
+int occt_test_max_edge_tolerance(const occt_shape *shape, double *tolerance, occt_status *status);
 
 #ifdef __cplusplus
 }

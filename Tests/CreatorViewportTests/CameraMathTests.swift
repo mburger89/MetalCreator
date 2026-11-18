@@ -84,3 +84,25 @@ struct CameraMathTests {
         #expect(product == .identity)
     }
 }
+
+/// `ViewportProjector.ray(through:)` hands a tool `CameraMath.ray`'s origin and direction, perspective and orthographic.
+struct ProjectorRayTests {
+    let size = ViewportSize(width: 400, height: 300)
+
+    @Test(arguments: CameraMathTests.poses)
+    func theProjectorsRayIsTheCameraMathsRay(_ pose: CameraPose) throws {
+        let projector = ViewportProjector(pose: pose, size: size)
+        for point in [ScreenPoint(0, 0), ScreenPoint(120, 70), ScreenPoint(399, 299)] {
+            let ray = try #require(projector.ray(through: point))
+            let expected = CameraMath.ray(through: point, pose, size: size)
+            #expect((ray.origin - expected.origin).length < 1e-9)
+            #expect((ray.direction - expected.direction).length < 1e-9)
+        }
+    }
+
+    @Test func anEmptyViewOrANonFinitePointHasNoRay() {
+        let pose = CameraMathTests.poses[0]
+        #expect(ViewportProjector(pose: pose, size: ViewportSize(width: 0, height: 0)).ray(through: ScreenPoint(1, 1)) == nil)
+        #expect(ViewportProjector(pose: pose, size: size).ray(through: ScreenPoint(.nan, 1)) == nil)
+    }
+}

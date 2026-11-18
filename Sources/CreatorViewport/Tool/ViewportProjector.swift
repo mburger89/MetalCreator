@@ -35,4 +35,12 @@ public struct ViewportProjector: Hashable, Sendable {
     public func screenPoint(of world: Vector3) -> ScreenPoint? {
         CameraMath.project(world, pose, size: size)?.point
     }
+
+    /// The ray under `point`: where it starts and its unit direction (from the eye in perspective, parallel to the view
+    /// in orthographic); `nil` for an empty view or a point that isn't finite.
+    public func ray(through point: ScreenPoint) -> (origin: Vector3, direction: Vector3)? {
+        guard !size.isEmpty, point.x.isFinite, point.y.isFinite else { return nil }
+        let ray = CameraMath.ray(through: point, pose, size: size)
+        return (ray.origin, ray.direction)
+    }
 }

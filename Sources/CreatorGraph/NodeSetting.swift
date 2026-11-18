@@ -42,21 +42,26 @@ public enum NodeSetting {
     /// Import Model: its file, as `.modelFile(ImageReference)` (NURBS spec), embedded or linked. Absent until one is chosen.
     public static let modelFile: SocketName = "modelFile"
 
+    /// Edit Surface and Edit Curve: the moved control points, as `.poleMoves([PoleMove])`, sorted by index (NURBS spec, control points).
+    public static let poleMoves: SocketName = "poleMoves"
+
     /// Loft: the faces of the part its first and last sections come from, as `.facePick(topology.facePick(for:))`.
     public static let startFace: SocketName = "startFace"
     public static let endFace: SocketName = "endFace"
 
     public static let all: Set<SocketName> = [
         startFace, endFace, parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern,
-        cullIndices, image, meshFile, pcbFile, modelFile,
+        cullIndices, image, meshFile, pcbFile, modelFile, poleMoves,
     ]
 
     /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside
     /// their inputs' values. `image` is left out on purpose: only Image Field has it (`meshFile`, only Import Mesh's, likewise), and a Sketch node or a group whose socket
-    /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did. `startFace` and `endFace` are left
+    /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did. `poleMoves` is left out likewise: only
+    /// Edit Surface and Edit Curve have it, and no file ever refused a group socket of that name. `startFace` and `endFace` are left
     /// out for the same reason: only Loft has them, and a file made before the loft's end conditions may name a group socket or an
     /// exposed Sketch dimension "startFace".
-    public static let reservedForSockets: Set<SocketName> = all.subtracting([image, meshFile, pcbFile, modelFile, startFace, endFace])
+    public static let reservedForSockets: Set<SocketName> =
+        all.subtracting([image, meshFile, pcbFile, modelFile, poleMoves, startFace, endFace])
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

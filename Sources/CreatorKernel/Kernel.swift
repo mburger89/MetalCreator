@@ -123,6 +123,39 @@ public protocol Kernel: Actor {
     func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes
     /// Exports `solids` and free `curves`. The default exports solids alone when there are no curves, else refuses.
     func export(_ solids: [Solid], curves: [Curve], format: ExportFormat, to url: URL) throws
+    /// The control net of a sheet of one face (NS-3), as one B-spline surface with the normal at each pole's Greville point. A face
+    /// that isn't a B-spline is converted exactly. A solid is refused "Edit Surface takes a sheet; this is a closed solid.", a sheet
+    /// of other than one face "Edit Surface takes a sheet with one face; this one has N. Rebuild or Split it first.", and a net over
+    /// 100,000 poles "This surface has N control points; Edit Surface works on at most 100,000.". The default refuses.
+    func controlNet(of surface: Solid) throws -> SurfaceNet
+    /// The control net of a curve of one piece (NS-3), a line or arc converted exactly. More pieces are refused "Edit Curve takes a
+    /// curve of one piece; this one has N. Rebuild it first.". The default refuses.
+    func controlNet(of curve: Curve) throws -> CurveNet
+    /// The kind of `face`'s surface and, for a Bezier or B-spline one, its net as it stands. The default refuses.
+    func surfaceInfo(of face: FaceID, in solid: Solid) throws -> SurfaceInfo
+    /// `surface` (a sheet of one face) with the poles of its control net (`controlNet(of:)`'s) moved by `moves`' offsets, weights
+    /// kept (NS-3). The result's faces and edges are the input's, in the same order with the same tags and boundary roles; only
+    /// their geometry differs. An index outside the net is refused `.invalidInput`; a move that makes an invalid surface is refused
+    /// "Moving these control points makes an invalid surface.". The default refuses.
+    func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid
+    /// As `movingPoles(of:by:)`; `previewing` (a result built while a slider or handle is being dragged) lets a kernel trade a
+    /// tight bounding box for a cheap one (OpenCascade: the pole hull on a face of over 400 poles). The default forwards, ignoring it.
+    func movingPoles(of surface: Solid, by moves: [PoleMove], previewing: Bool) throws -> Solid
+    /// `curve` (one piece) with its net's poles moved by `moves` (`PoleIndex.j` 0), weights kept; a periodic curve stays periodic
+    /// (NS-3). An index outside the net is refused `.invalidInput`. The default refuses.
+    func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve
+    /// Whether any face of `sheet` folds over itself (NS-3): neighbouring samples of its surface normal pointing opposite ways, or
+    /// a collapsed spot beside an ordinary one. A pole of a degenerate edge (a cone's apex) is not a fold. The default refuses.
+    func folds(_ sheet: Solid) throws -> Bool
+    /// `surface` (a sheet of one face) refitted by least squares to a non-rational B-spline of `spec`'s degree and span count over
+    /// the same parameter range (NS-3; a direction the source is periodic in is rebuilt periodic, with `spans` poles; fewer than degree + 1 spans there is refused "A closed surface needs at least N spans around at degree D."), so its faces, edges, tags and trims are the input's and only their geometry differs.
+    /// `deviation` is the largest distance from the source to the result over a grid twice as dense as the fit's samples. A solid is
+    /// refused "Rebuild Surface takes a sheet; this is a closed solid.", a sheet of other than one face "Rebuild Surface takes a sheet
+    /// with one face; this one has N. Split it first.". The default refuses.
+    func rebuilt(_ surface: Solid, as spec: RebuildSpec) async throws -> SurfaceRebuild
+    /// `curve` refitted as one non-rational spline piece of `spec`'s `degreeU` and `spansU` (its end poles pinned to the curve's
+    /// ends; a periodic B-spline curve is rebuilt periodic), made with `tag`; `deviation` as for a surface. The default refuses.
+    func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild
 }
 
 extension Kernel {
@@ -214,6 +247,42 @@ extension Kernel {
 
     public func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve {
         throw KernelError.unsupported("scaling")
+    }
+
+    public func controlNet(of surface: Solid) throws -> SurfaceNet {
+        throw KernelError.unsupported("control nets")
+    }
+
+    public func controlNet(of curve: Curve) throws -> CurveNet {
+        throw KernelError.unsupported("control nets")
+    }
+
+    public func surfaceInfo(of face: FaceID, in solid: Solid) throws -> SurfaceInfo {
+        throw KernelError.unsupported("surface information")
+    }
+
+    public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
+        throw KernelError.unsupported("moving control points")
+    }
+
+    public func movingPoles(of surface: Solid, by moves: [PoleMove], previewing: Bool) throws -> Solid {
+        try movingPoles(of: surface, by: moves)
+    }
+
+    public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {
+        throw KernelError.unsupported("moving control points")
+    }
+
+    public func folds(_ sheet: Solid) throws -> Bool {
+        throw KernelError.unsupported("fold detection")
+    }
+
+    public func rebuilt(_ surface: Solid, as spec: RebuildSpec) async throws -> SurfaceRebuild {
+        throw KernelError.unsupported("rebuilding surfaces")
+    }
+
+    public func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild {
+        throw KernelError.unsupported("rebuilding curves")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {

@@ -11,7 +11,9 @@ struct InspectorDock: Component {
 
     var content: some ElementGroup {
         Stack(alignment: .topLeading) {
-            if let sketch = model.sketch {
+            if let session = model.controlNet {
+                SketchChrome(.inspector) { ControlNetInspector(model: model, session: session) }
+            } else if let sketch = model.sketch {
                 SketchChrome(.inspector) { SketchInspector(model: sketch.editor) }
             } else {
                 InspectorPanel(model: model.editor, reservedHeight: AppLayout.inspectorReservedHeight).equatable()

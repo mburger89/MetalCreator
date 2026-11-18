@@ -34,8 +34,9 @@ namespace cocct {
 /// The shape's bounding box, tight to the part. `BRepBndLib::AddOptimal` without a triangulation bounds a high-degree
 /// Bezier face (a G2 corner patch, degree 17) by its poles, which stand thousands of mm off the surface; such a face is
 /// bounded by a dense sample of its surface and its edges instead. Every other shape costs `AddOptimal` plus one pass over
-/// its faces.
-void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box);
+/// its faces. `pole_hull` bounds a face of a B-spline surface over 400 poles by its pole hull instead (loose, free; a control-point
+/// preview's).
+void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box, bool pole_hull = false);
 
 /// pi. Not `M_PI`: MSVC's <cmath> defines it only under _USE_MATH_DEFINES, and C++17 has no std::numbers.
 inline constexpr double kPi = 3.14159265358979323846;

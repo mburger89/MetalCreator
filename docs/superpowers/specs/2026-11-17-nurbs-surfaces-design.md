@@ -1,6 +1,6 @@
 # NURBS surface modelling — design
 
-Status: NS-1 done (2026-11-17; human checks group NS-1 pending). NS-2 done (2026-11-18; human checks group NS-2 pending; R1: a network is G0 only, matching to a part is NS-4; R3: a G2 patch takes no interior points or curves). Sub-projects NS-1 to NS-5, built in that order.
+Status: NS-1 done (2026-11-17; human checks group NS-1 pending). NS-2 done (2026-11-18; human checks group NS-2 pending; R1: a network is G0 only, matching to a part is NS-4; R3: a G2 patch takes no interior points or curves). NS-3 done (2026-11-18; human checks group NS-3 pending; R1: Rebuild is two nodes, Rebuild Surface and Rebuild Curve). Sub-projects NS-1 to NS-5, built in that order.
 
 ## Intent
 

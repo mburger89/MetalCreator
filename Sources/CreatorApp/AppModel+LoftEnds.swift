@@ -7,6 +7,7 @@ import CreatorViewport
 extension AppModel {
     /// A Loft's face buttons: pick or clear the start or end face.
     func handleLoftEnd(_ request: InspectorRequest) {
+        guard controlNet == nil else { return }
         switch request.action {
         case .pickLoftStartFace: beginLoftFacePick(for: request.node, start: true)
         case .pickLoftEndFace: beginLoftFacePick(for: request.node, start: false)
