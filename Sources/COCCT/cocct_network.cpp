@@ -45,11 +45,6 @@
 
 using namespace cocct;
 
-/// A flag a caller on another thread sets to stop a long build; polled between the build's steps.
-struct occt_cancel {
-    std::atomic<int> flag{0};
-};
-
 namespace {
 
 constexpr const char *kCancelled = "The operation was cancelled.";

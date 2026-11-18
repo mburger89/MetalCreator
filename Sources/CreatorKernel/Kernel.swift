@@ -110,6 +110,11 @@ public protocol Kernel: Actor {
     /// The Gordon surface through a grid of `u` and `v` curves, which may come in any order and direction and must cross
     /// pairwise within `tolerance`. A curve that runs past the border curves is trimmed to them. Asynchronous so a cancelled task stops the build. The default refuses.
     func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) async throws -> Solid
+    /// One face that fills the closed loop of `boundary` (the pieces of its curves, then its picked edges; 2 to 16 chaining end to end within
+    /// 1e-4 mm), through `points` (within 1e-3 mm) and over `interior` curves. A picked sheet edge (one face) is held to `continuity` against that face;
+    /// curves and a solid's edges are held in position only. Asynchronous so a cancelled task stops the build. The default refuses.
+    func boundaryPatch(_ boundary: PatchBoundary, interior points: [Vector3], interior curves: [Curve],
+                       continuity: PatchContinuity, tag: NodeTag) async throws -> PatchResult
     /// `curve` scaled about the origin by `factor`. (A solid or sheet is scaled with `scaled(_:by:tag:)`, which keeps its face and edge tags.) The default refuses.
     func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve
     /// Every solid, sheet and curve in a model file. The default refuses.
@@ -194,6 +199,11 @@ extension Kernel {
 
     public func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) async throws -> Solid {
         throw KernelError.unsupported("network surfaces")
+    }
+
+    public func boundaryPatch(_ boundary: PatchBoundary, interior points: [Vector3], interior curves: [Curve],
+                              continuity: PatchContinuity, tag: NodeTag) async throws -> PatchResult {
+        throw KernelError.unsupported("boundary patches")
     }
 
     public func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve {

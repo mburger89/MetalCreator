@@ -59,3 +59,30 @@ public struct ImportedShapes: Sendable {
         self.fileUnitMillimetres = fileUnitMillimetres
     }
 }
+
+/// How a boundary patch meets the surface along its bounding edges (NS-2): position (G0), tangent (G1) or curvature (G2).
+public enum PatchContinuity: Int, Sendable { case g0 = 0, g1 = 1, g2 = 2 }
+
+/// What bounds a boundary patch: the edges of `curves` followed by `edges` of `part`, which must chain into one closed loop.
+public struct PatchBoundary: Sendable {
+    public var curves: [Curve]
+    public var edges: [EdgeID]
+    public var part: Solid?
+
+    public init(curves: [Curve], edges: [EdgeID], part: Solid?) {
+        self.curves = curves
+        self.edges = edges
+        self.part = part
+    }
+}
+
+/// A boundary patch: a sheet of one face, and the warnings it earned.
+public struct PatchResult: Sendable {
+    public var sheet: Solid
+    public var warnings: [String]
+
+    public init(sheet: Solid, warnings: [String] = []) {
+        self.sheet = sheet
+        self.warnings = warnings
+    }
+}

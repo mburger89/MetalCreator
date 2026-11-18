@@ -581,6 +581,19 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
                                  int v_count, double tolerance, const occt_cancel *cancel, occt_history *history,
                                  occt_boundary_roles *roles, occt_status *status);
 
+/// A patch (one face) that fills the closed loop of bounding pieces: the edges of each of `curve_count` curves (wires, in wire
+/// order) followed by `edge_count` edges of `part` (`edge_indices`, 1-based in part's edge map, each with the 1-based face of
+/// `part` it is held tangent to in `face_indices`, or 0 to hold it to position only). Between 2 and 16 pieces must chain end
+/// to end within 1e-4 mm into exactly one loop. The patch also passes within 1e-3 mm of each of `points` (3 doubles each) and follows `interior_curves` (wires). `continuity` is 0 (G0) or 1 (G1); the pieces' continuity is checked by the caller.
+/// `piece_order[k]` is set to the input index (0-based) of the loop's piece k, starting from input piece 0; `piece_capacity` must be
+/// at least 16 and `total_pieces` is set to the number of input pieces. History: the face is OCCT_FROM_START_CAP. Roles: loop piece
+/// k is kind 4 with a = 0 and b = k. Numbers in refusals are wrapped in \x01 ... \x02. `cancel` may be NULL.
+occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count, const occt_shape *part,
+                                const int *edge_indices, const int *face_indices, int edge_count, const double *points,
+                                int point_count, const occt_shape *const *interior_curves, int interior_count,
+                                int continuity, const occt_cancel *cancel, int *piece_order, int piece_capacity,
+                                int *total_pieces, occt_history *history, occt_boundary_roles *roles, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif

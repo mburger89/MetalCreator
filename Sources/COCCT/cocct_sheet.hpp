@@ -7,7 +7,13 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS_Shape.hxx>
 
+#include <atomic>
 #include <vector>
+
+/// A flag a caller on another thread sets to stop a long build; polled between the build's steps.
+struct occt_cancel {
+    std::atomic<int> flag{0};
+};
 
 namespace cocct {
 
