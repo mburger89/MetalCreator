@@ -88,6 +88,29 @@ struct EditSurfaceNodeTests {
         #expect(try await pole(after, 0, 0) == pole(before, 0, 0))
     }
 
+    @Test func aNegativeIndexIsStaleNotAnError() async throws {
+        let (report, _, edit, _) = try await run([move(-1, 0, Vector3(0, 0, 1)), move(0, -2, Vector3(0, 0, 1))])
+        #expect(report.warning(edit) == "2 control point moves no longer fit the surface's 6 × 8 net.")
+    }
+
+    @Test func aNegativeCurveIndexIsStaleNotAnError() async throws {
+        var edit = registry.makeNode(EditCurveNode.typeID)
+        edit.inputValues[NodeSetting.poleMoves] = .poleMoves([move(-1, 0, Vector3(0, 0, 1))])
+        var vector = registry.makeNode(VectorNode.typeID)
+        vector.inputValues["y"] = .number(0)
+        let through = registry.makeNode(CurveThroughPointsNode.typeID)
+        let series = registry.makeNode(SeriesNode.typeID)
+        let links = [
+            Link(from: Endpoint(node: series.id, socket: "values"), to: Endpoint(node: vector.id, socket: "x")),
+            Link(from: Endpoint(node: vector.id, socket: "vector"), to: Endpoint(node: through.id, socket: "points")),
+            Link(from: Endpoint(node: through.id, socket: "curve"), to: Endpoint(node: edit.id, socket: "curve")),
+        ]
+        let nodes = [series.id: series, vector.id: vector, through.id: through, edit.id: edit]
+        let report = try await Evaluator(registry: registry, kernel: kernel)
+            .evaluate(Graph(nodes: nodes, links: links), demand: [edit.id], images: ImageResolver())
+        #expect(report.warning(edit)?.hasPrefix("1 control point move no longer fits the curve's") == true)
+    }
+
     @Test func oneStaleMoveIsSingular() async throws {
         let (report, _, edit, _) = try await run([move(7, 0, Vector3(0, 0, 1))])
         #expect(report.warning(edit) == "1 control point move no longer fits the surface's 6 × 8 net.")

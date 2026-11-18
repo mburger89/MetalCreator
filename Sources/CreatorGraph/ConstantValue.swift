@@ -32,13 +32,13 @@ public enum ConstantValue: Hashable, Sendable {
     /// index when saved and read. A setting, never a socket value.
     case poleMoves([PoleMove])
 
-    /// The reference of an `image`, `meshFile` or `pcbFile` setting: what paths, stamps, hashes and the clipboard read, because both
-    /// kinds are held, resolved and embedded the same way.
     /// The moves of a `poleMoves` value, else `nil`.
     public var poleMoves: [PoleMove]? {
         if case .poleMoves(let moves) = self { moves } else { nil }
     }
 
+    /// The reference of an `image`, `meshFile`, `pcbFile` or `modelFile` setting: what paths, stamps, hashes and the clipboard read,
+    /// because all four kinds are held, resolved and embedded the same way.
     public var fileReference: ImageReference? {
         switch self {
         case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): reference
@@ -94,10 +94,10 @@ extension ConstantValue: Codable {
         if case .poleMoves(let moves) = self { moves.contains { $0.index.i < 0 || $0.index.j < 0 } } else { false }
     }
 
-    /// Sorted by index, the first move kept for an index that repeats.
+    /// Sorted by index, the first move kept for an index that repeats; a negative index (never made, a damaged file's) is dropped.
     static func canonical(_ moves: [PoleMove]) -> [PoleMove] {
         var seen = Set<PoleIndex>()
-        return moves.filter { seen.insert($0.index).inserted }.sorted { $0.index < $1.index }
+        return moves.filter { $0.index.i >= 0 && $0.index.j >= 0 && seen.insert($0.index).inserted }.sorted { $0.index < $1.index }
     }
 
     private static func decodeSetting(_ kind: Kind, _ container: KeyedDecodingContainer<CodingKeys>) throws -> ConstantValue {

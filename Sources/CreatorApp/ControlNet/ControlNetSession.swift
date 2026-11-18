@@ -11,6 +11,9 @@ struct ControlNetGrid: Equatable {
     var uCount: Int
     var vCount: Int
     var normals: [Vector3]
+    /// The net closes on itself in this direction: the last pole is joined to the first by a line.
+    var periodicU = false
+    var periodicV = false
 
     func pole(_ index: PoleIndex) -> Vector3? {
         guard contains(index) else { return nil }

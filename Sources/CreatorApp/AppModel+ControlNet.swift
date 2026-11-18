@@ -222,10 +222,12 @@ extension AppModel {
                     case .surface(let solid):
                         let net = try await kernel.controlNet(of: solid)
                         return .success(ControlNetGrid(poles: net.surface.poles, uCount: net.surface.uCount, vCount: net.surface.vCount,
-                                                       normals: net.normals))
+                                                       normals: net.normals, periodicU: net.surface.isPeriodicU,
+                                                       periodicV: net.surface.isPeriodicV))
                     case .curve(let curve):
                         let net = try await kernel.controlNet(of: curve).curve
-                        return .success(ControlNetGrid(poles: net.poles, uCount: net.poles.count, vCount: 1, normals: []))
+                        return .success(ControlNetGrid(poles: net.poles, uCount: net.poles.count, vCount: 1, normals: [],
+                                                       periodicU: net.isPeriodic))
                     case .none, .loading, .several:
                         return .failure(KernelError.unsupported("control nets"))
                     }

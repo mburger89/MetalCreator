@@ -180,6 +180,22 @@ struct ControlNetSessionTests {
         #expect(session.overlay.lines.allSatisfy { $0.tint == .construction && $0.isDashed })
     }
 
+    @Test func aPeriodicNetDrawsClosed() {
+        var net = Self.grid(3, 4)
+        net.periodicU = true
+        let (session, _) = make(net)
+        // 17 lines between neighbours, and the closing line from the last pole back to the first at each of the 4 v.
+        #expect(session.overlay.lines.count == 17 + 4)
+        net.periodicU = false
+        net.periodicV = true
+        let (other, _) = make(net)
+        #expect(other.overlay.lines.count == 17 + 3)
+        // Fewer than three poles in a periodic direction would close a line on itself.
+        var thin = Self.grid(2, 4)
+        thin.periodicU = true
+        #expect(make(thin).0.overlay.lines.count == 2 * 3 + 4)
+    }
+
     @Test func aDragEmitsOneEnded() {
         let (session, log) = make(Self.grid(2, 2))
         let p = Self.projector()

@@ -25,7 +25,7 @@ public enum EditCurveNode: NodeDefinition {
         let net = try await kernel.controlNet(of: curve)
         let moves = context.node.inputValues[NodeSetting.poleMoves]?.poleMoves ?? []
         let count = net.curve.poles.count
-        let fitting = moves.filter { $0.index.i < count && $0.index.j == 0 }
+        let fitting = moves.filter { $0.index.i >= 0 && $0.index.i < count && $0.index.j == 0 }
         var warnings: [String] = []
         if fitting.count < moves.count {
             let place = "the curve's \(count.display) control points"

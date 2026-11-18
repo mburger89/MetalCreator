@@ -35,9 +35,18 @@ struct PoleMovesFileTests {
     }
 
     @Test func theSettingIsReserved() {
-        #expect(NodeSetting.reservedForSockets.contains(NodeSetting.poleMoves))
+        // A setting name, but not reserved: a group socket or exposed dimension called "poleMoves" keeps working (M2).
+        #expect(!NodeSetting.reservedForSockets.contains(NodeSetting.poleMoves))
         #expect(NodeSetting.all.contains(NodeSetting.poleMoves))
         #expect(NodeSetting.poleMoves == "poleMoves")
+    }
+
+    @Test func negativeIndicesAreDroppedOnDecode() throws {
+        let moves = [move(-1, 0, 1), move(2, 1, 2), move(0, -3, 3)]
+        let payload = String(bytes: try JSONEncoder().encode(moves), encoding: .utf8) ?? ""
+        let json = #"{"type":"poleMoves","value":"# + payload + "}"
+        let value = try JSONDecoder().decode(ConstantValue.self, from: Data(json.utf8))
+        #expect(value == .poleMoves([move(2, 1, 2)]))
     }
 
     private func move(_ i: Int, _ j: Int = 0, _ x: Double = 0) -> PoleMove {
