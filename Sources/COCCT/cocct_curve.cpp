@@ -115,13 +115,26 @@ PieceCurve build_piece(const occt_curve_piece &piece) {
         for (int i = 0; i < piece.knot_count; ++i) {
             sum += piece.multiplicities[i];
         }
-        if (piece.degree < 1 || n < 2 || piece.knot_count < 2 || sum != n + piece.degree + 1 ||
-            piece.multiplicities[0] != piece.degree + 1 || piece.multiplicities[piece.knot_count - 1] != piece.degree + 1) {
-            throw user_error("The curve's spline is malformed.");
-        }
-        for (int i = 1; i + 1 < piece.knot_count; ++i) {
-            if (piece.multiplicities[i] > piece.degree) {
+        if (piece.periodic) {
+            // One period of a periodic spline: the knots' multiplicities, less the repeated last one, add up to the pole count.
+            if (piece.degree < 1 || n < 2 || piece.knot_count < 2 || piece.multiplicities[0] != piece.multiplicities[piece.knot_count - 1] ||
+                sum - piece.multiplicities[piece.knot_count - 1] != n) {
                 throw user_error("The curve's spline is malformed.");
+            }
+            for (int i = 0; i < piece.knot_count; ++i) {
+                if (piece.multiplicities[i] > piece.degree) {
+                    throw user_error("The curve's spline is malformed.");
+                }
+            }
+        } else {
+            if (piece.degree < 1 || n < 2 || piece.knot_count < 2 || sum != n + piece.degree + 1 ||
+                piece.multiplicities[0] != piece.degree + 1 || piece.multiplicities[piece.knot_count - 1] != piece.degree + 1) {
+                throw user_error("The curve's spline is malformed.");
+            }
+            for (int i = 1; i + 1 < piece.knot_count; ++i) {
+                if (piece.multiplicities[i] > piece.degree) {
+                    throw user_error("The curve's spline is malformed.");
+                }
             }
         }
         TColgp_Array1OfPnt poles(1, n);
@@ -140,9 +153,9 @@ PieceCurve build_piece(const occt_curve_piece &piece) {
             for (int i = 0; i < n; ++i) {
                 weights(i + 1) = piece.weights[i];
             }
-            spline = new Geom_BSplineCurve(poles, weights, knots, mults, piece.degree);
+            spline = new Geom_BSplineCurve(poles, weights, knots, mults, piece.degree, piece.periodic != 0);
         } else {
-            spline = new Geom_BSplineCurve(poles, knots, mults, piece.degree);
+            spline = new Geom_BSplineCurve(poles, knots, mults, piece.degree, piece.periodic != 0);
         }
         out.curve = spline;
         out.first = spline->FirstParameter();

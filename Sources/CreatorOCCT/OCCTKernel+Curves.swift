@@ -82,7 +82,7 @@ extension OCCTKernel {
     }
 
     /// Runs a shim builder under the kernel lock, mapping its failure to a `KernelError` in the shim's own words.
-    private func curveShape(_ operation: String, _ body: () throws -> OCCTShape) throws -> OCCTShape {
+    func curveShape(_ operation: String, _ body: () throws -> OCCTShape) throws -> OCCTShape {
         do {
             // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure.
             return try Self.serialized { () throws -> OCCTShape in try body() }

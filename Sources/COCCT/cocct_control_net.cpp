@@ -1,8 +1,18 @@
 // Control nets (NURBS spec, NS-3): the B-spline poles of a sheet's one face or a curve's one piece, and a face's surface kind.
+#include "cocct_control_net.hpp"
 #include "cocct_sheet.hpp"
 
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepLib.hxx>
+#include <BRepTools.hxx>
+#include <BRep_Builder.hxx>
+#include <Geom2d_Curve.hxx>
+#include <TopExp.hxx>
+#include <TopLoc_Location.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 #include <BRepBuilderAPI_NurbsConvert.hxx>
 #include <BRep_Tool.hxx>
 #include <GeomAbs_SurfaceType.hxx>
@@ -262,6 +272,83 @@ void fill_net(const Handle(Geom_BSplineSurface) &surface, bool normals, bool fli
     }
 }
 
+
+} // namespace
+
+namespace cocct {
+
+TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface) {
+    const TopoDS_Face face = TopoDS::Face(given.Oriented(TopAbs_FORWARD));
+    BRep_Builder builder;
+    const double tolerance = std::max(BRep_Tool::Tolerance(face), 1e-7);
+
+    // Everything that reads the old surface comes first: each edge's pcurve(s) on it.
+    struct edge_curves {
+        TopoDS_Edge edge;
+        Handle(Geom2d_Curve) first;
+        Handle(Geom2d_Curve) second;
+        double start = 0;
+        double end = 0;
+    };
+    std::vector<edge_curves> edges;
+    const TopTools_IndexedMapOfShape edge_map = map_of(face, TopAbs_EDGE);
+    for (int k = 1; k <= edge_map.Extent(); ++k) {
+        edge_curves entry;
+        entry.edge = TopoDS::Edge(edge_map(k).Oriented(TopAbs_FORWARD));
+        entry.first = BRep_Tool::CurveOnSurface(entry.edge, face, entry.start, entry.end);
+        if (entry.first.IsNull()) {
+            throw user_error("A face's edge has no curve on its surface.");
+        }
+        if (BRep_Tool::IsClosed(entry.edge, face)) {
+            double s = 0;
+            double e = 0;
+            entry.second = BRep_Tool::CurveOnSurface(TopoDS::Edge(entry.edge.Oriented(TopAbs_REVERSED)), face, s, e);
+        }
+        edges.push_back(entry);
+    }
+
+    builder.UpdateFace(face, surface, TopLoc_Location(), tolerance);
+    for (const edge_curves &entry : edges) {
+        if (entry.second.IsNull()) {
+            builder.UpdateEdge(entry.edge, entry.first, face, tolerance);
+        } else {
+            builder.UpdateEdge(entry.edge, entry.first, entry.second, face, tolerance);
+        }
+        builder.Range(entry.edge, face, entry.start, entry.end);
+    }
+    BRepTools::RemoveUnusedPCurves(face);
+
+    // Every vertex goes where its edge's pcurve now lands on the new surface.
+    for (const edge_curves &entry : edges) {
+        const TopoDS_Vertex first = TopExp::FirstVertex(entry.edge, Standard_True);
+        const TopoDS_Vertex last = TopExp::LastVertex(entry.edge, Standard_True);
+        const gp_Pnt2d a = entry.first->Value(entry.start);
+        const gp_Pnt2d b = entry.first->Value(entry.end);
+        if (!first.IsNull()) {
+            builder.UpdateVertex(first, surface->Value(a.X(), a.Y()), 1e-7);
+        }
+        if (!last.IsNull()) {
+            builder.UpdateVertex(last, surface->Value(b.X(), b.Y()), 1e-7);
+        }
+    }
+    for (const edge_curves &entry : edges) {
+        if (BRep_Tool::Degenerated(entry.edge)) {
+            continue;
+        }
+        builder.UpdateEdge(entry.edge, Handle(Geom_Curve)(), 0.0);
+    }
+    if (!BRepLib::BuildCurves3d(face, 1e-6, GeomAbs_C0, 14, 60)) {
+        throw user_error("The edges couldn't be rebuilt on the new surface.");
+    }
+    BRepLib::SameParameter(face, 1e-6, Standard_True);
+    BRepLib::UpdateTolerances(face);
+    return TopoDS::Face(face.Oriented(given.Orientation()));
+}
+
+} // namespace cocct
+
+namespace {
+
 } // namespace
 
 extern "C" {
@@ -287,6 +374,54 @@ int occt_control_net_of_face(const occt_shape *shape, int face_index, int max_po
         out->kind = converted.original;
         fill_net(surface, true, converted.face.Orientation() == TopAbs_REVERSED, *out);
         return 1;
+    });
+}
+
+occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const int *indices, const double *offsets, int count,
+                                 occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        occt_initialize();
+        if (!shape || shape->shape.IsNull() || !indices || !offsets || count < 0) {
+            throw user_error("That surface no longer exists.");
+        }
+        face_at(shape, face_index);
+        const bool input_valid = BRepCheck_Analyzer(shape->shape).IsValid();
+        // Geometry is copied, so no surface another solid shares is changed.
+        BRepBuilderAPI_Copy copier(shape->shape, Standard_True, Standard_False);
+        TopoDS_Shape work = copier.Shape();
+        occt_shape holder{work};
+        converted_face converted = convert_face(&holder, face_index);
+        if (converted.converted) {
+            // The conversion of the whole copy, so the face stays in its shell; the same conversion the net read made.
+            BRepBuilderAPI_NurbsConvert whole(work, Standard_True);
+            if (!whole.IsDone() || whole.Shape().IsNull()) {
+                throw user_error("This surface couldn't be converted to a B-spline.");
+            }
+            work = whole.Shape();
+            holder.shape = work;
+            converted = convert_face(&holder, face_index);
+            converted.converted = true;
+        }
+        const Handle(Geom_BSplineSurface) moved = Handle(Geom_BSplineSurface)::DownCast(converted.surface->Copy());
+        const int nu = moved->NbUPoles();
+        const int nv = moved->NbVPoles();
+        for (int k = 0; k < count; ++k) {
+            if (!std::isfinite(offsets[3 * k]) || !std::isfinite(offsets[3 * k + 1]) || !std::isfinite(offsets[3 * k + 2])) {
+                throw user_error("Moving these control points makes an invalid surface.");
+            }
+            const int i = indices[2 * k];
+            const int j = indices[2 * k + 1];
+            if (i < 0 || i >= nu || j < 0 || j >= nv) {
+                throw user_error("That control point no longer exists.");
+            }
+            const gp_Pnt pole = moved->Pole(i + 1, j + 1);
+            moved->SetPole(i + 1, j + 1, gp_Pnt(pole.X() + offsets[3 * k], pole.Y() + offsets[3 * k + 1], pole.Z() + offsets[3 * k + 2]));
+        }
+        replace_face_surface(face_at(&holder, face_index), moved);
+        if (input_valid && !BRepCheck_Analyzer(work).IsValid()) {
+            throw user_error("Moving these control points makes an invalid surface.");
+        }
+        return new occt_shape{work};
     });
 }
 

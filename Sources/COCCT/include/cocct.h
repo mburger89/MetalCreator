@@ -475,6 +475,7 @@ typedef struct {
     int knot_count;
     const double *knots;     // knot_count
     const int *multiplicities; // knot_count
+    int periodic;            // spline only: poles and knots are one period's, as OpenCascade keeps them (NS-3)
 } occt_curve_piece;
 
 /// What the Swift side reads of a curve (a wire). `polyline` is shim-owned: free it with occt_curve_info_free.
@@ -563,6 +564,13 @@ typedef struct {
 
 int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_status *status);
 void occt_curve_net_free(occt_curve_net *net);
+/// A copy of `shape` with the poles of face `face_index` (1-based) moved: `count` moves, move k naming pole (indices[2k], indices[2k+1])
+/// (0-based i along u, j along v, as occt_surface_net lays them out) and the offset offsets[3k..3k+2]. Weights are kept. The face is
+/// converted to a B-spline first when it isn't one (as occt_control_net_of_face does), keeps its pcurves, and its edges' 3D curves and
+/// vertices are rebuilt on the moved surface; the faces and edges keep their order in the shape's maps. A pole that doesn't exist, or a
+/// result BRepCheck_Analyzer rejects (when the input passed it), is refused. Never changes `shape` or geometry it shares.
+occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const int *indices, const double *offsets, int count,
+                                 occt_status *status);
 /// FOR TESTS ONLY. The same shape with the opposite orientation (its faces are TopAbs_REVERSED), geometry untouched.
 occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status);
 /// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x

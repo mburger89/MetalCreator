@@ -58,6 +58,7 @@ extension OCCTShape {
                 raw.knot_count = Int32(spline.knots.count)
                 raw.knots = copy(spline.knots)
                 raw.multiplicities = copy(spline.multiplicities)
+                raw.periodic = spline.isPeriodic ? 1 : 0
             }
             raws.append(raw)
         }

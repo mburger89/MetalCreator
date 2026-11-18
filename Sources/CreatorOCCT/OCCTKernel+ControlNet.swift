@@ -51,6 +51,25 @@ extension OCCTShape {
         return CurveNet(curve: curve, isPeriodic: raw.periodic != 0, convertedFrom: kind)
     }
 
+    /// The shape with face `faceIndex`'s (0-based) net poles moved. Call under `OCCTKernel.serialized`.
+    func movingPoles(ofFace faceIndex: Int, by moves: [PoleMove]) throws(OCCTError) -> OCCTShape {
+        var indices: [Int32] = []
+        var offsets: [Double] = []
+        for move in moves {
+            indices += [Int32(clamping: move.index.i), Int32(clamping: move.index.j)]
+            offsets += [move.offset.x, move.offset.y, move.offset.z]
+        }
+        let count = Int32(moves.count)
+        return try Self.make { status in
+            indices.withUnsafeBufferPointer { indexBuffer in
+                offsets.withUnsafeBufferPointer { offsetBuffer in
+                    occt_move_face_poles(self.raw, Int32(faceIndex + 1), indexBuffer.baseAddress, offsetBuffer.baseAddress, count,
+                                         status)
+                }
+            }
+        }
+    }
+
     /// FOR TESTS ONLY. The same shape with its orientation reversed. Call under `OCCTKernel.serialized`.
     func reversedCopy() throws(OCCTError) -> OCCTShape {
         try Self.make { status in occt_test_reversed_copy(self.raw, status) }
@@ -127,6 +146,29 @@ extension OCCTKernel {
         }
         let shape = try shape(of: solid)
         return try controlNetCall("surface info") { try shape.surfaceInfo(ofFace: face.rawValue) }
+    }
+
+    public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
+        try Task.checkCancellation()
+        // The same refusals as the net: a closed solid or a sheet of other than one face has no net to move.
+        _ = try controlNet(of: surface)
+        let source = try shape(of: surface)
+        let moved = try controlNetCall("move control points") { try source.movingPoles(ofFace: 0, by: moves) }
+        return try solid(from: moved, keepingTagsOf: [surface], tag: NodeTag(node: NodeID(), item: 0), operation: "move control points",
+                         carriesEdgeTags: true)
+    }
+
+    public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {
+        try Task.checkCancellation()
+        var net = try controlNet(of: curve).curve
+        for move in moves {
+            guard move.index.j == 0, net.poles.indices.contains(move.index.i) else {
+                throw KernelError.invalidInput("That control point no longer exists.")
+            }
+            net.poles[move.index.i] += move.offset
+        }
+        let wire = try curveShape("move control points") { try OCCTShape.makeCurve([.spline(net)]) }
+        return try self.curve(from: wire, operation: "move control points")
     }
 
     /// FOR TESTS ONLY. `sheet` with its face orientation reversed on the same surface.

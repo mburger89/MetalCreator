@@ -133,6 +133,14 @@ public protocol Kernel: Actor {
     func controlNet(of curve: Curve) throws -> CurveNet
     /// The kind of `face`'s surface and, for a Bezier or B-spline one, its net as it stands. The default refuses.
     func surfaceInfo(of face: FaceID, in solid: Solid) throws -> SurfaceInfo
+    /// `surface` (a sheet of one face) with the poles of its control net (`controlNet(of:)`'s) moved by `moves`' offsets, weights
+    /// kept (NS-3). The result's faces and edges are the input's, in the same order with the same tags and boundary roles; only
+    /// their geometry differs. An index outside the net is refused `.invalidInput`; a move that makes an invalid surface is refused
+    /// "Moving these control points makes an invalid surface.". The default refuses.
+    func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid
+    /// `curve` (one piece) with its net's poles moved by `moves` (`PoleIndex.j` 0), weights kept; a periodic curve stays periodic
+    /// (NS-3). An index outside the net is refused `.invalidInput`. The default refuses.
+    func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve
 }
 
 extension Kernel {
@@ -236,6 +244,14 @@ extension Kernel {
 
     public func surfaceInfo(of face: FaceID, in solid: Solid) throws -> SurfaceInfo {
         throw KernelError.unsupported("surface information")
+    }
+
+    public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
+        throw KernelError.unsupported("moving control points")
+    }
+
+    public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {
+        throw KernelError.unsupported("moving control points")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {
