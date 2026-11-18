@@ -354,13 +354,28 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
             original_edges.Clear();
         }
     }
-    // Each of nine points along the edge's pcurve, taken on the new surface, must lie on the 3D curve (the nearest point of the curve
-    // within its range): a rational pcurve is not linear in the curve's own parameter, so they aren't compared at equal parameters.
+    // An edge's own old 3D curve is kept when, at nine equal fractions of its parameter range, it passes through the pcurve's points
+    // on the new surface.
     const auto lies_on = [&](const Handle(Geom_Curve) &curve, double first, double last, const edge_curves &entry) {
         if (curve.IsNull()) {
             return false;
         }
-        // The curve's ends are the pcurve's ends on the new surface (a curve that is only a part of the edge's new path isn't kept).
+        for (int k = 0; k <= 8; ++k) {
+            const double w = k / 8.0;
+            const gp_Pnt2d uv = entry.first->Value(entry.start + (entry.end - entry.start) * w);
+            if (curve->Value(first + (last - first) * w).Distance(surface->Value(uv.X(), uv.Y())) > 1e-7) {
+                return false;
+            }
+        }
+        return true;
+    };
+    // The original's line or circle, put back for a converted face: its parameter isn't the converted pcurve's (a rational pcurve is
+    // not linear in a circle's angle), so nine points of the pcurve on the new surface must lie on the curve (the nearest point
+    // within its range) and its ends must be the pcurve's ends.
+    const auto lies_along = [&](const Handle(Geom_Curve) &curve, double first, double last, const edge_curves &entry) {
+        if (curve.IsNull()) {
+            return false;
+        }
         const gp_Pnt2d start = entry.first->Value(entry.start);
         const gp_Pnt2d end = entry.first->Value(entry.end);
         if (curve->Value(first).Distance(surface->Value(start.X(), start.Y())) > 1e-7 ||
@@ -394,7 +409,7 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
             double source_first = 0;
             double source_last = 0;
             const Handle(Geom_Curve) source_curve = BRep_Tool::Curve(source, source_first, source_last);
-            if (lies_on(source_curve, source_first, source_last, entry)) {
+            if (lies_along(source_curve, source_first, source_last, entry)) {
                 entry.reinstated = source_curve;
                 entry.reinstated_first = source_first;
                 entry.reinstated_last = source_last;

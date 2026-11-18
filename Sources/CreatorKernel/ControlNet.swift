@@ -91,7 +91,7 @@ public struct SurfaceInfo: Sendable {
 }
 
 /// The degree and number of spans a rebuilt surface or curve gets in each direction (NS-3). A curve uses `degreeU` and `spansU`
-/// alone. A clamped B-spline of degree d with s spans has d + s poles.
+/// alone. A clamped B-spline of degree d with s spans has d + s poles; a direction the source is periodic in is rebuilt periodic (s poles) when s > d.
 public struct RebuildSpec: Hashable, Sendable {
     public var degreeU: Int
     public var degreeV: Int
@@ -109,9 +109,6 @@ public struct RebuildSpec: Hashable, Sendable {
         self.spansU = spansU
         self.spansV = spansV
     }
-
-    /// The number of poles each way, `(degreeU + spansU, degreeV + spansV)`.
-    public var poleCounts: (u: Int, v: Int) { (degreeU + spansU, degreeV + spansV) }
 
     /// Refuses a degree outside 1 to 11 ("The degree must be from 1 to 11."), fewer than one span ("There must be at least 1 span.")
     /// and more than 100,000 poles in all. `forSurface` false looks at the first direction only (a curve).

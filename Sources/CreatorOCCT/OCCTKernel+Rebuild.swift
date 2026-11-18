@@ -29,8 +29,18 @@ extension OCCTShape {
         let curve = BSplineCurve3D(degree: Int(raw.degree),
                                    poles: (0..<count).map { Vector3(raw.poles[3 * $0], raw.poles[3 * $0 + 1], raw.poles[3 * $0 + 2]) },
                                    knots: (0..<knotCount).map { raw.knots[$0] },
-                                   multiplicities: (0..<knotCount).map { Int(raw.multiplicities[$0]) })
+                                   multiplicities: (0..<knotCount).map { Int(raw.multiplicities[$0]) },
+                                   isPeriodic: raw.periodic != 0)
         return (curve, deviation)
+    }
+}
+
+extension OCCTShape {
+    /// FOR TESTS ONLY. The largest tolerance of any edge. Call under `OCCTKernel.serialized`.
+    func maxEdgeTolerance() throws(OCCTError) -> Double {
+        var tolerance = 0.0
+        try Self.check { status in occt_test_max_edge_tolerance(self.raw, &tolerance, status) }
+        return tolerance
     }
 }
 

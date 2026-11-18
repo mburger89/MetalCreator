@@ -109,12 +109,39 @@ struct RebuildTests {
         #expect((net.endPoint - Vector3(13, 13, 0)).length < 1e-9)
     }
 
-    @Test func aClosedCurveStaysClosed() async throws {
+    @Test func aPeriodicCurveRebuildsPeriodic() async throws {
         let points = (0..<8).map { Vector3(5 * cos(Double($0) * .pi / 4), 5 * sin(Double($0) * .pi / 4), 0) }
         let curve = try await kernel.interpolate(points, degree: 3, closed: true, startTangent: nil, endTangent: nil, tag: tag)
+        #expect(try await kernel.controlNet(of: curve).isPeriodic)
+        for degree in [2, 5] {
+            let other = try await kernel.rebuilt(curve, as: RebuildSpec(degreeU: degree, degreeV: 1, spansU: 10, spansV: 1), tag: tag)
+            #expect(other.deviation < 0.05, "degree \(degree): \(other.deviation)")
+        }
         let result = try await kernel.rebuilt(curve, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 8, spansV: 1), tag: tag)
         #expect(result.curve.isClosed)
         #expect(result.deviation < 0.05)
+        let net = try await kernel.controlNet(of: result.curve)
+        #expect(net.isPeriodic && net.curve.poles.count == 8)
+        // No kink at the join: the turn there is no sharper than the turns elsewhere along the polyline.
+        let line = result.curve.polyline
+        func turn(_ before: Vector3, _ at: Vector3, _ after: Vector3) -> Double {
+            let a = at - before
+            let b = after - at
+            return atan2(a.cross(b).length, a.dot(b))
+        }
+        let others = (1..<(line.count - 1)).map { turn(line[$0 - 1], line[$0], line[$0 + 1]) }
+        let join = turn(line[line.count - 2], line[0], line[1])
+        #expect(join <= 1.5 * (others.max() ?? 0) + 1e-9, "join \(join), others \(others.max() ?? 0)")
+    }
+
+    @Test func aClosedCurveThatIsNotPeriodicStaysClosed() async throws {
+        let square = [Vector3(0, 0, 0), Vector3(4, 0, 0), Vector3(4, 4, 0), Vector3(0, 4, 0), Vector3(0, 0, 0)]
+        let curve = try await spline(square)
+        #expect(curve.isClosed)
+        let result = try await kernel.rebuilt(curve, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 8, spansV: 1), tag: tag)
+        #expect(result.curve.isClosed)
+        let net = try await kernel.controlNet(of: result.curve)
+        #expect(!net.isPeriodic && (net.curve.startPoint - net.curve.endPoint).length < 1e-9)
     }
 
     @Test func theLimitsAreSentences() async throws {
@@ -194,18 +221,57 @@ struct RebuildTests {
         #expect(try await kernel.folds(folded))
     }
 
-    /// A periodic source is sampled over one period and rebuilt clamped over the same range, so the seam is one edge whose two
-    /// sides sit within the fit's own gap of each other.
-    @Test func aFullRevolveRebuildsAsAClampedSurface() async throws {
+}
+
+/// Periodic fits, far-from-origin parts, honest curve deviation and cancellation.
+extension RebuildTests {
+    /// A periodic source is fitted periodically over the same range (`spans` poles), so the seam closes by construction.
+    @Test func aFullRevolveRebuildsPeriodic() async throws {
         let line = try await kernel.makeCurve([.line(Vector3(5, 0, 0), Vector3(5, 0, 10))], tag: tag)
         let sheet = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: Vector3(0, 0, 1)), angle: .degrees(360), tag: tag)
-        let result = try await kernel.rebuilt(sheet, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 12, spansV: 1))
+        let before = try await kernel.controlNet(of: sheet).surface
+        let around = before.isPeriodicU
+        let spec = around ? RebuildSpec(degreeU: 3, degreeV: 1, spansU: 12, spansV: 1)
+            : RebuildSpec(degreeU: 1, degreeV: 3, spansU: 1, spansV: 12)
+        let result = try await kernel.rebuilt(sheet, as: spec)
         let net = try await kernel.controlNet(of: result.sheet).surface
-        #expect(!net.isPeriodicU && !net.isPeriodicV && net.weights == nil)
-        #expect(result.deviation < 5e-2)
+        let periodicInU = before.isPeriodicU
+        #expect(net.isPeriodicU == periodicInU && net.isPeriodicV == before.isPeriodicV && (net.isPeriodicU || net.isPeriodicV))
+        #expect(net.weights == nil)
+        #expect(result.deviation < 5e-2, "deviation \(result.deviation)")
         #expect(structure(result.sheet.topology) == structure(sheet.topology))
+        let resultShape = try await kernel.shape(of: result.sheet)
+        let tolerance = try OCCTKernel.serialized { () throws -> Double in try resultShape.maxEdgeTolerance() }
+        #expect(tolerance <= 1e-6, "edge tolerance \(tolerance)")
+        // `Kernel.continuity(along:)` refuses a seam ("continuity of a seam"), so closure is held by the representation: periodic
+        // poles, and a seam edge whose two sides agree to the tolerance above.
+        #expect(result.sheet.topology.edges.contains { $0.isSeam })
         let mesh = try await kernel.tessellate(result.sheet, tolerance: 0.05, angle: 0.5)
         #expect(!mesh.indices.isEmpty)
+    }
+
+    @Test func aPlaneFarFromTheOriginRebuildsExactly() async throws {
+        let loop = try await kernel.makeCurve([
+            .line(Vector3(1000, 0, 0), Vector3(1000, 10, 0)), .line(Vector3(1000, 10, 0), Vector3(1000, 10, 10)),
+            .line(Vector3(1000, 10, 10), Vector3(1000, 0, 10)), .line(Vector3(1000, 0, 10), Vector3(1000, 0, 0)),
+        ], tag: tag)
+        let sheet = try await kernel.planarSurface([loop], tag: tag)
+        let result = try await kernel.rebuilt(sheet, as: RebuildSpec(degreeU: 5, degreeV: 5, spansU: 4, spansV: 4))
+        #expect(result.deviation < 1e-9, "deviation \(result.deviation)")
+    }
+
+    @Test func aCurvesDeviationMatchesAnIndependentMeasure() async throws {
+        let curve = try await kernel.makeCurve([
+            .line(Vector3(0, 0, 0), Vector3(3, 0, 0)),
+            .arc(center: Vector3(3, 10, 0), normal: Vector3(0, 0, 1), radius: 10, start: Vector3(3, 0, 0), sweep: .pi / 2),
+            .line(Vector3(13, 10, 0), Vector3(13, 13, 0)),
+        ], tag: tag)
+        let result = try await kernel.rebuilt(curve, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 4, spansV: 1), tag: tag)
+        #expect(result.deviation > 0.01)
+        var measured = 0.0
+        for point in curve.polyline { measured = max(measured, try await kernel.distance(from: point, to: result.curve)) }
+        for point in result.curve.polyline { measured = max(measured, try await kernel.distance(from: point, to: curve)) }
+        #expect(abs(measured - result.deviation) <= 0.01 * result.deviation, "measured \(measured), reported \(result.deviation)")
     }
 
     @Test func aCancelledRebuildStops() async throws {
@@ -214,6 +280,31 @@ struct RebuildTests {
         let task = Task { try await kernel.rebuilt(sheet, as: RebuildSpec(degreeU: 5, degreeV: 5, spansU: 300, spansV: 300)) }
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    /// The shim itself polls the flag: a flag set before the call stops it, whatever the Swift side does.
+    @Test func theShimPollsItsCancelFlag() async throws {
+        let sheet = try await wavySheet()
+        let curve = try await spline([Vector3(0, 0, 0), Vector3(2, 1, 0), Vector3(4, -1, 0), Vector3(6, 1, 0)])
+        let surfaceShape = try await kernel.shape(of: sheet)
+        let wire = try await kernel.curveShape(of: curve)
+        let flag = OCCTCancelFlag()
+        flag.cancel()
+        let spec = RebuildSpec(degreeU: 3, degreeV: 3, spansU: 6, spansV: 6)
+        var messages: [String] = []
+        do {
+            _ = try OCCTKernel.serialized { () throws -> Bool in
+                _ = try surfaceShape.rebuildingFace(0, as: spec, cancel: flag)
+                return true
+            }
+        } catch let error as OCCTError { messages.append(error.message) }
+        do {
+            _ = try OCCTKernel.serialized { () throws -> Bool in
+                _ = try wire.rebuildingCurve(as: spec, cancel: flag)
+                return true
+            }
+        } catch let error as OCCTError { messages.append(error.message) }
+        #expect(messages == [OCCTCancelFlag.message, OCCTCancelFlag.message])
     }
 }
 #endif
