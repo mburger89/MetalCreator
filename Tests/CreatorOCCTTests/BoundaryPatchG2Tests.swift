@@ -315,7 +315,7 @@ extension BoundaryPatchG2Tests {
     }
 
     static func quadCorner(_ n: Int) -> String {
-        "The surfaces meet at corner \(n) in a way a G2 patch can't follow; a four-sided G2 patch needs corners near 90° and "
+        "The surfaces meet at corner \(n) in a way a G2 patch can't follow; a four-sided G2 patch needs corners close to 90° and "
             + "sides that run straight across their surfaces. Use G1 for this hole."
     }
 

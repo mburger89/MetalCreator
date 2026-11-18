@@ -59,10 +59,9 @@ constexpr double kEdgeSlack = 5e-5;       // the patch against its own boundary 
 
 std::string corner_message(int corner, int sides) {
     if (sides == 4) {
-        // "near" is split across two literals: ShimPortabilityTests bans the word (a Windows macro) on any code line.
         return "The surfaces meet at corner " + std::to_string(corner) +
-               " in a way a G2 patch can't follow; a four-sided G2 patch needs corners ne"
-               "ar 90\u00B0 and sides that run straight across their surfaces. Use G1 for this hole.";
+               " in a way a G2 patch can't follow; a four-sided G2 patch needs corners close to 90\u00B0"
+               " and sides that run straight across their surfaces. Use G1 for this hole.";
     }
     return "The surfaces meet at corner " + std::to_string(corner) + " in a way a G2 patch can't follow. Use G1 for this hole.";
 }
