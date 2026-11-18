@@ -2483,3 +2483,11 @@ the Output selected so the part is shown.
 - [ ] **NS-4 Pick a sheet edge.** Pick a boundary edge of a sheet in the viewport, then change a parameter upstream (a width, a distance): the pick stays on the same edge. **Observed:**
 - [ ] **NS-5 Import a supplier STEP.** File > Import Model... on a supplier's STEP with surfaces (a sheet body, loose faces and a curve if available): the node arrives wired to an Output's solid and curve inputs (wire `sheets` yourself to see a sheet-only file); solids, sheets (a file's loose faces as one sheet) and curves appear, units are right (check a known dimension), and the facts say picks last until the file changes. **Observed:**
 - [ ] **NS-6 Export STEP and reopen.** Export a sheet and a curve as STEP and open the file in another CAD tool (FreeCAD, Fusion or KiCad's viewer): the shell and wire arrive intact. Exporting a sheet as 3MF is refused before the save panel; STL warns. **Observed:**
+
+## Group NS-2 — Surfaces from curves
+
+- [ ] **NS2-1 Network of splines.** Sketch four splines each way (a 4 x 4 grid of curves that cross) and wire the curves to Network Surface, in a shuffled order and with some reversed: one smooth sheet appears whose edges follow the outer curves, and changing a spline moves it live. **Observed:**
+- [ ] **NS2-2 Patch a hole at G1 and G2.** Loft two sections into a sheet, delete a patch of it (or build a sheet with a rectangular opening) and fill the opening with Boundary Patch at G0, G1 and G2 (G2 needs a four-sided opening with corners near 90 degrees; a round hole says to use G1). Turn on zebra stripes (Z): at G1 the stripes meet across the seam without a kink, at G2 they also carry on with the same curvature, at G0 they break. **Observed:**
+- [ ] **NS2-3 Twisted sweep.** Sweep a rectangle along a Curve through Points with `twist` 90: the section turns steadily along the path; with Rail orientation and a nonzero twist the node refuses in words and the twist control stays visible so it can be set to 0. **Observed:**
+- [ ] **NS2-4 Two-rail sweep.** Sweep a profile along one rail with a second rail wired in (orientation Rail): the sections stay on both rails, and a straight-line profile is refused in words. **Observed:**
+
