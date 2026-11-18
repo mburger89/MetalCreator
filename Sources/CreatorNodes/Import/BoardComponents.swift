@@ -33,6 +33,7 @@ enum BoardComponents {
         var thickness: Double
         var frame: Plane
         var folder: String
+        var storedHashes = StoredModelHashes()
     }
 
     /// Where path variables come from: the process environment and KiCad's settings folders under the home folder. The tests
@@ -65,7 +66,7 @@ enum BoardComponents {
                       cache: ComponentModelCache = .shared) async throws -> Outcome {
         let order = naturalOrder(setting.board)
         let visible = setting.board.footprints.map { $0.models.filter { !$0.isHidden } }
-        let paths = distinctPaths(order: order, visible: visible)
+        let paths = distinctPaths(order: order, visible: visible, board: setting.board)
         guard paths.count <= maxDistinctModels else {
             throw NodeError.invalidValue("This board names more than 10,000 different 3D models.")
         }
@@ -75,12 +76,7 @@ enum BoardComponents {
         let variables = KiCadPathVariables.merged(environment: environment.variables,
                                                   settings: settings.variables, platform: .current)
         var placer = Placer(setting: setting, kernel: kernel, cache: cache, node: context.node.id)
-        for path in paths {
-            try Task.checkCancellation()
-            let resolved = ModelFiles.resolve(path, folder: setting.folder, variables: variables)
-            outcome.dependencies += resolved.dependencies
-            placer.found[path] = try await placer.load(resolved.result)
-        }
+        outcome.dependencies += try await loadModels(paths, variables: variables, setting: setting, into: &placer)
         var pieces: [Piece] = []
         var meshPieces: [MeshPiece] = []
         for index in order {
@@ -96,7 +92,7 @@ enum BoardComponents {
             }
             let meshesAllowed = placer.admitMeshes(of: visible[index], footprint: index)
             for model in visible[index] {
-                if !meshesAllowed, placer.isMesh(model) { continue }
+                if !meshesAllowed, placer.isMesh(model, of: index) { continue }
                 switch try await placer.place(model, of: index) {
                 case .solid(let piece): pieces.append(piece)
                 case .mesh(let piece): meshPieces.append(piece)
@@ -114,12 +110,52 @@ enum BoardComponents {
         return outcome
     }
 
-    /// Each non-hidden model path once, in the order the footprints (in natural order) first name it.
-    private static func distinctPaths(order: [Int], visible: [[ModelReference]]) -> [String] {
-        var paths: [String] = []
+    /// Resolves and reads each distinct model into `placer.found`; the files looked at are the dependencies returned.
+    private static func loadModels(_ paths: [Entry], variables: KiCadPathVariables, setting: Setting,
+                                   into placer: inout Placer) async throws -> [FileDependency] {
+        var dependencies: [FileDependency] = []
+        for entry in paths {
+            try Task.checkCancellation()
+            let resolved = ModelFiles.resolve(entry.path, folder: setting.folder, variables: variables) {
+                storedModel($0, footprint: entry.footprint, setting)
+            }
+            dependencies += resolved.dependencies
+            placer.found[entry.key] = try await placer.load(resolved.result)
+        }
+        return dependencies
+    }
+
+    /// The stored model `name` and its hash: the footprint's own table first, then the board's (ruling R2).
+    static func storedModel(_ name: String, footprint: Int, _ setting: Setting) -> (file: EmbeddedFile, owner: Int?)? {
+        if let own = setting.board.footprints[footprint].embeddedModels.first(where: { $0.name == name }) { return (own, footprint) }
+        guard let file = setting.board.embeddedModels.first(where: { $0.name == name }) else { return nil }
+        return (file, nil)
+    }
+
+    /// One distinct model: its path, the key it is found under and the first footprint (in natural order) that names it.
+    struct Entry {
+        var path: String
+        var key: String
+        var footprint: Int
+    }
+
+    /// The key a model's result is kept under: its path, except that a stored model the footprint's own table holds is a
+    /// different model from the board's of the same name (ruling R2), so the footprint's identity joins the key.
+    static func foundKey(_ path: String, of footprint: Footprint) -> String {
+        guard let name = ModelPathResolver.embeddedName(of: path) else { return path }
+        assert(!footprint.identity.isEmpty, "KeyAssigner gives every footprint its identity before the components are read")
+        return footprint.embeddedModels.contains { $0.name == name } ? path + "\u{1}" + footprint.identity : path
+    }
+
+    /// Each non-hidden model once, in the order the footprints (in natural order) first name it.
+    private static func distinctPaths(order: [Int], visible: [[ModelReference]], board: KiCadBoard) -> [Entry] {
+        var paths: [Entry] = []
         var seen = Set<String>()
         for index in order {
-            for model in visible[index] where seen.insert(model.path).inserted { paths.append(model.path) }
+            for model in visible[index] {
+                let key = foundKey(model.path, of: board.footprints[index])
+                if seen.insert(key).inserted { paths.append(Entry(path: model.path, key: key, footprint: index)) }
+            }
         }
         return paths
     }
@@ -223,25 +259,34 @@ struct Placer {
         case .notFound: return .notFound
         case .unreadable(let name, let reason): return .unreadable(name: name, reason: reason)
         case .file(let path, let format, let stamp):
-            if format.isMesh { return try await loadMesh(path: path, format: format, stamp: stamp) }
-            let key = ComponentModelCache.ReadKey(stamp: stamp, format: format)
-            let tag = NodeTag(node: ComponentModelCache.sentinel, item: 0)
-            let name = ModelFiles.fileName(of: path)
-            let kernel = kernel
-            do {
-                let made = try await cache.solid(for: key) {
-                    try await ModelFiles.read(at: path, format: format, stamp: stamp, kernel: kernel, tag: tag)
-                }
-                return .solid(made.solid, key, name: name, isCurrent: made.isCurrent)
-            } catch let problem as ModelProblem {
-                return .unreadable(name: name, reason: problem.reason)
+            return try await load(.file(path), name: ModelFiles.fileName(of: path), format: format, stamp: stamp)
+        case .stored(let name, let base64, let owner, let format):
+            // The stamp is the SHA-256 of the base64 text (ruling R3): the same stored bytes are read once, whatever file holds them.
+            let stamp = ImageStamp.embedded(
+                setting.storedHashes.hash(of: EmbeddedFile(name: name, base64: base64), owner: owner), isPresent: true)
+            return try await load(.stored(base64: base64), name: name, format: format, stamp: stamp)
+        }
+    }
+
+    private func load(_ source: ModelFiles.Source, name: String, format: ModelFormat,
+                      stamp: ImageStamp) async throws -> BoardComponents.Found {
+        if format.isMesh { return try await loadMesh(source, name: name, format: format, stamp: stamp) }
+        let key = ComponentModelCache.ReadKey(stamp: stamp, format: format)
+        let tag = NodeTag(node: ComponentModelCache.sentinel, item: 0)
+        let kernel = kernel
+        do {
+            let made = try await cache.solid(for: key) {
+                try await ModelFiles.read(source, format: format, stamp: stamp, kernel: kernel, tag: tag)
             }
+            return .solid(made.solid, key, name: name, isCurrent: made.isCurrent)
+        } catch let problem as ModelProblem {
+            return .unreadable(name: name, reason: problem.reason)
         }
     }
 
     /// What a path that gave no solid says: nothing was found, or the file could not be read.
-    private mutating func noteProblem(of path: String) {
-        switch found[path] ?? .notFound {
+    private mutating func noteProblem(of path: String, key: String) {
+        switch found[key] ?? .notFound {
         case .notFound: problems.notFound.append(path)
         case .unreadable(let name, let reason): problems.unreadable.append("\(name) (\(reason))")
         case .solid, .mesh: break
@@ -257,11 +302,12 @@ struct Placer {
     /// The piece for one model: scaled, tagged with this node and given its world plane; nil (the problem noted) when it can't be.
     mutating func place(_ model: ModelReference, of index: Int) async throws -> Placed? {
         let name: String
-        switch found[model.path] ?? .notFound {
+        let foundKey = BoardComponents.foundKey(model.path, of: setting.board.footprints[index])
+        switch found[foundKey] ?? .notFound {
         case .solid(_, _, let solidName, _): name = solidName
         case .mesh(_, let meshName): name = meshName
         default:
-            noteProblem(of: model.path)
+            noteProblem(of: model.path, key: foundKey)
             return nil
         }
         let scale = model.scale
@@ -275,7 +321,7 @@ struct Placer {
             problems.unreadable.append("\(name) (its position isn't valid)")
             return nil
         }
-        switch found[model.path] ?? .notFound {
+        switch found[foundKey] ?? .notFound {
         case .mesh(let mesh, _):
             return try placeMesh(mesh, scale: scale, of: index, plane: plane, name: name).map(Placed.mesh)
         case .solid(let solid, let key, _, let isCurrent):

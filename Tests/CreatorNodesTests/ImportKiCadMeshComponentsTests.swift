@@ -21,6 +21,9 @@ struct ModelReasonTests {
         #expect(ModelFiles.readerReason("This file isn't an X3D file.") == "the file isn't an X3D model")
         #expect(ModelFiles.meshReason(.vrml("This file isn't a VRML 1 or VRML 2 file.")) == "the file isn't a VRML model")
         #expect(ModelFiles.meshReason(.x3d("This file isn't an X3D file.")) == "the file isn't an X3D model")
+        #expect(ModelFiles.readerReason("The stored model is damaged.") == "it is damaged")
+        #expect(ModelFiles.readerReason("The stored model is larger than 256 MB.") == "it is larger than 256 MB")
+        #expect(ModelFiles.readerReason("The stored model uses a zstd dictionary, which isn't supported.") == "it uses a zstd dictionary")
     }
 
     @Test func meshProblemsReadInKiCadsWords() {

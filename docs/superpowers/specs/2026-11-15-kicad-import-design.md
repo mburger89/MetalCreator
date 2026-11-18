@@ -211,7 +211,7 @@ file appearing reruns it too. **(call: general graph-engine support, not a node 
 - **KI-2, solid components (done 2026-11-17; human checks KI-6 to KI-9 pending):** model paths and remapping, STEP, compressed STEP and IGES, `Inflate` moved, scale, transforms, both sides,
   `TopoRole.imported`, the evaluator's `dependencies`, the warnings.
 - **KI-3, mesh and outline components (done 2026-11-17; human checks pending):** `VRMLReader` (1 and 2, `.wrz`), `X3DReader`, the units rule, the `component meshes` output, IDF.
-- **KI-4, models stored in the board:** `Base64`, `ZstdDecoder`, `embedded_files` in board and footprints, `kicad-embed://`.
+- **KI-4, models stored in the board (done 2026-11-17; human checks pending):** `Base64`, `ZstdDecoder`, `embedded_files` in board and footprints, `kicad-embed://`.
 
 ## Tests
 

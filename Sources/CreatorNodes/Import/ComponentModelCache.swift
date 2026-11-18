@@ -174,7 +174,8 @@ actor ComponentModelCache {
     var problemCount: Int { problems.count }
     var byteCount: Int { total }
 
-    /// How many models were read (not served from the cache) from files whose path contains `folder`: what the tests count.
+    /// How many models were read (not served from the cache) from files whose path contains `folder`, or stored models whose hash
+    /// contains it: what the tests count.
     func reads(containing folder: String) -> Int { Self.count(readLog, containing: folder) }
 
     /// How many scaled copies were made of models read from files whose path contains `folder`.
@@ -182,8 +183,11 @@ actor ComponentModelCache {
 
     private static func count(_ log: [ReadKey], containing folder: String) -> Int {
         log.filter { key in
-            if case .file(let path, _, _) = key.stamp { return path.contains(folder) }
-            return false
+            switch key.stamp {
+            case .file(let path, _, _): return path.contains(folder)
+            case .embedded(let hash, _): return hash.hex.contains(folder)
+            default: return false
+            }
         }.count
     }
 }

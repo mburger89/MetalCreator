@@ -18,12 +18,9 @@ public enum KiCadBoardReader {
             switch keyword {
             case "footprint", "module":
                 if isCancelled() { throw CancellationError() }
-                try requireRoom(for: board.footprints.count, limits: limits)
-                board.footprints.append(
-                    try readFootprint(item, version: board.version, pads: &pads, limits: limits, edges: &board.edgeItems))
-                try requireEdgeRoom(board.edgeItems.count, limits: limits)
-            case "via":
-                if let via = try readVia(item) { board.vias.append(via) }
+                try appendFootprint(item, to: &board, pads: &pads, limits: limits)
+            case "embedded_files", "via":
+                try appendSmall(item, keyword, to: &board)
             default:
                 board.edgeItems += try edgeItems(in: item, place: .identity, version: board.version)
                 try requireEdgeRoom(board.edgeItems.count, limits: limits)
@@ -32,11 +29,45 @@ public enum KiCadBoardReader {
         return board
     }
 
+    private static func appendSmall(_ item: SExpression, _ keyword: String, to board: inout KiCadBoard) throws {
+        if keyword == "via" {
+            if let via = try readVia(item) { board.vias.append(via) }
+        } else {
+            board.embeddedModels += embeddedModels(in: item, version: board.version)
+        }
+    }
+
+    private static func appendFootprint(_ item: SExpression, to board: inout KiCadBoard, pads: inout Int,
+                                        limits: KiCadLimits) throws {
+        try requireRoom(for: board.footprints.count, limits: limits)
+        board.footprints.append(
+            try readFootprint(item, version: board.version, pads: &pads, limits: limits, edges: &board.edgeItems))
+        try requireEdgeRoom(board.edgeItems.count, limits: limits)
+    }
+
     /// Top-level children nothing reads: tracks, zones, nets, groups and text are scanned past, never built.
     static let skipped: Set<String> = [
         "zone", "segment", "arc", "net", "group", "generated", "dimension", "target", "image",
         "gr_text", "gr_text_box", "table",
     ]
+
+    /// The `(file (name …) (type model) (data |…|))` entries of an `embedded_files` list. KiCad reads bars as tokens only from
+    /// 20240706, so an older file has no stored files. Other types (datasheets, fonts) are left unkept.
+    static func embeddedModels(in table: SExpression, version: Int) -> [EmbeddedFile] {
+        guard version >= KiCadVersion.embeddedFiles else { return [] }
+        return table.children("file").compactMap { file in
+            guard file.child("type")?.text(at: 1) == "model", let name = file.child("name")?.text(at: 1), !name.isEmpty else {
+                return nil
+            }
+            var base64 = ""
+            if case .list(let parts)? = file.child("data") {
+                for part in parts.dropFirst() {
+                    if case .string(let text) = part { base64 += text } else if case .atom(let text) = part { base64 += text }
+                }
+            }
+            return EmbeddedFile(name: name, base64: base64)
+        }
+    }
 
     private static func header(of root: SExpression) throws -> KiCadBoard {
         var board = KiCadBoard()

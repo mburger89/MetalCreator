@@ -10,4 +10,6 @@ public enum KiCadVersion {
     public static let kicad5 = 20_171_130
     /// KiCad 7: the first version with the 0.01 mm chaining tolerance.
     public static let kicad7 = 20_221_018
+    /// The first version KiCad reads `|…|` data tokens in, so the first with stored files.
+    public static let embeddedFiles = 20_240_706
 }

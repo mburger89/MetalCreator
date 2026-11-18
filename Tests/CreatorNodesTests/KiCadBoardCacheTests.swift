@@ -1,6 +1,7 @@
 import CreatorGraph
 import CreatorPCB
 import Foundation
+import Synchronization
 import Testing
 @testable import CreatorNodes
 
@@ -35,6 +36,24 @@ struct KiCadBoardCacheTests {
         fastDone.signal()
         _ = try await slow
         #expect(await cache.count == 2)
+    }
+
+    private func board(_ size: Int) -> ParsedBoard {
+        var made = parsed()
+        made.board.embeddedModels = [EmbeddedFile(name: "m", base64: String(repeating: "A", count: size))]
+        return made
+    }
+
+    @Test func theByteBudgetEvictsTheLeastRecentlyUsedAndKeepsTheNewest() async throws {
+        let cache = KiCadBoardCache(budget: 2_500)
+        for name in ["a", "b", "c"] { _ = try await cache.board(for: stamp(name)) { [small = board(1_000)] in small } }
+        #expect(await cache.count == 2)
+        let reads = Mutex(0)
+        _ = try await cache.board(for: stamp("a")) { [small = board(1_000)] in reads.withLock { $0 += 1 }; return small }
+        #expect(reads.withLock { $0 } == 1)
+        // One board over the budget on its own is still kept.
+        _ = try await cache.board(for: stamp("huge")) { [big = board(10_000)] in big }
+        #expect(await cache.count == 1)
     }
 
     @Test func aBoardProblemIsRememberedAndTheSecondReadIsNotRun() async throws {
