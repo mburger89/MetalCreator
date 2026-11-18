@@ -306,5 +306,21 @@ extension RebuildTests {
         } catch let error as OCCTError { messages.append(error.message) }
         #expect(messages == [OCCTCancelFlag.message, OCCTCancelFlag.message])
     }
+
+    @Test func aClosedDirectionNeedsEnoughSpans() async throws {
+        let line = try await kernel.makeCurve([.line(Vector3(5, 0, 0), Vector3(5, 0, 10))], tag: tag)
+        let sheet = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: Vector3(0, 0, 1)), angle: .degrees(360), tag: tag)
+        let around = try await kernel.controlNet(of: sheet).surface.isPeriodicU
+        let spec = around ? RebuildSpec(degreeU: 3, degreeV: 1, spansU: 3, spansV: 1)
+            : RebuildSpec(degreeU: 1, degreeV: 3, spansU: 1, spansV: 3)
+        await #expect(throws: KernelError.invalidInput("A closed surface needs at least 4 spans around at degree 3.")) {
+            try await kernel.rebuilt(sheet, as: spec)
+        }
+        let points = (0..<8).map { Vector3(5 * cos(Double($0) * .pi / 4), 5 * sin(Double($0) * .pi / 4), 0) }
+        let curve = try await kernel.interpolate(points, degree: 3, closed: true, startTangent: nil, endTangent: nil, tag: tag)
+        await #expect(throws: KernelError.invalidInput("A closed curve needs at least 4 spans at degree 3.")) {
+            try await kernel.rebuilt(curve, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 3, spansV: 1), tag: tag)
+        }
+    }
 }
 #endif

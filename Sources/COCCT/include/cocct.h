@@ -674,7 +674,7 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
                                 int *total_pieces, occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
 /// A copy of `shape` whose face `face_index` (1-based) is refitted by least squares to a non-rational B-spline of the given degrees
-/// and span counts (equal spans; clamped, or periodic with `spans` poles in a direction the source is periodic in when spans >= degree + 1) over the parameter range of the face's own B-spline net (a surface of another kind is
+/// and span counts (equal spans; clamped, or periodic with `spans` poles in a direction the source is periodic in; fewer than degree + 1 spans there is refused) over the parameter range of the face's own B-spline net (a surface of another kind is
 /// converted exactly first), so the face keeps its pcurves, trims and the order of faces and edges. Samples per direction are
 /// 4 x (degree + spans) + 1, fitted rows then columns; `*deviation` is the largest distance from the source surface to the result
 /// on a grid twice as dense inside the face's parameter box. Refuses a degree outside 1 to 11, under one span, over 100,000 poles
@@ -683,7 +683,7 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
                               const occt_cancel *cancel, double *deviation, occt_status *status);
 /// A curve (wire) of any pieces fitted by one non-rational B-spline of `degree` and `spans` equal spans: clamped with its end poles pinned to
 /// the curve's ends, or periodic (`out->periodic` 1, `spans` poles) when the wire is one edge of a periodic B-spline run for its period
-/// and spans >= degree + 1. Samples 4 x (degree + spans) + 1, evenly in the parametrization by arc length between pieces. Fills `out` (free with occt_curve_net_free) and `*deviation`
+/// (fewer than degree + 1 spans is refused). Samples 4 x (degree + spans) + 1, evenly in the parametrization by arc length between pieces. Fills `out` (free with occt_curve_net_free) and `*deviation`
 /// (largest distance from the source on a grid twice as dense). `cancel` may be NULL.
 int occt_rebuild_curve(const occt_shape *wire, int degree, int spans, const occt_cancel *cancel, occt_curve_net *out,
                        double *deviation, occt_status *status);

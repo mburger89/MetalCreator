@@ -20,6 +20,7 @@
 #include <gp_Vec.hxx>
 
 #include <algorithm>
+#include <string>
 #include <cmath>
 #include <cstdlib>
 #include <new>
@@ -458,9 +459,15 @@ double surface_gap(const Handle(Geom_BSplineSurface) &surface, const gp_Pnt &tar
 
 namespace {
 
-/// A direction is fitted periodically when its source is periodic and there are at least degree + 1 spans (so the basis functions of
-/// one sample are different poles); otherwise it is fitted clamped.
-bool fits_periodically(bool source_periodic, int degree, int spans) { return source_periodic && spans >= degree + 1; }
+/// A direction is fitted periodically when its source is periodic; it then needs at least degree + 1 spans (so the basis functions of
+/// one sample are different poles), and fewer are refused rather than fitted clamped, which would bring the seam's crease back.
+bool fits_periodically(bool source_periodic, int degree, int spans, const char *what) {
+    if (source_periodic && spans < degree + 1) {
+        throw user_error(std::string("A closed ") + what + " needs at least " + number(degree + 1) + " spans" +
+                         (std::string(what) == "surface" ? " around" : "") + " at degree " + number(degree) + ".");
+    }
+    return source_periodic;
+}
 
 void periodic_knots(double a, double b, int s, TColStd_Array1OfReal &knots, TColStd_Array1OfInteger &mult) {
     for (int k = 0; k <= s; ++k) {
@@ -493,8 +500,8 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
         const Handle(Geom_BSplineSurface) source = edit.surface;
         double a_u, b_u, a_v, b_v;
         source->Bounds(a_u, b_u, a_v, b_v);
-        const bool periodic_u = fits_periodically(source->IsUPeriodic(), degree_u, spans_u);
-        const bool periodic_v = fits_periodically(source->IsVPeriodic(), degree_v, spans_v);
+        const bool periodic_u = fits_periodically(source->IsUPeriodic(), degree_u, spans_u, "surface");
+        const bool periodic_v = fits_periodically(source->IsVPeriodic(), degree_v, spans_v, "surface");
         const int nu = periodic_u ? spans_u : degree_u + spans_u;
         const int nv = periodic_v ? spans_v : degree_v + spans_v;
         const int mu = 4 * (degree_u + spans_u) + 1;
@@ -624,7 +631,7 @@ int occt_rebuild_curve(const occt_shape *wire, int degree, int spans, const occt
         if (pieces != 1) {
             source_periodic = false;
         }
-        const bool periodic = fits_periodically(source_periodic, degree, spans);
+        const bool periodic = fits_periodically(source_periodic, degree, spans, "curve");
         // Parametrized by arc length between pieces (and by the piece's own parameter within one).
         const BRepAdaptor_CompCurve source(TopoDS::Wire(wire->shape), Standard_True);
         const double t0 = source.FirstParameter();
