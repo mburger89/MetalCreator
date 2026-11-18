@@ -30,6 +30,15 @@ enum ComponentFixtures {
         return try Data(contentsOf: url)
     }
 
+    /// The L block written as a closed shell with no solid around it, as some vendors' component models are.
+    static func shellStep(_ kernel: OCCTKernel) async throws -> Data {
+        let shape = try await kernel.shape(of: try await lBlock(kernel))
+        let url = URL.temporaryDirectory.appending(path: "fixture-\(UUID().uuidString).step")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try OCCTKernel.serialized { () throws in try shape.children()[0].writeSTEP(to: url, unit: "MM") }
+        return try Data(contentsOf: url)
+    }
+
     static func iges(_ kernel: OCCTKernel) async throws -> Data {
         let shape = try await kernel.shape(of: try await lBlock(kernel))
         let url = URL.temporaryDirectory.appending(path: "fixture-\(UUID().uuidString).igs")

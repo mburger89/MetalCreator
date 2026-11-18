@@ -145,6 +145,36 @@ struct ReadShapesTests {
         #expect(loose.sheets[0].topology.faces.count == 2)
     }
 
+    // MARK: KiCad component models (readModel) keep closed shells as solids
+
+    @Test func readModelTurnsAClosedFreeShellIntoASolid() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await kernel.shape(of: try await box(kernel))
+        let shell = try OCCTKernel.serialized { () throws in try solid.children() }
+        let model = try await kernel.readModel(try file(shell, as: .step(unit: "MM")), format: .step, tag: newTag())
+        #expect(!model.hasOpenShell)
+        let volume = try await kernel.properties(of: model).volume
+        #expect(volume.isApproximatelyEqual(to: 240, relativeTolerance: 1e-6))
+        #expect(model.topology.faces.count == 6)
+    }
+
+    @Test func readModelOfASolidKeepsItsFaceOrderAndTags() async throws {
+        let kernel = OCCTKernel()
+        let tag = newTag()
+        let source = try await box(kernel)
+        let shape = try await kernel.shape(of: source)
+        let model = try await kernel.readModel(try file([shape], as: .step(unit: "MM")), format: .step, tag: tag)
+        #expect(!model.hasOpenShell)
+        #expect(model.topology.faces.indices.allSatisfy { model.topology.faces[$0].tags == [TopoTag(tag, .imported(face: $0))] })
+        // The faces' areas in table order, as the read produced them before closed shells were made solids.
+        let areas = model.topology.faces.map { Int(($0.area * 1000).rounded()) }
+        #expect(areas == [40000, 24000, 40000, 24000, 60000, 60000])
+        let normals = model.topology.faces.map { face in
+            face.normal.map { Int($0.x.rounded()) * 100 + Int($0.y.rounded()) * 10 + Int($0.z.rounded()) }
+        }
+        #expect(normals == [-10, 100, 10, -100, -1, 1])
+    }
+
     @Test func twoBodiesOfOneFileHaveDistinctNames() async throws {
         let kernel = OCCTKernel()
         let other = try await kernel.transform(try await box(kernel), by: Transform(translation: Vector3(50, 0, 0)), tag: newTag())

@@ -63,6 +63,56 @@ public:
     }
 };
 
+/// The valid, outward-oriented solid a closed free shell makes, or a null shape when `shell` is open or makes no valid solid.
+TopoDS_Shape solidify_closed_shell(const TopoDS_Shape &shell) {
+    if (!BRep_Tool::IsClosed(shell)) {
+        return TopoDS_Shape();
+    }
+    BRepBuilderAPI_MakeSolid maker(TopoDS::Shell(shell));
+    if (!maker.IsDone()) {
+        return TopoDS_Shape();
+    }
+    TopoDS_Shape solid = maker.Solid();
+    GProp_GProps volume;
+    BRepGProp::VolumeProperties(solid, volume);
+    if (volume.Mass() < 0) {
+        solid.Reverse();
+    }
+    BRepCheck_Analyzer check(solid);
+    return check.IsValid() ? solid : TopoDS_Shape();
+}
+
+/// `shape` with every closed free shell made a solid (through compounds; solids, open shells and loose faces stay as they are).
+/// Returns `shape` itself, untouched, when nothing changes, so a model that was already solids keeps its faces in their order.
+TopoDS_Shape solidify_free_shells(const TopoDS_Shape &shape) {
+    if (shape.IsNull()) {
+        return shape; // a model with no shapes: the caller says so
+    }
+    if (shape.ShapeType() == TopAbs_SHELL) {
+        const TopoDS_Shape solid = solidify_closed_shell(shape);
+        return solid.IsNull() ? shape : solid;
+    }
+    if (shape.ShapeType() != TopAbs_COMPOUND) {
+        return shape;
+    }
+    std::vector<TopoDS_Shape> parts;
+    bool changed = false;
+    for (TopoDS_Iterator it(shape); it.More(); it.Next()) {
+        parts.push_back(solidify_free_shells(it.Value()));
+        changed = changed || !parts.back().IsSame(it.Value()) || parts.back().Orientation() != it.Value().Orientation();
+    }
+    if (!changed) {
+        return shape;
+    }
+    BRep_Builder builder;
+    TopoDS_Compound compound;
+    builder.MakeCompound(compound);
+    for (const TopoDS_Shape &part : parts) {
+        builder.Add(compound, part);
+    }
+    return compound;
+}
+
 /// Reads `data` through `reader` and transfers its roots. Returns null (and sets `status`) when the bytes aren't a model of
 /// that format or hold no shapes. Any OpenCascade exception while reading is the same "couldn't be read" to the person.
 occt_shape *read_with(XSControl_Reader &reader, const char *data, size_t size, const char *unreadable, occt_status *status) {
@@ -74,7 +124,7 @@ occt_shape *read_with(XSControl_Reader &reader, const char *data, size_t size, c
             return nullptr;
         }
         reader.TransferRoots();
-        const TopoDS_Shape shape = reader.OneShape();
+        const TopoDS_Shape shape = solidify_free_shells(reader.OneShape());
         if (shape.IsNull()) {
             set_error(status, "The model contains no shapes.");
             return nullptr;
@@ -96,7 +146,7 @@ occt_shape *read_iges_file(const char *path, occt_status *status) {
             return nullptr;
         }
         reader.TransferRoots();
-        const TopoDS_Shape shape = reader.OneShape();
+        const TopoDS_Shape shape = solidify_free_shells(reader.OneShape());
         if (shape.IsNull()) {
             set_error(status, "The model contains no shapes.");
             return nullptr;
@@ -130,21 +180,10 @@ void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found, std::v
         break;
     case TopAbs_SHELL: {
         // A closed free shell is a solid when it makes a valid one; otherwise (or when open) it joins the file's one sheet.
-        if (BRep_Tool::IsClosed(shape)) {
-            BRepBuilderAPI_MakeSolid maker(TopoDS::Shell(shape));
-            if (maker.IsDone()) {
-                TopoDS_Shape solid = maker.Solid();
-                GProp_GProps volume;
-                BRepGProp::VolumeProperties(solid, volume);
-                if (volume.Mass() < 0) {
-                    solid.Reverse();
-                }
-                BRepCheck_Analyzer check(solid);
-                if (check.IsValid()) {
-                    found.push_back(found_shape{solid, 0});
-                    break;
-                }
-            }
+        const TopoDS_Shape solid = solidify_closed_shell(shape);
+        if (!solid.IsNull()) {
+            found.push_back(found_shape{solid, 0});
+            break;
         }
         loose_faces.push_back(shape);
         break;
