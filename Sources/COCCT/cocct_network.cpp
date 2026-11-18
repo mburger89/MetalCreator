@@ -3,7 +3,7 @@
 // The u curves and the v curves are found in order and direction (R4), trimmed to the window the border curves cut, refitted
 // so each crossing lands on a common parameter, made compatible, and then three surfaces are built over them: S_u skins the
 // u curves, S_v skins the v curves and T interpolates the crossing points. The Gordon surface is S_u + S_v - T, pole by pole.
-// Everything is non-rational; a rational input curve is refused.
+// Everything is non-rational; a rational input piece (an arc) is approximated by a polynomial one first.
 
 #include "cocct_sheet.hpp"
 
@@ -37,7 +37,12 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <TopoDS_Wire.hxx>
+#include <cctype>
 #include <cstdio>
+#include <new>
+#include <GeomConvert_ApproxCurve.hxx>
+#include <GeomAbs_Shape.hxx>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -48,6 +53,7 @@ using namespace cocct;
 namespace {
 
 constexpr double kMaximumPoles = 100000;
+constexpr const char *kClosedCurve = "Network curves must be open; a closed curve can't be part of a network yet.";
 
 using BCurve = Handle(Geom_BSplineCurve);
 using BSurface = Handle(Geom_BSplineSurface);
@@ -55,7 +61,28 @@ using Row = std::vector<double>;
 
 constexpr double kKnotEpsilon = 1e-9;
 
-std::string curve_name(char axis, int index) { return std::string(1, axis) + " curve " + std::to_string(index + 1); }
+/// "u curve 3" (the position in the user's list, not in the sorted order), or "U curve 3" at the start of a sentence.
+std::string curve_name(char axis, int index, bool starts_sentence = false) {
+    const char letter = starts_sentence ? static_cast<char>(std::toupper(static_cast<unsigned char>(axis))) : axis;
+    return std::string(1, letter) + " curve " + std::to_string(index + 1);
+}
+
+/// A rational piece (an arc) as a polynomial B-spline within `tolerance / 40` of it: the network is built from
+/// non-rational curves, and the surface is checked against the curves at the whole tolerance after.
+BCurve polynomial_of(const BCurve &piece, double tolerance) {
+    bool rational = false;
+    for (int i = 1; i <= piece->NbPoles() && !rational; ++i) {
+        rational = std::abs(piece->Weight(i) - 1.0) > 1e-9;
+    }
+    if (!rational) {
+        return piece;
+    }
+    GeomConvert_ApproxCurve approximation(piece, tolerance / 40, GeomAbs_C2, 200, 5);
+    if (!approximation.IsDone() || !approximation.HasResult() || approximation.MaxError() > tolerance / 40 * 1.01) {
+        throw user_error("A network curve can't be approximated closely enough to build the network.");
+    }
+    return approximation.Curve();
+}
 
 /// The curve as one clamped B-spline (its wire's edges in wire order), parameter range [0, 1].
 void normalise(BCurve &curve) {
@@ -73,12 +100,16 @@ void normalise(BCurve &curve) {
     curve->SetKnots(knots);
 }
 
-BCurve spline_of(const occt_shape *curve) {
+BCurve spline_of(const occt_shape *curve, double tolerance) {
     if (!curve || curve->shape.IsNull() || curve->shape.ShapeType() != TopAbs_WIRE) {
         throw user_error("This curve can't be used.");
     }
+    const TopoDS_Wire wire = TopoDS::Wire(curve->shape);
+    if (BRep_Tool::IsClosed(wire)) {
+        throw user_error(kClosedCurve);
+    }
     BCurve joined;
-    for (BRepTools_WireExplorer explorer(TopoDS::Wire(curve->shape)); explorer.More(); explorer.Next()) {
+    for (BRepTools_WireExplorer explorer(wire); explorer.More(); explorer.Next()) {
         const TopoDS_Edge edge = explorer.Current();
         if (BRep_Tool::Degenerated(edge)) {
             continue;
@@ -96,6 +127,12 @@ BCurve spline_of(const occt_shape *curve) {
             trimmed->Reverse();
         }
         BCurve piece = GeomConvert::CurveToBSplineCurve(trimmed);
+        if (piece->IsPeriodic() || piece->StartPoint().Distance(piece->EndPoint()) < 1e-9) {
+            throw user_error(kClosedCurve);
+        }
+        if (piece->IsRational()) {
+            piece = polynomial_of(piece, tolerance);
+        }
         if (joined.IsNull()) {
             joined = piece;
         } else {
@@ -110,11 +147,7 @@ BCurve spline_of(const occt_shape *curve) {
         throw user_error("This curve can't be used.");
     }
     if (joined->IsRational()) {
-        for (int i = 1; i <= joined->NbPoles(); ++i) {
-            if (std::abs(joined->Weight(i) - 1.0) > 1e-9) {
-                throw user_error("Network curves can't be rational.");
-            }
-        }
+        throw user_error("Network curves can't be rational.");
     }
     normalise(joined);
     return joined;
@@ -694,7 +727,10 @@ bool increasing(const Row &values) {
 
 extern "C" {
 
-occt_cancel *occt_cancel_new(void) { return new occt_cancel(); }
+occt_cancel *occt_cancel_new(void) {
+    // A null answer is a flag that can't be set; the callers treat it as "never cancelled" (no exception crosses).
+    return new (std::nothrow) occt_cancel();
+}
 
 void occt_cancel_set(occt_cancel *cancel) {
     if (cancel) {
@@ -719,15 +755,20 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
         }
         const std::size_t nu = static_cast<std::size_t>(u_count);
         const std::size_t nv = static_cast<std::size_t>(v_count);
+        // Every crossing is a control point at least, so a grid this big is refused before any curve is looked at.
+        if (static_cast<double>(nu) * static_cast<double>(nv) > kMaximumPoles) {
+            throw user_error("The network is too detailed: it would need " + number(static_cast<double>(nu * nv)) +
+                             " control points (the limit is 100,000).");
+        }
         std::vector<BCurve> raw_u;
         std::vector<BCurve> raw_v;
         for (std::size_t i = 0; i < nu; ++i) {
             poll(cancel);
-            raw_u.push_back(spline_of(u_curves[i]));
+            raw_u.push_back(spline_of(u_curves[i], tolerance));
         }
         for (std::size_t j = 0; j < nv; ++j) {
             poll(cancel);
-            raw_v.push_back(spline_of(v_curves[j]));
+            raw_v.push_back(spline_of(v_curves[j], tolerance));
         }
 
         // Every pair's nearest approach, then the order: u curves by where they meet the first v curve, v curves by where
@@ -786,13 +827,13 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
         for (std::size_t i = 0; i < nu; ++i) {
             for (std::size_t j = 0; j < nv; ++j) {
                 const crossing &c = sorted[i][j];
-                const int ui = static_cast<int>(i);
-                const int vj = static_cast<int>(j);
+                const int ui = static_cast<int>(u_order[i]);
+                const int vj = static_cast<int>(v_order[j]);
                 if (c.places > 1) {
-                    throw user_error(curve_name('u', ui) + " crosses " + curve_name('v', vj) + " more than once.");
+                    throw user_error(curve_name('u', ui, true) + " crosses " + curve_name('v', vj) + " more than once.");
                 }
                 if (c.places == 0) {
-                    throw user_error(curve_name('u', ui) + " and " + curve_name('v', vj) + " miss each other by " +
+                    throw user_error(curve_name('u', ui, true) + " and " + curve_name('v', vj) + " miss each other by " +
                                      number(c.distance) + " mm.");
                 }
             }
@@ -856,7 +897,7 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
             poll(cancel);
             const BCurve fitted = reparametrise(us[i], a[i], u_bar, tolerance / 40, tolerance / 10);
             if (fitted.IsNull()) {
-                throw user_error(curve_name('u', static_cast<int>(i)) + " can't be fitted to the network.");
+                throw user_error(curve_name('u', static_cast<int>(u_order[i]), true) + " can't be fitted to the network.");
             }
             fit_u.push_back(fitted);
         }
@@ -868,7 +909,7 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
             }
             const BCurve fitted = reparametrise(vs[j], own, v_bar, tolerance / 40, tolerance / 10);
             if (fitted.IsNull()) {
-                throw user_error(curve_name('v', static_cast<int>(j)) + " can't be fitted to the network.");
+                throw user_error(curve_name('v', static_cast<int>(v_order[j]), true) + " can't be fitted to the network.");
             }
             fit_v.push_back(fitted);
         }
@@ -933,7 +974,7 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
                     worst = std::max(worst, distance_to(p, surface, face));
                 }
                 if (worst > tolerance) {
-                    throw user_error("The surface misses " + curve_name(family == 0 ? 'u' : 'v', static_cast<int>(k)) + " by " +
+                    throw user_error("The surface misses " + curve_name(family == 0 ? 'u' : 'v', static_cast<int>(family == 0 ? u_order[k] : v_order[k])) + " by " +
                                      number(worst) + " mm.");
                 }
             }

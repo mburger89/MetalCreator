@@ -7,7 +7,8 @@ import Foundation
 final class OCCTCancelFlag: Sendable {
     private let address: UInt
 
-    var raw: OpaquePointer { OpaquePointer(bitPattern: address)! }
+    /// Nil when the shim couldn't make the flag; the shim treats that as a flag that is never set.
+    var raw: OpaquePointer? { OpaquePointer(bitPattern: address) }
 
     init() { address = UInt(bitPattern: occt_cancel_new()) }
 
