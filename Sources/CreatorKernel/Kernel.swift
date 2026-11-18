@@ -76,6 +76,11 @@ public protocol Kernel: Actor {
     /// seam or an edge with fewer than two distinct faces is `KernelError.unsupported`; an ID the solid doesn't have is
     /// `KernelError.invalidInput`. Like every operation it checks for cancellation on entry. The default refuses.
     func continuity(along edge: EdgeID, of solid: Solid) async throws -> EdgeContinuity
+    /// How smoothly the free edge `edge` of the sheet `first` meets `face` of `second` (NS-2): the same gaps as `continuity(along:of:)`,
+    /// each sample of the edge projected onto the face, the normals compared up to sign. An edge that isn't a free edge is
+    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (every sample over
+    /// 1 mm away) "The edge doesn't run along that face.". The default refuses.
+    func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) async throws -> EdgeContinuity
     /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
     /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.
     func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid
@@ -132,6 +137,10 @@ extension Kernel {
 
     public func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity {
         throw KernelError.unsupported("continuity")
+    }
+
+    public func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) throws -> EdgeContinuity {
+        throw KernelError.unsupported("continuity between bodies")
     }
 
     public func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid {

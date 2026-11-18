@@ -133,6 +133,10 @@ inline bool is_boundary_edge(const TopoDS_Edge &edge, const std::vector<TopoDS_F
 /// `user_error` when no sample can be compared. Reads only; the caller holds `OCCTKernel.serialized`.
 occt_edge_continuity edge_continuity(const TopoDS_Edge &edge, const TopoDS_Face &face_a, const TopoDS_Face &face_b, int samples);
 
+/// The same grading where `face_b` belongs to another body: each sample of `edge` is projected onto `face_b`'s surface for its uv, the
+/// normals are compared up to sign, and a sample over 1 mm from the surface is skipped. Throws `user_error` when none is usable.
+occt_edge_continuity edge_continuity_against(const TopoDS_Edge &edge, const TopoDS_Face &face_a, const TopoDS_Face &face_b, int samples);
+
 template <typename T>
 T *copy_out(const std::vector<T> &values) {
     T *out = static_cast<T *>(std::calloc(values.empty() ? 1 : values.size(), sizeof(T)));

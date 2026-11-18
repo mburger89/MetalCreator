@@ -1,0 +1,76 @@
+#if canImport(CreatorOCCT)
+import Foundation
+import Testing
+@testable import CreatorGeometry
+@testable import CreatorKernel
+@testable import CreatorOCCT
+
+/// NS-2 Task 1: `Kernel.continuity(of:in:against:of:)`, a sheet's free edge against a face of another body.
+struct TwoBodyContinuityTests {
+    let tag = newTag()
+
+    /// A flat sheet: the line from `start` to `end` swept by `direction` over `distance`.
+    func strip(_ kernel: OCCTKernel, from start: Vector3, to end: Vector3, direction: Vector3,
+               distance: Double = 10) async throws -> Solid {
+        let curve = try await kernel.makeCurve([.line(start, end)], tag: tag)
+        return try await kernel.extrude(curve, direction: direction, distance: distance, symmetric: false, tag: tag)
+    }
+
+    func edge(of solid: Solid, near point: Vector3) throws -> EdgeID {
+        let found = solid.topology.edges.first { ($0.midpoint - point).length < 1e-6 }
+        return try #require(found).id
+    }
+
+    func refusal(_ body: () async throws -> Void) async -> String? {
+        do { try await body() } catch KernelError.invalidInput(let text) { return text } catch { return nil }
+        return nil
+    }
+
+    @Test func twoHalvesOfAPlaneAreG2() async throws {
+        let kernel = OCCTKernel()
+        let a = try await strip(kernel, from: .zero, to: Vector3(10, 0, 0), direction: Vector3(0, 1, 0))
+        let b = try await strip(kernel, from: Vector3(0, 10, 0), to: Vector3(10, 10, 0), direction: Vector3(0, 1, 0))
+        let found = try await kernel.continuity(of: try edge(of: a, near: Vector3(5, 10, 0)), in: a, against: FaceID(0), of: b)
+        #expect(found.grade == .g2)
+        #expect(found.positionGap < 1e-6)
+    }
+
+    @Test func aCylinderPatchAgainstItsTangentPlaneIsG1() async throws {
+        let kernel = OCCTKernel()
+        let quarter = CurvePiece.arc(center: .zero, normal: .unitZ, radius: 5, start: Vector3(5, 0, 0), sweep: .pi / 2)
+        let arc = try await kernel.makeCurve([quarter], tag: tag)
+        let patch = try await kernel.extrude(arc, direction: .unitZ, distance: 10, symmetric: false, tag: tag)
+        let plane = try await strip(kernel, from: Vector3(5, 0, 0), to: Vector3(5, 10, 0), direction: .unitZ)
+        let found = try await kernel.continuity(of: try edge(of: patch, near: Vector3(5, 0, 5)), in: patch, against: FaceID(0), of: plane)
+        #expect(found.grade == .g1)
+        #expect(abs(found.absoluteCurvatureGap - 0.2) < 1e-6)
+    }
+
+    @Test func aRightAngleIsG0() async throws {
+        let kernel = OCCTKernel()
+        let a = try await strip(kernel, from: .zero, to: Vector3(10, 0, 0), direction: Vector3(0, 1, 0))
+        let b = try await strip(kernel, from: Vector3(0, 10, 0), to: Vector3(10, 10, 0), direction: .unitZ)
+        let found = try await kernel.continuity(of: try edge(of: a, near: Vector3(5, 10, 0)), in: a, against: FaceID(0), of: b)
+        #expect(abs(found.angleGap - .pi / 2) < 1e-6)
+        #expect(found.grade == .g0)
+    }
+
+    @Test func aFaceElsewhereIsRefused() async throws {
+        let kernel = OCCTKernel()
+        let a = try await strip(kernel, from: .zero, to: Vector3(10, 0, 0), direction: Vector3(0, 1, 0))
+        let b = try await strip(kernel, from: Vector3(0, 0, 10), to: Vector3(10, 0, 10), direction: Vector3(0, 1, 0))
+        let id = try edge(of: a, near: Vector3(5, 10, 0))
+        let text = await refusal { _ = try await kernel.continuity(of: id, in: a, against: FaceID(0), of: b) }
+        #expect(text == "The edge doesn't run along that face.")
+    }
+
+    @Test func aSolidsEdgeIsRefused() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 10, 10, 10)
+        let b = try await strip(kernel, from: .zero, to: Vector3(10, 0, 0), direction: Vector3(0, 1, 0))
+        let id = try #require(solid.topology.edges.first { $0.faces.count == 2 && $0.faces[0] != $0.faces[1] }).id
+        let text = await refusal { _ = try await kernel.continuity(of: id, in: solid, against: FaceID(0), of: b) }
+        #expect(text == "The edge must be a surface's free edge.")
+    }
+}
+#endif

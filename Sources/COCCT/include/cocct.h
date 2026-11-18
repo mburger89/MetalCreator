@@ -412,6 +412,11 @@ typedef struct {
     double absolute_curvature_gap;
 } occt_edge_continuity;
 int occt_edge_continuity_of(const occt_shape *shape, int edge_index, occt_edge_continuity *out, occt_status *status);
+/// The same grading between the free edge `edge_index` (1-based) of `first`, a sheet, and face `face_index` (1-based) of `second`: samples
+/// are projected onto the face, normals compared up to sign, samples over 1 mm away skipped. Fails with "The edge must be a surface's
+/// free edge." or "The edge doesn't run along that face.".
+int occt_edge_continuity_against(const occt_shape *first, int edge_index, const occt_shape *second, int face_index,
+                                 occt_edge_continuity *out, occt_status *status);
 /// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
 /// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
 /// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a
