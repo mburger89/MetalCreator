@@ -61,7 +61,18 @@ struct SurfaceNodeRefusalTests {
             link(holed, "profile", toCurves, "profile"), link(toCurves, "curves", sweep, "path"),
             link(toCurves, "curves", sweep, "profiles"),
         ], demand: sweep)
-        #expect(report.error(sweep) == "Sweep takes one path, end scale and binormal at a time.")
+        #expect(report.error(sweep) == "Sweep takes one path, guide, orientation, binormal, twist, end scale and solid choice at a time.")
+    }
+
+    @Test(arguments: ["twist", "end scale"])
+    func aListOnAnyOtherSweepInputIsRefusedInTheSameWords(input: String) async throws {
+        let series = make(SeriesNode.self, ["count": .integer(3)]), sweep = make(SweepNode.self)
+        let rectangle = make(RectangleNode.self), toCurves = make(ProfileToCurvesNode.self)
+        let report = try await run([series, sweep, rectangle, toCurves], [
+            link(rectangle, "profile", toCurves, "profile"), link(toCurves, "curves", sweep, "path"),
+            link(toCurves, "curves", sweep, "profiles"), link(series, "values", sweep, SocketName(input)),
+        ], demand: sweep)
+        #expect(report.error(sweep) == "Sweep takes one path, guide, orientation, binormal, twist, end scale and solid choice at a time.")
     }
 
     @Test func aSinglePointIsRefused() async throws {
@@ -138,5 +149,22 @@ struct SurfaceNodeRefusalTests {
         }
         let report = try await run([rectangle, node], links, demand: node)
         #expect(report.error(node) == message)
+    }
+
+    @Test func aRailSweepShowsAStaleTwistSoItCanBeCleared() {
+        func showsTwist(_ node: Node) -> Bool {
+            SweepNode.inspector(for: node).flatMap(\.controls).contains { control in
+                if case .slider(let name) = control { name == "twist" } else { false }
+            }
+        }
+        var node = BuiltInNodes.registry.makeNode(SweepNode.typeID)
+        node.inputValues["orientation"] = .integer(2)
+        node.inputValues["twist"] = .number(0)
+        #expect(!showsTwist(node))
+        node.inputValues["twist"] = .number(30)
+        #expect(showsTwist(node))
+        node.inputValues["orientation"] = .integer(0)
+        node.inputValues["twist"] = .number(0)
+        #expect(showsTwist(node))
     }
 }

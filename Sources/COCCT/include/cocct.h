@@ -412,6 +412,13 @@ typedef struct {
     double absolute_curvature_gap;
 } occt_edge_continuity;
 int occt_edge_continuity_of(const occt_shape *shape, int edge_index, occt_edge_continuity *out, occt_status *status);
+/// The same grading between the free edge `edge_index` (1-based) of `first`, a sheet, and face `face_index` (1-based) of `second`: samples
+/// are projected onto the face (a sample over 1 mm away, or outside the trimmed face, is skipped), curvature signs follow the normals
+/// compared up to sign, and the angle is that between A's direction continuing past the edge and B's direction leaving it, so a face
+/// folded back over A reads 180 degrees though it shares A's tangent plane. Fewer than half the samples usable is refused. Fails with "The edge must be a surface's
+/// free edge." or "The edge doesn't run along that face.".
+int occt_edge_continuity_against(const occt_shape *first, int edge_index, const occt_shape *second, int face_index,
+                                 occt_edge_continuity *out, occt_status *status);
 /// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
 /// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
 /// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a
@@ -547,15 +554,49 @@ occt_shape *occt_loft_curves(const occt_shape *const *sections, int count, int r
                              occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
 /// The shape made by sweeping `count` profile curves (wires) along `path` (a wire): BRepOffsetAPI_MakePipeShell, each profile added
-/// as given (no contact, with correction). `frenet` 1 keeps the Frenet frame, else `binormal` is fixed. An `end_scale` other than 1
+/// as given (no contact, with correction). `mode` 0 keeps the Frenet frame, 1 fixes `binormal`, 2 follows `guide` as a second rail
+/// (a wire that must touch every profile: "The rail must touch every profile."), 3 keeps the profile against `guide` as a guide
+/// surface. `twist_degrees` (|twist| at most 3,600; refused beyond: "The twist must be between −3,600° and 3,600°.") turns the profile
+/// that much along the path through an auxiliary spine, with mode 0 or 1 only ("Twist can't be combined with a rail or a guide surface."). An `end_scale` other than 1
 /// scales the one profile linearly along the path (refused with several: "An end scale needs exactly one profile."). With `make_solid`
 /// and every profile closed the result is a solid: history OCCT_FROM_START_CAP / OCCT_FROM_END_CAP for the caps; otherwise a sheet.
 /// Sides are OCCT_FROM_SEGMENT (operand 0, index = the profile's piece). Roles: start and end edges (kinds 1, 2) and, for open
 /// profiles, rails 0 and 1. Refuses "The sweep runs into itself; shorten the path or shrink the profile." and "The sweep couldn't be
 /// made along this path.".
-occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int frenet,
-                              const double binormal[3], double end_scale, int make_solid, occt_history *history,
+occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, const occt_shape *path, int mode,
+                              const double binormal[3], double end_scale, int make_solid, const occt_shape *guide,
+                              double twist_degrees, occt_history *history,
                               occt_boundary_roles *roles, occt_status *status);
+
+/// A flag another thread sets to stop a long shim call; the call polls it between steps and refuses with "The operation was cancelled.".
+typedef struct occt_cancel occt_cancel;
+occt_cancel *occt_cancel_new(void);
+void occt_cancel_set(occt_cancel *cancel);
+void occt_cancel_free(occt_cancel *cancel);
+
+/// The Gordon surface through a grid of curves (wires): `u_count` curves one way and `v_count` the other, in any order and
+/// direction (they are sorted and turned here, the first u and the first v curve fixing the orientation; each pair must cross within
+/// `tolerance`). A curve that runs past the border curves is trimmed to them. One face, non-rational, at most 100,000 control points
+/// ("The network is too detailed: ..."). History: the face is OCCT_FROM_SEGMENT (0, 0). Roles: the first and last u curve's edges are
+/// kinds 1 and 2, the first and last v curve's are kind 3 with a = 0 and 1 (in the sorted order). Numbers in refusals are wrapped in
+/// \x01 ... \x02 so the caller can write them in its locale. `cancel` may be NULL. Refuses with sentences such as
+/// "u curve 2 and v curve 3 miss each other by 0.4 mm.".
+occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count, const occt_shape *const *v_curves,
+                                 int v_count, double tolerance, const occt_cancel *cancel, occt_history *history,
+                                 occt_boundary_roles *roles, occt_status *status);
+
+/// A patch (one face) that fills the closed loop of bounding pieces: the edges of each of `curve_count` curves (wires, in wire
+/// order) followed by `edge_count` edges of `part` (`edge_indices`, 1-based in part's edge map, each with the 1-based face of
+/// `part` it is held tangent to in `face_indices`, or 0 to hold it to position only). Between 1 and 16 pieces must chain end
+/// to end within 1e-4 mm into exactly one loop. The patch also passes within 1e-3 mm of each of `points` (3 doubles each) and follows `interior_curves` (wires). `continuity` is 0 (G0), 1 (G1) or 2 (G2: three or four pieces and no points or interior curves; a piece on a sheet is held curvature continuous by a degree-17 triangular or biquintic patch of our own, the rest in position only; with no piece on a sheet it is the G0 fill); the pieces' continuity is checked by the caller.
+/// `piece_order[k]` is set to the input index (0-based) of the loop's piece k, starting from input piece 0; `piece_capacity` must be
+/// at least 16 and `total_pieces` is set to the number of input pieces. History: the face is OCCT_FROM_START_CAP. Roles: loop piece
+/// k is kind 4 with a = 0 and b = k. Numbers in refusals are wrapped in \x01 ... \x02. `cancel` may be NULL.
+occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count, const occt_shape *part,
+                                const int *edge_indices, const int *face_indices, int edge_count, const double *points,
+                                int point_count, const occt_shape *const *interior_curves, int interior_count,
+                                int continuity, const occt_cancel *cancel, int *piece_order, int piece_capacity,
+                                int *total_pieces, occt_history *history, occt_boundary_roles *roles, occt_status *status);
 
 #ifdef __cplusplus
 }

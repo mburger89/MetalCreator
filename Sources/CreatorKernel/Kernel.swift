@@ -76,6 +76,12 @@ public protocol Kernel: Actor {
     /// seam or an edge with fewer than two distinct faces is `KernelError.unsupported`; an ID the solid doesn't have is
     /// `KernelError.invalidInput`. Like every operation it checks for cancellation on entry. The default refuses.
     func continuity(along edge: EdgeID, of solid: Solid) async throws -> EdgeContinuity
+    /// How smoothly the free edge `edge` of the sheet `first` meets `face` of `second` (NS-2): the same gaps as `continuity(along:of:)`,
+    /// each sample of the edge projected onto the face (samples over 1 mm away or off the trimmed face are skipped), the normals compared up to
+    /// sign for the curvature, and the angle gap measured between A's direction continuing past the edge and B's direction leaving it,
+    /// so a face folded back over the sheet reads π. An edge that isn't a free edge is
+    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (under half the samples usable) "The edge doesn't run along that face.". The default refuses.
+    func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) async throws -> EdgeContinuity
     /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
     /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.
     func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid
@@ -99,8 +105,18 @@ public protocol Kernel: Actor {
     func loftSurface(_ sections: [Curve], ruled: Bool, closed: Bool, tag: NodeTag) throws -> Solid
     /// `profiles` swept along `path`. The default refuses.
     func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid
+    /// `profiles` swept along `path`, held to a second rail or a guide surface. The default refuses.
+    func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, guide: SweepGuide?, tag: NodeTag) throws -> Solid
     /// A planar surface bounded by `loops`. The default refuses.
     func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid
+    /// The Gordon surface through a grid of `u` and `v` curves, which may come in any order and direction and must cross
+    /// pairwise within `tolerance`. A curve that runs past the border curves is trimmed to them. Asynchronous so a cancelled task stops the build. The default refuses.
+    func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) async throws -> Solid
+    /// One face that fills the closed loop of `boundary` (the pieces of its curves, then its picked edges; 1 to 16 chaining end to end within
+    /// 1e-4 mm), through `points` (within 1e-3 mm) and over `interior` curves. A picked sheet edge (one face) is held to `continuity` against that face;
+    /// curves and a solid's edges are held in position only. Asynchronous so a cancelled task stops the build. The default refuses.
+    func boundaryPatch(_ boundary: PatchBoundary, interior points: [Vector3], interior curves: [Curve],
+                       continuity: PatchContinuity, tag: NodeTag) async throws -> PatchResult
     /// `curve` scaled about the origin by `factor`. (A solid or sheet is scaled with `scaled(_:by:tag:)`, which keeps its face and edge tags.) The default refuses.
     func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve
     /// Every solid, sheet and curve in a model file. The default refuses.
@@ -132,6 +148,10 @@ extension Kernel {
 
     public func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity {
         throw KernelError.unsupported("continuity")
+    }
+
+    public func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) throws -> EdgeContinuity {
+        throw KernelError.unsupported("continuity between bodies")
     }
 
     public func readModel(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> Solid {
@@ -172,11 +192,24 @@ extension Kernel {
     }
 
     public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid {
+        try sweep(profiles, along: path, options: options, guide: nil, tag: tag)
+    }
+
+    public func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, guide: SweepGuide?, tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("sweeping")
     }
 
     public func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("planar surfaces")
+    }
+
+    public func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) async throws -> Solid {
+        throw KernelError.unsupported("network surfaces")
+    }
+
+    public func boundaryPatch(_ boundary: PatchBoundary, interior points: [Vector3], interior curves: [Curve],
+                              continuity: PatchContinuity, tag: NodeTag) async throws -> PatchResult {
+        throw KernelError.unsupported("boundary patches")
     }
 
     public func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve {
