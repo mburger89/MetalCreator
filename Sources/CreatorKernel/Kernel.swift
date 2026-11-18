@@ -110,7 +110,7 @@ public protocol Kernel: Actor {
     /// The Gordon surface through a grid of `u` and `v` curves, which may come in any order and direction and must cross
     /// pairwise within `tolerance`. A curve that runs past the border curves is trimmed to them. Asynchronous so a cancelled task stops the build. The default refuses.
     func networkSurface(u: [Curve], v: [Curve], tolerance: Double, tag: NodeTag) async throws -> Solid
-    /// One face that fills the closed loop of `boundary` (the pieces of its curves, then its picked edges; 2 to 16 chaining end to end within
+    /// One face that fills the closed loop of `boundary` (the pieces of its curves, then its picked edges; 1 to 16 chaining end to end within
     /// 1e-4 mm), through `points` (within 1e-3 mm) and over `interior` curves. A picked sheet edge (one face) is held to `continuity` against that face;
     /// curves and a solid's edges are held in position only. Asynchronous so a cancelled task stops the build. The default refuses.
     func boundaryPatch(_ boundary: PatchBoundary, interior points: [Vector3], interior curves: [Curve],

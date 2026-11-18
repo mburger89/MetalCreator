@@ -47,27 +47,13 @@ using namespace cocct;
 
 namespace {
 
-constexpr const char *kCancelled = "The operation was cancelled.";
 constexpr double kMaximumPoles = 100000;
-
-void poll(const occt_cancel *cancel) {
-    if (cancel && cancel->flag.load() != 0) {
-        throw user_error(kCancelled);
-    }
-}
 
 using BCurve = Handle(Geom_BSplineCurve);
 using BSurface = Handle(Geom_BSplineSurface);
 using Row = std::vector<double>;
 
 constexpr double kKnotEpsilon = 1e-9;
-
-/// A number inside a message, marked so the Swift side can write it in the message locale.
-std::string number(double value) {
-    char text[48];
-    std::snprintf(text, sizeof text, "%.9g", value);
-    return std::string(1, '\x01') + text + std::string(1, '\x02');
-}
 
 std::string curve_name(char axis, int index) { return std::string(1, axis) + " curve " + std::to_string(index + 1); }
 

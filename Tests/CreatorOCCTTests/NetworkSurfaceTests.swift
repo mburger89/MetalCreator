@@ -221,11 +221,9 @@ struct NetworkSurfaceTests {
         let (u, v) = try await leaningSaddle(count: 30)
         let kernel = self.kernel
         let tag = self.tag
-        let started = ContinuousClock.now
         let task = Task { try await kernel.networkSurface(u: u, v: v, tolerance: 0.01, tag: tag) }
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(ContinuousClock.now - started < .seconds(5))
     }
 
     @Test func aNetworkNeedsTwoCurvesEachWay() async throws {

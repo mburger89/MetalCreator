@@ -8,7 +8,9 @@
 #include "cocct_sheet.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepFill_Filling.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
@@ -29,25 +31,12 @@ using namespace cocct;
 
 namespace {
 
-constexpr const char *kCancelled = "The operation was cancelled.";
 constexpr double kJoinTolerance = 1e-4;
 constexpr double kPositionTolerance = 1e-4;
 constexpr double kPointTolerance = 1e-3;
-constexpr int kLeastPieces = 2;
+constexpr int kLeastPieces = 1;
 constexpr int kMostPieces = 16;
 constexpr int kSamplesPerPiece = 17;
-
-void poll(const occt_cancel *cancel) {
-    if (cancel && cancel->flag.load() != 0) {
-        throw user_error(kCancelled);
-    }
-}
-
-std::string number(double value) {
-    char text[48];
-    std::snprintf(text, sizeof text, "%.9g", value);
-    return std::string(1, '\x01') + text + std::string(1, '\x02');
-}
 
 /// One bounding piece, in input order.
 struct piece {
@@ -173,7 +162,7 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         *total_pieces = 0;
         if (continuity < 0 || continuity > 1 || piece_capacity < kMostPieces || curve_count < 0 || edge_count < 0 ||
             point_count < 0 || interior_count < 0) {
-            throw user_error("A patch needs 2 to 16 bounding pieces.");
+            throw user_error("The patch was asked for with invalid settings.");
         }
         std::vector<piece> pieces;
         for (int i = 0; i < curve_count; ++i) {
@@ -208,7 +197,7 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         const int count = static_cast<int>(pieces.size());
         *total_pieces = count;
         if (count < kLeastPieces || count > kMostPieces) {
-            throw user_error("A patch needs 2 to 16 bounding pieces.");
+            throw user_error("A patch needs 1 to 16 bounding pieces.");
         }
         poll(cancel);
 
@@ -299,7 +288,8 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         }
         for (int i = 0; i < point_count; ++i) {
             const gp_Pnt p(points[3 * i], points[3 * i + 1], points[3 * i + 2]);
-            if (distance_to_surface(p, surface) > kPointTolerance) {
+            BRepExtrema_DistShapeShape distance(BRepBuilderAPI_MakeVertex(p).Vertex(), face);
+            if (!distance.IsDone() || distance.Value() > kPointTolerance) {
                 throw user_error("The patch can't pass through point " + std::to_string(i + 1) + ".");
             }
         }
@@ -309,22 +299,25 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         records.move_into(history);
         boundary_table table(face);
         const TopTools_IndexedMapOfShape face_edges = map_of(face, TopAbs_EDGE);
-        std::vector<int> assigned(static_cast<std::size_t>(count), 0);
-        for (int e = 1; e <= face_edges.Extent(); ++e) {
-            const TopoDS_Edge edge = TopoDS::Edge(face_edges(e));
-            if (BRep_Tool::Degenerated(edge)) {
-                continue;
-            }
-            const int found = piece_of(edge, pieces);
-            if (found < 0) {
-                continue;
-            }
-            for (int k = 0; k < count; ++k) {
-                if (piece_order[k] == found && assigned[static_cast<std::size_t>(k)] == 0) {
-                    assigned[static_cast<std::size_t>(k)] = 1;
-                    table.set(edge, kBoundaryPiece, 0, k);
+        // Each input piece's edge in the face: what the fill generated from it, else the edge in the same place.
+        for (int input = 0; input < count; ++input) {
+            const int k = static_cast<int>(std::find(piece_order, piece_order + count, input) - piece_order);
+            TopoDS_Shape found;
+            for (TopTools_ListOfShape::Iterator it(fill.Generated(pieces[static_cast<std::size_t>(input)].edge)); it.More(); it.Next()) {
+                if (face_edges.Contains(it.Value())) {
+                    found = it.Value();
                 }
             }
+            for (int e = 1; found.IsNull() && e <= face_edges.Extent(); ++e) {
+                const TopoDS_Edge edge = TopoDS::Edge(face_edges(e));
+                if (!BRep_Tool::Degenerated(edge) && piece_of(edge, pieces) == input) {
+                    found = edge;
+                }
+            }
+            if (found.IsNull()) {
+                throw user_error("The patch couldn't be made from these pieces.");
+            }
+            table.set(found, kBoundaryPiece, 0, k);
         }
         table.move_into(roles);
         return new occt_shape{face};

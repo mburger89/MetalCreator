@@ -48,6 +48,7 @@ extension OCCTShape {
 
 extension OCCTKernel {
     static let patchCannotHoldTangent = "The patch isn't tangent to the surface along piece %d; the hole may be too sharp for G1."
+    static let patchNotMade = "The patch couldn't be made from these pieces."
     static let patchOnlyG0 = "No bounding edge lies on a surface, so the patch is only G0."
 
     /// The shim's inputs for `boundary`, and which picked edges (by index) lie on a face of the part.
@@ -112,10 +113,13 @@ extension OCCTKernel {
         let curveCount = pieces.total - edges.count
         for index in supported {
             let input = curveCount + index
-            guard let loopPiece = pieces.order.firstIndex(of: input) else { continue }
-            let role = TopoTag(tag, .boundary(.piece(loop: 0, segment: loopPiece)))
-            guard let patchEdge = sheet.topology.edges.first(where: { $0.tags.contains(role) }),
-                  let face = part.topology.edges[edges[index].rawValue].faces.first else { continue }
+            guard let loopPiece = pieces.order.firstIndex(of: input),
+                  let patchEdge = sheet.topology.edges.first(where: {
+                      $0.tags.contains(TopoTag(tag, .boundary(.piece(loop: 0, segment: loopPiece))))
+                  }),
+                  let face = part.topology.edges[edges[index].rawValue].faces.first else {
+                throw KernelError.invalidInput(Self.patchNotMade)
+            }
             let found = try await continuity(of: patchEdge.id, in: sheet, against: face, of: part)
             if found.grade < .g1 {
                 throw KernelError.invalidInput(Self.patchCannotHoldTangent.replacingOccurrences(of: "%d", with: "\(input + 1)"))

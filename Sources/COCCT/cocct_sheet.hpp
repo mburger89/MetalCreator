@@ -8,6 +8,8 @@
 #include <TopoDS_Shape.hxx>
 
 #include <atomic>
+#include <cstdio>
+#include <string>
 #include <vector>
 
 /// A flag a caller on another thread sets to stop a long build; polled between the build's steps.
@@ -16,6 +18,23 @@ struct occt_cancel {
 };
 
 namespace cocct {
+
+/// What a shim refuses with when its `occt_cancel` flag was set.
+inline constexpr const char *kCancelled = "The operation was cancelled.";
+
+/// Throws `kCancelled` when `cancel` is set; shims call it between the steps of a long build.
+inline void poll(const occt_cancel *cancel) {
+    if (cancel && cancel->flag.load() != 0) {
+        throw user_error(kCancelled);
+    }
+}
+
+/// A number inside a message, marked so the Swift side can write it in the message locale.
+inline std::string number(double value) {
+    char text[48];
+    std::snprintf(text, sizeof text, "%.9g", value);
+    return std::string(1, '\x01') + text + std::string(1, '\x02');
+}
 
 /// `occt_boundary_role.kind` codes.
 enum boundary_kind {
