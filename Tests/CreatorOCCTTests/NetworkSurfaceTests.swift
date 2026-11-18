@@ -55,6 +55,28 @@ struct NetworkSurfaceTests {
         return (u, v)
     }
 
+    /// A curved network of `count` u and `count` v curves on z = 0.1 x^2 - 0.1 y^2 whose v curves lean unevenly, so the
+    /// crossings fall at different parameters on every curve.
+    func leaningSaddle(count: Int) async throws -> (u: [Curve], v: [Curve]) {
+        var u: [Curve] = []
+        var v: [Curve] = []
+        for i in 0..<count {
+            let y = 10 * Double(i) / Double(count - 1)
+            let z = -0.1 * y * y
+            u.append(try await parabola(Vector3(0, y, z), Vector3(5, y, z), Vector3(10, y, z + 10)))
+        }
+        for j in 0..<count {
+            let a = 10 * Double(j) / Double(count - 1)
+            let s = (j == 0 || j == count - 1) ? 0 : 0.3 * sin(3 * Double(j)) * 10 / Double(count - 1)
+            let z0 = 0.1 * a * a
+            v.append(try await parabola(Vector3(a, 0, z0), Vector3(a + s / 2, 5, z0 + 0.1 * a * s),
+                                        Vector3(a + s, 10, z0 + 0.2 * a * s + 0.1 * s * s - 10)))
+        }
+        return (u, v)
+    }
+
+    func message(of error: any Error, _ expected: String) -> Bool { message(of: error) == expected }
+
     func maxMiss(_ curves: [Curve], _ sheet: Solid) async throws -> Double {
         var worst = 0.0
         for curve in curves {
@@ -70,7 +92,8 @@ struct NetworkSurfaceTests {
         #expect(sheet.topology.faces.count == 1)
         #expect(!sheet.isClosed)
         #expect(isClose(try await kernel.properties(of: sheet).surfaceArea, 100, relative: 1e-9))
-        #expect(abs(sheet.bounds.min.z) < 1e-5 && abs(sheet.bounds.max.z) < 1e-5)
+        let mesh = try await kernel.tessellate(sheet, tolerance: 0.05)
+        #expect(!mesh.positions.isEmpty && mesh.positions.allSatisfy { abs($0.z) < 1e-9 })
     }
 
     @Test func aSaddleNetworkPassesThroughEveryCurve() async throws {
@@ -140,6 +163,71 @@ struct NetworkSurfaceTests {
         #expect(try await maxMiss(u + v, sheet) <= 1e-4)
     }
 
+    @Test func aCurvedNetworkWithUnevenCrossingsPassesThroughEveryCurve() async throws {
+        let (u, v) = try await leaningSaddle(count: 3)
+        let sheet = try await kernel.networkSurface(u: u, v: v.reversed(), tolerance: 0.01, tag: tag)
+        #expect(try await maxMiss(u + v, sheet) <= 1e-3)
+    }
+
+    @Test func aNetworkNeedingTooManyControlPointsIsRefused() async throws {
+        let (u, v) = try await leaningSaddle(count: 30)
+        await #expect {
+            try await kernel.networkSurface(u: u, v: v, tolerance: 0.01, tag: tag)
+        } throws: {
+            (message(of: $0) ?? "").hasPrefix("The network is too detailed: it would need ")
+                && (message(of: $0) ?? "").hasSuffix(" control points (the limit is 100,000).")
+        }
+    }
+
+    @Test func aSmallMissReadsWithItsSignificantFigures() async throws {
+        let (u, v) = try await gridLines(liftedV: 2, lift: 0.003)
+        await #expect {
+            try await kernel.networkSurface(u: u, v: v, tolerance: 0.001, tag: tag)
+        } throws: { message(of: $0, "u curve 1 and v curve 3 miss each other by 0.003 mm.") }
+    }
+
+    @Test func aCurvePastTheBorderCurvesIsTrimmedToThem() async throws {
+        var (u, v) = try await gridLines()
+        u[1] = try await line(Vector3(0, 5, 0), Vector3(12, 5, 0))
+        v[0] = try await line(Vector3(0, -2, 0), Vector3(0, 10, 0))
+        let sheet = try await kernel.networkSurface(u: u, v: v, tolerance: 0.01, tag: tag)
+        #expect(isClose(try await kernel.properties(of: sheet).surfaceArea, 100, relative: 1e-6))
+    }
+
+    @Test func aShallowCrossingBuilds() async throws {
+        // A parallelogram: u lines 3 mm apart, v lines at 10 degrees to them.
+        let run = 3 / tan(10 * Double.pi / 180)
+        let u = [try await line(Vector3(0, 0, 0), Vector3(30, 0, 0)), try await line(Vector3(0, 3, 0), Vector3(31, 3, 0))]
+        let v = [try await line(Vector3(0, 0, 0), Vector3(run, 3, 0)), try await line(Vector3(13, 0, 0), Vector3(13 + run, 3, 0))]
+        let sheet = try await kernel.networkSurface(u: u, v: v, tolerance: 0.01, tag: tag)
+        let area = try await kernel.properties(of: sheet).surfaceArea
+        #expect(isClose(area, 13 * 3, relative: 1e-6), "area \(area)")
+    }
+
+    @Test func aCancelledFlagStopsTheShimBeforeItBuilds() async throws {
+        let (u, v) = try await gridLines()
+        let flag = OCCTCancelFlag()
+        flag.cancel()
+        let uWires = try u.map { try #require(($0.storage as? OCCTSolidStorage)?.shape) }
+        let vWires = try v.map { try #require(($0.storage as? OCCTSolidStorage)?.shape) }
+        #expect {
+            try OCCTKernel.serialized {
+                try OCCTShape.networkSurface(u: uWires, v: vWires, tolerance: 0.01, cancel: flag)
+            }
+        } throws: { ($0 as? OCCTError)?.message == OCCTCancelFlag.message }
+    }
+
+    @Test func cancellingTheTaskStopsALargeBuild() async throws {
+        let (u, v) = try await leaningSaddle(count: 30)
+        let kernel = self.kernel
+        let tag = self.tag
+        let started = ContinuousClock.now
+        let task = Task { try await kernel.networkSurface(u: u, v: v, tolerance: 0.01, tag: tag) }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(ContinuousClock.now - started < .seconds(5))
+    }
+
     @Test func aNetworkNeedsTwoCurvesEachWay() async throws {
         let (u, v) = try await gridLines()
         for (a, b) in [([u[0]], v), (u, [v[0]]), ([], v)] {
@@ -155,7 +243,7 @@ struct NetworkSurfaceTests {
         let twice = try await parabola(Vector3(4, 0, 0), Vector3(6, 20, 0), Vector3(4, 10, 0))
         await #expect {
             try await kernel.networkSurface(u: u, v: [v[0], twice, v[2]], tolerance: 0.01, tag: tag)
-        } throws: { message(of: $0)?.hasSuffix(" more than once.") == true }
+        } throws: { message(of: $0) == "u curve 3 crosses v curve 2 more than once." }
     }
 
     @Test func namesTheBorders() async throws {

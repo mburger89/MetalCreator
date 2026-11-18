@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -44,7 +45,21 @@
 
 using namespace cocct;
 
+/// A flag a caller on another thread sets to stop a long build; polled between the build's steps.
+struct occt_cancel {
+    std::atomic<int> flag{0};
+};
+
 namespace {
+
+constexpr const char *kCancelled = "The operation was cancelled.";
+constexpr double kMaximumPoles = 100000;
+
+void poll(const occt_cancel *cancel) {
+    if (cancel && cancel->flag.load() != 0) {
+        throw user_error(kCancelled);
+    }
+}
 
 using BCurve = Handle(Geom_BSplineCurve);
 using BSurface = Handle(Geom_BSplineSurface);
@@ -140,6 +155,19 @@ struct candidate {
     gp_Pnt a;
 };
 
+double distance_to_curve(const gp_Pnt &p, const BCurve &curve) {
+    double nearest = std::min(p.Distance(curve->Value(0)), p.Distance(curve->Value(1)));
+    try {
+        GeomAPI_ProjectPointOnCurve projection(p, curve);
+        if (projection.NbPoints() > 0) {
+            nearest = std::min(nearest, projection.LowerDistance());
+        }
+    } catch (const Standard_Failure &) {
+        return nearest;
+    }
+    return nearest;
+}
+
 crossing cross(const BCurve &cu, const BCurve &cv, double tolerance) {
     std::vector<candidate> found;
     const auto add = [&](double pu, double pv) {
@@ -183,17 +211,27 @@ crossing cross(const BCurve &cu, const BCurve &cv, double tolerance) {
     out.pu = found.front().pu;
     out.pv = found.front().pv;
     out.distance = found.front().distance;
-    std::vector<gp_Pnt> places;
-    const double same = std::max(tolerance, 1e-6);
+    // Candidates joined by a run of the u curve that stays within the tolerance of the v curve are one place: a shallow
+    // crossing keeps the curves that close over a long stretch.
+    std::vector<candidate> hits;
     for (const candidate &item : found) {
-        if (item.distance > tolerance) {
-            break;
-        }
-        if (std::none_of(places.begin(), places.end(), [&](const gp_Pnt &p) { return p.Distance(item.a) <= same; })) {
-            places.push_back(item.a);
+        if (item.distance <= tolerance) {
+            hits.push_back(item);
         }
     }
-    out.places = static_cast<int>(places.size());
+    std::sort(hits.begin(), hits.end(), [](const candidate &x, const candidate &y) { return x.pu < y.pu; });
+    int places = 0;
+    for (std::size_t i = 0; i < hits.size(); ++i) {
+        bool joined = i > 0;
+        for (int s = 1; joined && s < 16; ++s) {
+            const double at = hits[i - 1].pu + (hits[i].pu - hits[i - 1].pu) * s / 16.0;
+            joined = distance_to_curve(cu->Value(at), cv) <= tolerance;
+        }
+        if (!joined) {
+            ++places;
+        }
+    }
+    out.places = places;
     return out;
 }
 
@@ -205,6 +243,25 @@ struct interpolation {
     std::vector<Row> poles;             // one row of `dimension` numbers per pole
 };
 
+/// The knot vector global interpolation at `params` uses (degree min(3, count - 1), knots by averaging).
+std::vector<double> averaged_flat(const std::vector<double> &params) {
+    const int n = static_cast<int>(params.size());
+    const int q = std::min(3, n - 1);
+    std::vector<double> flat(static_cast<std::size_t>(n + q + 1), 0.0);
+    for (int i = 0; i <= q; ++i) {
+        flat[static_cast<std::size_t>(i)] = params.front();
+        flat[static_cast<std::size_t>(n + i)] = params.back();
+    }
+    for (int j = 1; j <= n - q - 1; ++j) {
+        double sum = 0;
+        for (int i = j; i < j + q; ++i) {
+            sum += params[static_cast<std::size_t>(i)];
+        }
+        flat[static_cast<std::size_t>(j + q)] = sum / q;
+    }
+    return flat;
+}
+
 /// Global interpolation of `data` (one row per parameter) at `params` (strictly increasing, first 0 and last 1), of degree
 /// min(3, count - 1): linear for two, quadratic for three, cubic from four (ruling R-A). Knots by averaging.
 interpolation interpolate(const std::vector<double> &params, const std::vector<Row> &data) {
@@ -213,18 +270,7 @@ interpolation interpolate(const std::vector<double> &params, const std::vector<R
     const int q = std::min(3, n - 1);
     interpolation out;
     out.degree = q;
-    out.flat.assign(static_cast<std::size_t>(n + q + 1), 0.0);
-    for (int i = 0; i <= q; ++i) {
-        out.flat[static_cast<std::size_t>(i)] = params.front();
-        out.flat[static_cast<std::size_t>(n + i)] = params.back();
-    }
-    for (int j = 1; j <= n - q - 1; ++j) {
-        double sum = 0;
-        for (int i = j; i < j + q; ++i) {
-            sum += params[static_cast<std::size_t>(i)];
-        }
-        out.flat[static_cast<std::size_t>(j + q)] = sum / q;
-    }
+    out.flat = averaged_flat(params);
     TColStd_Array1OfReal flat(1, n + q + 1);
     for (int i = 0; i < n + q + 1; ++i) {
         flat(i + 1) = out.flat[static_cast<std::size_t>(i)];
@@ -285,36 +331,56 @@ TColStd_Array1OfInteger integers(const std::vector<int> &values) {
 
 // MARK: Compatibility
 
-/// Merges (knot, multiplicity) lists, keeping the larger multiplicity of knots within `kKnotEpsilon`.
-void merge_knots(std::vector<std::pair<double, int>> &into, const std::vector<std::pair<double, int>> &more) {
-    for (const auto &item : more) {
-        const auto it = std::find_if(into.begin(), into.end(),
-                                     [&](const std::pair<double, int> &x) { return std::abs(x.first - item.first) < kKnotEpsilon; });
-        if (it == into.end()) {
-            into.push_back(item);
+/// Sorts (knot, multiplicity) pairs and merges knots within `kKnotEpsilon`, keeping the larger multiplicity.
+void merge_knots(std::vector<std::pair<double, int>> &items) {
+    std::sort(items.begin(), items.end());
+    std::vector<std::pair<double, int>> merged;
+    for (const auto &item : items) {
+        if (!merged.empty() && std::abs(merged.back().first - item.first) < kKnotEpsilon) {
+            merged.back().second = std::max(merged.back().second, item.second);
         } else {
-            it->second = std::max(it->second, item.second);
+            merged.push_back(item);
         }
     }
-    std::sort(into.begin(), into.end());
+    items = std::move(merged);
 }
 
-template <typename Object, typename KnotAt, typename MultAt>
-std::vector<std::pair<double, int>> knots_of(const Object &object, int count, KnotAt knot_at, MultAt mult_at) {
-    std::vector<std::pair<double, int>> out;
-    for (int i = 1; i <= count; ++i) {
-        out.emplace_back(knot_at(object, i), mult_at(object, i));
+/// Appends a curve's or surface's knots with multiplicities raised by `raise` (a degree increase).
+void append_knots(std::vector<std::pair<double, int>> &into, const std::vector<double> &flat, int raise) {
+    std::vector<double> knots;
+    std::vector<int> mults;
+    distinct(flat, knots, mults);
+    for (std::size_t i = 0; i < knots.size(); ++i) {
+        into.emplace_back(knots[i], mults[i] + raise);
     }
-    return out;
 }
 
-void split(const std::vector<std::pair<double, int>> &merged, TColStd_Array1OfReal *&knots, TColStd_Array1OfInteger *&mults) {
-    knots = new TColStd_Array1OfReal(1, static_cast<int>(merged.size()));
-    mults = new TColStd_Array1OfInteger(1, static_cast<int>(merged.size()));
+/// Control points along one direction once `sources` (flat knot vectors with their degrees) are made compatible.
+double compatible_poles(const std::vector<std::pair<std::vector<double>, int>> &sources) {
+    int degree = 0;
+    for (const auto &source : sources) {
+        degree = std::max(degree, source.second);
+    }
+    std::vector<std::pair<double, int>> items;
+    for (const auto &source : sources) {
+        append_knots(items, source.first, degree - source.second);
+    }
+    merge_knots(items);
+    double total = 0;
+    for (const auto &item : items) {
+        total += item.second;
+    }
+    return total - degree - 1;
+}
+
+std::pair<TColStd_Array1OfReal, TColStd_Array1OfInteger> split(const std::vector<std::pair<double, int>> &merged) {
+    TColStd_Array1OfReal knots(1, static_cast<int>(merged.size()));
+    TColStd_Array1OfInteger mults(1, static_cast<int>(merged.size()));
     for (std::size_t i = 0; i < merged.size(); ++i) {
-        (*knots)(static_cast<int>(i) + 1) = merged[i].first;
-        (*mults)(static_cast<int>(i) + 1) = merged[i].second;
+        knots(static_cast<int>(i) + 1) = merged[i].first;
+        mults(static_cast<int>(i) + 1) = merged[i].second;
     }
+    return {knots, mults};
 }
 
 bool same_knots(const TColStd_Array1OfReal &a, const TColStd_Array1OfInteger &am, const TColStd_Array1OfReal &b,
@@ -332,27 +398,26 @@ bool same_knots(const TColStd_Array1OfReal &a, const TColStd_Array1OfInteger &am
 }
 
 /// Raises every curve to the highest degree among them and inserts every knot of every curve into each.
-void make_compatible(std::vector<BCurve> &curves) {
+void make_compatible(std::vector<BCurve> &curves, const occt_cancel *cancel) {
     int degree = 0;
     for (const BCurve &curve : curves) {
         degree = std::max(degree, curve->Degree());
     }
     std::vector<std::pair<double, int>> merged;
     for (BCurve &curve : curves) {
+        poll(cancel);
         if (curve->Degree() < degree) {
             curve->IncreaseDegree(degree);
         }
-        merge_knots(merged, knots_of(curve, curve->NbKnots(),
-                                     [](const BCurve &c, int i) { return c->Knot(i); },
-                                     [](const BCurve &c, int i) { return c->Multiplicity(i); }));
+        for (int i = 1; i <= curve->NbKnots(); ++i) {
+            merged.emplace_back(curve->Knot(i), curve->Multiplicity(i));
+        }
     }
-    TColStd_Array1OfReal *knots = nullptr;
-    TColStd_Array1OfInteger *mults = nullptr;
-    split(merged, knots, mults);
-    std::unique_ptr<TColStd_Array1OfReal> knots_owner(knots);
-    std::unique_ptr<TColStd_Array1OfInteger> mults_owner(mults);
+    merge_knots(merged);
+    const auto inserts = split(merged);
     for (BCurve &curve : curves) {
-        curve->InsertKnots(*knots, *mults, kKnotEpsilon, Standard_False);
+        poll(cancel);
+        curve->InsertKnots(inserts.first, inserts.second, kKnotEpsilon, Standard_False);
     }
     for (const BCurve &curve : curves) {
         if (curve->Degree() != curves.front()->Degree() || curve->NbPoles() != curves.front()->NbPoles() ||
@@ -363,7 +428,7 @@ void make_compatible(std::vector<BCurve> &curves) {
 }
 
 /// The same for three surfaces in both directions: afterwards they share degrees, knots and multiplicities.
-void make_compatible(std::vector<BSurface> &surfaces) {
+void make_compatible(std::vector<BSurface> &surfaces, const occt_cancel *cancel) {
     int u_degree = 0;
     int v_degree = 0;
     for (const BSurface &surface : surfaces) {
@@ -373,27 +438,23 @@ void make_compatible(std::vector<BSurface> &surfaces) {
     std::vector<std::pair<double, int>> u_merged;
     std::vector<std::pair<double, int>> v_merged;
     for (BSurface &surface : surfaces) {
+        poll(cancel);
         surface->IncreaseDegree(u_degree, v_degree);
-        merge_knots(u_merged, knots_of(surface, surface->NbUKnots(),
-                                       [](const BSurface &s, int i) { return s->UKnot(i); },
-                                       [](const BSurface &s, int i) { return s->UMultiplicity(i); }));
-        merge_knots(v_merged, knots_of(surface, surface->NbVKnots(),
-                                       [](const BSurface &s, int i) { return s->VKnot(i); },
-                                       [](const BSurface &s, int i) { return s->VMultiplicity(i); }));
+        for (int i = 1; i <= surface->NbUKnots(); ++i) {
+            u_merged.emplace_back(surface->UKnot(i), surface->UMultiplicity(i));
+        }
+        for (int i = 1; i <= surface->NbVKnots(); ++i) {
+            v_merged.emplace_back(surface->VKnot(i), surface->VMultiplicity(i));
+        }
     }
-    TColStd_Array1OfReal *uk = nullptr;
-    TColStd_Array1OfInteger *um = nullptr;
-    TColStd_Array1OfReal *vk = nullptr;
-    TColStd_Array1OfInteger *vm = nullptr;
-    split(u_merged, uk, um);
-    split(v_merged, vk, vm);
-    std::unique_ptr<TColStd_Array1OfReal> uk_owner(uk);
-    std::unique_ptr<TColStd_Array1OfInteger> um_owner(um);
-    std::unique_ptr<TColStd_Array1OfReal> vk_owner(vk);
-    std::unique_ptr<TColStd_Array1OfInteger> vm_owner(vm);
+    merge_knots(u_merged);
+    merge_knots(v_merged);
+    const auto u_inserts = split(u_merged);
+    const auto v_inserts = split(v_merged);
     for (BSurface &surface : surfaces) {
-        surface->InsertUKnots(*uk, *um, kKnotEpsilon, Standard_False);
-        surface->InsertVKnots(*vk, *vm, kKnotEpsilon, Standard_False);
+        poll(cancel);
+        surface->InsertUKnots(u_inserts.first, u_inserts.second, kKnotEpsilon, Standard_False);
+        surface->InsertVKnots(v_inserts.first, v_inserts.second, kKnotEpsilon, Standard_False);
     }
     const BSurface &base = surfaces.front();
     for (const BSurface &surface : surfaces) {
@@ -510,6 +571,60 @@ BSurface tensor(const std::vector<std::vector<gp_Pnt>> &points, const std::vecto
 
 // MARK: Reparametrisation
 
+/// A monotone cubic Hermite map (Fritsch-Carlson) through the points (own[j], target[j]): smooth, so the curve sampled
+/// through it can be refitted by a low-degree spline, and strictly increasing, so no parameter folds back.
+class monotone_map {
+public:
+    monotone_map(const Row &x, const Row &y) : x_(x), y_(y), m_(x.size(), 0.0) {
+        const std::size_t n = x.size();
+        Row d(n - 1);
+        for (std::size_t k = 0; k + 1 < n; ++k) {
+            d[k] = (y[k + 1] - y[k]) / (x[k + 1] - x[k]);
+        }
+        if (n == 2) {
+            m_[0] = m_[1] = d[0];
+            return;
+        }
+        for (std::size_t k = 1; k + 1 < n; ++k) {
+            const double h0 = x[k] - x[k - 1];
+            const double h1 = x[k + 1] - x[k];
+            const double w1 = 2 * h1 + h0;
+            const double w2 = h1 + 2 * h0;
+            m_[k] = (w1 + w2) / (w1 / d[k - 1] + w2 / d[k]);
+        }
+        m_[0] = end_slope(x[1] - x[0], x[2] - x[1], d[0], d[1]);
+        m_[n - 1] = end_slope(x[n - 1] - x[n - 2], x[n - 2] - x[n - 3], d[n - 2], d[n - 3]);
+    }
+
+    double operator()(double t) const {
+        std::size_t k = 0;
+        while (k + 2 < x_.size() && t > x_[k + 1]) {
+            ++k;
+        }
+        const double h = x_[k + 1] - x_[k];
+        const double u = (t - x_[k]) / h;
+        const double u2 = u * u;
+        const double u3 = u2 * u;
+        return (2 * u3 - 3 * u2 + 1) * y_[k] + (u3 - 2 * u2 + u) * h * m_[k] + (-2 * u3 + 3 * u2) * y_[k + 1] +
+               (u3 - u2) * h * m_[k + 1];
+    }
+
+private:
+    static double end_slope(double h0, double h1, double d0, double d1) {
+        double m = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1);
+        if (m * d0 <= 0) {
+            m = 0;
+        } else if (d0 * d1 <= 0 && std::abs(m) > 3 * std::abs(d0)) {
+            m = 3 * d0;
+        }
+        return m;
+    }
+
+    Row x_;
+    Row y_;
+    Row m_;
+};
+
 /// `curve` refitted so its crossings, now at `own`, land on `target`. A curve already there is returned as it is.
 /// An empty result means the refit left the curve by more than `limit`.
 BCurve reparametrise(const BCurve &curve, const Row &own, const Row &target, double fit_tolerance, double limit) {
@@ -521,13 +636,14 @@ BCurve reparametrise(const BCurve &curve, const Row &own, const Row &target, dou
         return curve;
     }
     constexpr int kPerSpan = 20;
+    const monotone_map map(own, target);
     std::vector<gp_Pnt> points;
     std::vector<double> params;
     for (std::size_t j = 0; j + 1 < own.size(); ++j) {
         for (int k = 0; k < kPerSpan; ++k) {
-            const double f = static_cast<double>(k) / kPerSpan;
-            points.push_back(curve->Value(own[j] + (own[j + 1] - own[j]) * f));
-            params.push_back(target[j] + (target[j + 1] - target[j]) * f);
+            const double at = own[j] + (own[j + 1] - own[j]) * static_cast<double>(k) / kPerSpan;
+            points.push_back(curve->Value(at));
+            params.push_back(k == 0 ? target[j] : map(at));
         }
     }
     points.push_back(curve->Value(1.0));
@@ -597,9 +713,19 @@ bool increasing(const Row &values) {
 
 extern "C" {
 
+occt_cancel *occt_cancel_new(void) { return new occt_cancel(); }
+
+void occt_cancel_set(occt_cancel *cancel) {
+    if (cancel) {
+        cancel->flag.store(1);
+    }
+}
+
+void occt_cancel_free(occt_cancel *cancel) { delete cancel; }
+
 occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count, const occt_shape *const *v_curves,
-                                 int v_count, double tolerance, occt_history *history, occt_boundary_roles *roles,
-                                 occt_status *status) {
+                                 int v_count, double tolerance, const occt_cancel *cancel, occt_history *history,
+                                 occt_boundary_roles *roles, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         occt_initialize();
         *history = occt_history{};
@@ -615,27 +741,20 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
         std::vector<BCurve> raw_u;
         std::vector<BCurve> raw_v;
         for (std::size_t i = 0; i < nu; ++i) {
+            poll(cancel);
             raw_u.push_back(spline_of(u_curves[i]));
         }
         for (std::size_t j = 0; j < nv; ++j) {
+            poll(cancel);
             raw_v.push_back(spline_of(v_curves[j]));
         }
-        double scale = 0;
-        for (const std::vector<BCurve> *family : {&raw_u, &raw_v}) {
-            for (const BCurve &curve : *family) {
-                for (int k = 1; k <= curve->NbPoles(); ++k) {
-                    const gp_Pnt p = curve->Pole(k);
-                    scale = std::max({scale, std::abs(p.X()), std::abs(p.Y()), std::abs(p.Z())});
-                }
-            }
-        }
-        scale = std::max(scale, 1.0);
 
         // Every pair's nearest approach, then the order: u curves by where they meet the first v curve, v curves by where
         // they meet the first u curve.
         std::vector<std::vector<crossing>> raw(nu, std::vector<crossing>(nv));
         for (std::size_t i = 0; i < nu; ++i) {
             for (std::size_t j = 0; j < nv; ++j) {
+                poll(cancel);
                 raw[i][j] = cross(raw_u[i], raw_v[j], tolerance);
             }
         }
@@ -753,18 +872,20 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
         std::vector<BCurve> fit_u;
         std::vector<BCurve> fit_v;
         for (std::size_t i = 0; i < nu; ++i) {
-            const BCurve fitted = reparametrise(us[i], a[i], u_bar, 1e-7 * scale, tolerance / 10);
+            poll(cancel);
+            const BCurve fitted = reparametrise(us[i], a[i], u_bar, tolerance / 40, tolerance / 10);
             if (fitted.IsNull()) {
                 throw user_error(curve_name('u', static_cast<int>(i)) + " can't be fitted to the network.");
             }
             fit_u.push_back(fitted);
         }
         for (std::size_t j = 0; j < nv; ++j) {
+            poll(cancel);
             Row own;
             for (std::size_t i = 0; i < nu; ++i) {
                 own.push_back(b[i][j]);
             }
-            const BCurve fitted = reparametrise(vs[j], own, v_bar, 1e-7 * scale, tolerance / 10);
+            const BCurve fitted = reparametrise(vs[j], own, v_bar, tolerance / 40, tolerance / 10);
             if (fitted.IsNull()) {
                 throw user_error(curve_name('v', static_cast<int>(j)) + " can't be fitted to the network.");
             }
@@ -779,10 +900,27 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
                 points[i][j] = gp_Pnt((pu.X() + pv.X()) / 2, (pu.Y() + pv.Y()) / 2, (pu.Z() + pv.Z()) / 2);
             }
         }
-        make_compatible(fit_u);
-        make_compatible(fit_v);
+        // The surface's size is known from the knots before anything is built: refuse one that is too detailed.
+        std::vector<std::pair<std::vector<double>, int>> u_sources{{averaged_flat(u_bar), std::min(3, v_count - 1)}};
+        std::vector<std::pair<std::vector<double>, int>> v_sources{{averaged_flat(v_bar), std::min(3, u_count - 1)}};
+        for (const BCurve &curve : fit_u) {
+            u_sources.emplace_back(flat_of(curve), curve->Degree());
+        }
+        for (const BCurve &curve : fit_v) {
+            v_sources.emplace_back(flat_of(curve), curve->Degree());
+        }
+        const double needed = compatible_poles(u_sources) * compatible_poles(v_sources);
+        if (needed > kMaximumPoles) {
+            throw user_error("The network is too detailed: it would need " + number(needed) +
+                             " control points (the limit is 100,000).");
+        }
+        poll(cancel);
+        make_compatible(fit_u, cancel);
+        make_compatible(fit_v, cancel);
+        poll(cancel);
         std::vector<BSurface> parts{skin(fit_u, v_bar, true), skin(fit_v, u_bar, false), tensor(points, u_bar, v_bar)};
-        make_compatible(parts);
+        make_compatible(parts, cancel);
+        poll(cancel);
 
         // P = P_u + P_v - P_T.
         const BSurface &base = parts[0];
@@ -808,6 +946,7 @@ occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count,
             const std::vector<BCurve> &curves = family == 0 ? us : vs;
             for (std::size_t k = 0; k < curves.size(); ++k) {
                 double worst = 0;
+                poll(cancel);
                 for (int s = 0; s < 50; ++s) {
                     const gp_Pnt p = curves[k]->Value(static_cast<double>(s) / 49.0);
                     worst = std::max(worst, distance_to(p, surface, face));

@@ -564,14 +564,22 @@ occt_shape *occt_sweep_curves(const occt_shape *const *profiles, int count, cons
                               const double binormal[3], double end_scale, int make_solid, occt_history *history,
                               occt_boundary_roles *roles, occt_status *status);
 
+/// A flag another thread sets to stop a long shim call; the call polls it between steps and refuses with "The operation was cancelled.".
+typedef struct occt_cancel occt_cancel;
+occt_cancel *occt_cancel_new(void);
+void occt_cancel_set(occt_cancel *cancel);
+void occt_cancel_free(occt_cancel *cancel);
+
 /// The Gordon surface through a grid of curves (wires): `u_count` curves one way and `v_count` the other, in any order and
-/// direction (they are sorted and turned here; each pair must cross within `tolerance`). One face, non-rational. History: the
-/// face is OCCT_FROM_SEGMENT (0, 0). Roles: the first and last u curve's edges are kinds 1 and 2, the first and last v curve's
-/// are kind 3 with a = 0 and 1 (in the sorted order). Numbers in refusals are wrapped in \x01 ... \x02 so the caller can write
-/// them in its locale. Refuses with sentences such as "u curve 2 and v curve 3 miss each other by 0.4 mm.".
+/// direction (they are sorted and turned here, the first u and the first v curve fixing the orientation; each pair must cross within
+/// `tolerance`). A curve that runs past the border curves is trimmed to them. One face, non-rational, at most 100,000 control points
+/// ("The network is too detailed: ..."). History: the face is OCCT_FROM_SEGMENT (0, 0). Roles: the first and last u curve's edges are
+/// kinds 1 and 2, the first and last v curve's are kind 3 with a = 0 and 1 (in the sorted order). Numbers in refusals are wrapped in
+/// \x01 ... \x02 so the caller can write them in its locale. `cancel` may be NULL. Refuses with sentences such as
+/// "u curve 2 and v curve 3 miss each other by 0.4 mm.".
 occt_shape *occt_network_surface(const occt_shape *const *u_curves, int u_count, const occt_shape *const *v_curves,
-                                 int v_count, double tolerance, occt_history *history, occt_boundary_roles *roles,
-                                 occt_status *status);
+                                 int v_count, double tolerance, const occt_cancel *cancel, occt_history *history,
+                                 occt_boundary_roles *roles, occt_status *status);
 
 #ifdef __cplusplus
 }
