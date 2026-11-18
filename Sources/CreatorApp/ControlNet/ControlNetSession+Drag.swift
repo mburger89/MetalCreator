@@ -43,7 +43,7 @@ extension ControlNetSession {
             return true
         }
         guard let reach = reach(at: point, grabbed: grabbed, hit: hit, projector: projector) else { return false }
-        if !selection.contains(hit) { selection = [hit] }
+        if !selection.contains(hit) { selection = group(of: hit) }
         var startOffsets: [PoleIndex: Vector3] = [:]
         for index in selection { startOffsets[index] = offsets[index] ?? .zero }
         drag = Drag(mode: .move(MoveDrag(grabbed: grabbed, startOffsets: startOffsets, reach: reach)))
@@ -111,7 +111,8 @@ extension ControlNetSession {
                     }
                 }
             }
-            selection = toggles ? before.symmetricDifference(inside) : inside
+            let caught = expanded(inside)
+            selection = toggles ? before.symmetricDifference(caught) : caught
             applyPendingNet(keeping: [:])
         case let .move(move):
             guard move.didMove else {

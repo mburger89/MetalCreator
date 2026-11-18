@@ -85,6 +85,9 @@ final class ControlNetSession: ViewportTool {
     internal(set) var boxRect: ScreenRect?
     @ObservationIgnored var events: Events
     @ObservationIgnored var drag: Drag?
+    /// For each pole that shares its base position with others (within 1e-9 mm: an apex, a collapsed row), those others. A pole alone
+    /// is not here. Poles move and are picked together so a dome's apex never opens.
+    @ObservationIgnored private(set) var coincident: [PoleIndex: Set<PoleIndex>] = [:]
     /// A net shown while a drag was under way, applied when it ends.
     @ObservationIgnored var pendingNet: (net: ControlNetGrid, moves: [PoleMove])?
 
@@ -102,6 +105,7 @@ final class ControlNetSession: ViewportTool {
         }
         if net.uCount != self.net.uCount || net.vCount != self.net.vCount { selection = [] }
         self.net = net
+        coincident = Self.coincidentPoles(in: net)
         offsets = [:]
         for move in moves where net.contains(move.index) { offsets[move.index] = move.offset }
         selection = selection.filter { net.contains($0) }
@@ -146,14 +150,42 @@ final class ControlNetSession: ViewportTool {
             if modifiers.isDisjoint(with: [.shift, .command]) { selection = [] }
             return true
         }
+        let group = group(of: hit)
         if modifiers.contains(.command) {
-            if selection.contains(hit) { selection.remove(hit) } else { selection.insert(hit) }
+            if selection.contains(hit) { selection.subtract(group) } else { selection.formUnion(group) }
         } else if modifiers.contains(.shift) {
-            selection.insert(hit)
+            selection.formUnion(group)
         } else {
-            selection = [hit]
+            selection = group
         }
         return true
+    }
+
+    /// `index` and every pole that sits on the same point.
+    func group(of index: PoleIndex) -> Set<PoleIndex> {
+        (coincident[index] ?? []).union([index])
+    }
+
+    /// `selection` with each pole's coincident poles added.
+    func expanded(_ selection: Set<PoleIndex>) -> Set<PoleIndex> {
+        selection.reduce(into: selection) { $0.formUnion(coincident[$1] ?? []) }
+    }
+
+    private static func coincidentPoles(in net: ControlNetGrid) -> [PoleIndex: Set<PoleIndex>] {
+        guard net.poles.count == net.uCount * net.vCount, net.poles.count > 1 else { return [:] }
+        let order = net.poles.indices.sorted { net.poles[$0].x < net.poles[$1].x }
+        var found: [PoleIndex: Set<PoleIndex>] = [:]
+        for (position, first) in order.enumerated() {
+            for second in order[(position + 1)...] {
+                if net.poles[second].x - net.poles[first].x > 1e-9 { break }
+                guard (net.poles[second] - net.poles[first]).length <= 1e-9 else { continue }
+                let a = PoleIndex(i: first / net.vCount, j: first % net.vCount)
+                let b = PoleIndex(i: second / net.vCount, j: second % net.vCount)
+                found[a, default: []].insert(b)
+                found[b, default: []].insert(a)
+            }
+        }
+        return found
     }
 
     /// The pole within `pickRadius` points of `point`: the nearest on screen, the nearest to the camera when two are as near.

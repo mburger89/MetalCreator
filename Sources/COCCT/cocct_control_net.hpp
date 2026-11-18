@@ -36,9 +36,10 @@ edit_copy make_edit_copy(const occt_shape *shape, int face_index);
 /// the change didn't reach stay so. `original` (optional) is the face as it was before a conversion to a B-spline gave `face` its own
 /// copies of the edges, with its edges in the same order: when an edge's converted curve doesn't fit but the original's does, the
 /// original's is put back. Does not run `BRepCheck_Analyzer`: the caller checks the whole result (and skips it when the input
-/// itself was invalid).
+/// itself was invalid). Refuses (before changing the face) a surface that opens an apex (a degenerated edge no longer maps to one
+/// point) or a seam (its two pcurves no longer meet) that was closed, within 1e-6 mm at nine samples; `rebuilding` picks the wording.
 TopoDS_Face replace_face_surface(const TopoDS_Face &face, const Handle(Geom_Surface) &surface,
-                                 const TopoDS_Face &original = TopoDS_Face());
+                                 const TopoDS_Face &original = TopoDS_Face(), bool rebuilding = false);
 
 } // namespace cocct
 

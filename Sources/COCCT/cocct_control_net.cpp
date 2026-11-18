@@ -376,7 +376,8 @@ edit_copy make_edit_copy(const occt_shape *shape, int face_index) {
     return out;
 }
 
-TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface, const TopoDS_Face &original) {
+TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface, const TopoDS_Face &original,
+                                 bool rebuilding) {
     const TopoDS_Face face = TopoDS::Face(given.Oriented(TopAbs_FORWARD));
     BRep_Builder builder;
     const double tolerance = std::max(BRep_Tool::Tolerance(face), 1e-7);
@@ -394,6 +395,7 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
         double reinstated_last = 0;
     };
     std::vector<edge_curves> edges;
+    const Handle(Geom_Surface) old_surface = BRep_Tool::Surface(face);
     const TopTools_IndexedMapOfShape edge_map = map_of(face, TopAbs_EDGE);
     for (int k = 1; k <= edge_map.Extent(); ++k) {
         edge_curves entry;
@@ -488,6 +490,47 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
             continue;
         }
         entry.rebuild = true;
+    }
+
+    // A degenerated edge (an apex) must still map to one point and a seam's two pcurves to one curve, whatever the poles did: the
+    // topology says "closed" either way, and BRepCheck is lenient. 0 closed, 1 apex open, 2 seam open (at nine samples, 1e-6 mm).
+    const auto opening = [&](const Handle(Geom_Surface) &on) {
+        if (on.IsNull()) {
+            return 0;
+        }
+        int found = 0;
+        for (const edge_curves &entry : edges) {
+            const bool degenerate = BRep_Tool::Degenerated(entry.edge);
+            if (!degenerate && entry.second.IsNull()) {
+                continue;
+            }
+            const gp_Pnt2d a0 = entry.first->Value(entry.start);
+            const gp_Pnt anchor = on->Value(a0.X(), a0.Y());
+            for (int k = 0; k <= 8; ++k) {
+                const double t = entry.start + (entry.end - entry.start) * k / 8.0;
+                const gp_Pnt2d uv = entry.first->Value(t);
+                const gp_Pnt point = on->Value(uv.X(), uv.Y());
+                if (degenerate) {
+                    if (point.Distance(anchor) > 1e-6) {
+                        found = std::max(found, 1);
+                    }
+                } else {
+                    const gp_Pnt2d other = entry.second->Value(t);
+                    if (point.Distance(on->Value(other.X(), other.Y())) > 1e-6) {
+                        found = std::max(found, 2);
+                    }
+                }
+            }
+        }
+        return found;
+    };
+    const int was_open = opening(old_surface);
+    const int now_open = opening(surface);
+    if (now_open != 0 && was_open == 0) {
+        const std::string what = now_open == 1 ? "at its apex" : "along its seam";
+        throw user_error(rebuilding ? "Rebuilding opens the surface " + what + "."
+                                    : "Moving these control points opens the surface " + what +
+                                          "; move the matching points together.");
     }
 
     builder.UpdateFace(face, surface, TopLoc_Location(), tolerance);

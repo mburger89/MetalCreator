@@ -556,6 +556,36 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
                     gp_Pnt(column[3 * j] + centre.X(), column[3 * j + 1] + centre.Y(), column[3 * j + 2] + centre.Z());
             }
         }
+        // A boundary row or column of a clamped direction that is one point in the source (an apex: a dome's pole, a cone's tip) is
+        // pinned to that point, so the fit can't let its poles drift apart and open the surface there.
+        const auto pin_collapsed = [&](bool along_u, bool at_end) {
+            const int fixed = along_u ? (at_end ? source->NbUPoles() : 1) : (at_end ? source->NbVPoles() : 1);
+            const int count = along_u ? source->NbVPoles() : source->NbUPoles();
+            const gp_Pnt first = along_u ? source->Pole(fixed, 1) : source->Pole(1, fixed);
+            for (int k = 2; k <= count; ++k) {
+                const gp_Pnt other = along_u ? source->Pole(fixed, k) : source->Pole(k, fixed);
+                if (other.Distance(first) > 1e-9) {
+                    return;
+                }
+            }
+            if (along_u) {
+                for (int j = 1; j <= nv; ++j) {
+                    poles(at_end ? nu : 1, j) = first;
+                }
+            } else {
+                for (int i = 1; i <= nu; ++i) {
+                    poles(i, at_end ? nv : 1) = first;
+                }
+            }
+        };
+        if (!periodic_u) {
+            pin_collapsed(true, false);
+            pin_collapsed(true, true);
+        }
+        if (!periodic_v) {
+            pin_collapsed(false, false);
+            pin_collapsed(false, true);
+        }
         const int knot_count_u = spans_u + 1;
         const int knot_count_v = spans_v + 1;
         TColStd_Array1OfReal knots_u(1, knot_count_u);
@@ -594,7 +624,7 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
         }
         *deviation = worst;
 
-        replace_face_surface(face, rebuilt, edit.converted ? edit.original : TopoDS_Face());
+        replace_face_surface(face, rebuilt, edit.converted ? edit.original : TopoDS_Face(), true);
         if (input_valid && !BRepCheck_Analyzer(edit.work).IsValid()) {
             throw user_error("Rebuilding gives an invalid surface.");
         }
