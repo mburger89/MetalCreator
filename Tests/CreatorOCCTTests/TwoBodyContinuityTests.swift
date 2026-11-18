@@ -89,15 +89,17 @@ struct TwoBodyContinuityTests {
 
     @Test func aCylinderFaceAcrossTheSeamIsG2() async throws {
         let kernel = OCCTKernel()
-        func piece(_ from: Double, _ sweep: Double) -> CurvePiece {
-            let start = Vector3(5 * cos(from), 5 * sin(from), 0)
-            return .arc(center: .zero, normal: .unitZ, radius: 5, start: start, sweep: sweep)
-        }
         let degrees = Double.pi / 180
-        let a = try await kernel.extrude(try await kernel.makeCurve([piece(240 * degrees, 60 * degrees)], tag: tag),
-                                         direction: .unitZ, distance: 10, symmetric: false, tag: tag)
-        let b = try await kernel.extrude(try await kernel.makeCurve([piece(300 * degrees, 120 * degrees)], tag: tag),
-                                         direction: .unitZ, distance: 10, symmetric: false, tag: tag)
+        // Two clockwise arcs on one cylinder (B from 60 to -60 degrees, across the seam at +x; A from 300 to 240). OCCT starts every
+        // arc-built face's u at 0, so this cannot put the face's origin in its middle (see the report); it pins the join itself.
+        func wall(at degrees: Double, sweep: Double) async throws -> Solid {
+            let base = Vector3(5 * cos(degrees * Double.pi / 180), 5 * sin(degrees * Double.pi / 180), 0)
+            let arc = CurvePiece.arc(center: .zero, normal: .unitZ, radius: 5, start: base, sweep: sweep * Double.pi / 180)
+            let curve = try await kernel.makeCurve([arc], tag: tag)
+            return try await kernel.extrude(curve, direction: .unitZ, distance: 10, symmetric: false, tag: tag)
+        }
+        let a = try await wall(at: 300, sweep: -60)
+        let b = try await wall(at: 60, sweep: -120)
         let id = try edge(of: a, near: Vector3(5 * cos(300 * degrees), 5 * sin(300 * degrees), 5))
         let found = try await kernel.continuity(of: id, in: a, against: FaceID(0), of: b)
         #expect(found.grade == .g2)
