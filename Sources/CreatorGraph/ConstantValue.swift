@@ -79,8 +79,18 @@ extension ConstantValue: Codable {
         }
     }
 
+    /// The form a value takes in a document: a `poleMoves` value sorted, one move per index; any other kind as it is.
+    var canonicalised: ConstantValue {
+        if case .poleMoves(let moves) = self { .poleMoves(Self.canonical(moves)) } else { self }
+    }
+
+    /// True for a `poleMoves` value with a negative index.
+    var hasNegativePoleIndex: Bool {
+        if case .poleMoves(let moves) = self { moves.contains { $0.index.i < 0 || $0.index.j < 0 } } else { false }
+    }
+
     /// Sorted by index, the first move kept for an index that repeats.
-    private static func canonical(_ moves: [PoleMove]) -> [PoleMove] {
+    static func canonical(_ moves: [PoleMove]) -> [PoleMove] {
         var seen = Set<PoleIndex>()
         return moves.filter { seen.insert($0.index).inserted }.sorted { $0.index < $1.index }
     }

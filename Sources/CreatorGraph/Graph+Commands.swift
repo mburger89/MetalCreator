@@ -64,8 +64,9 @@ extension Graph {
         case .setInput(let id, let socket, let value):
             guard var node = nodes[id] else { throw .nodeNotFound(id) }
             if let value, !value.isFinite { throw .invalidValue("Enter a finite number.") }
+            if let value, value.hasNegativePoleIndex { throw .invalidValue("A control point index can't be negative.") }
             let old = node.inputValues[socket]
-            node.inputValues[socket] = value
+            node.inputValues[socket] = value?.canonicalised
             nodes[id] = node
             return .setInput(id, socket, old)
 

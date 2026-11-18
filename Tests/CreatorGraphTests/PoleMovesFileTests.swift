@@ -39,4 +39,36 @@ struct PoleMovesFileTests {
         #expect(NodeSetting.all.contains(NodeSetting.poleMoves))
         #expect(NodeSetting.poleMoves == "poleMoves")
     }
+
+    private func move(_ i: Int, _ j: Int = 0, _ x: Double = 0) -> PoleMove {
+        PoleMove(index: PoleIndex(i: i, j: j), offset: Vector3(x, 0, 0))
+    }
+
+    private func applying(_ value: ConstantValue) throws -> ConstantValue? {
+        let node = makeNode(ConstantNode.self)
+        var graph = Graph(nodes: [node.id: node])
+        try graph.apply(.setInput(node.id, NodeSetting.poleMoves, value), registry: testRegistry)
+        return graph.nodes[node.id]?.inputValues[NodeSetting.poleMoves]
+    }
+
+    @Test func setInputCanonicalisesPoleMoves() throws {
+        let stored = try applying(.poleMoves([move(2, 0, 1), move(0, 1, 2), move(2, 0, 9)]))
+        #expect(stored == .poleMoves([move(0, 1, 2), move(2, 0, 1)]))
+    }
+
+    @Test func decodeKeepsTheFirstOfADuplicate() throws {
+        let json = #"{"type":"poleMoves","value":[{"i":1,"j":0,"offset":{"x":1,"y":0,"z":0}},{"i":1,"j":0,"offset":{"x":5,"y":0,"z":0}}]}"#
+        let value = try JSONDecoder().decode(ConstantValue.self, from: Data(json.utf8))
+        #expect(value == .poleMoves([move(1, 0, 1)]))
+    }
+
+    @Test func setInputRefusesANonFiniteOffset() {
+        let bad = PoleMove(index: PoleIndex(i: 0), offset: Vector3(0, .infinity, 0))
+        #expect(throws: GraphError.invalidValue("Enter a finite number.")) { try applying(.poleMoves([bad])) }
+    }
+
+    @Test func setInputRefusesANegativeIndex() {
+        #expect(throws: GraphError.invalidValue("A control point index can't be negative.")) { try applying(.poleMoves([move(-1)])) }
+        #expect(throws: GraphError.invalidValue("A control point index can't be negative.")) { try applying(.poleMoves([move(0, -2)])) }
+    }
 }

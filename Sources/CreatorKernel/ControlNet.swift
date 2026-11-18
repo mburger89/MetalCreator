@@ -30,7 +30,9 @@ public struct PoleMove: Hashable, Codable, Sendable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        index = PoleIndex(i: try container.decode(Int.self, forKey: .i), j: try container.decode(Int.self, forKey: .j))
+        index = PoleIndex(
+            i: try container.decode(Int.self, forKey: .i), j: try container.decodeIfPresent(Int.self, forKey: .j) ?? 0
+        )
         offset = try container.decode(Vector3.self, forKey: .offset)
     }
 

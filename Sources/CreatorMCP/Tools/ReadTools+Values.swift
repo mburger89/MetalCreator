@@ -30,7 +30,8 @@ extension ReadTools {
         switch value {
         case .edgePicks(let picks): .string(picks.count == 1 ? "1 edge pick" : "\(picks.count) edge picks")
         case .sketch: .string("sketch")
-        default: .string("face pick")
+        case .facePick: .string("face pick")
+        case .number, .integer, .bool, .vector, .plane, .text, .image, .meshFile, .pcbFile, .modelFile, .poleMoves: .null
         }
     }
 
