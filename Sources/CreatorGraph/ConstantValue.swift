@@ -28,6 +28,9 @@ public enum ConstantValue: Hashable, Sendable {
     /// An Import Model node's file (NURBS spec, Import Model): the same reference as an image, embedded or linked, its embedded
     /// bytes in the document's `images` table. A setting, never a socket value.
     case modelFile(ImageReference)
+    /// An Edit Surface or Edit Curve node's control-point moves (NURBS spec, control points): at most one per pole index, kept sorted by
+    /// index when saved and read. A setting, never a socket value.
+    case poleMoves([PoleMove])
 
     /// The reference of an `image`, `meshFile` or `pcbFile` setting: what paths, stamps, hashes and the clipboard read, because both
     /// kinds are held, resolved and embedded the same way.
@@ -55,6 +58,7 @@ public enum ConstantValue: Hashable, Sendable {
         case .plane(let plane): plane.origin.isFinite && plane.normal.isFinite && plane.xAxis.isFinite
         case .sketch(let sketch): sketch.isFinite
         case .integer, .bool, .text, .edgePicks, .facePick, .image, .meshFile, .pcbFile, .modelFile: true
+        case .poleMoves(let moves): moves.allSatisfy { $0.offset.isFinite }
         }
     }
 }
@@ -63,6 +67,7 @@ extension ConstantValue: Codable {
     private enum CodingKeys: String, CodingKey { case type, value }
     private enum Kind: String, Codable {
         case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image, meshFile, pcbFile, modelFile
+        case poleMoves
     }
 
     private static func fileSetting(of kind: Kind, _ reference: ImageReference) -> ConstantValue {
@@ -72,6 +77,17 @@ extension ConstantValue: Codable {
         case .modelFile: .modelFile(reference)
         default: .image(reference)
         }
+    }
+
+    /// Sorted by index, the first move kept for an index that repeats.
+    private static func canonical(_ moves: [PoleMove]) -> [PoleMove] {
+        var seen = Set<PoleIndex>()
+        return moves.filter { seen.insert($0.index).inserted }.sorted { $0.index < $1.index }
+    }
+
+    private static func decodeSetting(_ kind: Kind, _ container: KeyedDecodingContainer<CodingKeys>) throws -> ConstantValue {
+        if kind == .poleMoves { return .poleMoves(canonical(try container.decode([PoleMove].self, forKey: .value))) }
+        return fileSetting(of: kind, try container.decode(ImageReference.self, forKey: .value))
     }
 
     public init(from decoder: any Decoder) throws {
@@ -87,8 +103,7 @@ extension ConstantValue: Codable {
         case .edgePicks: self = .edgePicks(try container.decode([EdgePick].self, forKey: .value))
         case .sketch: self = .sketch(try container.decode(Sketch.self, forKey: .value))
         case .facePick: self = .facePick(try container.decode(FacePick.self, forKey: .value))
-        case .image, .meshFile, .pcbFile, .modelFile:
-            self = Self.fileSetting(of: kind, try container.decode(ImageReference.self, forKey: .value))
+        case .image, .meshFile, .pcbFile, .modelFile, .poleMoves: self = try Self.decodeSetting(kind, container)
         }
     }
 
@@ -104,9 +119,17 @@ extension ConstantValue: Codable {
         case .edgePicks(let value): try container.encode(Kind.edgePicks, forKey: .type); try container.encode(value, forKey: .value)
         case .sketch(let value): try container.encode(Kind.sketch, forKey: .type); try container.encode(value, forKey: .value)
         case .facePick(let value): try container.encode(Kind.facePick, forKey: .type); try container.encode(value, forKey: .value)
-        case .image(let value), .meshFile(let value), .pcbFile(let value), .modelFile(let value):
+        case .image, .meshFile, .pcbFile, .modelFile, .poleMoves: try encodeSetting(to: &container)
+        }
+    }
+
+    private func encodeSetting(to container: inout KeyedEncodingContainer<CodingKeys>) throws {
+        if case .poleMoves(let moves) = self {
+            try container.encode(Kind.poleMoves, forKey: .type)
+            try container.encode(Self.canonical(moves), forKey: .value)
+        } else if let reference = fileReference {
             try container.encode(fileKind, forKey: .type)
-            try container.encode(value, forKey: .value)
+            try container.encode(reference, forKey: .value)
         }
     }
 }

@@ -42,13 +42,16 @@ public enum NodeSetting {
     /// Import Model: its file, as `.modelFile(ImageReference)` (NURBS spec), embedded or linked. Absent until one is chosen.
     public static let modelFile: SocketName = "modelFile"
 
+    /// Edit Surface and Edit Curve: the moved control points, as `.poleMoves([PoleMove])`, sorted by index (NURBS spec, control points).
+    public static let poleMoves: SocketName = "poleMoves"
+
     /// Loft: the faces of the part its first and last sections come from, as `.facePick(topology.facePick(for:))`.
     public static let startFace: SocketName = "startFace"
     public static let endFace: SocketName = "endFace"
 
     public static let all: Set<SocketName> = [
         startFace, endFace, parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern,
-        cullIndices, image, meshFile, pcbFile, modelFile,
+        cullIndices, image, meshFile, pcbFile, modelFile, poleMoves,
     ]
 
     /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside

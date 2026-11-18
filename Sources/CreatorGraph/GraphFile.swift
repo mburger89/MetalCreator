@@ -27,7 +27,9 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// 13: the Import KiCad Board node's `pcbFile` setting and the `imported(face:)` role in saved picks. Files 1 to 12 open unchanged and are written as 13.
     /// 14: the `curve` socket type in group interfaces (NURBS spec); curves and sheets are computed, never saved. A version-13 reader cannot
     /// decode the socket type. Files 1 to 13 open unchanged and are written as 14.
-    public static let currentFormatVersion = 14
+    /// 15: the Edit Surface and Edit Curve nodes' `poleMoves` setting (`ConstantValue.poleMoves`); a version-14 reader cannot decode the kind.
+    /// Files 1 to 14 open unchanged and are written as 15.
+    public static let currentFormatVersion = 15
 
     public var formatVersion: Int
     public var graph: Graph

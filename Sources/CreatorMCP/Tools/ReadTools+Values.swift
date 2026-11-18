@@ -17,10 +17,20 @@ extension ReadTools {
         case .vector(let vector): vectorJSON(vector)
         case .plane(let plane): planeJSON(plane)
         case .text(let text): .string(text)
+        case .edgePicks, .sketch, .facePick: pickSummaryJSON(value)
+        case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): fileStatus(reference)
+        case .poleMoves(let moves):
+            .array(moves.map {
+                .object(["i": .int($0.index.i), "j": .int($0.index.j), "offset": vectorJSON($0.offset)])
+            })
+        }
+    }
+
+    private static func pickSummaryJSON(_ value: ConstantValue) -> JSONValue {
+        switch value {
         case .edgePicks(let picks): .string(picks.count == 1 ? "1 edge pick" : "\(picks.count) edge picks")
         case .sketch: .string("sketch")
-        case .facePick: .string("face pick")
-        case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): fileStatus(reference)
+        default: .string("face pick")
         }
     }
 

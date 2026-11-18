@@ -47,7 +47,7 @@ public enum Scalar: Sendable {
         case .bool(let value): self = .bool(value)
         case .vector(let value): self = .vector(value)
         case .plane(let value): self = .plane(value)
-        case .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile, .modelFile: return nil
+        case .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile, .modelFile, .poleMoves: return nil
         }
     }
 
