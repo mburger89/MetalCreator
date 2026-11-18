@@ -164,7 +164,7 @@ extension OCCTKernel {
     }
 
     /// The tag every carried face already has; used only if a face somehow has none (it then reads "unnamed" under this tag).
-    private static let unusedTag = NodeTag(node: NodeID(rawValue: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))), item: 0)
+    static let unusedTag = NodeTag(node: NodeID(rawValue: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))), item: 0)
 
     public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
         try Task.checkCancellation()
@@ -172,20 +172,24 @@ extension OCCTKernel {
         _ = try controlNet(of: surface)
         let source = try shape(of: surface)
         let moved = try controlNetCall("move control points") { try source.movingPoles(ofFace: 0, by: moves) }
-        let sameStructure = try controlNetCall("move control points") { try moved.hasSameStructure(as: source) }
+        return try carryingTopology(of: moved, from: surface, source: source, operation: "move control points")
+    }
+
+    /// `result`, a shape with the faces, edges and vertices of `source` (the shape of `surface`) in the same order, as a `Solid` with
+    /// `surface`'s tags and boundary names. Refuses a shape whose structure differs.
+    func carryingTopology(of result: OCCTShape, from surface: Solid, source: OCCTShape, operation: String) throws -> Solid {
+        let sameStructure = try controlNetCall(operation) { try result.hasSameStructure(as: source) }
         guard sameStructure else {
-            throw KernelError.operationFailed(operation: "move control points",
-                                              reason: "its faces and edges couldn't be matched to the originals.")
+            throw KernelError.operationFailed(operation: operation, reason: "its faces and edges couldn't be matched to the originals.")
         }
-        let result = try solid(from: moved, keepingTagsOf: [surface], tag: Self.unusedTag, operation: "move control points",
-                               carriesEdgeTags: true)
+        let solid = try solid(from: result, keepingTagsOf: [surface], tag: Self.unusedTag, operation: operation,
+                              carriesEdgeTags: true)
         // Tags are carried by position, so the edges must agree one by one before they are trusted.
-        guard result.topology.edges.map(\.faces) == surface.topology.edges.map(\.faces) else {
-            assertionFailure("an edge's faces changed under a pole move")
-            throw KernelError.operationFailed(operation: "move control points",
-                                              reason: "its edges couldn't be matched to the originals.")
+        guard solid.topology.edges.map(\.faces) == surface.topology.edges.map(\.faces) else {
+            assertionFailure("an edge's faces changed under \(operation)")
+            throw KernelError.operationFailed(operation: operation, reason: "its edges couldn't be matched to the originals.")
         }
-        return result
+        return solid
     }
 
     public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {
@@ -251,7 +255,7 @@ extension OCCTKernel {
     }
 
     /// Runs a shim read under the kernel lock, mapping its failure to a `KernelError` in the shim's words.
-    private func controlNetCall<T>(_ operation: String, _ body: () throws -> T) throws -> T {
+    func controlNetCall<T>(_ operation: String, _ body: () throws -> T) throws -> T {
         do {
             // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure.
             return try Self.serialized { () throws -> T in try body() }

@@ -4,10 +4,28 @@
 
 #include "cocct_internal.hpp"
 
+#include <Geom_BSplineSurface.hxx>
 #include <Geom_Surface.hxx>
 #include <TopoDS_Face.hxx>
+#include <TopoDS_Shape.hxx>
 
 namespace cocct {
+
+/// A copy of a shape (geometry copied, so nothing another solid shares is touched) whose face `face_index` has a B-spline surface:
+/// a face of another surface kind is converted exactly, the whole copy with it so the face stays in its shell. `surface` is that
+/// B-spline (its parameter range is the one the face's pcurves are in), `original` the face before conversion (for
+/// `replace_face_surface`) when `converted`.
+struct edit_copy {
+    TopoDS_Shape work;
+    int face_index = 0;
+    TopoDS_Face original;
+    Handle(Geom_BSplineSurface) surface;
+    bool converted = false;
+
+    TopoDS_Face face() const;
+};
+
+edit_copy make_edit_copy(const occt_shape *shape, int face_index);
 
 /// Puts `face` on `surface`, which must share the parameter domain of the surface its pcurves were made on. The face keeps its
 /// pcurves (re-attached to the new surface), every edge's 3D curve is dropped and rebuilt from its pcurve

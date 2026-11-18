@@ -89,3 +89,68 @@ public struct SurfaceInfo: Sendable {
         self.net = net
     }
 }
+
+/// The degree and number of spans a rebuilt surface or curve gets in each direction (NS-3). A curve uses `degreeU` and `spansU`
+/// alone. A clamped B-spline of degree d with s spans has d + s poles.
+public struct RebuildSpec: Hashable, Sendable {
+    public var degreeU: Int
+    public var degreeV: Int
+    public var spansU: Int
+    public var spansV: Int
+
+    /// The highest degree a rebuild gives.
+    public static let maximumDegree = 11
+    /// The most poles a rebuilt surface or curve may have.
+    public static let maximumPoles = 100_000
+
+    public init(degreeU: Int, degreeV: Int, spansU: Int, spansV: Int) {
+        self.degreeU = degreeU
+        self.degreeV = degreeV
+        self.spansU = spansU
+        self.spansV = spansV
+    }
+
+    /// The number of poles each way, `(degreeU + spansU, degreeV + spansV)`.
+    public var poleCounts: (u: Int, v: Int) { (degreeU + spansU, degreeV + spansV) }
+
+    /// Refuses a degree outside 1 to 11 ("The degree must be from 1 to 11."), fewer than one span ("There must be at least 1 span.")
+    /// and more than 100,000 poles in all. `forSurface` false looks at the first direction only (a curve).
+    public func validate(forSurface: Bool) throws {
+        let degrees = forSurface ? [degreeU, degreeV] : [degreeU]
+        let spans = forSurface ? [spansU, spansV] : [spansU]
+        guard degrees.allSatisfy({ (1...Self.maximumDegree).contains($0) }) else {
+            throw KernelError.invalidInput("The degree must be from 1 to \(Self.maximumDegree).")
+        }
+        guard spans.allSatisfy({ $0 >= 1 }) else { throw KernelError.invalidInput("There must be at least 1 span.") }
+        // Doubles, so a huge span count can't overflow the product.
+        let count = forSurface ? Double(degreeU + spansU) * Double(degreeV + spansV) : Double(degreeU + spansU)
+        if count > Double(Self.maximumPoles) {
+            let total = Int(count).formatted(.number.locale(.messages))
+            let limit = Self.maximumPoles.formatted(.number.locale(.messages))
+            throw KernelError.invalidInput(
+                "That would make \(total) control points; a \(forSurface ? "surface" : "curve") may have at most \(limit).")
+        }
+    }
+}
+
+/// A sheet rebuilt to a chosen degree and span count, and the largest distance from the source's surface to the result's.
+public struct SurfaceRebuild: Sendable {
+    public var sheet: Solid
+    public var deviation: Double
+
+    public init(sheet: Solid, deviation: Double) {
+        self.sheet = sheet
+        self.deviation = deviation
+    }
+}
+
+/// A curve rebuilt as one spline piece, and the largest distance from the source curve to the result.
+public struct CurveRebuild: Sendable {
+    public var curve: Curve
+    public var deviation: Double
+
+    public init(curve: Curve, deviation: Double) {
+        self.curve = curve
+        self.deviation = deviation
+    }
+}

@@ -24,6 +24,7 @@
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_BezierSurface.hxx>
 #include <Geom_Circle.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <Geom_Curve.hxx>
 #include <Geom_Line.hxx>
 #include <Geom_RectangularTrimmedSurface.hxx>
@@ -280,6 +281,36 @@ void fill_net(const Handle(Geom_BSplineSurface) &surface, bool normals, bool fli
 
 namespace cocct {
 
+TopoDS_Face edit_copy::face() const {
+    occt_shape holder{work};
+    return face_at(&holder, face_index);
+}
+
+edit_copy make_edit_copy(const occt_shape *shape, int face_index) {
+    edit_copy out;
+    out.face_index = face_index;
+    BRepBuilderAPI_Copy copier(shape->shape, Standard_True, Standard_False);
+    TopoDS_Shape work = copier.Shape();
+    occt_shape holder{work};
+    out.original = face_at(&holder, face_index);
+    converted_face converted = convert_face(&holder, face_index);
+    if (converted.converted) {
+        // The conversion of the whole copy, so the face stays in its shell; the same conversion the net read made.
+        BRepBuilderAPI_NurbsConvert whole(work, Standard_True);
+        if (!whole.IsDone() || whole.Shape().IsNull()) {
+            throw user_error("This surface couldn't be converted to a B-spline.");
+        }
+        work = whole.Shape();
+        holder.shape = work;
+        converted = convert_face(&holder, face_index);
+        converted.converted = true;
+    }
+    out.work = work;
+    out.surface = converted.surface;
+    out.converted = converted.converted;
+    return out;
+}
+
 TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface, const TopoDS_Face &original) {
     const TopoDS_Face face = TopoDS::Face(given.Oriented(TopAbs_FORWARD));
     BRep_Builder builder;
@@ -323,14 +354,30 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
             original_edges.Clear();
         }
     }
+    // Each of nine points along the edge's pcurve, taken on the new surface, must lie on the 3D curve (the nearest point of the curve
+    // within its range): a rational pcurve is not linear in the curve's own parameter, so they aren't compared at equal parameters.
     const auto lies_on = [&](const Handle(Geom_Curve) &curve, double first, double last, const edge_curves &entry) {
         if (curve.IsNull()) {
+            return false;
+        }
+        // The curve's ends are the pcurve's ends on the new surface (a curve that is only a part of the edge's new path isn't kept).
+        const gp_Pnt2d start = entry.first->Value(entry.start);
+        const gp_Pnt2d end = entry.first->Value(entry.end);
+        if (curve->Value(first).Distance(surface->Value(start.X(), start.Y())) > 1e-7 ||
+            curve->Value(last).Distance(surface->Value(end.X(), end.Y())) > 1e-7) {
             return false;
         }
         for (int k = 0; k <= 8; ++k) {
             const double w = k / 8.0;
             const gp_Pnt2d uv = entry.first->Value(entry.start + (entry.end - entry.start) * w);
-            if (curve->Value(first + (last - first) * w).Distance(surface->Value(uv.X(), uv.Y())) > 1e-7) {
+            const gp_Pnt point = surface->Value(uv.X(), uv.Y());
+            GeomAPI_ProjectPointOnCurve projection(point, curve, first, last);
+            // The projection finds interior stationary points only, so the range's ends are tried too.
+            double nearest = std::min(point.Distance(curve->Value(first)), point.Distance(curve->Value(last)));
+            if (projection.NbPoints() >= 1) {
+                nearest = std::min(nearest, projection.LowerDistance());
+            }
+            if (nearest > 1e-7) {
                 return false;
             }
         }
@@ -390,7 +437,8 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
     for (const edge_curves &entry : edges) {
         if (!entry.reinstated.IsNull()) {
             builder.UpdateEdge(entry.edge, entry.reinstated, TopLoc_Location(), 1e-7);
-            builder.Range(entry.edge, entry.reinstated_first, entry.reinstated_last);
+            // Only the 3D range: the pcurve's own range stays.
+            builder.Range(entry.edge, entry.reinstated_first, entry.reinstated_last, Standard_True);
             BRepLib::SameParameter(entry.edge, 1e-6, Standard_True);
             continue;
         }
@@ -445,23 +493,8 @@ occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const 
         face_at(shape, face_index);
         const bool input_valid = BRepCheck_Analyzer(shape->shape).IsValid();
         // Geometry is copied, so no surface another solid shares is changed.
-        BRepBuilderAPI_Copy copier(shape->shape, Standard_True, Standard_False);
-        TopoDS_Shape work = copier.Shape();
-        occt_shape holder{work};
-        TopoDS_Face original_face = face_at(&holder, face_index);
-        converted_face converted = convert_face(&holder, face_index);
-        if (converted.converted) {
-            // The conversion of the whole copy, so the face stays in its shell; the same conversion the net read made.
-            BRepBuilderAPI_NurbsConvert whole(work, Standard_True);
-            if (!whole.IsDone() || whole.Shape().IsNull()) {
-                throw user_error("This surface couldn't be converted to a B-spline.");
-            }
-            work = whole.Shape();
-            holder.shape = work;
-            converted = convert_face(&holder, face_index);
-            converted.converted = true;
-        }
-        const Handle(Geom_BSplineSurface) moved = Handle(Geom_BSplineSurface)::DownCast(converted.surface->Copy());
+        edit_copy edit = make_edit_copy(shape, face_index);
+        const Handle(Geom_BSplineSurface) moved = Handle(Geom_BSplineSurface)::DownCast(edit.surface->Copy());
         const int nu = moved->NbUPoles();
         const int nv = moved->NbVPoles();
         for (int k = 0; k < count; ++k) {
@@ -480,11 +513,11 @@ occt_shape *occt_move_face_poles(const occt_shape *shape, int face_index, const 
             }
             moved->SetPole(i + 1, j + 1, target);
         }
-        replace_face_surface(face_at(&holder, face_index), moved, converted.converted ? original_face : TopoDS_Face());
-        if (input_valid && !BRepCheck_Analyzer(work).IsValid()) {
+        replace_face_surface(edit.face(), moved, edit.converted ? edit.original : TopoDS_Face());
+        if (input_valid && !BRepCheck_Analyzer(edit.work).IsValid()) {
             throw user_error("Moving these control points makes an invalid surface.");
         }
-        return new occt_shape{work};
+        return new occt_shape{edit.work};
     });
 }
 

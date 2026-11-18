@@ -144,6 +144,15 @@ public protocol Kernel: Actor {
     /// Whether any face of `sheet` folds over itself (NS-3): neighbouring samples of its surface normal pointing opposite ways, or
     /// a collapsed spot beside an ordinary one. A pole of a degenerate edge (a cone's apex) is not a fold. The default refuses.
     func folds(_ sheet: Solid) throws -> Bool
+    /// `surface` (a sheet of one face) refitted by least squares to a non-rational B-spline of `spec`'s degree and span count over
+    /// the same parameter range (NS-3), so its faces, edges, tags and trims are the input's and only their geometry differs.
+    /// `deviation` is the largest distance from the source to the result over a grid twice as dense as the fit's samples. A solid is
+    /// refused "Rebuild Surface takes a sheet; this is a closed solid.", a sheet of other than one face "Rebuild Surface takes a sheet
+    /// with one face; this one has N. Split it first.". The default refuses.
+    func rebuilt(_ surface: Solid, as spec: RebuildSpec) async throws -> SurfaceRebuild
+    /// `curve` refitted as one non-rational spline piece of `spec`'s `degreeU` and `spansU` (its end poles pinned to the curve's
+    /// ends), made with `tag`; `deviation` as for a surface. The default refuses.
+    func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild
 }
 
 extension Kernel {
@@ -259,6 +268,14 @@ extension Kernel {
 
     public func folds(_ sheet: Solid) throws -> Bool {
         throw KernelError.unsupported("fold detection")
+    }
+
+    public func rebuilt(_ surface: Solid, as spec: RebuildSpec) async throws -> SurfaceRebuild {
+        throw KernelError.unsupported("rebuilding surfaces")
+    }
+
+    public func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild {
+        throw KernelError.unsupported("rebuilding curves")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {
