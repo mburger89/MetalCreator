@@ -51,6 +51,11 @@ extension OCCTShape {
         return CurveNet(curve: curve, isPeriodic: raw.periodic != 0, convertedFrom: kind)
     }
 
+    /// FOR TESTS ONLY. The same shape with its orientation reversed. Call under `OCCTKernel.serialized`.
+    func reversedCopy() throws(OCCTError) -> OCCTShape {
+        try Self.make { status in occt_test_reversed_copy(self.raw, status) }
+    }
+
     /// FOR TESTS ONLY. A bilinear sheet of one face with `uCount` x `vCount` poles. Call under `OCCTKernel.serialized`.
     static func bsplineSheet(uCount: Int, vCount: Int, degree: Int) throws(OCCTError) -> OCCTShape {
         try make { status in occt_test_bspline_sheet(Int32(uCount), Int32(vCount), Int32(degree), status) }
@@ -122,6 +127,18 @@ extension OCCTKernel {
         }
         let shape = try shape(of: solid)
         return try controlNetCall("surface info") { try shape.surfaceInfo(ofFace: face.rawValue) }
+    }
+
+    /// FOR TESTS ONLY. `sheet` with its face orientation reversed on the same surface.
+    func reversedSheet(_ sheet: Solid, tag: NodeTag) throws -> Solid {
+        let source = try shape(of: sheet)
+        let shape: OCCTShape
+        do {
+            shape = try Self.serialized { () throws -> OCCTShape in try source.reversedCopy() }
+        } catch let error as OCCTError {
+            throw KernelError.occt("reversed sheet", error)
+        }
+        return try solid(from: shape, history: [], inputs: [], tag: tag, operation: "reversed sheet")
     }
 
     /// FOR TESTS ONLY. A one-face sheet of a bilinear B-spline with `uCount` x `vCount` poles.

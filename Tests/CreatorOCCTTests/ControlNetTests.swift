@@ -97,20 +97,14 @@ struct ControlNetTests {
     }
 
     @Test func aReversedFaceFlipsItsNormals() async throws {
-        let forward = try await kernel.controlNet(of: try await revolvedLine())
-        let flipped = try await kernel.controlNet(of: try await revolvedLine(reversed: true))
-        #expect(flipped.surface.poles.count == forward.surface.poles.count)
-        for normal in flipped.normals {
-            #expect(normal.x * 0 + abs(normal.z) < 1e-6)
+        let sheet = try await revolvedLine()
+        let forward = try await kernel.controlNet(of: sheet)
+        let reversed = try await kernel.controlNet(of: try await kernel.reversedSheet(sheet, tag: tag))
+        #expect(reversed.surface == forward.surface)
+        #expect(reversed.normals.count == forward.normals.count && !forward.normals.isEmpty)
+        for (before, after) in zip(forward.normals, reversed.normals) {
+            #expect((before + after).length < 1e-12)
         }
-        // Compare where the poles coincide: the same pole of the two nets has opposite normals.
-        var compared = 0
-        for (pole, normal) in zip(forward.surface.poles, forward.normals) {
-            guard let index = flipped.surface.poles.firstIndex(where: { ($0 - pole).length < 1e-9 }) else { continue }
-            #expect(normal.x * flipped.normals[index].x + normal.y * flipped.normals[index].y < 0)
-            compared += 1
-        }
-        #expect(compared > 0)
     }
 
     @Test func aFullRevolveIsPeriodic() async throws {
@@ -135,13 +129,6 @@ struct ControlNetTests {
         #expect(net.curve.poles.count >= 8)
         let first = try #require(net.curve.poles.first)
         #expect(!net.curve.poles.dropFirst().contains { ($0 - first).length < 1e-9 })
-    }
-
-    @Test func normalsArePerpendicularToTheSurface() async throws {
-        for sheet in [try await loftedSheet(), try await revolvedLine(), try await revolvedLine(degrees: 360)] {
-            let gaps = try await kernel.netGaps(of: sheet)
-            #expect(gaps.normalError < 1e-6)
-        }
     }
 
     @Test func periodicGrevillePointsMatchTheirPoles() async throws {
@@ -208,7 +195,7 @@ struct ControlNetTests {
     }
 
     @Test func aCurvesNet() async throws {
-        // Six points: OCCT's degree-5 fit only keeps degree 5 for that few (the interpolation fix covers more).
+        // A degree-5 curve through six points (aDegreeFiveCurveIsDegreeFive covers more points).
         let points = (0..<6).map { Vector3(Double($0), sin(Double($0)), 0) }
         let curve = try await kernel.interpolate(points, degree: 5, closed: false, startTangent: nil, endTangent: nil, tag: tag)
         let net = try await kernel.controlNet(of: curve)

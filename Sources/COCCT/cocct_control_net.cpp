@@ -461,6 +461,10 @@ int occt_test_net_gaps(const occt_shape *shape, int face_index, double *normal_e
     });
 }
 
+occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * { return new occt_shape{shape->shape.Reversed()}; });
+}
+
 occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         occt_initialize();

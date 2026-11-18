@@ -563,6 +563,8 @@ typedef struct {
 
 int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_status *status);
 void occt_curve_net_free(occt_curve_net *net);
+/// FOR TESTS ONLY. The same shape with the opposite orientation (its faces are TopAbs_REVERSED), geometry untouched.
+occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status);
 /// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x
 /// `v_count` poles.
 occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status);
