@@ -179,10 +179,12 @@ extension AppModel {
         let stored = storedPoleMoves(of: node.id)
         switch controlNetInput(of: node, kind: feed.session.kind) {
         case .loading:
-            break
+            controlNetProblem = nil
         case .none, .several:
             if case .several(let count) = controlNetInput(of: node, kind: feed.session.kind) {
                 controlNetProblem = Self.listSentence(kind: feed.session.kind, count: count)
+            } else {
+                controlNetProblem = nil
             }
             if feed.requested != nil || feed.grid != nil {
                 feed.requested = nil
