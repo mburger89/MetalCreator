@@ -62,22 +62,62 @@ struct SweepGuideTests {
         #expect(abs(solid.bounds.max.x - 20) < 1e-4)
     }
 
-    @Test func aGuideSurfaceKeepsTheProfileNormal() async throws {
-        let kernel = OCCTKernel()
+    /// A cylinder of radius 10 about Z and a quarter of its tilted section z = x (an ellipse arc from (10, 0, 10) to
+    /// (0, 10, 0)), fitted through 33 points on the surface. The arc's own normal (toward its centre) leaves the cylinder's
+    /// outward normal by 45 degrees at the start and by none at the end, so a frame that follows the arc (Frenet) and one
+    /// that follows the surface disagree about how a profile should stand.
+    func tiltedSection(_ kernel: OCCTKernel) async throws -> (cylinder: Solid, path: Curve) {
         let cylinder = try await kernel.extrude(try await kernel.makeCurve([
             .arc(center: .zero, normal: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: 2 * .pi),
         ], tag: tag), direction: .unitZ, distance: 50, symmetric: true, tag: tag)
-        let path = try await kernel.makeCurve([
-            .arc(center: .zero, normal: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: .pi / 2),
-        ], tag: tag)
-        let profile = try await kernel.makeCurve([
-            .arc(center: Vector3(10, 0, 0), normal: Vector3(0, 1, 0), radius: 1, start: Vector3(11, 0, 0), sweep: 2 * .pi),
-        ], tag: tag)
-        let solid = try await kernel.sweep([profile], along: path,
+        let points = (0...32).map { index -> Vector3 in
+            let angle = Double.pi / 2 * Double(index) / 32
+            return Vector3(10 * cos(angle), 10 * sin(angle), 10 * cos(angle))
+        }
+        let path = try await kernel.interpolate(points, degree: 3, closed: false, startTangent: nil, endTangent: nil, tag: tag)
+        return (cylinder, path)
+    }
+
+    /// A 8 x 2 rectangle across the path's start (the plane's normal is +Y), its long side along the surface's normal (+X).
+    func standingProfile(_ kernel: OCCTKernel) async throws -> Curve {
+        let origin = Vector3(10, 0, 10)
+        let corners = [origin + Vector3(-4, 0, -1), origin + Vector3(4, 0, -1), origin + Vector3(4, 0, 1), origin + Vector3(-4, 0, 1)]
+        return try await kernel.makeCurve((0..<4).map { .line(corners[$0], corners[($0 + 1) % 4]) }, tag: tag)
+    }
+
+    @Test func aGuideSurfaceKeepsTheProfileOnTheSurfaceNormal() async throws {
+        let kernel = OCCTKernel()
+        let (cylinder, path) = try await tiltedSection(kernel)
+        let solid = try await kernel.sweep([try await standingProfile(kernel)], along: path,
                                            options: SweepOptions(orientation: .guideSurface, makesSolid: true),
                                            guide: .surface(cylinder), tag: tag)
-        #expect(solid.isClosed)
-        #expect(try await kernel.properties(of: solid).volume > 0)
+        #expect(solid.isClosed && !solid.hasOpenShell)
+        // The end profile's long side lies along the cylinder's outward normal there (+Y), not 45 degrees off it.
+        let direction = try longSide(of: solid)
+        #expect(abs(direction.dot(Vector3(0, 1, 0))) > 0.999, "the end profile's long side is \(direction)")
+        // Frenet gives a different solid: the guide is really used.
+        let frenet = try await kernel.sweep([try await standingProfile(kernel)], along: path,
+                                            options: SweepOptions(makesSolid: true), tag: tag)
+        #expect(abs(try longSide(of: frenet).dot(Vector3(0, 1, 0))) < 0.9)
+    }
+
+    /// The end profile's long direction: between the midpoints of its two shortest edges (the sweep leaves them as B-splines).
+    func longSide(of solid: Solid) throws -> Vector3 {
+        let face = try #require(solid.topology.faces.first { $0.tags.contains { $0.role == .endCap } })
+        let edges = solid.topology.edges.filter { $0.faces.contains(face.id) }.sorted { $0.length < $1.length }
+        try #require(edges.count >= 2)
+        return try #require((edges[0].midpoint - edges[1].midpoint).normalized)
+    }
+
+    @Test func aPathOffTheGuideSurfaceIsRefused() async throws {
+        let kernel = OCCTKernel()
+        let (cylinder, _) = try await tiltedSection(kernel)
+        // A line through the cylinder's middle, nowhere near its wall.
+        let path = try await line(kernel, Vector3(0, 0, -10), Vector3(0, 0, 10))
+        await #expect(throws: KernelError.invalidInput("The path must lie on the guide surface.")) {
+            _ = try await kernel.sweep([try await standingProfile(kernel)], along: path,
+                                       options: SweepOptions(orientation: .guideSurface), guide: .surface(cylinder), tag: tag)
+        }
     }
 
     @Test func twistWithARailIsRefused() async throws {
