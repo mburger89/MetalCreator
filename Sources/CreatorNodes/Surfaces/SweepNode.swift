@@ -11,7 +11,7 @@ public enum SweepNode: NodeDefinition {
     public static let maximumProfiles = 100
     public static let orientations = ["Frenet", "Fixed"]
     public static let pathRefusal = "Sweep needs exactly one path."
-    public static var singleValuesRefusal: String? { pathRefusal }
+    public static var singleValuesRefusal: String? { "Sweep takes one path, end scale and binormal at a time." }
     public static let inputs = [
         SocketSpec("profiles", .curve, access: .list),
         SocketSpec("path", .curve),

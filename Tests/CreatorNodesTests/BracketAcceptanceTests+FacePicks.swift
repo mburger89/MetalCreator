@@ -79,6 +79,7 @@ extension BracketAcceptanceTests {
         let kernel = OCCTKernel()
         let (document, bracket, plane) = try await openBracketWithPlane(kernel)
         let union = try #require(document.results[bracket.union.id]?.outputs?["solid"]?.solids?.first)
+        #expect(!union.hasOpenShell, "the bracket union has a stray free edge but is a solid, not a sheet")
         let tags = try #require(union.topology.facePick(for: mergedLeftSide(union, bracket))?.tags)
         try document.perform(.setInput(plane.id, NodeSetting.face, .facePick(FacePick(tags: tags))))
         let widthWire = try #require(document.graph.incomingLink(to: Endpoint(node: bracket.flangeProfile.id, socket: "width")))

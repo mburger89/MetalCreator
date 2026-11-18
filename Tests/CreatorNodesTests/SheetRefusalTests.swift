@@ -51,6 +51,29 @@ struct SheetRefusalTests {
         #expect(report.error(asTarget) == "“target” is an open surface; use Split or Trim, or Thicken or Sew it first.")
     }
 
+    @Test func aClosedLoftOfCirclesIsASheetAndBooleanRefusesIt() async throws {
+        var h = Harness()
+        let loft = h.add(LoftSurfaceNode.self, ["closed": .bool(true)])
+        let merge = h.add(MergeNode.self)
+        let sockets: [SocketName] = ["a", "b", "c"]
+        for (z, socket) in zip([0.0, 6, 12], sockets) {
+            let circle = h.add(CircleNode.self, ["plane": .plane(.through(Vector3(0, 0, z)))])
+            let curves = h.add(ProfileToCurvesNode.self)
+            h.wire(circle, "profile", to: curves, "profile")
+            h.wire(curves, "curves", to: merge, socket)
+        }
+        h.wire(merge, "list", to: loft, "sections")
+        let box = h.box(30, 30, 5)
+        let boolean = h.add(BooleanNode.self)
+        h.wire(box, "solid", to: boolean, "target")
+        h.wire(loft, "surface", to: boolean, "tools")
+        let report = try await h.run([boolean, loft], kernel: kernel)
+        let surface = try #require(report.results[loft.id]?.outputs?["surface"]?.items.first)
+        guard case .solid(let solid) = surface else { Issue.record("not a solid"); return }
+        #expect(solid.hasOpenShell && solid.isClosed, "a closed bare shell is a sheet (isClosed stays edge-level)")
+        #expect(report.error(boolean) == "“tools” is an open surface; use Split or Trim, or Thicken or Sew it first.")
+    }
+
     @Test func toImplicitRefusesASheet() async throws {
         var h = Harness()
         let surface = sheet(&h)

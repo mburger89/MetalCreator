@@ -131,7 +131,7 @@ struct ReadShapesTests {
         }
     }
 
-    @Test func aClosedFreeShellBecomesASolidAndLooseFacesStaySheets() async throws {
+    @Test func aClosedFreeShellBecomesASolidAndLooseFacesFormOneSheet() async throws {
         let kernel = OCCTKernel()
         let solid = try await kernel.shape(of: try await box(kernel))
         let shell = try OCCTKernel.serialized { () throws in try solid.children() }
@@ -141,7 +141,31 @@ struct ReadShapesTests {
         #expect(volume.isApproximatelyEqual(to: 240, relativeTolerance: 1e-6))
         let faces = try OCCTKernel.serialized { () throws in try shell[0].children() }
         let loose = try await kernel.readShapes(try file(Array(faces.prefix(2)), as: .step(unit: "MM")), format: .step, tag: newTag())
-        #expect(loose.solids.isEmpty && loose.sheets.count == 2)
+        #expect(loose.solids.isEmpty && loose.sheets.count == 1)
+        #expect(loose.sheets[0].topology.faces.count == 2)
+    }
+
+    @Test func twoBodiesOfOneFileHaveDistinctNames() async throws {
+        let kernel = OCCTKernel()
+        let other = try await kernel.transform(try await box(kernel), by: Transform(translation: Vector3(50, 0, 0)), tag: newTag())
+        let shapes = [try await kernel.shape(of: try await box(kernel)), try await kernel.shape(of: other),
+                      try await kernel.shape(of: try await sheet(kernel)),
+        ]
+        let tag = newTag()
+        let read = try await kernel.readShapes(try file(shapes, as: .step(unit: "MM")), format: .step, tag: tag)
+        #expect(read.solids.count == 2 && read.sheets.count == 1)
+        let faceRoles = (read.solids + read.sheets).flatMap { $0.topology.faces.flatMap(\.tags) }.map(\.role)
+        #expect(Set(faceRoles).count == faceRoles.count)
+        // The second solid is body 1, the sheet body 2.
+        #expect(read.solids[1].topology.faces[0].tags == [TopoTag(tag, .imported(face: 1 << 32))])
+        let boundary = read.sheets[0].topology.edges.filter(\.isBoundary).flatMap(\.tags).map(\.role)
+        #expect(boundary.count == 4 && boundary.allSatisfy { role in
+            if case .boundary(.imported(let edge)) = role { return edge >> 32 == 2 }
+            return false
+        })
+        // A second read gives the same names.
+        let again = try await kernel.readShapes(try file(shapes, as: .step(unit: "MM")), format: .step, tag: tag)
+        #expect(again.solids[1].topology.faces.map(\.tags) == read.solids[1].topology.faces.map(\.tags))
     }
 
     @Test func anIgesWrittenInInchesReportsItsUnit() async throws {
@@ -149,8 +173,8 @@ struct ReadShapesTests {
         let data = try file([try await kernel.shape(of: try await box(kernel))], as: .iges(unit: "IN"))
         let read = try await kernel.readShapes(data, format: .iges, tag: newTag())
         #expect(read.fileUnitMillimetres.isApproximatelyEqual(to: 25.4, relativeTolerance: 1e-9))
-        // OpenCascade writes a solid to IGES as its faces, which read back as six sheets; the reader converts to millimetres.
-        #expect(read.solids.isEmpty && read.sheets.count == 6)
+        // OpenCascade writes a solid to IGES as its faces, which read back as one sheet of six faces; the reader converts to millimetres.
+        #expect(read.solids.isEmpty && read.sheets.count == 1 && read.sheets[0].topology.faces.count == 6)
         #expect(read.sheets.map(\.bounds.max.x).max()?.isApproximatelyEqual(to: 10, absoluteTolerance: 1e-6) == true)
     }
 

@@ -3,7 +3,10 @@
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
 #include <TopTools_HSequenceOfShape.hxx>
+#include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+#include <Standard_OutOfMemory.hxx>
+#include <TopoDS_Compound.hxx>
 #include <IGESData_BasicEditor.hxx>
 #include <IGESData_GlobalSection.hxx>
 #include <STEPConstruct_UnitContext.hxx>
@@ -113,19 +116,20 @@ struct found_shape {
 };
 
 /// Walks `shape` through its compounds (the locations and orientations accumulate) and sorts what is free in it.
-void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found, std::vector<TopoDS_Edge> &loose) {
+void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found, std::vector<TopoDS_Edge> &loose,
+              std::vector<TopoDS_Shape> &loose_faces) {
     switch (shape.ShapeType()) {
     case TopAbs_COMPOUND:
     case TopAbs_COMPSOLID:
         for (TopoDS_Iterator it(shape); it.More(); it.Next()) {
-            classify(it.Value(), found, loose);
+            classify(it.Value(), found, loose, loose_faces);
         }
         break;
     case TopAbs_SOLID:
         found.push_back({shape, 0});
         break;
     case TopAbs_SHELL: {
-        // A closed free shell is a solid when it makes a valid one; otherwise (or when open) it stays a sheet.
+        // A closed free shell is a solid when it makes a valid one; otherwise (or when open) it joins the file's one sheet.
         if (BRep_Tool::IsClosed(shape)) {
             BRepBuilderAPI_MakeSolid maker(TopoDS::Shell(shape));
             if (maker.IsDone()) {
@@ -142,11 +146,11 @@ void classify(const TopoDS_Shape &shape, std::vector<found_shape> &found, std::v
                 }
             }
         }
-        found.push_back({shape, 1});
+        loose_faces.push_back(shape);
         break;
     }
     case TopAbs_FACE:
-        found.push_back({shape, 1});
+        loose_faces.push_back(shape);
         break;
     case TopAbs_WIRE: {
         // A STEP curve set can come back as a wire per edge: those chain with the loose edges, whole wires stay as they are.
@@ -189,16 +193,19 @@ void chain_loose_edges(const std::vector<TopoDS_Edge> &loose, std::vector<found_
     }
     Handle(TopTools_HSequenceOfShape) wires;
     ShapeAnalysis_FreeBounds::ConnectEdgesToWires(edges, 1e-6, Standard_False, wires);
+    TopTools_IndexedMapOfShape positions;
+    for (const TopoDS_Edge &edge : loose) {
+        positions.Add(edge);
+    }
     std::vector<std::pair<size_t, TopoDS_Shape>> chains;
     if (!wires.IsNull()) {
         for (Standard_Integer i = 1; i <= wires->Length(); ++i) {
             const TopoDS_Shape wire = wires->Value(i);
             size_t lowest = loose.size();
             for (TopoDS_Iterator it(wire); it.More(); it.Next()) {
-                for (size_t k = 0; k < loose.size() && k < lowest; ++k) {
-                    if (loose[k].IsSame(it.Value())) {
-                        lowest = k;
-                    }
+                // The first loose edge that is the same as this one (the map holds each distinct edge once, by position of first add).
+                if (const int at = positions.FindIndex(it.Value()); at > 0) {
+                    lowest = std::min(lowest, static_cast<size_t>(at - 1));
                 }
             }
             chains.emplace_back(lowest, wire);
@@ -230,7 +237,18 @@ int sort_into(XSControl_Reader &reader, double file_unit_millimetres, bool trans
     }
     std::vector<found_shape> found;
     std::vector<TopoDS_Edge> loose;
-    classify(root, found, loose);
+    std::vector<TopoDS_Shape> loose_faces;
+    classify(root, found, loose, loose_faces);
+    if (!loose_faces.empty()) {
+        // Every loose face and free open shell of the file is one sheet (an unsewn compound), so its faces are numbered file-wide.
+        BRep_Builder builder;
+        TopoDS_Compound sheet;
+        builder.MakeCompound(sheet);
+        for (const TopoDS_Shape &part : loose_faces) {
+            builder.Add(sheet, part);
+        }
+        found.push_back({sheet, 1});
+    }
     chain_loose_edges(loose, found);
     if (found.empty()) {
         set_error(status, "The model contains no shapes.");
@@ -374,6 +392,9 @@ int occt_read_shapes(const char *data, size_t size, const char *iges_path, occt_
             }
             reader.TransferRoots();
             return sort_into(reader, unit, false, out, status);
+        } catch (const Standard_OutOfMemory &) {
+            occt_model_shapes_free(out);
+            throw; // `guarded` turns it into an "occt:" failure, which no cache remembers
         } catch (const Standard_Failure &) {
             occt_model_shapes_free(out);
             set_error(status, iges_path ? "The IGES model couldn't be read." : "The STEP model couldn't be read.");

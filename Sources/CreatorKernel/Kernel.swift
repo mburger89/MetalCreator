@@ -101,7 +101,7 @@ public protocol Kernel: Actor {
     func sweep(_ profiles: [Curve], along path: Curve, options: SweepOptions, tag: NodeTag) throws -> Solid
     /// A planar surface bounded by `loops`. The default refuses.
     func planarSurface(_ loops: [Curve], tag: NodeTag) throws -> Solid
-    /// (A solid or sheet scaled with `scaled(_:by:tag:)` keeps its face and edge tags.) `curve` scaled about the origin by `factor`. The default refuses.
+    /// `curve` scaled about the origin by `factor`. (A solid or sheet is scaled with `scaled(_:by:tag:)`, which keeps its face and edge tags.) The default refuses.
     func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve
     /// Every solid, sheet and curve in a model file. The default refuses.
     func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes

@@ -61,7 +61,7 @@ struct SurfaceNodeRefusalTests {
             link(holed, "profile", toCurves, "profile"), link(toCurves, "curves", sweep, "path"),
             link(toCurves, "curves", sweep, "profiles"),
         ], demand: sweep)
-        #expect(report.error(sweep) == "Sweep needs exactly one path.")
+        #expect(report.error(sweep) == "Sweep takes one path, end scale and binormal at a time.")
     }
 
     @Test func aSinglePointIsRefused() async throws {

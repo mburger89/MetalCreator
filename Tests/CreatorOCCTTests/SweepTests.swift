@@ -43,7 +43,7 @@ struct SweepTests {
         let kernel = OCCTKernel()
         let solid = try await kernel.sweep([try await circle(kernel)], along: try await line(kernel, to: Vector3(0, 0, 50)),
                                            options: SweepOptions(makesSolid: true), tag: tag)
-        #expect(solid.isClosed)
+        #expect(solid.isClosed && !solid.hasOpenShell, "a sweep with solid on is a solid")
         let volume = try await kernel.properties(of: solid).volume
         #expect(relative(volume, .pi * 4 * 50) < 1e-6)
         #expect(solid.topology.faces.contains { $0.tags.contains { $0.role == .startCap } })

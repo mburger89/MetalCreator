@@ -168,16 +168,20 @@ void describe_face(const TopoDS_Face &face, occt_face_info &info) {
     set3(info.centroid, properties.CentreOfMass());
 }
 
-/// Whether each shell of `shape` (index n is shell map index n + 1) is closed, asked once per shell.
-std::vector<bool> shells_closed(const TopTools_IndexedMapOfShape &shells) {
+/// Whether each shell of `shape` (index n is shell map index n + 1) is closed and owned by a solid, asked once per shell. A shell no
+/// `TopAbs_SOLID` holds (a bare shell a builder made, closed or not) counts as open: it is a sheet.
+std::vector<bool> shells_closed(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &shells) {
+    TopTools_IndexedDataMapOfShapeListOfShape shell_solids;
+    TopExp::MapShapesAndAncestors(shape, TopAbs_SHELL, TopAbs_SOLID, shell_solids);
     std::vector<bool> closed(shells.Extent());
     for (int i = 1; i <= shells.Extent(); ++i) {
-        closed[i - 1] = BRep_Tool::IsClosed(shells(i));
+        const bool owned = shell_solids.Contains(shells(i)) && !shell_solids.FindFromKey(shells(i)).IsEmpty();
+        closed[i - 1] = owned && BRep_Tool::IsClosed(shells(i));
     }
     return closed;
 }
 
-/// Whether a face is on an open shell: it has no closed shell around it.
+/// Whether a face is on an open shell: it has no closed shell inside a solid around it.
 bool on_open_shell(const TopoDS_Face &face, const TopTools_IndexedDataMapOfShapeListOfShape &face_shells,
                    const TopTools_IndexedMapOfShape &shells, const std::vector<bool> &closed) {
     if (!face_shells.Contains(face)) {
@@ -344,7 +348,7 @@ int occt_read_topology(const occt_shape *shape, occt_topology *out, occt_status 
         TopExp::MapShapesAndAncestors(shape->shape, TopAbs_FACE, TopAbs_SHELL, face_shells);
 
         const TopTools_IndexedMapOfShape shells = map_of(shape->shape, TopAbs_SHELL);
-        const std::vector<bool> closed = shells_closed(shells);
+        const std::vector<bool> closed = shells_closed(shape->shape, shells);
         std::vector<occt_face_info> face_info(faces.Extent());
         for (int i = 1; i <= faces.Extent(); ++i) {
             describe_face(TopoDS::Face(faces(i)), face_info[i - 1]);

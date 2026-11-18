@@ -85,28 +85,31 @@ extension OCCTKernel {
             throw KernelError.invalidInput(error.message)
         }
         var shapes = ImportedShapes(fileUnitMillimetres: read.unit)
+        let solidCount = read.shapes.filter { $0.kind == 0 }.count
         for (shape, kind) in read.shapes {
             try Task.checkCancellation()
             switch kind {
-            case 0: shapes.solids.append(try importedSolid(shape, tag: tag, isSheet: false))
-            case 1: shapes.sheets.append(try importedSolid(shape, tag: tag, isSheet: true))
+            case 0: shapes.solids.append(try importedSolid(shape, tag: tag, body: shapes.solids.count, isSheet: false))
+            case 1: shapes.sheets.append(try importedSolid(shape, tag: tag, body: solidCount + shapes.sheets.count, isSheet: true))
             default: shapes.curves.append(try curve(from: shape, operation: "read model"))
             }
         }
         return shapes
     }
 
-    /// A solid or sheet read from a file: its faces named `.imported(face: i)` in the shape's face order and, for a sheet, its free edges
-    /// `.boundary(.imported(edge: i))` in the shape's edge order.
-    private func importedSolid(_ shape: OCCTShape, tag: NodeTag, isSheet: Bool) throws -> Solid {
+    /// A solid or sheet read from a file: its faces named `.imported(face: (body << 32) + i)` in the shape's face order and, for a sheet,
+    /// its free edges `.boundary(.imported(edge: (body << 32) + i))` in the shape's edge order. `body` counts the file's solids first,
+    /// then its sheets, so no two bodies of one file share a name (as the models of a KiCad footprint don't).
+    private func importedSolid(_ shape: OCCTShape, tag: NodeTag, body: Int, isSheet: Bool) throws -> Solid {
+        let offset = body << 32
         let read = try solid(from: shape, history: [], inputs: [], tag: tag, operation: "read model")
         var topology = read.topology
         for index in topology.faces.indices {
-            topology.faces[index].tags = [TopoTag(tag, .imported(face: index))]
+            topology.faces[index].tags = [TopoTag(tag, .imported(face: offset + index))]
         }
         if isSheet {
             for index in topology.edges.indices where topology.edges[index].isBoundary {
-                topology.edges[index].tags = [TopoTag(tag, .boundary(.imported(edge: index)))]
+                topology.edges[index].tags = [TopoTag(tag, .boundary(.imported(edge: offset + index)))]
             }
         }
         return Solid(topology: topology, bounds: read.bounds, storage: read.storage)
