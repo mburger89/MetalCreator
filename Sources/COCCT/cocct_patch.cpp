@@ -5,6 +5,7 @@
 // result is measured: every piece within 1e-4 mm and every interior point within 1e-3 mm. Tangency is graded by the caller, through
 // the two-body continuity call, because it needs the part as a second body.
 
+#include "cocct_patch_g2.hpp"
 #include "cocct_sheet.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
@@ -160,9 +161,12 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         *history = occt_history{};
         *roles = occt_boundary_roles{};
         *total_pieces = 0;
-        if (continuity < 0 || continuity > 1 || piece_capacity < kMostPieces || curve_count < 0 || edge_count < 0 ||
+        if (continuity < 0 || continuity > 2 || piece_capacity < kMostPieces || curve_count < 0 || edge_count < 0 ||
             point_count < 0 || interior_count < 0) {
             throw user_error("The patch was asked for with invalid settings.");
+        }
+        if (continuity == 2 && (point_count > 0 || interior_count > 0)) {
+            throw user_error("A G2 patch can't pass through interior points or curves.");
         }
         std::vector<piece> pieces;
         for (int i = 0; i < curve_count; ++i) {
@@ -242,34 +246,54 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         }
         poll(cancel);
 
+        // G2 needs three or four sides, whatever they lie on; with no sheet among them it is the G0 fill (the caller warns).
+        if (continuity == 2 && count != 3 && count != 4) {
+            throw user_error("A G2 patch needs 3 or 4 sides; this loop has " + std::to_string(count) + ".");
+        }
+        bool g2 = false;
+        for (const piece &item : pieces) {
+            g2 = g2 || (continuity == 2 && !item.support.IsNull());
+        }
+
         // Fill it.
         BRepFill_Filling fill(3, 15, 2, Standard_False, 1e-5, 1e-4, 1e-2, 0.1, 8, 9);
-        for (const piece &item : pieces) {
-            if (item.support.IsNull()) {
-                fill.Add(item.edge, GeomAbs_C0, Standard_True);
-            } else {
-                fill.Add(item.edge, item.support, GeomAbs_G1, Standard_True);
+        TopoDS_Face face;
+        if (g2) {
+            std::vector<g2_side> loop;
+            for (int k = 0; k < count; ++k) {
+                const piece &item = pieces[static_cast<std::size_t>(piece_order[k])];
+                loop.push_back({item.edge, item.support, piece_order[k] + 1});
             }
-        }
-        for (int i = 0; i < point_count; ++i) {
-            fill.Add(gp_Pnt(points[3 * i], points[3 * i + 1], points[3 * i + 2]));
-        }
-        for (int i = 0; i < interior_count; ++i) {
-            if (!interior_curves[i] || interior_curves[i]->shape.IsNull() ||
-                interior_curves[i]->shape.ShapeType() != TopAbs_WIRE) {
-                throw user_error("This curve can't be used.");
+            face = build_g2_patch(loop, cancel);
+            poll(cancel);
+        } else {
+            for (const piece &item : pieces) {
+                if (item.support.IsNull()) {
+                    fill.Add(item.edge, GeomAbs_C0, Standard_True);
+                } else {
+                    fill.Add(item.edge, item.support, GeomAbs_G1, Standard_True);
+                }
             }
-            for (const TopoDS_Edge &edge : edges_of(TopoDS::Wire(interior_curves[i]->shape))) {
-                fill.Add(edge, GeomAbs_C0, Standard_False);
+            for (int i = 0; i < point_count; ++i) {
+                fill.Add(gp_Pnt(points[3 * i], points[3 * i + 1], points[3 * i + 2]));
             }
+            for (int i = 0; i < interior_count; ++i) {
+                if (!interior_curves[i] || interior_curves[i]->shape.IsNull() ||
+                    interior_curves[i]->shape.ShapeType() != TopAbs_WIRE) {
+                    throw user_error("This curve can't be used.");
+                }
+                for (const TopoDS_Edge &edge : edges_of(TopoDS::Wire(interior_curves[i]->shape))) {
+                    fill.Add(edge, GeomAbs_C0, Standard_False);
+                }
+            }
+            poll(cancel);
+            fill.Build();
+            poll(cancel);
+            if (!fill.IsDone()) {
+                throw user_error("The patch couldn't be made from these pieces.");
+            }
+            face = fill.Face();
         }
-        poll(cancel);
-        fill.Build();
-        poll(cancel);
-        if (!fill.IsDone()) {
-            throw user_error("The patch couldn't be made from these pieces.");
-        }
-        const TopoDS_Face face = fill.Face();
         if (face.IsNull() || !BRepCheck_Analyzer(face).IsValid()) {
             throw user_error("The patch couldn't be made from these pieces.");
         }
@@ -303,9 +327,11 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         for (int input = 0; input < count; ++input) {
             const int k = static_cast<int>(std::find(piece_order, piece_order + count, input) - piece_order);
             TopoDS_Shape found;
-            for (TopTools_ListOfShape::Iterator it(fill.Generated(pieces[static_cast<std::size_t>(input)].edge)); it.More(); it.Next()) {
-                if (face_edges.Contains(it.Value())) {
-                    found = it.Value();
+            if (!g2) {
+                for (TopTools_ListOfShape::Iterator it(fill.Generated(pieces[static_cast<std::size_t>(input)].edge)); it.More(); it.Next()) {
+                    if (face_edges.Contains(it.Value())) {
+                        found = it.Value();
+                    }
                 }
             }
             for (int e = 1; found.IsNull() && e <= face_edges.Extent(); ++e) {

@@ -165,10 +165,6 @@ struct BoundaryPatchTests {
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 
-    @Test func g2IsNotYetAvailable() async throws {
-        await #expect(throws: KernelError.self) { try await patch(try await square(), continuity: .g2) }
-    }
-
     // MARK: A hole in a sheet
 
     /// Half a circle of radius `r` at height `z`, then the other half: a closed section of two pieces.

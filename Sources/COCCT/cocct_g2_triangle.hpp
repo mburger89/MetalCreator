@@ -426,6 +426,7 @@ struct TriangleStats {
     double block_mismatch = 0, raw_mismatch = 0, largest_freedom = 0;
     double min_lambda = 0; // the least value of any side's across scale over its length
     int iterations = 0;
+    int worst_corner = -1; // the loop corner (0 to 2, at the end of that side) holding the worst disagreement left
 };
 
 /// Fills the layers of the three sides and the fair interior. The corner blocks are made to agree by reshaping each
@@ -454,6 +455,7 @@ inline bool build_triangle(const TriangleSide sides[3], TriangleNet &net, Triang
             side_layers(bases[s], scalars[s], n, layers[s]);
         }
     };
+    std::size_t worst_conflict = 0;
     auto residual = [&](std::vector<double> &r) {
         r.assign(rows, 0.0);
         double worst = 0;
@@ -461,7 +463,10 @@ inline bool build_triangle(const TriangleSide sides[3], TriangleNet &net, Triang
             const Vec &a = layers[conflicts[k].first.side][conflicts[k].first.layer][conflicts[k].first.index];
             const Vec &b = layers[conflicts[k].second.side][conflicts[k].second.layer][conflicts[k].second.index];
             const Vec d = sub(a, b);
-            worst = std::max(worst, norm(d));
+            if (norm(d) > worst) {
+                worst = norm(d);
+                worst_conflict = k;
+            }
             for (int c = 0; c < 3; ++c) {
                 r[k * 3 + c] = d[c];
             }
@@ -549,6 +554,10 @@ inline bool build_triangle(const TriangleSide sides[3], TriangleNet &net, Triang
     }
     load(x);
     stats.block_mismatch = residual(r);
+    if (!conflicts.empty()) {
+        const int first_side = conflicts[worst_conflict].first.side, second_side = conflicts[worst_conflict].second.side;
+        stats.worst_corner = second_side == first_side + 1 ? first_side : 2; // the corner the two sides share
+    }
     stats.iterations = it;
     stats.largest_freedom = 0;
     for (double v : x) {

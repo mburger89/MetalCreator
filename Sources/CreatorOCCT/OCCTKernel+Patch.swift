@@ -50,6 +50,7 @@ extension OCCTKernel {
     static let patchCannotHoldTangent = "The patch isn't tangent to the surface along piece %d; the hole may be too sharp for G1."
     static let patchNotMade = "The patch couldn't be made from these pieces."
     static let patchOnlyG0 = "No bounding edge lies on a surface, so the patch is only G0."
+    static let patchNotCurvatureContinuous = "The patch can't be made curvature continuous along piece %d."
 
     /// The shim's inputs for `boundary`, and which picked edges (by index) lie on a face of the part.
     private func patchInputs(_ boundary: PatchBoundary, points: [Vector3], interior: [Curve], continuity: PatchContinuity) throws
@@ -80,7 +81,6 @@ extension OCCTKernel {
     public func boundaryPatch(_ boundary: PatchBoundary, interior points: [Vector3], interior curves: [Curve],
                               continuity: PatchContinuity, tag: NodeTag) async throws -> PatchResult {
         try Task.checkCancellation()
-        guard continuity != .g2 else { throw KernelError.unsupported("G2 boundary patches") }
         guard points.allSatisfy(\.isFinite) else { throw KernelError.invalidInput("A point must be finite.") }
         let (inputs, supported) = try patchInputs(boundary, points: points, interior: curves, continuity: continuity)
         let flag = OCCTCancelFlag()
@@ -99,17 +99,20 @@ extension OCCTKernel {
             throw KernelError.invalidInput(Self.writingNumbers(in: message))
         }
         try Task.checkCancellation()
-        guard continuity == .g1 else { return PatchResult(sheet: sheet) }
-        guard let part = boundary.part, !supported.isEmpty else {
+        guard continuity != .g0 else { return PatchResult(sheet: sheet) }
+        guard boundary.part != nil, !supported.isEmpty else {
             return PatchResult(sheet: sheet, warnings: [Self.patchOnlyG0])
         }
-        try await checkTangent(sheet, part: part, edges: boundary.edges, supported: supported, pieces: pieces, tag: tag)
+        try await checkContinuity(sheet, boundary: boundary, supported: supported, pieces: pieces,
+                                  required: continuity == .g2 ? .g2 : .g1, tag: tag)
         return PatchResult(sheet: sheet)
     }
 
-    /// Holds each supported piece to G1 against its face, through the two-body call.
-    private func checkTangent(_ sheet: Solid, part: Solid, edges: [EdgeID], supported: [Int], pieces: PatchPieces,
-                              tag: NodeTag) async throws {
+    /// Holds each supported piece to `required` against its face, through the two-body call.
+    private func checkContinuity(_ sheet: Solid, boundary: PatchBoundary, supported: [Int], pieces: PatchPieces,
+                                 required: ContinuityClass, tag: NodeTag) async throws {
+        guard let part = boundary.part else { throw KernelError.invalidInput(Self.patchNotMade) }
+        let edges = boundary.edges
         let curveCount = pieces.total - edges.count
         for index in supported {
             let input = curveCount + index
@@ -121,8 +124,9 @@ extension OCCTKernel {
                 throw KernelError.invalidInput(Self.patchNotMade)
             }
             let found = try await continuity(of: patchEdge.id, in: sheet, against: face, of: part)
-            if found.grade < .g1 {
-                throw KernelError.invalidInput(Self.patchCannotHoldTangent.replacingOccurrences(of: "%d", with: "\(input + 1)"))
+            if found.grade < required {
+                let wording = required == .g2 ? Self.patchNotCurvatureContinuous : Self.patchCannotHoldTangent
+                throw KernelError.invalidInput(wording.replacingOccurrences(of: "%d", with: "\(input + 1)"))
             }
         }
     }
