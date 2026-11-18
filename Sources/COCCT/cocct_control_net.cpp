@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <new>
 #include <vector>
 
 using namespace cocct;
@@ -53,6 +54,8 @@ int code_of(GeomAbs_SurfaceType type) {
     default: return kOther;
     }
 }
+
+constexpr int kMaxDegree = 11;
 
 template <typename T>
 T *zeroed(size_t count) {
@@ -85,24 +88,57 @@ TopoDS_Face face_at(const occt_shape *shape, int face_index) {
     return TopoDS::Face(faces(face_index));
 }
 
-/// Greville abscissa `index` (0-based) of a direction's poles, from the flat knot sequence, folded into [first, last].
-double greville(const TColStd_Array1OfReal &flat, int degree, int index, double first, double last, bool periodic) {
-    double sum = 0;
-    for (int k = 1; k <= degree; ++k) {
-        const int position = std::min(flat.Upper(), flat.Lower() + index + k);
-        sum += flat(position);
-    }
-    double value = sum / degree;
-    if (periodic && last > first) {
-        const double period = last - first;
-        while (value > last) {
-            value -= period;
+/// Greville abscissa of every pole of one direction: the mean of the `degree` knots after the pole's own first knot in the flat
+/// sequence. A clamped direction reads it from the usual flat sequence. A periodic one has the flat sequence of one period
+/// (every knot but the last, each repeated by its multiplicity: as many as poles), continued by the period in both directions.
+/// OpenCascade's periodic flat knots begin `degree + 1 - first multiplicity` knots before that sequence, and pole j is the
+/// basis function whose support starts at its own flat knot j, so pole j's support starts that many places before flat knot j.
+/// Values are folded into [first, last].
+std::vector<double> greville_all(const Handle(Geom_BSplineSurface) &surface, bool u_direction, double first, double last) {
+    const int count = u_direction ? surface->NbUPoles() : surface->NbVPoles();
+    const int degree = u_direction ? surface->UDegree() : surface->VDegree();
+    const bool periodic = u_direction ? surface->IsUPeriodic() : surface->IsVPeriodic();
+    std::vector<double> flat;
+    int shift = 0;
+    if (periodic) {
+        shift = degree + 1 - (u_direction ? surface->UMultiplicity(1) : surface->VMultiplicity(1));
+        const int knots = u_direction ? surface->NbUKnots() : surface->NbVKnots();
+        for (int k = 1; k < knots; ++k) {
+            const int multiplicity = u_direction ? surface->UMultiplicity(k) : surface->VMultiplicity(k);
+            for (int m = 0; m < multiplicity; ++m) {
+                flat.push_back(u_direction ? surface->UKnot(k) : surface->VKnot(k));
+            }
         }
-        while (value < first) {
-            value += period;
+        if (static_cast<int>(flat.size()) != count) {
+            throw user_error("This surface's periodic knots couldn't be read.");
         }
     }
-    return std::min(std::max(value, first), last);
+    const double period = last - first;
+    std::vector<double> out(count);
+    for (int j = 0; j < count; ++j) {
+        double sum = 0;
+        for (int k = 1; k <= degree; ++k) {
+            if (periodic) {
+                const int at = j + k - shift;
+                const int wraps = at >= 0 ? at / count : -((-at + count - 1) / count);
+                sum += flat[at - wraps * count] + wraps * period;
+            } else {
+                const TColStd_Array1OfReal &sequence = u_direction ? surface->UKnotSequence() : surface->VKnotSequence();
+                sum += sequence(std::min(sequence.Upper(), sequence.Lower() + j + k));
+            }
+        }
+        double value = sum / degree;
+        if (periodic && period > 0) {
+            while (value > last) {
+                value -= period;
+            }
+            while (value < first) {
+                value += period;
+            }
+        }
+        out[j] = std::min(std::max(value, first), last);
+    }
+    return out;
 }
 
 void unit_normal(const Handle(Geom_BSplineSurface) &surface, double u, double v, bool flip, double (&out)[3]) {
@@ -131,6 +167,38 @@ void unit_normal(const Handle(Geom_BSplineSurface) &surface, double u, double v,
     out[0] = 0;
     out[1] = 0;
     out[2] = 1;
+}
+
+struct converted_face {
+    TopoDS_Face face;
+    Handle(Geom_BSplineSurface) surface;
+    int original = 0;
+    bool converted = false;
+};
+
+/// Face `face_index`'s surface as a B-spline: itself when it is one, else an exact conversion of a copy.
+converted_face convert_face(const occt_shape *shape, int face_index) {
+    converted_face out;
+    const TopoDS_Face source = face_at(shape, face_index);
+    const BRepAdaptor_Surface adaptor(source, Standard_True);
+    out.original = code_of(adaptor.GetType());
+    out.face = source;
+    if (out.original == kBSpline) {
+        out.surface = Handle(Geom_BSplineSurface)::DownCast(unwrapped(BRep_Tool::Surface(source)));
+    }
+    if (out.surface.IsNull()) {
+        BRepBuilderAPI_NurbsConvert converter(source, Standard_True);
+        if (!converter.IsDone() || converter.Shape().IsNull() || converter.Shape().ShapeType() != TopAbs_FACE) {
+            throw user_error("This surface couldn't be converted to a B-spline.");
+        }
+        out.face = TopoDS::Face(converter.Shape());
+        out.surface = Handle(Geom_BSplineSurface)::DownCast(unwrapped(BRep_Tool::Surface(out.face)));
+        if (out.surface.IsNull()) {
+            throw user_error("This surface couldn't be converted to a B-spline.");
+        }
+        out.converted = true;
+    }
+    return out;
 }
 
 /// Copies `surface`'s net into `out`; with `normals` also the unit normal at each pole's Greville point.
@@ -180,14 +248,8 @@ void fill_net(const Handle(Geom_BSplineSurface) &surface, bool normals, bool fli
     out.normals = zeroed<double>(static_cast<size_t>(nu) * nv * 3);
     double u0, u1, v0, v1;
     surface->Bounds(u0, u1, v0, v1);
-    std::vector<double> us(nu);
-    std::vector<double> vs(nv);
-    for (int i = 0; i < nu; ++i) {
-        us[i] = greville(surface->UKnotSequence(), out.degree_u, i, u0, u1, out.periodic_u != 0);
-    }
-    for (int j = 0; j < nv; ++j) {
-        vs[j] = greville(surface->VKnotSequence(), out.degree_v, j, v0, v1, out.periodic_v != 0);
-    }
+    const std::vector<double> us = greville_all(surface, true, u0, u1);
+    const std::vector<double> vs = greville_all(surface, false, v0, v1);
     for (int i = 0; i < nu; ++i) {
         for (int j = 0; j < nv; ++j) {
             double n[3];
@@ -209,33 +271,21 @@ int occt_control_net_of_face(const occt_shape *shape, int face_index, int max_po
     return guarded(status, [&]() -> int {
         occt_initialize();
         *out = occt_surface_net{};
-        const TopoDS_Face source = face_at(shape, face_index);
-        const BRepAdaptor_Surface adaptor(source, Standard_True);
-        const int original = code_of(adaptor.GetType());
-        TopoDS_Face face = source;
-        Handle(Geom_BSplineSurface) surface =
-            original == kBSpline ? Handle(Geom_BSplineSurface)::DownCast(unwrapped(BRep_Tool::Surface(source))) : nullptr;
-        if (surface.IsNull()) {
-            BRepBuilderAPI_NurbsConvert converter(source, Standard_True);
-            if (!converter.IsDone() || converter.Shape().IsNull() || converter.Shape().ShapeType() != TopAbs_FACE) {
-                throw user_error("This surface couldn't be converted to a B-spline.");
-            }
-            face = TopoDS::Face(converter.Shape());
-            surface = Handle(Geom_BSplineSurface)::DownCast(unwrapped(BRep_Tool::Surface(face)));
-            if (surface.IsNull()) {
-                throw user_error("This surface couldn't be converted to a B-spline.");
-            }
-            out->converted_from = original;
-        } else {
-            out->converted_from = -1;
+        const converted_face converted = convert_face(shape, face_index);
+        const Handle(Geom_BSplineSurface) &surface = converted.surface;
+        out->converted_from = converted.converted ? converted.original : -1;
+        const int degree = std::max(surface->UDegree(), surface->VDegree());
+        if (degree > kMaxDegree) {
+            throw user_error("Edit Surface works on degree 1 to " + number(kMaxDegree) + "; this surface is degree " +
+                             number(degree) + ". Rebuild it first.");
         }
         const double count = static_cast<double>(surface->NbUPoles()) * surface->NbVPoles();
         if (max_poles > 0 && count > max_poles) {
             throw user_error("This surface has " + number(count) + " control points; Edit Surface works on at most " +
                              number(max_poles) + ".");
         }
-        out->kind = original;
-        fill_net(surface, true, face.Orientation() == TopAbs_REVERSED, *out);
+        out->kind = converted.original;
+        fill_net(surface, true, converted.face.Orientation() == TopAbs_REVERSED, *out);
         return 1;
     });
 }
@@ -313,8 +363,9 @@ int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_
         Handle(Geom_BSplineCurve) spline = Handle(Geom_BSplineCurve)::DownCast(basis);
         if (!spline.IsNull()) {
             spline = Handle(Geom_BSplineCurve)::DownCast(spline->Copy());
-            const bool whole = std::abs(first - spline->FirstParameter()) <= 1e-12 &&
-                               std::abs(last - spline->LastParameter()) <= 1e-12;
+            const double slack = 1e-9 * (1.0 + std::abs(spline->LastParameter() - spline->FirstParameter()));
+            const bool whole = std::abs(first - spline->FirstParameter()) <= slack &&
+                               std::abs(last - spline->LastParameter()) <= slack;
             if (!whole) {
                 if (spline->IsPeriodic()) {
                     spline->SetNotPeriodic();
@@ -332,11 +383,12 @@ int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_
             throw user_error("This curve couldn't be converted to a B-spline.");
         }
         out->periodic = spline->IsPeriodic() ? 1 : 0;
-        if (spline->IsPeriodic()) {
-            spline->SetNotPeriodic();
-        }
         if (edge.Orientation() == TopAbs_REVERSED) {
             spline->Reverse();
+        }
+        if (spline->Degree() > kMaxDegree) {
+            throw user_error("Edit Curve works on degree 1 to " + number(kMaxDegree) + "; this curve is degree " +
+                             number(spline->Degree()) + ". Rebuild it first.");
         }
         const int n = spline->NbPoles();
         out->degree = spline->Degree();
@@ -376,11 +428,44 @@ void occt_curve_net_free(occt_curve_net *net) {
     }
 }
 
-occt_shape *occt_test_bspline_sheet(int u_count, int v_count, occt_status *status) {
+int occt_test_net_gaps(const occt_shape *shape, int face_index, double *normal_error, double *pole_gap, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        occt_initialize();
+        const converted_face converted = convert_face(shape, face_index);
+        const Handle(Geom_BSplineSurface) &surface = converted.surface;
+        const bool flip = converted.face.Orientation() == TopAbs_REVERSED;
+        double u0, u1, v0, v1;
+        surface->Bounds(u0, u1, v0, v1);
+        const std::vector<double> us = greville_all(surface, true, u0, u1);
+        const std::vector<double> vs = greville_all(surface, false, v0, v1);
+        *normal_error = 0;
+        *pole_gap = 0;
+        for (int i = 0; i < surface->NbUPoles(); ++i) {
+            for (int j = 0; j < surface->NbVPoles(); ++j) {
+                gp_Pnt point;
+                gp_Vec du, dv;
+                surface->D1(us[i], vs[j], point, du, dv);
+                double n[3];
+                unit_normal(surface, us[i], vs[j], flip, n);
+                const gp_Vec normal(n[0], n[1], n[2]);
+                if (du.Magnitude() > 1e-9) {
+                    *normal_error = std::max(*normal_error, std::abs(normal.Dot(du)) / du.Magnitude());
+                }
+                if (dv.Magnitude() > 1e-9) {
+                    *normal_error = std::max(*normal_error, std::abs(normal.Dot(dv)) / dv.Magnitude());
+                }
+                *pole_gap = std::max(*pole_gap, point.Distance(surface->Pole(i + 1, j + 1)));
+            }
+        }
+        return 1;
+    });
+}
+
+occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         occt_initialize();
-        if (u_count < 2 || v_count < 2) {
-            throw user_error("A sheet needs at least two poles each way.");
+        if (degree < 1 || u_count < degree + 1 || v_count < degree + 1) {
+            throw user_error("A sheet needs more poles than its degree each way.");
         }
         TColgp_Array2OfPnt poles(1, u_count, 1, v_count);
         for (int i = 1; i <= u_count; ++i) {
@@ -388,19 +473,22 @@ occt_shape *occt_test_bspline_sheet(int u_count, int v_count, occt_status *statu
                 poles(i, j) = gp_Pnt(i - 1, j - 1, 0);
             }
         }
-        TColStd_Array1OfReal knots_u(1, u_count);
-        TColStd_Array1OfReal knots_v(1, v_count);
-        TColStd_Array1OfInteger mult_u(1, u_count);
-        TColStd_Array1OfInteger mult_v(1, v_count);
-        for (int i = 1; i <= u_count; ++i) {
+        const int knot_u = u_count - degree + 1;
+        const int knot_v = v_count - degree + 1;
+        TColStd_Array1OfReal knots_u(1, knot_u);
+        TColStd_Array1OfReal knots_v(1, knot_v);
+        TColStd_Array1OfInteger mult_u(1, knot_u);
+        TColStd_Array1OfInteger mult_v(1, knot_v);
+        for (int i = 1; i <= knot_u; ++i) {
             knots_u(i) = i - 1;
-            mult_u(i) = (i == 1 || i == u_count) ? 2 : 1;
+            mult_u(i) = (i == 1 || i == knot_u) ? degree + 1 : 1;
         }
-        for (int j = 1; j <= v_count; ++j) {
+        for (int j = 1; j <= knot_v; ++j) {
             knots_v(j) = j - 1;
-            mult_v(j) = (j == 1 || j == v_count) ? 2 : 1;
+            mult_v(j) = (j == 1 || j == knot_v) ? degree + 1 : 1;
         }
-        Handle(Geom_BSplineSurface) surface = new Geom_BSplineSurface(poles, knots_u, knots_v, mult_u, mult_v, 1, 1);
+        Handle(Geom_BSplineSurface) surface =
+            new Geom_BSplineSurface(poles, knots_u, knots_v, mult_u, mult_v, degree, degree);
         BRepBuilderAPI_MakeFace face(surface, 1e-7);
         if (!face.IsDone()) {
             throw user_error("The sheet couldn't be made.");

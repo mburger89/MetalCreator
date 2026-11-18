@@ -40,7 +40,8 @@ extension OCCTShape {
         let knotCount = Int(raw.knot_count)
         let curve = BSplineCurve3D(degree: Int(raw.degree), poles: poles, weights: weights,
                                    knots: (0..<knotCount).map { raw.knots[$0] },
-                                   multiplicities: (0..<knotCount).map { Int(raw.multiplicities[$0]) })
+                                   multiplicities: (0..<knotCount).map { Int(raw.multiplicities[$0]) },
+                                   isPeriodic: raw.periodic != 0)
         let kind: CurvePieceKind? = switch raw.converted_from {
         case 0: .line
         case 1: .arc
@@ -51,8 +52,17 @@ extension OCCTShape {
     }
 
     /// FOR TESTS ONLY. A bilinear sheet of one face with `uCount` x `vCount` poles. Call under `OCCTKernel.serialized`.
-    static func bsplineSheet(uCount: Int, vCount: Int) throws(OCCTError) -> OCCTShape {
-        try make { status in occt_test_bspline_sheet(Int32(uCount), Int32(vCount), status) }
+    static func bsplineSheet(uCount: Int, vCount: Int, degree: Int) throws(OCCTError) -> OCCTShape {
+        try make { status in occt_test_bspline_sheet(Int32(uCount), Int32(vCount), Int32(degree), status) }
+    }
+
+    /// FOR TESTS ONLY. How far the normals at the Greville points stray from perpendicular to the surface, and the largest distance
+    /// from the surface point at a pole's Greville parameters to that pole. Call under `OCCTKernel.serialized`.
+    func netGaps(ofFace faceIndex: Int) throws(OCCTError) -> (normalError: Double, poleGap: Double) {
+        var normalError = 0.0
+        var poleGap = 0.0
+        try Self.check { status in occt_test_net_gaps(self.raw, Int32(faceIndex + 1), &normalError, &poleGap, status) }
+        return (normalError, poleGap)
     }
 
     private static func surface(from raw: occt_surface_net) -> BSplineSurface3D? {
@@ -115,14 +125,26 @@ extension OCCTKernel {
     }
 
     /// FOR TESTS ONLY. A one-face sheet of a bilinear B-spline with `uCount` x `vCount` poles.
-    func bsplineSheet(uCount: Int, vCount: Int, tag: NodeTag) throws -> Solid {
+    func bsplineSheet(uCount: Int, vCount: Int, degree: Int = 1, tag: NodeTag) throws -> Solid {
         let shape: OCCTShape
         do {
-            shape = try Self.serialized { () throws -> OCCTShape in try OCCTShape.bsplineSheet(uCount: uCount, vCount: vCount) }
+            shape = try Self.serialized { () throws -> OCCTShape in
+                try OCCTShape.bsplineSheet(uCount: uCount, vCount: vCount, degree: degree)
+            }
         } catch let error as OCCTError {
             throw KernelError.occt("test sheet", error)
         }
         return try solid(from: shape, history: [], inputs: [], tag: tag, operation: "test sheet")
+    }
+
+    /// FOR TESTS ONLY. See `OCCTShape.netGaps(ofFace:)`.
+    func netGaps(of surface: Solid) throws -> (normalError: Double, poleGap: Double) {
+        let shape = try shape(of: surface)
+        do {
+            return try Self.serialized { () throws -> (normalError: Double, poleGap: Double) in try shape.netGaps(ofFace: 0) }
+        } catch let error as OCCTError {
+            throw KernelError.occt("net gaps", error)
+        }
     }
 
     /// Runs a shim read under the kernel lock, mapping its failure to a `KernelError` in the shim's words.

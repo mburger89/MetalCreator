@@ -39,8 +39,9 @@ public struct BSplineSurface3D: Hashable, Sendable, Codable {
 
     /// Whether the net and knots describe one B-spline surface: degrees 1 or more, at least two poles each way (a periodic
     /// direction needs the degree's worth), finite numbers, increasing knots, and in each direction multiplicities that
-    /// sum to the poles plus the degree plus one (a periodic direction: to the poles), a clamped direction's ends at
-    /// degree + 1 and every interior one from 1 to the degree.
+    /// sum to the poles plus the degree plus one (a periodic direction: every one from 1 to the degree, the first equal to the
+    /// last, all but the last summing to the poles), a clamped direction's ends at degree + 1 and every interior one from 1 to
+    /// the degree.
     public var isWellFormed: Bool {
         guard degreeU >= 1, degreeV >= 1, uCount >= 2, vCount >= 2, poles.count == uCount * vCount,
               poles.allSatisfy(\.isFinite) else { return false }
@@ -59,7 +60,8 @@ public struct BSplineSurface3D: Hashable, Sendable, Codable {
         guard knots.count >= 2, knots.count == multiplicities.count, knots.allSatisfy(\.isFinite),
               zip(knots, knots.dropFirst()).allSatisfy({ $0 < $1 }) else { return false }
         if periodic {
-            return multiplicities.allSatisfy { (1...degree).contains($0) } && multiplicities.reduce(0, +) == count
+            return multiplicities.allSatisfy { (1...degree).contains($0) } && multiplicities.first == multiplicities.last
+                && multiplicities.dropLast().reduce(0, +) == count
         }
         return multiplicities.first == degree + 1 && multiplicities.last == degree + 1
             && multiplicities.dropFirst().dropLast().allSatisfy { (1...degree).contains($0) }

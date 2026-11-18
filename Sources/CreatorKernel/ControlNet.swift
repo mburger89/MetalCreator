@@ -44,7 +44,8 @@ public struct PoleMove: Hashable, Codable, Sendable {
     }
 }
 
-/// What a sheet's one face was before its control net was read: a surface that is not a B-spline is converted exactly.
+/// What a sheet's one face was before its control net was read: a surface that is not a B-spline is converted exactly. The net is
+/// the whole underlying surface, not just the part the face's trims show (the face's pcurves stay valid against it).
 public struct SurfaceNet: Sendable {
     public var surface: BSplineSurface3D
     /// The unit normal at each pole's Greville point, in the same order as `surface.poles`, oriented by the face.
@@ -62,8 +63,9 @@ public struct SurfaceNet: Sendable {
 /// The kind of a curve's one piece before conversion to a B-spline.
 public enum CurvePieceKind: String, Sendable { case line, arc, other }
 
-/// A one-piece curve as one clamped B-spline. A closed periodic spline is given unwrapped (its first pole repeated) with
-/// `isPeriodic` set.
+/// A one-piece curve as one B-spline. The net is the piece's trimmed segment: an exact copy of the part of the edge's curve between
+/// its ends (a trimmed or partial B-spline is cut to it), and a move of its poles is applied to that same copy. A periodic spline
+/// keeps its unique poles and OpenCascade's periodic knots (`curve.isPeriodic`), so a pole's `PoleIndex` is the same on read and write.
 public struct CurveNet: Sendable {
     public var curve: BSplineCurve3D
     public var isPeriodic: Bool

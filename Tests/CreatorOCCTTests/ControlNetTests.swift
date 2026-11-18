@@ -79,6 +79,92 @@ struct ControlNetTests {
         for normal in net.normals { #expect(abs(normal.length - 1) < 1e-9) }
     }
 
+    func revolvedLine(reversed: Bool = false, degrees: Double = 90) async throws -> Solid {
+        let a = Vector3(5, 0, 0)
+        let b = Vector3(5, 0, 10)
+        let line = try await kernel.makeCurve([reversed ? .line(b, a) : .line(a, b)], tag: tag)
+        return try await kernel.revolve(line, axis: Axis(origin: .zero, direction: Vector3(0, 0, 1)), angle: .degrees(degrees),
+                                        tag: tag)
+    }
+
+    @Test func cylinderNormalsPointOutward() async throws {
+        let net = try await kernel.controlNet(of: try await revolvedLine())
+        for (pole, normal) in zip(net.surface.poles, net.normals) {
+            #expect(abs(normal.z) < 1e-6 && abs(normal.length - 1) < 1e-6)
+            // Radial at its own angle, and on the pole's side of the axis (the poles of a 90 degree arc span 90 degrees at most).
+            #expect(normal.x * pole.x + normal.y * pole.y > 0)
+        }
+    }
+
+    @Test func aReversedFaceFlipsItsNormals() async throws {
+        let forward = try await kernel.controlNet(of: try await revolvedLine())
+        let flipped = try await kernel.controlNet(of: try await revolvedLine(reversed: true))
+        #expect(flipped.surface.poles.count == forward.surface.poles.count)
+        for normal in flipped.normals {
+            #expect(normal.x * 0 + abs(normal.z) < 1e-6)
+        }
+        // Compare where the poles coincide: the same pole of the two nets has opposite normals.
+        var compared = 0
+        for (pole, normal) in zip(forward.surface.poles, forward.normals) {
+            guard let index = flipped.surface.poles.firstIndex(where: { ($0 - pole).length < 1e-9 }) else { continue }
+            #expect(normal.x * flipped.normals[index].x + normal.y * flipped.normals[index].y < 0)
+            compared += 1
+        }
+        #expect(compared > 0)
+    }
+
+    @Test func aFullRevolveIsPeriodic() async throws {
+        let net = try await kernel.controlNet(of: try await revolvedLine(degrees: 360))
+        #expect(net.surface.isPeriodicU || net.surface.isPeriodicV)
+        #expect(net.surface.isWellFormed)
+        #expect(net.surface.poles.count == net.surface.uCount * net.surface.vCount)
+        // Unique poles: no two of them coincide.
+        for (index, pole) in net.surface.poles.enumerated() {
+            #expect(!net.surface.poles[(index + 1)...].contains { ($0 - pole).length < 1e-9 })
+        }
+        for normal in net.normals { #expect(abs(normal.z) < 1e-6 && abs(normal.length - 1) < 1e-6) }
+    }
+
+    @Test func aClosedCurveIsPeriodic() async throws {
+        let points = (0..<8).map { Vector3(5 * cos(Double($0) * .pi / 4), 5 * sin(Double($0) * .pi / 4), 0) }
+        let curve = try await kernel.interpolate(points, degree: 3, closed: true, startTangent: nil, endTangent: nil, tag: tag)
+        let net = try await kernel.controlNet(of: curve)
+        #expect(net.isPeriodic && net.curve.isPeriodic)
+        #expect(net.curve.isWellFormed)
+        // OCCT keeps the periodic pole count its own way (isWellFormed ties it to the multiplicities); none is repeated.
+        #expect(net.curve.poles.count >= 8)
+        let first = try #require(net.curve.poles.first)
+        #expect(!net.curve.poles.dropFirst().contains { ($0 - first).length < 1e-9 })
+    }
+
+    @Test func normalsArePerpendicularToTheSurface() async throws {
+        for sheet in [try await loftedSheet(), try await revolvedLine(), try await revolvedLine(degrees: 360)] {
+            let gaps = try await kernel.netGaps(of: sheet)
+            #expect(gaps.normalError < 1e-6)
+        }
+    }
+
+    @Test func periodicGrevillePointsMatchTheirPoles() async throws {
+        // The 360 degree cylinder's poles stand at radius 5 to 10 about a radius-5 surface: a Greville parameter shifted by one
+        // pole would put the surface point 8 mm or more from its pole.
+        let gaps = try await kernel.netGaps(of: try await revolvedLine(degrees: 360))
+        #expect(gaps.poleGap < 5 + 1e-6)
+    }
+
+    @Test func aNetAboveDegreeElevenIsRefused() async throws {
+        let poles = (0..<15).map { Vector3(Double($0), Double($0 % 3), 0) }
+        let high = try await kernel.makeCurve(
+            [.spline(BSplineCurve3D(degree: 14, poles: poles, knots: [0, 1], multiplicities: [15, 15]))], tag: tag)
+        await #expect(throws: KernelError.invalidInput("Edit Curve works on degree 1 to 11; this curve is degree 14. Rebuild it first.")) {
+            try await kernel.controlNet(of: high)
+        }
+        let sheet = try await kernel.bsplineSheet(uCount: 15, vCount: 15, degree: 14, tag: tag)
+        await #expect(throws: KernelError.invalidInput(
+            "Edit Surface works on degree 1 to 11; this surface is degree 14. Rebuild it first.")) {
+            try await kernel.controlNet(of: sheet)
+        }
+    }
+
     @Test func aSheetOfTwoFacesIsRefused() async throws {
         let a = try await kernel.makeCurve([.line(Vector3(0, 0, 0), Vector3(10, 0, 0))], tag: tag)
         let b = try await kernel.makeCurve([.line(Vector3(0, 5, 0), Vector3(10, 5, 0))], tag: tag)
@@ -109,6 +195,7 @@ struct ControlNetTests {
     }
 
     @Test func aCurvesNet() async throws {
+        // Six points: OCCT's degree-5 fit only keeps degree 5 for that few (the interpolation fix covers more).
         let points = (0..<6).map { Vector3(Double($0), sin(Double($0)), 0) }
         let curve = try await kernel.interpolate(points, degree: 5, closed: false, startTangent: nil, endTangent: nil, tag: tag)
         let net = try await kernel.controlNet(of: curve)

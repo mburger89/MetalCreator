@@ -563,8 +563,12 @@ typedef struct {
 
 int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_status *status);
 void occt_curve_net_free(occt_curve_net *net);
-/// FOR TESTS ONLY. A bilinear sheet of one face with `u_count` x `v_count` poles on the plane z = 0.
-occt_shape *occt_test_bspline_sheet(int u_count, int v_count, occt_status *status);
+/// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x
+/// `v_count` poles.
+occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status);
+/// FOR TESTS ONLY. Over every pole's Greville point of face `face_index`'s B-spline net: the largest |normal . tangent| / |tangent|
+/// and the largest distance from the surface point there to the pole.
+int occt_test_net_gaps(const occt_shape *shape, int face_index, double *normal_error, double *pole_gap, occt_status *status);
 
 /// What a sheet builder says about the names of its boundary edges (NURBS spec, Task 3). `kind` 0 none (the edge is
 /// not named), 1 start, 2 end, 3 rail (`a` 0 for an open curve's start, 1 for its end), 4 piece (`a` the loop, `b` the
