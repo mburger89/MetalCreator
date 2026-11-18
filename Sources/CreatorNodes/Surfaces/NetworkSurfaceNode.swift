@@ -22,17 +22,19 @@ public enum NetworkSurfaceNode: NodeDefinition {
         guard uSources.count + vSources.count <= maximumCurves else {
             throw NodeError.invalidValue("A network takes at most \(maximumCurves.display) curves.")
         }
-        var u: [Curve] = [], v: [Curve] = []
-        for (index, source) in uSources.enumerated() {
-            u += try await CurveInput.loops([source], holes: .refuse("Curve \(index + 1) has holes; a network curve is one loop."),
-                                            kernel: kernel, tag: context.tag)
-        }
-        for (index, source) in vSources.enumerated() {
-            let number = uSources.count + index + 1
-            v += try await CurveInput.loops([source], holes: .refuse("Curve \(number) has holes; a network curve is one loop."),
-                                            kernel: kernel, tag: context.tag)
-        }
+        let u = try await loops(of: uSources, label: "U", kernel: kernel, context: context)
+        let v = try await loops(of: vSources, label: "V", kernel: kernel, context: context)
         let surface = try await kernel.networkSurface(u: u, v: v, tolerance: try inputs.number("tolerance"), tag: context.tag)
         return NodeOutputs(["surface": .solid(surface)])
+    }
+
+    /// One input's curves, a profile giving its one loop; a refusal numbers the curve from 1 within its input.
+    private static func loops(of sources: [CurveSource], label: String, kernel: any Kernel, context: EvalContext) async throws -> [Curve] {
+        var curves: [Curve] = []
+        for (index, source) in sources.enumerated() {
+            let refusal = "\(label) curve \(index + 1) has holes; a network curve is one loop."
+            curves += try await CurveInput.loops([source], holes: .refuse(refusal), kernel: kernel, tag: context.tag)
+        }
+        return curves
     }
 }
