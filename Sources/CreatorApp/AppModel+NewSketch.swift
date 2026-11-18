@@ -12,7 +12,7 @@ extension AppModel {
     /// plane once it has). A face that isn't flat is said in words, a face of a solid that is gone does nothing, and nothing starts while a sketch is open. Inside a
     /// group it is refused, as "Edit sketch" is there: sketch mode works on the top level's graph (groups Errata (C2)).
     func newSketchOnFace(_ ref: ViewportFaceRef, _ pick: FacePick) {
-        guard sketch == nil, viewport.items.indices.contains(ref.solidIndex) else { return }
+        guard sketch == nil, controlNet == nil, viewport.items.indices.contains(ref.solidIndex) else { return }
         guard !editor.isInsideGroup else {
             alert = .problem(AppProblem("No sketch was made",
                                         "Sketches inside a group can't be made yet. Make it before grouping, or from the top level."))

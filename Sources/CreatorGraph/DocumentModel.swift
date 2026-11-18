@@ -269,7 +269,7 @@ public final class DocumentModel {
         (content.affectsResults(command), content.affectsMessages(command))
     }
 
-    private func replay(_ command: GraphCommand) {
+    func replay(_ command: GraphCommand) {
         let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
         let effect = effect(of: command)
         do {

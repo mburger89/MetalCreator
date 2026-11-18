@@ -66,6 +66,14 @@ public struct UndoStack: Sendable {
         return entry
     }
 
+    /// Takes the last step back out of the history for good (no redo entry) when it is a run coalesced under `key`: a cancelled drag
+    /// leaves no step behind. Returns it, or `nil` when the last step is another one.
+    public mutating func discardCoalesced(key: String) -> Entry? {
+        isCoalescingOpen = false
+        guard undoEntries.last?.coalescingKey == key else { return nil }
+        return undoEntries.popLast()
+    }
+
     public mutating func takeRedo() -> Entry? {
         isCoalescingOpen = false
         guard let entry = redoEntries.popLast() else { return nil }

@@ -7,7 +7,7 @@ extension AppModel {
     /// Starts or ends Measure (the top bar's toggle, View ▸ Measure and M). Refused while a sketch is open or a pick session runs.
     func setMeasure(_ on: Bool) {
         guard on else { return endMeasure() }
-        guard sketch == nil, pick == nil, measure == nil else { return }
+        guard sketch == nil, pick == nil, measure == nil, controlNet == nil else { return }
         editor.commitPendingEntry()
         editor.closePalette()
         endModelDimension()
@@ -53,6 +53,10 @@ extension AppModel {
             overlay.lines += measured.lines
             overlay.points += measured.points
             overlay.fills += measured.fills
+        }
+        if let net = controlNetFeed?.session.overlay {
+            overlay.lines += net.lines
+            overlay.points += net.points
         }
         if viewport.overlay != overlay { viewport.showOverlay(overlay) }
     }

@@ -66,8 +66,22 @@ public final class AppModel {
     /// A Sketch node being edited in the viewport (sketcher spec §8), or `nil`. Sketch mode works on the top level's
     /// graph, so the graph panel keeps the level it shows while one is open (`EditorModel.isLevelLocked`).
     public internal(set) var sketch: SketchSession? {
-        didSet { editor.isLevelLocked = sketch != nil }
+        didSet { editor.isLevelLocked = sketch != nil || controlNet != nil }
     }
+    /// The control-point mode in progress (NS-3), or `nil`. It is the viewport's tool while it runs and works on the top level's
+    /// graph, so the graph panel keeps its level as in sketch mode.
+    var controlNet: ControlNetSession? {
+        didSet { editor.isLevelLocked = sketch != nil || controlNet != nil }
+    }
+    /// The net of the one selected Edit Surface or Edit Curve node outside the mode: the same overlay, no tool, nothing picked.
+    var controlNetPreview: ControlNetSession?
+    /// What the shown net follows: the value it was read from, the net read and the moves shown with it (`AppModel+ControlNet`).
+    @ObservationIgnored var controlNetFeed: ControlNetFeed?
+    /// The read of a net in progress, which `settle()` waits for.
+    @ObservationIgnored var controlNetRead: Task<Void, Never>?
+    /// Why the net could not be read, in the kernel's words; `nil` while it can.
+    var controlNetProblem: String?
+    @ObservationIgnored var controlNetOverlayPending = false
     /// Counts requests to open a sketch, so one that waited for its plane's evaluation can tell it was superseded.
     var sketchRequest = 0
     public var alert: AppAlert?
@@ -162,6 +176,11 @@ public final class AppModel {
         pick = nil
         endModelDimension()
         endMeasure()
+        endControlPoints()
+        controlNetPreview = nil
+        controlNetFeed = nil
+        controlNetRead?.cancel()
+        controlNetRead = nil
         measureBook.stop()
         sketch?.stop()
         sketch = nil
@@ -203,7 +222,8 @@ public final class AppModel {
             await measureBook.waitForDistances()
             // The meshes landing shows the scene again, which measures the kept distances again: go round once more for that.
             await viewport.waitForMeshes()
-        } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
+            await controlNetRead?.value
+        } while document.isEvaluating || controlNetRead != nil || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
             || measureBook.entries.contains(where: \.isMeasuring)
     }
 }

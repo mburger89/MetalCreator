@@ -53,7 +53,7 @@ public final class AppInput {
             return starting ? model.measure != nil : true
         }
         if action is ZebraKeyAction {
-            if model.editor.pointerLocation != nil || model.sketch != nil { return false }
+            if model.editor.pointerLocation != nil || model.sketch != nil || model.controlNet != nil { return false }
             model.setZebra(model.document.zebra?.isOn != true)
             return true
         }

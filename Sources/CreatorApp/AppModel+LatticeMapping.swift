@@ -13,6 +13,7 @@ extension AppModel {
     /// the graph as it was. A region that was not made from a solid with To Implicit has no solid to pick on, and inside a group the pick
     /// would have to be written relative to the group (groups Errata (C2)), so both are said in words.
     func beginFacePick(for id: NodeID) {
+        guard controlNet == nil else { return }
         editor.commitPendingEntry()
         editor.closePalette()
         let graph = editor.graph

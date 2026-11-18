@@ -18,6 +18,7 @@ extension AppModel {
     /// pointer and the top bar and inspector show its toolbar and lists. A pick in progress is cancelled, as it would
     /// be by any edit.
     public func beginSketch(for id: NodeID, plane known: Plane? = nil) {
+        guard controlNet == nil else { return }
         editor.commitPendingEntry()
         editor.closePalette()
         guard let node = document.graph.nodes[id], node.typeID == SketchNode.typeID,

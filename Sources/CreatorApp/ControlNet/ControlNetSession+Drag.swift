@@ -136,6 +136,9 @@ extension ControlNetSession {
         if case let .move(move) = drag.mode, move.didMove {
             for (index, offset) in move.startOffsets { offsets[index] = offset }
             events.moved(move.startOffsets.keys.sorted().map { PoleMove(index: $0, offset: move.startOffsets[$0] ?? .zero) }, .cancelled)
+            // A net shown while the drag was under way may hold its intermediate offsets: the restored ones win.
+            applyPendingNet(keeping: move.startOffsets)
+            return
         }
         applyPendingNet(keeping: [:])
     }

@@ -12,7 +12,7 @@ extension AppModel {
     /// open or a pick session runs; true otherwise, and when it already runs nothing changes.
     @discardableResult
     public func beginModelDimension(from target: PickTarget? = nil) -> Bool {
-        guard sketch == nil, pick == nil else { return false }
+        guard sketch == nil, pick == nil, controlNet == nil else { return false }
         guard modelDimension == nil else { return true }
         endMeasure()
         editor.commitPendingEntry()

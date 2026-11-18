@@ -97,6 +97,8 @@ public enum UndoName {
 
     // MARK: The viewport and the sketch editor
     public static let dragHandle = "Drag Handle"
+    public static let moveControlPoints = "Move Control Points"
+    public static let changeControlPoint = "Change Control Point"
     public static let pickEdges = "Pick Edges"
     public static let selectEdgesOfFace = "Select Edges of Face"
     public static let newSketchOnFace = "New Sketch on Face"
