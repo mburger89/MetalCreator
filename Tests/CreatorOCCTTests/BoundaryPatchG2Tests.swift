@@ -186,6 +186,7 @@ struct BoundaryPatchG2Tests {
         let (part, edges) = try await sphereSquare()
         let result = try await patch(edges: edges, of: part)
         #expect(result.warnings.isEmpty)
+        #expect(result.sheet.topology.faces.count == 1)
         try await expectG2(result, edges: edges, of: part)
         let distances = try await kernel.distances(from: [Vector3(0, 0, Self.ball)], to: .solid(result.sheet), signed: false)
         #expect((distances.max() ?? 1) < 1e-3, "\(distances)")
@@ -229,8 +230,11 @@ struct BoundaryPatchG2Tests {
         #expect(result.warnings.isEmpty)
         try await expectG2(result, edges: edges, of: part)
     }
+}
 
-    // MARK: Refusals
+// MARK: Refusals
+
+extension BoundaryPatchG2Tests {
 
     func unitSquare() async throws -> [Curve] {
         [
@@ -239,12 +243,26 @@ struct BoundaryPatchG2Tests {
         ]
     }
 
-    @Test func sixSidesAtG2IsRefused() async throws {
+    @Test func sixCurvesAtG2AreHeldAtG0WhateverTheSideCount() async throws {
+        // R2's fallback comes before the side count: no piece lies on a sheet, so the loop is filled at G0 with R2's warning.
         let points = (0..<6).map { Vector3(5 * cos(Double($0) * .pi / 3), 5 * sin(Double($0) * .pi / 3), 0) }
         var lines: [Curve] = []
         for k in 0..<6 { lines.append(try await line(points[k], points[(k + 1) % 6])) }
+        let result = try await patch(edges: [], of: nil, curves: lines)
+        #expect(result.warnings == ["No bounding edge lies on a surface, so the patch is only G0."])
+    }
+
+    @Test func sixSheetsAtG2AreRefused() async throws {
+        let points = (0..<6).map { Vector3(5 * cos(Double($0) * .pi / 3), 5 * sin(Double($0) * .pi / 3), 0) }
+        var panels: [Solid] = []
+        for k in 0..<6 {
+            let mid = (points[k] + points[(k + 1) % 6]) * 0.5
+            panels.append(try await plate(points[k], points[(k + 1) % 6], direction: try #require(mid.normalized), distance: 4))
+        }
+        let part = try await kernel.compound(panels, tag: tag)
+        let edges = try (0..<6).map { k in try edgeID(of: part, near: (points[k] + points[(k + 1) % 6]) * 0.5) }
         await #expect {
-            try await patch(edges: [], of: nil, curves: lines)
+            try await patch(edges: edges, of: part)
         } throws: { message(of: $0) == "A G2 patch needs 3 or 4 sides; this loop has 6." }
     }
 
@@ -283,7 +301,7 @@ struct BoundaryPatchG2Tests {
         #expect(ends.count == 4)
         await #expect {
             try await patch(edges: ends, of: tube)
-        } throws: { message(of: $0) == "Piece 1 is too complex for a G2 patch; split it." }
+        } throws: { message(of: $0) == "Piece 1 can't be followed exactly by a G2 patch; use G1 for this hole." }
     }
 
     @Test func anIncompatibleCornerIsRefused() async throws {
@@ -293,7 +311,83 @@ struct BoundaryPatchG2Tests {
         let (part, edges) = try await squareHole(topDirection: tilt)
         await #expect {
             try await patch(edges: edges, of: part)
-        } throws: { message(of: $0) == "The surfaces meet at corner 2 in a way a G2 patch can't follow." }
+        } throws: { message(of: $0) == Self.quadCorner(2) }
+    }
+
+    static func quadCorner(_ n: Int) -> String {
+        "The surfaces meet at corner \(n) in a way a G2 patch can't follow; a four-sided G2 patch needs corners near 90° and "
+            + "sides that run straight across their surfaces. Use G1 for this hole."
+    }
+
+    /// A flat square hole whose left panel is a cylinder tangent to the plane along their shared line: the tangent planes
+    /// agree along the whole side, but the panels' normal curvatures across it (0 and 1/20) do not, at either corner.
+    @Test func disagreeingNormalCurvaturesAtACornerAreRefused() async throws {
+        let radius = 20.0
+        let piece = CurvePiece.arc(center: Vector3(0, 0, radius), normal: Vector3(0, 1, 0), radius: radius, start: .zero,
+                                   sweep: 0.3)
+        let arc = try await kernel.makeCurve([piece], tag: tag)
+        let left = try await kernel.extrude(arc, direction: Vector3(0, 1, 0), distance: 10, symmetric: false, tag: tag)
+        let panels = [
+            try await plate(Vector3(0, 0, 0), Vector3(10, 0, 0), direction: Vector3(0, -1, 0)),
+            try await plate(Vector3(10, 0, 0), Vector3(10, 10, 0), direction: Vector3(1, 0, 0)),
+            try await plate(Vector3(10, 10, 0), Vector3(0, 10, 0), direction: Vector3(0, 1, 0)), left,
+        ]
+        let part = try await kernel.compound(panels, tag: tag)
+        let marks = [Vector3(5, 0, 0), Vector3(10, 5, 0), Vector3(5, 10, 0), Vector3(0, 5, 0)]
+        let edges = try marks.map { try edgeID(of: part, near: $0) }
+        await #expect {
+            try await patch(edges: edges, of: part)
+        } throws: { message(of: $0) == Self.quadCorner(1) }
+    }
+
+    /// Three flat plates around a triangular hole with one of them a cylinder tangent along its edge: the triangle's corner
+    /// blocks cannot be reconciled.
+    @Test func aTriangleWithDisagreeingCurvaturesIsRefused() async throws {
+        let v = (0..<3).map { k -> Vector3 in
+            let a = (90 + 120 * Double(k)) * .pi / 180
+            return Vector3(6 * cos(a), 6 * sin(a), 0)
+        }
+        let radius = 20.0
+        var panels: [Solid] = []
+        for k in 0..<3 {
+            let a = v[k], b = v[(k + 1) % 3]
+            let outward = try #require(((a + b) * 0.5).normalized)
+            if k == 0 {
+                let along = try #require((b - a).normalized)
+                // Turning about the edge's direction carries the start sideways; sweep the way that leads away from the hole.
+                let sideways = along.cross(Vector3(0, 0, -1)).dot(outward)
+                let piece = CurvePiece.arc(center: a + Vector3(0, 0, radius), normal: along, radius: radius, start: a,
+                                           sweep: sideways > 0 ? 0.3 : -0.3)
+                let arc = try await kernel.makeCurve([piece], tag: tag)
+                panels.append(try await kernel.extrude(arc, direction: b - a, distance: (b - a).length, symmetric: false, tag: tag))
+            } else {
+                panels.append(try await plate(a, b, direction: outward, distance: 4))
+            }
+        }
+        let part = try await kernel.compound(panels, tag: tag)
+        let edges = try (0..<3).map { k in try edgeID(of: part, near: (v[k] + v[(k + 1) % 3]) * 0.5) }
+        await #expect {
+            try await patch(edges: edges, of: part)
+        } throws: { message(of: $0) == "The surfaces meet at corner 1 in a way a G2 patch can't follow. Use G1 for this hole." }
+    }
+
+    @Test func aThreeSidedPatchWithOneCurveSideKeepsItsSheetsAtG2() async throws {
+        // A flat triangular hole: two plates and a line along the third side. Only the plates' edges are graded.
+        let v = (0..<3).map { k -> Vector3 in
+            let a = (90 + 120 * Double(k)) * .pi / 180
+            return Vector3(6 * cos(a), 6 * sin(a), 0)
+        }
+        var panels: [Solid] = []
+        for k in 0..<2 {
+            let outward = try #require(((v[k] + v[k + 1]) * 0.5).normalized)
+            panels.append(try await plate(v[k], v[k + 1], direction: outward, distance: 4))
+        }
+        let part = try await kernel.compound(panels, tag: tag)
+        let edges = try (0..<2).map { k in try edgeID(of: part, near: (v[k] + v[k + 1]) * 0.5) }
+        let result = try await patch(edges: edges, of: part, curves: [try await line(v[2], v[0])])
+        #expect(result.warnings.isEmpty)
+        #expect(result.sheet.topology.faces.count == 1)
+        try await expectG2(result, edges: edges, of: part)
     }
 }
 #endif

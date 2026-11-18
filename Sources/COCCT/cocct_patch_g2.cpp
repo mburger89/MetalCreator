@@ -57,11 +57,18 @@ constexpr double kPlaneTolerance = 1e-6;  // a leg's sine against the tangent pl
 constexpr double kStep = 0.01;            // the spacing of the samples that give a function's end derivatives
 constexpr double kEdgeSlack = 5e-5;       // the patch against its own boundary curves, mm
 
-std::string corner_message(int corner) {
-    return "The surfaces meet at corner " + std::to_string(corner) + " in a way a G2 patch can't follow.";
+std::string corner_message(int corner, int sides) {
+    if (sides == 4) {
+        // "near" is split across two literals: ShimPortabilityTests bans the word (a Windows macro) on any code line.
+        return "The surfaces meet at corner " + std::to_string(corner) +
+               " in a way a G2 patch can't follow; a four-sided G2 patch needs corners ne"
+               "ar 90\u00B0 and sides that run straight across their surfaces. Use G1 for this hole.";
+    }
+    return "The surfaces meet at corner " + std::to_string(corner) + " in a way a G2 patch can't follow. Use G1 for this hole.";
 }
 
 constexpr const char *kNotMade = "The patch couldn't be made from these pieces.";
+constexpr const char *kCrease = "A G2 patch would crease here; use G1 for this hole.";
 
 Vec from_pnt(const gp_Pnt &p) { return {p.X(), p.Y(), p.Z()}; }
 Vec from_vec(const gp_Vec &v) { return {v.X(), v.Y(), v.Z()}; }
@@ -191,7 +198,7 @@ void fit_curve(Side &side) {
         worst = std::max(worst, g2::norm(g2::sub(from_pnt(curve.Value(side.param(tau))), g2::bezier_value(side.c, tau))));
     }
     if (!(worst <= kFitTolerance)) {
-        throw user_error("Piece " + std::to_string(side.number) + " is too complex for a G2 patch; split it.");
+        throw user_error("Piece " + std::to_string(side.number) + " can't be followed exactly by a G2 patch; use G1 for this hole.");
     }
 }
 
@@ -373,6 +380,109 @@ TopoDS_Face make_face(const Handle(Geom_BezierSurface) &surface, const std::vect
     return face;
 }
 
+/// A side's own readings can fail inside the shared surface reader, whose words are the fillet's: they become the side's own.
+void as_piece_error(const Side &side, const std::function<void()> &body) {
+    try {
+        body();
+    } catch (const user_error &error) {
+        if (std::string(error.what()) == kCancelled) {
+            throw;
+        }
+        throw user_error("The patch can't be made curvature continuous along piece " + std::to_string(side.number) + ".");
+    }
+}
+
+/// The surface of a patch and where its sides lie in its parameters.
+struct Built {
+    Handle(Geom_BezierSurface) surface;
+    std::vector<gp_Pnt2d> domain;
+    Regularity regularity;
+};
+
+/// The four-sided patch (sides in loop order, bottom, right, top, left).
+Built build_quad_patch(std::vector<Side> &sides) {
+    g2::QuadSide quad[4];
+    for (std::size_t k = 0; k < 4; ++k) {
+        quad[k].c = sides[k].c;
+        quad[k].f = sides[k].f;
+        quad[k].g = sides[k].g;
+        quad[k].supported = sides[k].supported();
+    }
+    g2::QuadPatch patch;
+    g2::build_quad(quad, patch);
+    for (int k = 0; k < 4; ++k) {
+        if (!(patch.gap[k] <= g2::kCornerAgreement)) {
+            throw user_error(corner_message(k + 1, 4));
+        }
+    }
+    Built built;
+    TColgp_Array2OfPnt poles(1, 6, 1, 6);
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            const Vec &v = patch.net[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)];
+            poles.SetValue(i + 1, j + 1, gp_Pnt(v[0], v[1], v[2]));
+        }
+    }
+    built.surface = new Geom_BezierSurface(poles);
+    built.domain = {gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), gp_Pnt2d(1, 1), gp_Pnt2d(0, 1)};
+    const int grid = 40;
+    for (int a = 0; a <= grid; ++a) {
+        for (int b = 0; b <= grid; ++b) {
+            sample_regularity(built.surface, double(a) / grid, double(b) / grid, a > 0 && b > 0 && a < grid && b < grid,
+                              built.regularity);
+        }
+    }
+    return built;
+}
+
+/// The three-sided patch: the fillet's degree-17 triangular patch over the sides' data.
+Built build_triangle_patch(std::vector<Side> &sides, const occt_cancel *cancel) {
+    g2::TriangleSide tri[3];
+    for (std::size_t k = 0; k < 3; ++k) {
+        tri[k].poles = sides[k].c;
+        tri[k].cross1 = sides[k].f;
+        tri[k].cross2 = sides[k].g;
+    }
+    double direction_cosine = 0;
+    int worst = 0;
+    if (!g2::across_scales(tri, direction_cosine, &worst) || direction_cosine < 0.999999) {
+        throw user_error(corner_message(worst + 1, 3));
+    }
+    g2::TriangleNet net;
+    g2::TriangleStats stats;
+    if (!g2::build_triangle(tri, net, stats)) {
+        throw user_error(kNotMade);
+    }
+    poll(cancel);
+    if (!(stats.min_lambda > 0) || !(stats.block_mismatch <= 1e-6)) {
+        throw user_error(corner_message(stats.worst_corner >= 0 ? stats.worst_corner + 1 : 1, 3));
+    }
+    Built built;
+    const int n = g2::kTriangleDegree;
+    const std::vector<Vec> tensor = g2::to_tensor(net);
+    TColgp_Array2OfPnt poles(1, n + 1, 1, n + 1);
+    for (int a = 0; a <= n; ++a) {
+        for (int b = 0; b <= n; ++b) {
+            const Vec &v = tensor[static_cast<std::size_t>(a) * (n + 1) + static_cast<std::size_t>(b)];
+            poles.SetValue(a + 1, b + 1, gp_Pnt(v[0], v[1], v[2]));
+        }
+    }
+    built.surface = new Geom_BezierSurface(poles);
+    built.domain = {gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), gp_Pnt2d(0, 1)};
+    const int grid = 80;
+    for (int a = 0; a <= grid; ++a) {
+        for (int b = 0; a + b <= grid; ++b) {
+            sample_regularity(built.surface, double(a) / grid, double(b) / grid, a > 0 && b > 0 && a + b < grid, built.regularity);
+        }
+    }
+    for (double d : {1e-1, 3e-2, 1e-2, 1e-3, 1e-4}) {
+        sample_regularity(built.surface, d, d, true, built.regularity);
+        sample_regularity(built.surface, 1 - 2 * d, d, true, built.regularity);
+        sample_regularity(built.surface, d, 1 - 2 * d, true, built.regularity);
+    }
+    return built;
+}
+
 } // namespace
 
 TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel *cancel) {
@@ -402,8 +512,8 @@ TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel 
         gp_Pnt a0, b0, a1, b1;
         ends(sides[0], a0, b0);
         ends(sides[1], a1, b1);
-        const double near_a = std::min(a0.Distance(a1), a0.Distance(b1)), near_b = std::min(b0.Distance(a1), b0.Distance(b1));
-        sides[0].reversed = near_a < near_b;
+        const double start_gap = std::min(a0.Distance(a1), a0.Distance(b1)), end_gap = std::min(b0.Distance(a1), b0.Distance(b1));
+        sides[0].reversed = start_gap < end_gap;
     }
     for (int k = 1; k < count; ++k) {
         gp_Pnt previous_a, previous_b, a, b;
@@ -433,7 +543,7 @@ TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel 
         if (!side.supported()) {
             continue;
         }
-        try {
+        as_piece_error(side, [&] {
             side.hole = hole_sign(side);
             for (int end = 0; end < 2; ++end) {
                 const Frame frame = frame_at(side, end);
@@ -449,29 +559,13 @@ TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel 
                 side.wp[end] = g2::dot(side.accel[end], frame.pin);
                 side.wt[end] = g2::dot(side.accel[end], frame.t);
             }
-        } catch (const user_error &error) {
-            if (std::string(error.what()) == kCancelled) {
-                throw;
-            }
-            throw user_error("The patch can't be made curvature continuous along piece " + std::to_string(side.number) + ".");
-        }
+        });
     }
     if (bad_corner > 0) {
-        throw user_error(corner_message(bad_corner));
+        throw user_error(corner_message(bad_corner, count));
     }
-    // A supported side's own readings can fail inside the shared surface reader, whose words are the fillet's.
-    auto guarded = [](const Side &side, const std::function<void()> &body) {
-        try {
-            body();
-        } catch (const user_error &error) {
-            if (std::string(error.what()) == kCancelled) {
-                throw;
-            }
-            throw user_error("The patch can't be made curvature continuous along piece " + std::to_string(side.number) + ".");
-        }
-    };
     auto read_jets = [&](Side &side) {
-        guarded(side, [&] {
+        as_piece_error(side, [&] {
             end_jets(side, 0, side.fj[0], side.gj[0]);
             end_jets(side, 1, side.fj[1], side.gj[1]);
         });
@@ -507,7 +601,7 @@ TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel 
                 }
                 const double along_h = place.horizontal == 2 ? -1.0 : 1.0, along_v = place.vertical == 3 ? -1.0 : 1.0;
                 const double cross_h = place.horizontal == 2 ? -1.0 : 1.0, cross_v = place.vertical == 3 ? 1.0 : -1.0;
-                guarded(h, [&] {
+                as_piece_error(h, [&] {
                     if (pass == 0) {
                         correct(h, place.horizontal_end, g2::scale(v.fj[place.vertical_end][2], along_h * cross_v), 1);
                         correct(v, place.vertical_end, g2::scale(h.fj[place.horizontal_end][2], along_v * cross_h), 1);
@@ -528,7 +622,7 @@ TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel 
         if (!side.supported()) {
             continue;
         }
-        guarded(side, [&] {
+        as_piece_error(side, [&] {
             side.f = g2::quintic_from_jets(side.fj[0], side.fj[1]);
             side.g = g2::quintic_from_jets(side.gj[0], side.gj[1]);
             check_side(side);
@@ -536,98 +630,23 @@ TopoDS_Face build_g2_patch(const std::vector<g2_side> &input, const occt_cancel 
         poll(cancel);
     }
     const double diagonal = loop_diagonal(sides);
-    Regularity regularity;
-    Handle(Geom_BezierSurface) surface;
-    std::vector<gp_Pnt2d> domain;
-    if (count == 4) {
-        g2::QuadSide quad[4];
-        for (int k = 0; k < 4; ++k) {
-            quad[k].c = at(k).c;
-            quad[k].f = at(k).f;
-            quad[k].g = at(k).g;
-            quad[k].supported = at(k).supported();
-        }
-        g2::QuadPatch patch;
-        g2::build_quad(quad, patch);
-        for (int k = 0; k < 4; ++k) {
-            if (!(patch.gap[k] <= g2::kCornerAgreement)) {
-                throw user_error(corner_message(k + 1));
-            }
-        }
-        TColgp_Array2OfPnt poles(1, 6, 1, 6);
-        for (int i = 0; i < 6; ++i) {
-            for (int j = 0; j < 6; ++j) {
-                const Vec &v = patch.net[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)];
-                poles.SetValue(i + 1, j + 1, gp_Pnt(v[0], v[1], v[2]));
-            }
-        }
-        surface = new Geom_BezierSurface(poles);
-        domain = {gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), gp_Pnt2d(1, 1), gp_Pnt2d(0, 1)};
-        const int grid = 40;
-        for (int a = 0; a <= grid; ++a) {
-            for (int b = 0; b <= grid; ++b) {
-                sample_regularity(surface, double(a) / grid, double(b) / grid, a > 0 && b > 0 && a < grid && b < grid, regularity);
-            }
-        }
-    } else {
-        g2::TriangleSide tri[3];
-        for (int k = 0; k < 3; ++k) {
-            tri[k].poles = at(k).c;
-            tri[k].cross1 = at(k).f;
-            tri[k].cross2 = at(k).g;
-        }
-        double direction_cosine = 0;
-        if (!g2::across_scales(tri, direction_cosine) || direction_cosine < 0.999999) {
-            throw user_error(corner_message(1));
-        }
-        g2::TriangleNet net;
-        g2::TriangleStats stats;
-        if (!g2::build_triangle(tri, net, stats)) {
-            throw user_error(kNotMade);
-        }
-        poll(cancel);
-        if (!(stats.min_lambda > 0) || !(stats.block_mismatch <= 1e-6)) {
-            throw user_error(corner_message(stats.worst_corner >= 0 ? stats.worst_corner + 1 : 1));
-        }
-        const int n = g2::kTriangleDegree;
-        const std::vector<Vec> tensor = g2::to_tensor(net);
-        TColgp_Array2OfPnt poles(1, n + 1, 1, n + 1);
-        for (int a = 0; a <= n; ++a) {
-            for (int b = 0; b <= n; ++b) {
-                const Vec &v = tensor[static_cast<std::size_t>(a) * (n + 1) + static_cast<std::size_t>(b)];
-                poles.SetValue(a + 1, b + 1, gp_Pnt(v[0], v[1], v[2]));
-            }
-        }
-        surface = new Geom_BezierSurface(poles);
-        domain = {gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), gp_Pnt2d(0, 1)};
-        const int grid = 80;
-        for (int a = 0; a <= grid; ++a) {
-            for (int b = 0; a + b <= grid; ++b) {
-                sample_regularity(surface, double(a) / grid, double(b) / grid, a > 0 && b > 0 && a + b < grid, regularity);
-            }
-        }
-        for (double d : {1e-1, 3e-2, 1e-2, 1e-3, 1e-4}) {
-            sample_regularity(surface, d, d, true, regularity);
-            sample_regularity(surface, 1 - 2 * d, d, true, regularity);
-            sample_regularity(surface, d, 1 - 2 * d, true, regularity);
-        }
-    }
-    if (!(regularity.min_sine > 0.05) || !(regularity.max_curvature <= 10.0 / diagonal)) {
-        throw user_error(kNotMade);
+    const Built built = count == 4 ? build_quad_patch(sides) : build_triangle_patch(sides, cancel);
+    if (!(built.regularity.min_sine > 0.05) || !(built.regularity.max_curvature <= 10.0 / diagonal)) {
+        throw user_error(kCrease);
     }
     poll(cancel);
-    TopoDS_Face face = make_face(surface, sides, domain);
+    TopoDS_Face face = make_face(built.surface, sides, built.domain);
     // The patch's outward side is its first supported neighbour's.
     for (std::size_t k = 0; k < sides.size(); ++k) {
         if (!sides[k].supported()) {
             continue;
         }
         const Frame frame = frame_at(sides[k], 0.5);
-        const gp_Pnt2d &from = domain[k], &to = domain[(k + 1) % sides.size()];
+        const gp_Pnt2d &from = built.domain[k], &to = built.domain[(k + 1) % sides.size()];
         gp_Pnt p;
         gp_Vec su, sv;
-        surface->D1(0.5 * (from.X() + to.X()), 0.5 * (from.Y() + to.Y()), p, su, sv);
-        // Edge-hugging normal: the surface's, nudged a hair inwards would be the same side; the sign alone matters.
+        built.surface->D1(0.5 * (from.X() + to.X()), 0.5 * (from.Y() + to.Y()), p, su, sv);
+        // The sign alone matters: the surface's normal against the neighbour's.
         if (su.Crossed(sv).Dot(to_vec(frame.n)) < 0) {
             face.Reverse();
         }

@@ -90,8 +90,9 @@ struct TriangleNet {
 
 /// The across scale of side `sigma` at both ends: its first cross derivative there must be the neighbouring side's
 /// tangent (reported through `direction_cosine`, the worst cosine between them).
-inline bool across_scales(TriangleSide sides[3], double &direction_cosine) {
+inline bool across_scales(TriangleSide sides[3], double &direction_cosine, int *worst_corner = nullptr) {
     direction_cosine = 1;
+    double worst = 2;
     for (int s = 0; s < 3; ++s) {
         const TriangleSide &prev = sides[(s + 2) % 3];
         const TriangleSide &next = sides[(s + 1) % 3];
@@ -99,9 +100,18 @@ inline bool across_scales(TriangleSide sides[3], double &direction_cosine) {
         const Vec leg1 = bezier_derivative(next.poles, 0.0);              // away from V_s+1 along the next side
         const Vec f0 = sides[s].cross1[0], f1 = sides[s].cross1[5];
         if (norm(f0) < 1e-12 || norm(f1) < 1e-12) {
+            if (worst_corner != nullptr) {
+                *worst_corner = norm(f0) < 1e-12 ? (s + 2) % 3 : s;
+            }
             return false;
         }
-        direction_cosine = std::min({direction_cosine, dot(f0, leg0) / (norm(f0) * norm(leg0)), dot(f1, leg1) / (norm(f1) * norm(leg1))});
+        // The corner at the end of side k is k: F at the start of side s sits at the end of the side before it.
+        const double start = dot(f0, leg0) / (norm(f0) * norm(leg0)), end = dot(f1, leg1) / (norm(f1) * norm(leg1));
+        if (worst_corner != nullptr && std::min(start, end) < worst) {
+            worst = std::min(start, end);
+            *worst_corner = start <= end ? (s + 2) % 3 : s;
+        }
+        direction_cosine = std::min({direction_cosine, start, end});
         sides[s].lambda0 = norm(leg0) / norm(f0);
         sides[s].lambda1 = norm(leg1) / norm(f1);
     }
@@ -556,7 +566,7 @@ inline bool build_triangle(const TriangleSide sides[3], TriangleNet &net, Triang
     stats.block_mismatch = residual(r);
     if (!conflicts.empty()) {
         const int first_side = conflicts[worst_conflict].first.side, second_side = conflicts[worst_conflict].second.side;
-        stats.worst_corner = second_side == first_side + 1 ? first_side : 2; // the corner the two sides share
+        stats.worst_corner = second_side == (first_side + 1) % 3 ? first_side : second_side; // the corner the two sides share
     }
     stats.iterations = it;
     stats.largest_freedom = 0;

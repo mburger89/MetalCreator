@@ -246,13 +246,14 @@ occt_shape *occt_boundary_patch(const occt_shape *const *curves, int curve_count
         }
         poll(cancel);
 
-        // G2 needs three or four sides, whatever they lie on; with no sheet among them it is the G0 fill (the caller warns).
-        if (continuity == 2 && count != 3 && count != 4) {
-            throw user_error("A G2 patch needs 3 or 4 sides; this loop has " + std::to_string(count) + ".");
-        }
+        // A G2 request with no piece on a sheet is the G0 fill (the caller warns) whatever the number of sides; with a sheet it
+        // needs three or four.
         bool g2 = false;
         for (const piece &item : pieces) {
             g2 = g2 || (continuity == 2 && !item.support.IsNull());
+        }
+        if (g2 && count != 3 && count != 4) {
+            throw user_error("A G2 patch needs 3 or 4 sides; this loop has " + std::to_string(count) + ".");
         }
 
         // Fill it.

@@ -165,7 +165,8 @@ inline bool build_quad(const QuadSide sides[4], QuadPatch &patch) {
             double reference = std::max(1e-12, 1e-2 * block_scale);
             for (int p = 0; p < 3; ++p) {
                 for (int q = 0; q < 3; ++q) {
-                    if (p + q == order) {
+                    // Positions are judged by the block's scale, never by their own size (their norm grows with the part's place).
+                    if (p + q == order && order > 0) {
                         if (horizontal.known[p][q]) {
                             reference = std::max(reference, norm(horizontal.d[p][q]));
                         }
@@ -174,6 +175,9 @@ inline bool build_quad(const QuadSide sides[4], QuadPatch &patch) {
                         }
                     }
                 }
+            }
+            if (order == 0) {
+                reference = std::max(1e-12, block_scale);
             }
             for (int p = 0; p < 3; ++p) {
                 for (int q = 0; q < 3; ++q) {
