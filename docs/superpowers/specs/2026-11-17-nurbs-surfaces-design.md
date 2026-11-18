@@ -1,6 +1,6 @@
 # NURBS surface modelling — design
 
-Status: draft, 2026-11-17. Sub-projects NS-1 to NS-5, built in that order.
+Status: NS-1 done (2026-11-17; human checks group NS-1 pending). Sub-projects NS-1 to NS-5, built in that order.
 
 ## Intent
 

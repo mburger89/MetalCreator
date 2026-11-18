@@ -2473,3 +2473,12 @@ the Output selected so the part is shown.
 - [ ] **KI-10 VRML with no STEP twin.** Put a project VRML model (`.wrl`, no STEP beside it) on a footprint with `${KIPRJMOD}`: the part appears on the node's `component meshes` output, in the same place and turn as a STEP of it would. The facts line counts it "as meshes". **Observed:**
 - [ ] **KI-11 VRML scale.** A VRML exported from KiCad with a top-level `scale` (a VRML 2 `Transform` scale other than 1) lands at the right size (compare with KiCad's 3D viewer and with the library's STEP), while a library VRML without one is multiplied by 2.54 and also fits. **Observed:**
 - [ ] **KI-12 IDF part.** A footprint whose model is an IDF file appears as an extruded outline of the stated height on `components`, with its holes; a THOU file is the right size. **Observed:**
+
+## Group NS-1 — Curves, sheets and Import Model
+
+- [ ] **NS-1 Open sketch curve to sheet.** Draw an open curve in a sketch (a line and an arc, not closed) and wire it to Extrude Curve: a sheet appears, shaded, not a solid; the node's facts read "sheet". **Observed:**
+- [ ] **NS-2 Sweep along a 3D curve.** Make a Curve through Points with at least four points not in a plane, and Sweep Surface a small profile along it: the sweep follows the curve with no kinks; changing a point moves it live. **Observed:**
+- [ ] **NS-3 Sheet back colour.** Orbit a sheet: the side facing away shows the `sheetBack` colour (blue-violet in Dracula), the front the normal shading; in Alucard and Nord too, and a ghosted sheet stays ghosted. **Observed:**
+- [ ] **NS-4 Pick a sheet edge.** Pick a boundary edge of a sheet in the viewport, then change a parameter upstream (a width, a distance): the pick stays on the same edge. **Observed:**
+- [ ] **NS-5 Import a supplier STEP.** Import Model on a supplier's STEP with surfaces (a sheet body, loose faces and a curve if available): solids, sheets and curves appear, units are right (check a known dimension), and the facts say picks last until the file changes. **Observed:**
+- [ ] **NS-6 Export STEP and reopen.** Export a sheet and a curve as STEP and open the file in another CAD tool (FreeCAD, Fusion or KiCad's viewer): the shell and wire arrive intact. Exporting a sheet as 3MF is refused before the save panel; STL warns. **Observed:**

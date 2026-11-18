@@ -65,8 +65,8 @@ uses another. The bridge holds no connection to the app until its client's first
 
 Reading (works in every mode):
 - `get_document`: the open document's nodes (each with its state, whether it is an Output (`is_output`) and a one-line summary of
-  each output socket under `outputs`; a solid reads "solid: 6 faces, 12 edges, bounds (0, 0, 0) to (60, 40, 5) mm", a list of solids "3 solids"), links, parameters and groups, 200 nodes at a time.
-- `get_node`: one node's inputs (each with `source`: `wired`, `set` (stored, even if equal to the default), `default` or `unset`, and its `value`), outputs (summary, and for solids a `solids` array of `{faces, edges, bounds_min, bounds_max}`, the first 20, with `solids_total` when more), `is_output`, state and settings.
+  each output socket under `outputs`; a sheet reads "sheet: 1 face, 4 edges, …" and a solid with a sheet "solid and sheet: …"; a solid reads "solid: 6 faces, 12 edges, bounds (0, 0, 0) to (60, 40, 5) mm", a list of solids "3 solids"), links, parameters and groups, 200 nodes at a time.
+- `get_node`: one node's inputs (each with `source`: `wired`, `set` (stored, even if equal to the default), `default` or `unset`, and its `value`), outputs (summary, and for solids a `solids` array of `{kind, faces, edges, bounds_min, bounds_max}` (`kind` is "solid", "sheet" or "solid and sheet"), the first 20, with `solids_total` when more), `is_output`, state and settings.
 - `list_node_types`: the node types you can add, optionally of a category or matching a search.
 - `describe_node_type`: a type's inputs with defaults, units, ranges and options, its outputs and settings.
 
