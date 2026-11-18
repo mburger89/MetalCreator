@@ -89,6 +89,42 @@ struct SurfaceNodeTests {
         #expect(report.error(node) == sentence)
     }
 
+    @Test(arguments: [2, 3]) func aTwistWithARailOrGuideIsRefused(orientation: Int) async throws {
+        var h = Harness()
+        let circle = h.add(CircleNode.self, ["diameter": .number(4)])
+        let path = h.add(CurveThroughPointsNode.self)
+        let source = points(&h, count: 3, step: 10, along: true)
+        h.wire(source, "vector", to: path, "points")
+        let node = h.add(SweepNode.self, ["orientation": .integer(orientation), "twist": .number(30)])
+        h.wire(circle, "profile", to: node, "profiles")
+        h.wire(path, "curve", to: node, "path")
+        let report = try await h.run([node], kernel: kernel)
+        #expect(report.error(node) == "Twist can't be combined with a rail or a guide surface.")
+    }
+
+    @Test func severalRailsAreRefused() async throws {
+        var h = Harness()
+        let circle = h.add(CircleNode.self, ["diameter": .number(4)])
+        let path = h.add(CurveThroughPointsNode.self)
+        let source = points(&h, count: 3, step: 10, along: true)
+        h.wire(source, "vector", to: path, "points")
+        let box = h.box(10, 20, 5)
+        let edges = h.add(AllEdgesNode.self)
+        h.wire(box, "solid", to: edges, "solid")
+        let rails = h.add(CurveFromEdgesNode.self)
+        h.wire(edges, "edges", to: rails, "edges")
+        let node = h.add(SweepNode.self, ["orientation": .integer(2)])
+        h.wire(circle, "profile", to: node, "profiles")
+        h.wire(path, "curve", to: node, "path")
+        h.wire(rails, "curves", to: node, "rail")
+        let report = try await h.run([node], kernel: kernel)
+        #expect(report.error(node) == "Sweep takes one rail curve.")
+    }
+
+    @Test func theTwistIsInDegrees() throws {
+        #expect(try #require(SweepNode.inputs.first { $0.name == "twist" }).unit == .degrees)
+    }
+
     @Test func extrudeCurveHasADistanceHandle() {
         #expect(ExtrudeCurveNode.handles == [HandleSpec.linear("distance")])
     }

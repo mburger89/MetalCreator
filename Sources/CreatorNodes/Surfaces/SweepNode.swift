@@ -12,6 +12,8 @@ public enum SweepNode: NodeDefinition {
     public static let orientations = ["Frenet", "Fixed", "Rail", "Guide"]
     public static let railRefusal = "Wire a rail curve."
     public static let guideRefusal = "Wire a guide surface."
+    public static let manyRailsRefusal = "Sweep takes one rail curve."
+    public static let twistRefusal = "Twist can't be combined with a rail or a guide surface."
     public static let pathRefusal = "Sweep needs exactly one path."
     public static var singleValuesRefusal: String? { "Sweep takes one path, end scale and binormal at a time." }
     public static let inputs = [
@@ -19,9 +21,9 @@ public enum SweepNode: NodeDefinition {
         SocketSpec("path", .curve),
         SocketSpec("orientation", .integer, defaultValue: .integer(0)),
         SocketSpec("binormal", .vector, defaultValue: .vector(.unitZ)),
-        SocketSpec("rail", .curve, optional: true),
+        SocketSpec("rail", .curve, access: .list, optional: true),
         SocketSpec("guide", .solid, optional: true),
-        SocketSpec("twist", .number, defaultValue: .number(0), range: -3600...3600),
+        SocketSpec("twist", .number, defaultValue: .number(0), unit: .degrees, range: -3600...3600),
         SocketSpec("end scale", .number, defaultValue: .number(1), range: 0.01...100),
         SocketSpec("solid", .bool, defaultValue: .bool(true)),
     ]
@@ -52,11 +54,14 @@ public enum SweepNode: NodeDefinition {
         let profiles = try await CurveInput.loops(sources, holes: .all, kernel: kernel, tag: context.tag)
         let choice = try inputs.choice("orientation", options: orientations)
         let orientation = SweepOrientation(rawValue: choice) ?? .frenet
+        let twist = try inputs.number("twist")
+        if orientation.rawValue >= 2, twist != 0 { throw NodeError.invalidValue(twistRefusal) }
         var guide: SweepGuide?
         if orientation == .secondRail {
             guard inputs.has("rail") else { throw NodeError.invalidValue(railRefusal) }
             let rails = try await CurveInput.loops(try inputs.curves("rail"), holes: .all, kernel: kernel, tag: context.tag)
-            guard let rail = rails.first, rails.count == 1 else { throw NodeError.invalidValue(railRefusal) }
+            guard let rail = rails.first else { throw NodeError.invalidValue(railRefusal) }
+            guard rails.count == 1 else { throw NodeError.invalidValue(manyRailsRefusal) }
             guide = .rail(rail)
         } else if orientation == .guideSurface {
             guard inputs.has("guide") else { throw NodeError.invalidValue(guideRefusal) }
@@ -64,7 +69,7 @@ public enum SweepNode: NodeDefinition {
         }
         let options = SweepOptions(orientation: orientation, binormal: try inputs.vector("binormal"),
                                    endScale: try inputs.number("end scale"), makesSolid: try inputs.bool("solid"),
-                                   twist: orientation.rawValue <= 1 ? try inputs.number("twist") : 0)
+                                   twist: twist)
         let surface = try await kernel.sweep(profiles, along: path, options: options, guide: guide, tag: context.tag)
         return NodeOutputs(["surface": .solid(surface)])
     }
