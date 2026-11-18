@@ -29,7 +29,7 @@ struct RebuildNodeTests {
     let kernel = OCCTKernel()
     let registry = NodeRegistry(BuiltInNodes.all + [RebuildSourceNode.self])
 
-    /// Source, then (when `bump` is set) an Edit Surface that lifts one pole 5 mm so the sheet is not flat, then the rebuild.
+    /// Returns the report, the node that fed the rebuild and the rebuild. Source, then (when `bump` is set) an Edit Surface that lifts one pole 5 mm so the sheet is not flat, then the rebuild.
     func rebuild(_ settings: [SocketName: ConstantValue] = [:], bump: Bool = false) async throws -> (EvaluationReport, Node, Node) {
         let source = registry.makeNode(RebuildSourceNode.typeID)
         var node = registry.makeNode(RebuildSurfaceNode.typeID)
@@ -47,7 +47,7 @@ struct RebuildNodeTests {
         links.append(Link(from: Endpoint(node: from.id, socket: "surface"), to: Endpoint(node: node.id, socket: "surface")))
         let report = try await Evaluator(registry: registry, kernel: kernel)
             .evaluate(Graph(nodes: nodes, links: links), demand: [node.id], images: ImageResolver())
-        return (report, source, node)
+        return (report, from, node)
     }
 
     func deviationFact(_ report: EvaluationReport, _ node: Node) -> String? {
@@ -64,24 +64,26 @@ struct RebuildNodeTests {
     }
 
     @Test func aRebuildReportsItsDeviation() async throws {
-        let (report, _, node) = try await rebuild(["tolerance": .number(1000)])
+        // A tolerance of 1000 is beyond the socket's range; it is typed straight into the node to keep the warning out.
+        let (report, feeder, node) = try await rebuild(["tolerance": .number(1000)], bump: true)
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
         let facts = try #require(report.results[node.id]?.facts)
         #expect(facts.prefix(2) == [PayloadFact("Degree", "3 × 3"), PayloadFact("Control points", "7 × 7")])
-        let solid = try #require(report.value(node, "surface")?.solids?.first)
-        let reported = try await kernel.rebuilt(solid, as: RebuildSpec(degreeU: 3, degreeV: 3, spansU: 4, spansV: 4)).deviation
-        #expect(reported >= 0)
-        #expect(deviationFact(report, node) != nil)
-        #expect(report.warning(node) == nil)
+        let input = try #require(report.value(feeder, "surface")?.solids?.first)
+        let reported = try await kernel.rebuilt(input, as: RebuildSpec(degreeU: 3, degreeV: 3, spansU: 4, spansV: 4)).deviation
+        #expect(reported > 0)
+        #expect(facts.last == PayloadFact("Deviation", "\(reported.gapText()) mm"))
     }
 
     @Test func aDeviationAboveToleranceWarns() async throws {
         // A net of degree 1 with six by eight poles is rebuilt as a single cubic span: it can't follow it closely.
         let settings: [SocketName: ConstantValue] = ["spansU": .integer(1), "spansV": .integer(1), "tolerance": .number(0.0001)]
-        let (report, _, node) = try await rebuild(settings, bump: true)
-        let warning = try #require(report.warning(node))
-        #expect(warning.hasPrefix("The rebuilt surface is up to "))
-        #expect(warning.hasSuffix(" mm from the original, more than the 0.0001 mm tolerance."))
+        let (report, feeder, node) = try await rebuild(settings, bump: true)
+        let input = try #require(report.value(feeder, "surface")?.solids?.first)
+        let spec = RebuildSpec(degreeU: 3, degreeV: 3, spansU: 1, spansV: 1)
+        let deviation = try await kernel.rebuilt(input, as: spec).deviation
+        #expect(report.warning(node)
+                == "The rebuilt surface is up to \(deviation.gapText()) mm from the original, more than the 0.0001 mm tolerance.")
     }
 
     @Test func limitsAreSentences() async throws {
@@ -103,6 +105,7 @@ struct RebuildNodeTests {
         vector.inputValues["y"] = .number(0)
         let through = registry.makeNode(CurveThroughPointsNode.typeID)
         var node = registry.makeNode(RebuildCurveNode.typeID)
+        // 1000 is beyond the socket's range; typed in to keep the warning out.
         node.inputValues["tolerance"] = .number(1000)
         let links = [
             Link(from: Endpoint(node: seriesNode.id, socket: "values"), to: Endpoint(node: vector.id, socket: "x")),
@@ -120,9 +123,41 @@ struct RebuildNodeTests {
         #expect(facts.contains { $0.label == "Deviation" })
     }
 
+    @Test func aCurveDeviationAboveToleranceWarns() async throws {
+        let series = registry.makeNode(SeriesNode.typeID)
+        var seriesNode = series
+        seriesNode.inputValues["step"] = .number(10)
+        seriesNode.inputValues["count"] = .integer(5)
+        var vector = registry.makeNode(VectorNode.typeID)
+        vector.inputValues["y"] = .number(0)
+        let through = registry.makeNode(CurveThroughPointsNode.typeID)
+        var node = registry.makeNode(RebuildCurveNode.typeID)
+        node.inputValues["degree"] = .integer(1)
+        node.inputValues["spans"] = .integer(1)
+        node.inputValues["tolerance"] = .number(0.0001)
+        // Edit Curve lifts a pole 5 mm so the curve is no longer straight (a straight line rebuilds with no deviation).
+        var edit = registry.makeNode(EditCurveNode.typeID)
+        edit.inputValues[NodeSetting.poleMoves] = .poleMoves([PoleMove(index: PoleIndex(i: 2, j: 0), offset: Vector3(0, 0, 5))])
+        let links = [
+            Link(from: Endpoint(node: seriesNode.id, socket: "values"), to: Endpoint(node: vector.id, socket: "x")),
+            Link(from: Endpoint(node: vector.id, socket: "vector"), to: Endpoint(node: through.id, socket: "points")),
+            Link(from: Endpoint(node: through.id, socket: "curve"), to: Endpoint(node: edit.id, socket: "curve")),
+            Link(from: Endpoint(node: edit.id, socket: "curve"), to: Endpoint(node: node.id, socket: "curve")),
+        ]
+        let nodes = [seriesNode.id: seriesNode, vector.id: vector, through.id: through, edit.id: edit, node.id: node]
+        let report = try await Evaluator(registry: registry, kernel: kernel)
+            .evaluate(Graph(nodes: nodes, links: links), demand: [node.id], images: ImageResolver())
+        let input = try #require(report.value(edit, "curve")?.curves?.first)
+        let spec = RebuildSpec(degreeU: 1, degreeV: 1, spansU: 1, spansV: 1)
+        let deviation = try await kernel.rebuilt(input, as: spec, tag: NodeTag(node: node.id, item: 0)).deviation
+        #expect(report.warning(node)
+                == "The rebuilt curve is up to \(deviation.gapText()) mm from the original, more than the 0.0001 mm tolerance.")
+    }
+
     @Test func aRebuildFeedsEditSurface() async throws {
         let source = registry.makeNode(RebuildSourceNode.typeID)
         var rebuilt = registry.makeNode(RebuildSurfaceNode.typeID)
+        // 1000 is beyond the socket's range; typed in to keep the warning out.
         rebuilt.inputValues["tolerance"] = .number(1000)
         var edit = registry.makeNode(EditSurfaceNode.typeID)
         edit.inputValues[NodeSetting.poleMoves] = .poleMoves([PoleMove(index: PoleIndex(i: 2, j: 3), offset: Vector3(0, 0, 4))])

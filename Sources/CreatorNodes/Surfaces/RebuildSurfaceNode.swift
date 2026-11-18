@@ -43,19 +43,13 @@ public enum RebuildSurfaceNode: NodeDefinition {
 /// The sentences the two rebuild nodes share.
 enum RebuildWording {
     /// "Deviation: 0.003 mm".
-    static func fact(_ deviation: Double) -> PayloadFact { PayloadFact("Deviation", "\(length(deviation)) mm") }
+    static func fact(_ deviation: Double) -> PayloadFact { PayloadFact("Deviation", "\(deviation.gapText()) mm") }
 
     /// "The rebuilt surface is up to 0.12 mm from the original, more than the 0.01 mm tolerance." when the deviation is over
     /// the tolerance, else nothing.
     static func warning(of kind: String, deviation: Double, tolerance: Double) -> [String] {
         guard deviation > tolerance else { return [] }
-        return ["The rebuilt \(kind) is up to \(length(deviation)) mm from the original, more than the \(length(tolerance)) mm tolerance."]
-    }
-
-    /// Small lengths keep their significant digits (0.003), larger ones two decimals.
-    private static func length(_ value: Double) -> String {
-        abs(value) < 1
-            ? value.formatted(.number.precision(.significantDigits(1...2)).locale(.messages))
-            : value.display
+        let (far, near) = (deviation.gapText(), tolerance.gapText())
+        return ["The rebuilt \(kind) is up to \(far) mm from the original, more than the \(near) mm tolerance."]
     }
 }
