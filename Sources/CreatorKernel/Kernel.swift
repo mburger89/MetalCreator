@@ -123,6 +123,16 @@ public protocol Kernel: Actor {
     func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes
     /// Exports `solids` and free `curves`. The default exports solids alone when there are no curves, else refuses.
     func export(_ solids: [Solid], curves: [Curve], format: ExportFormat, to url: URL) throws
+    /// The control net of a sheet of one face (NS-3), as one B-spline surface with the normal at each pole's Greville point. A face
+    /// that isn't a B-spline is converted exactly. A solid is refused "Edit Surface takes a sheet; this is a closed solid.", a sheet
+    /// of other than one face "Edit Surface takes a sheet with one face; this one has N. Rebuild or Split it first.", and a net over
+    /// 100,000 poles "This surface has N control points; Edit Surface works on at most 100,000.". The default refuses.
+    func controlNet(of surface: Solid) throws -> SurfaceNet
+    /// The control net of a curve of one piece (NS-3), a line or arc converted exactly. More pieces are refused "Edit Curve takes a
+    /// curve of one piece; this one has N. Rebuild it first.". The default refuses.
+    func controlNet(of curve: Curve) throws -> CurveNet
+    /// The kind of `face`'s surface and, for a Bezier or B-spline one, its net as it stands. The default refuses.
+    func surfaceInfo(of face: FaceID, in solid: Solid) throws -> SurfaceInfo
 }
 
 extension Kernel {
@@ -214,6 +224,18 @@ extension Kernel {
 
     public func scaled(_ curve: Curve, by factor: Double, tag: NodeTag) throws -> Curve {
         throw KernelError.unsupported("scaling")
+    }
+
+    public func controlNet(of surface: Solid) throws -> SurfaceNet {
+        throw KernelError.unsupported("control nets")
+    }
+
+    public func controlNet(of curve: Curve) throws -> CurveNet {
+        throw KernelError.unsupported("control nets")
+    }
+
+    public func surfaceInfo(of face: FaceID, in solid: Solid) throws -> SurfaceInfo {
+        throw KernelError.unsupported("surface information")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {

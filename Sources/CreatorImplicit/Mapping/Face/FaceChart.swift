@@ -79,7 +79,7 @@ public final class FaceChart: Hashable, Sendable {
         case .cone: "the cone's axis"
         case .sphere: "the sphere's centre"
         case .torus: "the torus's core circle"
-        case .plane, .bspline, .other: "the face's centre of curvature"
+        case .plane, .bspline, .bezier, .revolution, .extrusion, .offset, .other: "the face's centre of curvature"
         }
     }
 

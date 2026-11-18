@@ -512,6 +512,60 @@ int occt_test_curve_spline_info(const occt_shape *wire, int *degree, int *pole_c
 /// FOR TESTS ONLY. The shortest distance from the point to the curve (a wire).
 double occt_test_curve_distance(const occt_shape *wire, double x, double y, double z, occt_status *status);
 
+/// A B-spline surface's net (NS-3). `poles` is u_count * v_count xyz triples, row-major (pole (i, j) at i * v_count + j);
+/// `weights` is null unless rational. `kind` is the face's surface kind before conversion: 0 plane, 1 cylinder, 2 cone, 3 sphere,
+/// 4 torus, 5 B-spline, 6 other, 7 Bezier, 8 revolution, 9 extrusion, 10 offset; `converted_from` is that kind when the net was
+/// made by conversion, else -1. `normals` (3 per pole, at its Greville point, oriented by the face) only from
+/// occt_control_net_of_face. All arrays are shim-owned: free with occt_surface_net_free.
+typedef struct {
+    int kind;
+    int converted_from;
+    int degree_u;
+    int degree_v;
+    int u_count;
+    int v_count;
+    int periodic_u;
+    int periodic_v;
+    int rational;
+    int knot_u_count;
+    int knot_v_count;
+    double *poles;
+    double *weights;
+    double *knots_u;
+    int *mult_u;
+    double *knots_v;
+    int *mult_v;
+    double *normals;
+} occt_surface_net;
+
+/// The B-spline net of face `face_index` (1-based, in `shape`'s face map), converting any other surface exactly. More than
+/// `max_poles` poles (0: no limit) is refused with the pole count marked as a number. Returns 1, or 0 with `status` set.
+int occt_control_net_of_face(const occt_shape *shape, int face_index, int max_poles, occt_surface_net *out, occt_status *status);
+/// The kind of face `face_index`'s surface and, for a Bezier or B-spline one, its net as it stands (no normals, no conversion
+/// of other kinds: `poles` is null for them).
+int occt_surface_info(const occt_shape *shape, int face_index, occt_surface_net *out, occt_status *status);
+void occt_surface_net_free(occt_surface_net *net);
+
+/// A curve of one piece as one B-spline (NS-3). `converted_from` -1 for a B-spline, 0 line, 1 arc, 2 other. A periodic spline is
+/// unwrapped to a clamped one (`periodic` 1). Free with occt_curve_net_free.
+typedef struct {
+    int converted_from;
+    int periodic;
+    int degree;
+    int rational;
+    int pole_count;
+    int knot_count;
+    double *poles;
+    double *weights;
+    double *knots;
+    int *multiplicities;
+} occt_curve_net;
+
+int occt_control_net_of_curve(const occt_shape *wire, occt_curve_net *out, occt_status *status);
+void occt_curve_net_free(occt_curve_net *net);
+/// FOR TESTS ONLY. A bilinear sheet of one face with `u_count` x `v_count` poles on the plane z = 0.
+occt_shape *occt_test_bspline_sheet(int u_count, int v_count, occt_status *status);
+
 /// What a sheet builder says about the names of its boundary edges (NURBS spec, Task 3). `kind` 0 none (the edge is
 /// not named), 1 start, 2 end, 3 rail (`a` 0 for an open curve's start, 1 for its end), 4 piece (`a` the loop, `b` the
 /// segment), 5 imported (`a` the edge's index in the file's edge map).
