@@ -31,6 +31,8 @@ extension AppModel {
         case .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile,
              .embedModelFile:
             handleFileButton(request)
+        case .editControlPoints:
+            break  // Task 8: the control-point editor.
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }
@@ -43,7 +45,8 @@ extension AppModel {
         case .choosePCBFile, .relinkPCBFile: handleBoardFile(request)
         case .chooseModelFile, .relinkModelFile, .embedModelFile: handleModelFile(request)
         case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup: break
+             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup,
+             .editControlPoints: break
         }
     }
 

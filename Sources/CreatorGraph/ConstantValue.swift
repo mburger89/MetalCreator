@@ -34,6 +34,11 @@ public enum ConstantValue: Hashable, Sendable {
 
     /// The reference of an `image`, `meshFile` or `pcbFile` setting: what paths, stamps, hashes and the clipboard read, because both
     /// kinds are held, resolved and embedded the same way.
+    /// The moves of a `poleMoves` value, else `nil`.
+    public var poleMoves: [PoleMove]? {
+        if case .poleMoves(let moves) = self { moves } else { nil }
+    }
+
     public var fileReference: ImageReference? {
         switch self {
         case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): reference

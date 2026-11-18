@@ -21,4 +21,7 @@ public enum InspectorAction: String, Sendable, Codable {
     case choosePCBFile, relinkPCBFile
     /// Import Model's file (NURBS spec): "Choose File…" (linked), "Relink…" and "Embed", carried out like Import Mesh's.
     case chooseModelFile, relinkModelFile, embedModelFile
+    /// Edit Surface's and Edit Curve's "Edit Control Points" (NURBS spec, control points): the app shell opens the control-point editor
+    /// (Task 8; until then nothing handles it).
+    case editControlPoints
 }

@@ -12,11 +12,11 @@ struct OutputNodeTests {
     /// (implicit spec §3: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit and Isosurface), the TPMS, Strut and Voronoi lattices and the Mesh node,
     /// and the ten Surfaces nodes (NURBS spec: three curve nodes, seven that make sheets), in 12 categories, 100 nodes.
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesTheFieldNodesAndTheImplicitNodesInTwelveCategories() {
-        #expect(BuiltInNodes.all.count == 100)
+        #expect(BuiltInNodes.all.count == 102)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
         let expected: [NodeCategory: Int] = [
             .value: 10, .profile: 6, .solid: 7, .selection: 5, .feature: 2, .patterns: 17, .lists: 8, .fields: 14, .implicit: 14, .mesh: 6,
-            .surface: 10,
+            .surface: 12,
             .output: 1,
         ]
         #expect(counts == expected)

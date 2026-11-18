@@ -11,7 +11,7 @@ import CreatorKernel
 extension EditorModel {
     /// The inspector buttons a double click on a node presses; the first of them a node's inspector has wins: a Sketch
     /// node's "Edit sketch", a group node's "Edit Group" (groups spec §6).
-    static let doubleClickActions: [InspectorAction] = [.editSketch, .editGroup]
+    static let doubleClickActions: [InspectorAction] = [.editSketch, .editGroup, .editControlPoints]
 
     /// A press released without a drag, on `hit` at `point` with `modifiers` held and the platform's `clickCount`. A
     /// first click (count 1) on a target remembers it; a second (count 2) on the same target is a double click
