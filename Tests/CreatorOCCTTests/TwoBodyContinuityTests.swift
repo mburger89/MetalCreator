@@ -77,6 +77,32 @@ struct TwoBodyContinuityTests {
         #expect(found.absoluteCurvatureGap < 1e-6)
     }
 
+    @Test func aSheetButtingIntoAPlanesMiddleIsG0() async throws {
+        let kernel = OCCTKernel()
+        let a = try await strip(kernel, from: Vector3(5, 0, 0), to: Vector3(5, 0, 10), direction: Vector3(0, 1, 0))
+        let plane = try await strip(kernel, from: Vector3(0, 10, 0), to: Vector3(10, 10, 0), direction: .unitZ)
+        // A's far edge, at y = 10, runs across the middle of the wall at y = 10.
+        let found = try await kernel.continuity(of: try edge(of: a, near: Vector3(5, 10, 5)), in: a, against: FaceID(0), of: plane)
+        #expect(abs(found.angleGap - .pi / 2) < 1e-6)
+        #expect(found.grade == .g0)
+    }
+
+    @Test func aCylinderFaceAcrossTheSeamIsG2() async throws {
+        let kernel = OCCTKernel()
+        func piece(_ from: Double, _ sweep: Double) -> CurvePiece {
+            let start = Vector3(5 * cos(from), 5 * sin(from), 0)
+            return .arc(center: .zero, normal: .unitZ, radius: 5, start: start, sweep: sweep)
+        }
+        let degrees = Double.pi / 180
+        let a = try await kernel.extrude(try await kernel.makeCurve([piece(240 * degrees, 60 * degrees)], tag: tag),
+                                         direction: .unitZ, distance: 10, symmetric: false, tag: tag)
+        let b = try await kernel.extrude(try await kernel.makeCurve([piece(300 * degrees, 120 * degrees)], tag: tag),
+                                         direction: .unitZ, distance: 10, symmetric: false, tag: tag)
+        let id = try edge(of: a, near: Vector3(5 * cos(300 * degrees), 5 * sin(300 * degrees), 5))
+        let found = try await kernel.continuity(of: id, in: a, against: FaceID(0), of: b)
+        #expect(found.grade == .g2)
+    }
+
     @Test func aFaceOnTheSamePlaneBeyondItsBoundaryIsRefused() async throws {
         let kernel = OCCTKernel()
         let a = try await strip(kernel, from: .zero, to: Vector3(10, 0, 0), direction: Vector3(0, 1, 0))

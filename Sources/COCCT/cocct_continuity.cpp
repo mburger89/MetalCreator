@@ -6,6 +6,7 @@
 #include <Geom2d_Curve.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <BRepClass_FaceClassifier.hxx>
+#include <BRepTools.hxx>
 #include <Geom_Surface.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
@@ -102,6 +103,20 @@ side_sample sample_side(const face_side &side, double t, const gp_Vec &tangent) 
 
 constexpr double kProjectionLimit = 1.0;
 
+/// `u` and `v` brought into the face's own parameter range on a periodic surface, so the classifier sees them where the face is.
+void into_face_range(const TopoDS_Face &face, const opencascade::handle<Geom_Surface> &surface, double &u, double &v) {
+    double u_min = 0, u_max = 0, v_min = 0, v_max = 0;
+    BRepTools::UVBounds(face, u_min, u_max, v_min, v_max);
+    if (surface->IsUPeriodic()) {
+        const double period = surface->UPeriod();
+        u = u_min + std::fmod(std::fmod(u - u_min, period) + period, period);
+    }
+    if (surface->IsVPeriodic()) {
+        const double period = surface->VPeriod();
+        v = v_min + std::fmod(std::fmod(v - v_min, period) + period, period);
+    }
+}
+
 /// Side B of a two-body comparison: the face's uv at the point nearest to `p`, `ok` false when that is over 1 mm away.
 side_sample sample_projected(const face_side &side, const opencascade::handle<Geom_Surface> &surface, const gp_Pnt &p,
                              const gp_Vec &tangent) {
@@ -111,6 +126,7 @@ side_sample sample_projected(const face_side &side, const opencascade::handle<Ge
     }
     double u = 0, v = 0;
     projection.LowerDistanceParameters(u, v);
+    into_face_range(side.face, surface, u, v);
     // A point on the surface but off the trimmed face (beyond its boundary) is no sample.
     if (BRepClass_FaceClassifier(side.face, gp_Pnt2d(u, v), 1e-6).State() == TopAbs_OUT) {
         return side_sample{};
@@ -128,6 +144,7 @@ bool strictly_inside(const TopoDS_Face &face, const opencascade::handle<Geom_Sur
     }
     double u = 0, v = 0;
     projection.LowerDistanceParameters(u, v);
+    into_face_range(face, surface, u, v);
     return BRepClass_FaceClassifier(face, gp_Pnt2d(u, v), 1e-6).State() == TopAbs_IN;
 }
 
@@ -202,7 +219,10 @@ occt_edge_continuity grade_samples(const TopoDS_Edge &edge, const TopoDS_Face &f
                 continue;
             }
             const gp_Vec continued = a_in.direction.Reversed();
-            sample_angle = b_in.both ? 0 : std::atan2(continued.Crossed(b_in.direction).Magnitude(), continued.Dot(b_in.direction));
+            // B on both sides of the edge (the edge runs across its interior): no leaving direction, so the angle is the normals'
+            // (already oriented to within a quarter turn).
+            sample_angle = b_in.both ? std::atan2(s1.normal.Crossed(s2.normal).Magnitude(), s1.normal.Dot(s2.normal))
+                                     : std::atan2(continued.Crossed(b_in.direction).Magnitude(), continued.Dot(b_in.direction));
         } else {
             sample_angle = std::atan2(s1.normal.Crossed(s2.normal).Magnitude(), s1.normal.Dot(s2.normal));
         }
