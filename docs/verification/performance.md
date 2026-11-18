@@ -1070,14 +1070,14 @@ NS-3's spec target is 60 fps while a control point is dragged. Row `surface-3` d
 
 | Row | median (p95; max) |
 | --- | --- |
-| `surface-3` 30x30 net, one drag step to the preview | 441.98 ms (450.71; 450.72) |
-| `surface-3` release (the G2 fillet comes back from the cache) | 5.80 ms (one sample) |
+| `surface-3` 30x30 net, one drag step to the preview | 9.34 ms (10.49; 12.09) |
+| `surface-3` release (the fold query and the G2 fillet built), to the preview | 28.52 ms (one sample) |
 
-A drag step is far over the 16.7 ms of 60 fps: it is about 26 frames. Where the time goes was not profiled (a step moves the pole in the kernel, checks the moved surface's edges and folds, and meshes the sheet); recorded for the user's decision, nothing here gates a merge. The release is cheap because the bracket's G2 fillet was built before the drag and its cache entry (key without the scrubbing flag) is still there.
+Task 9b (same day) took the step from 441.98 ms (a Mac at load 1.8) to 9.34 ms (load 8.2 before and 3.3 after the run, so a loaded Mac: the number is saturated, not a verdict; the 16.7 ms budget of 60 fps is met). Where the 442 ms went (release, temporary timers, removed): the fold query 420 ms (47,000 `BRepClass_FaceClassifier` points on an untrimmed face), the move itself (copy, `SetPole`, edge check, `BRepCheck_Analyzer` twice, `occt_same_structure`) under 1 ms, reading the net 0.3 ms twice, tessellation 3 ms. After the fold was gone 24 ms remained: bounds of the moved sheet 15 ms (`BRepBndLib::AddOptimal` minimises over a 900-pole surface), the topology read 4.5 ms (`BRepGProp` area and centroid per face), tessellation 3 ms. What changed: Edit Surface skips `Kernel.folds` while `DocumentModel.isScrubbing` (it reads the flag only when it has moves, `readsScrubbing(for:)`), so the fold warning appears when the drag ends (the release row now holds that query, 28.5 ms); `occt_surface_folds` classifies no sample on an untrimmed face (one wire of four straight sides on the surface's natural boundary, whatever curve class the pcurves are), so the query takes about 17 ms on a rebuilt 12 x 12 sheet in a debug build and the release row's 454 ms before that change is gone; and a face on a B-spline surface of more than 400 poles takes the pole hull as its bounds instead of `AddOptimal` (a true bound, so a big net's `Solid.bounds` is looser than before, by at most the control polygon's excess).
 
 ```text
-BENCH surface-3 30x30 net, one drag step to the preview: median 441.98 ms, p95 450.71 ms, max 450.72 ms (n 35); budget 16.67 ms: missed
-BENCH surface-3 release (the G2 fillet built), to the preview: median 5.80 ms, p95 5.80 ms, max 5.80 ms (n 1)
+BENCH surface-3 30x30 net, one drag step to the preview: median 9.34 ms, p95 10.49 ms, max 12.09 ms (n 35); budget 16.67 ms: met
+BENCH surface-3 release (the G2 fillet built), to the preview: median 28.52 ms, p95 28.52 ms, max 28.52 ms (n 1)
 ```
 
 ## Raw output

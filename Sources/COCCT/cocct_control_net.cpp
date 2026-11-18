@@ -13,6 +13,7 @@
 #include <BRepTools.hxx>
 #include <BRep_Builder.hxx>
 #include <Geom2d_Curve.hxx>
+#include <Precision.hxx>
 #include <TopExp.hxx>
 #include <TopLoc_Location.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
@@ -276,6 +277,70 @@ void fill_net(const Handle(Geom_BSplineSurface) &surface, bool normals, bool fli
     }
 }
 
+
+/// Whether `face` is the whole of its surface: one wire of axis-aligned straight pcurves lying on the surface's four natural
+/// boundaries (a degenerate pole edge is such a side), so every point inside the surface's parameter box is on the face and
+/// needs no classification. Conservative: anything else (a trim, a hole, a periodic seam) answers false.
+bool is_untrimmed(const TopoDS_Face &face, const Handle(Geom_Surface) &surface) {
+    if (surface.IsNull() || surface->IsUPeriodic() || surface->IsVPeriodic()) {
+        return false;
+    }
+    double s0, s1, t0, t1;
+    surface->Bounds(s0, s1, t0, t1);
+    if (Precision::IsInfinite(s0) || Precision::IsInfinite(s1) || Precision::IsInfinite(t0) || Precision::IsInfinite(t1)) {
+        return false;
+    }
+    const double tol_u = 1e-9 * std::max(1.0, std::abs(s1 - s0));
+    const double tol_v = 1e-9 * std::max(1.0, std::abs(t1 - t0));
+    int wires = 0;
+    for (TopExp_Explorer it(face, TopAbs_WIRE); it.More(); it.Next()) {
+        ++wires;
+    }
+    if (wires != 1) {
+        return false;
+    }
+    bool seen[4] = {false, false, false, false}; // u = s0, u = s1, v = t0, v = t1
+    int edges = 0;
+    for (TopExp_Explorer it(face, TopAbs_EDGE); it.More(); it.Next()) {
+        ++edges;
+        const TopoDS_Edge edge = TopoDS::Edge(it.Current());
+        double first, last;
+        const Handle(Geom2d_Curve) curve = BRep_Tool::CurveOnSurface(edge, face, first, last);
+        if (curve.IsNull()) {
+            return false;
+        }
+        const gp_Pnt2d a = curve->Value(first);
+        const gp_Pnt2d b = curve->Value(last);
+        // A straight side, whatever its curve class (a rebuilt face's is a degree-1 B-spline): three sample points on one axis line.
+        const gp_Pnt2d mid = curve->Value(0.5 * (first + last));
+        const gp_Pnt2d quarter = curve->Value(0.75 * first + 0.25 * last);
+        const bool along_v = std::abs(a.X() - b.X()) <= tol_u;
+        if (along_v ? (std::abs(mid.X() - a.X()) > tol_u || std::abs(quarter.X() - a.X()) > tol_u)
+                    : (std::abs(mid.Y() - a.Y()) > tol_v || std::abs(quarter.Y() - a.Y()) > tol_v)) {
+            return false;
+        }
+        if (std::abs(a.X() - b.X()) <= tol_u) {
+            if (std::abs(a.X() - s0) <= tol_u) {
+                seen[0] = true;
+            } else if (std::abs(a.X() - s1) <= tol_u) {
+                seen[1] = true;
+            } else {
+                return false;
+            }
+        } else if (std::abs(a.Y() - b.Y()) <= tol_v) {
+            if (std::abs(a.Y() - t0) <= tol_v) {
+                seen[2] = true;
+            } else if (std::abs(a.Y() - t1) <= tol_v) {
+                seen[3] = true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    return edges >= 4 && seen[0] && seen[1] && seen[2] && seen[3];
+}
 
 } // namespace
 
@@ -644,6 +709,8 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
         const int count_u = int(lines_u.size());
         const int count_v = int(lines_v.size());
         BRepClass_FaceClassifier classifier;
+        // An untrimmed face holds every point of its parameter box, so nothing is classified (the box's sides are the face's).
+        const bool untrimmed = is_untrimmed(face, surface);
         struct sample {
             bool inside = false;
             bool ignored = false;
@@ -656,8 +723,12 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
                 sample &out = grid[size_t(a) * count_v + b];
                 const double u = lines_u[a].parameter;
                 const double v = lines_v[b].parameter;
-                classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
-                out.inside = classifier.State() == TopAbs_IN || classifier.State() == TopAbs_ON;
+                if (untrimmed) {
+                    out.inside = true;
+                } else {
+                    classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
+                    out.inside = classifier.State() == TopAbs_IN || classifier.State() == TopAbs_ON;
+                }
                 if (!out.inside) {
                     continue;
                 }

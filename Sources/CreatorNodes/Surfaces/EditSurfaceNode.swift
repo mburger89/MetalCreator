@@ -18,6 +18,13 @@ public enum EditSurfaceNode: NodeDefinition {
         .button(title: "Edit Control Points", action: .editControlPoints),
     ]),
     ]
+    /// A drag step skips the fold query (the dominant cost of a step on a big net); the evaluation after the drag ends asks it and
+    /// warns. A node with no moves has nothing to fold, so it keeps its cache entry across a drag elsewhere.
+    public static func readsScrubbing(for node: Node) -> Bool {
+        guard let moves = node.inputValues[NodeSetting.poleMoves]?.poleMoves else { return false }
+        return !moves.isEmpty
+    }
+
     public static let foldWarning = "The moved surface folds over itself; zebra stripes, thickening and offsets will misbehave there."
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
@@ -33,7 +40,7 @@ public enum EditSurfaceNode: NodeDefinition {
         var result = surface
         if !fitting.isEmpty {
             result = try await kernel.movingPoles(of: surface, by: fitting)
-            if try await kernel.folds(result) { warnings.append(foldWarning) }
+            if !context.isScrubbing, try await kernel.folds(result) { warnings.append(foldWarning) }
         }
         var outputs = NodeOutputs(["surface": .solid(result)], warnings: warnings)
         outputs.facts = ControlNetFacts.surface(net.surface, kind: net.convertedFrom)

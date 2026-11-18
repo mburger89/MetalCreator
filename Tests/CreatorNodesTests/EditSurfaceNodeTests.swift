@@ -29,7 +29,7 @@ struct EditSurfaceNodeTests {
     let kernel = OCCTKernel()
     let registry = NodeRegistry(BuiltInNodes.all + [NetSheetNode.self])
 
-    func run(_ moves: [PoleMove], u: Int = 6, v: Int = 8) async throws -> (EvaluationReport, Node, Node, Node) {
+    func run(_ moves: [PoleMove], u: Int = 6, v: Int = 8, isScrubbing: Bool = false) async throws -> (EvaluationReport, Node, Node, Node) {
         let source = registry.makeNode(NetSheetNode.typeID, at: .zero)
         var edit = registry.makeNode(EditSurfaceNode.typeID)
         edit.inputValues[NodeSetting.poleMoves] = .poleMoves(moves)
@@ -39,7 +39,7 @@ struct EditSurfaceNodeTests {
         let link = Link(from: Endpoint(node: source2.id, socket: "surface"), to: Endpoint(node: edit.id, socket: "surface"))
         let graph = Graph(nodes: [source2.id: source2, edit.id: edit], links: [link])
         let report = try await Evaluator(registry: registry, kernel: kernel)
-            .evaluate(graph, demand: [edit.id], images: ImageResolver())
+            .evaluate(graph, demand: [edit.id], images: ImageResolver(), isScrubbing: isScrubbing)
         return (report, source2, edit, edit)
     }
 
@@ -99,6 +99,24 @@ struct EditSurfaceNodeTests {
                 == "The moved surface folds over itself; zebra stripes, thickening and offsets will misbehave there.")
         let plain = try await run([move(1, 1, Vector3(0, 0, 4))], u: 3, v: 3)
         #expect(plain.0.isOK(plain.2))
+    }
+
+    @Test func foldWarningWaitsForTheDragToEnd() async throws {
+        let moves = [move(0, 0, Vector3(6, 6, 0))]
+        let dragging = try await run(moves, u: 3, v: 3, isScrubbing: true)
+        #expect(dragging.0.isOK(dragging.2), "a drag step skips the fold query")
+        // The moved surface is still built while scrubbing.
+        let surface = try #require(dragging.0.value(dragging.2, "surface")?.solids?.first)
+        #expect(try await pole(surface, 0, 0) != Vector3(0, 0, 0))
+        let ended = try await run(moves, u: 3, v: 3, isScrubbing: false)
+        #expect(ended.0.warning(ended.2) == EditSurfaceNode.foldWarning)
+    }
+
+    @Test func onlyANodeWithMovesReadsScrubbing() {
+        var node = registry.makeNode(EditSurfaceNode.typeID)
+        #expect(EditSurfaceNode.readsScrubbing(for: node) == false)
+        node.inputValues[NodeSetting.poleMoves] = .poleMoves([move(0, 0, Vector3(1, 0, 0))])
+        #expect(EditSurfaceNode.readsScrubbing(for: node))
     }
 
     @Test func factsListTheNet() async throws {

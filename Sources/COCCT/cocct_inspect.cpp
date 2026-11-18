@@ -10,6 +10,7 @@
 #include <TopLoc_Location.hxx>
 #include <Geom_Surface.hxx>
 #include <BRepTools.hxx>
+#include <Geom_BSplineSurface.hxx>
 #include <Geom_BezierSurface.hxx>
 #include <BRepGProp.hxx>
 #include <BRep_Tool.hxx>
@@ -84,6 +85,14 @@ void bezier_face_bounds(const TopoDS_Face &face, Bnd_Box &out) {
     out.Add(gp_Pnt(shi[0], shi[1], shi[2]));
 }
 
+/// A face on a B-spline surface with a big net (over 400 poles). `AddOptimal` minimises over the surface and costs about 15 ms on a
+/// 30 x 30 net, which a control-point drag pays at every step; the pole hull is a true bound and costs nothing (NS-3, `surface-3`).
+bool is_big_net_face(const TopoDS_Face &face) {
+    TopLoc_Location location;
+    const Handle(Geom_BSplineSurface) spline = Handle(Geom_BSplineSurface)::DownCast(BRep_Tool::Surface(face, location));
+    return !spline.IsNull() && double(spline->NbUPoles()) * spline->NbVPoles() > 400.0;
+}
+
 } // namespace
 
 void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
@@ -94,7 +103,11 @@ void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
             break;
         }
     }
-    if (!has_bezier) {
+    bool has_big_net = false;
+    for (TopExp_Explorer faces(shape, TopAbs_FACE); faces.More() && !has_big_net; faces.Next()) {
+        has_big_net = is_big_net_face(TopoDS::Face(faces.Current()));
+    }
+    if (!has_bezier && !has_big_net) {
         BRepBndLib::AddOptimal(shape, box, Standard_False, Standard_False);
         return;
     }
@@ -102,6 +115,8 @@ void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
         const TopoDS_Face face = TopoDS::Face(faces.Current());
         if (is_bezier_face(face)) {
             bezier_face_bounds(face, box);
+        } else if (is_big_net_face(face)) {
+            BRepBndLib::Add(face, box, Standard_False);
         } else {
             BRepBndLib::AddOptimal(face, box, Standard_False, Standard_False);
         }

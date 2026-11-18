@@ -238,6 +238,38 @@ extension PoleMoveTests {
         #expect(try await kernel.folds(folded))
     }
 
+    @Test func aFoldOnABigUntrimmedNetStillFolds() async throws {
+        let sheet = try await kernel.bsplineSheet(uCount: 30, vCount: 30, degree: 3, tag: tag)
+        #expect(try await kernel.folds(sheet) == false)
+        let folded = try await kernel.movingPoles(
+            of: sheet, by: [PoleMove(index: PoleIndex(i: 14, j: 14), offset: Vector3(60, 60, 0))])
+        #expect(try await kernel.folds(folded))
+    }
+
+    /// A rebuilt face's sides are degree-1 B-spline pcurves, not lines, and are still the surface's natural boundary.
+    @Test func aRebuiltUntrimmedSheetFoldsLikeAnyOther() async throws {
+        let loop = try await kernel.makeCurve([
+            .line(Vector3(0, 0, 0), Vector3(10, 0, 0)), .line(Vector3(10, 0, 0), Vector3(10, 10, 0)),
+            .line(Vector3(10, 10, 0), Vector3(0, 10, 0)), .line(Vector3(0, 10, 0), Vector3(0, 0, 0)),
+        ], tag: tag)
+        let plane = try await kernel.planarSurface([loop], tag: tag)
+        let sheet = try await kernel.rebuilt(plane, as: RebuildSpec(degreeU: 3, degreeV: 3, spansU: 12, spansV: 12)).sheet
+        #expect(try await kernel.folds(sheet) == false)
+        let folded = try await kernel.movingPoles(
+            of: sheet, by: [PoleMove(index: PoleIndex(i: 6, j: 6), offset: Vector3(60, 60, 0))])
+        #expect(try await kernel.folds(folded))
+    }
+
+    @Test func aBigNetsBoundsHoldItsSurface() async throws {
+        let sheet = try await kernel.bsplineSheet(uCount: 30, vCount: 30, degree: 3, tag: tag)
+        let bumped = try await kernel.movingPoles(
+            of: sheet, by: [PoleMove(index: PoleIndex(i: 15, j: 15), offset: Vector3(0, 0, 8))])
+        let mesh = try await kernel.tessellate(bumped, tolerance: 0.01, angle: 0.2)
+        let bounds = bumped.bounds
+        #expect(bounds.max.z >= (mesh.positions.map(\.z).max() ?? 0) - 1e-9)
+        #expect(bounds.max.z <= 8.0 + 1e-3, "never beyond the pole hull (and its tolerance)")
+    }
+
     @Test func aSharpCreaseIsNotAFold() async throws {
         let sheet = try await kernel.bsplineSheet(uCount: 3, vCount: 3, degree: 1, tag: tag)
         for height in [4.0, 20.0] {
