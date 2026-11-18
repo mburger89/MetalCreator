@@ -138,6 +138,9 @@ public protocol Kernel: Actor {
     /// their geometry differs. An index outside the net is refused `.invalidInput`; a move that makes an invalid surface is refused
     /// "Moving these control points makes an invalid surface.". The default refuses.
     func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid
+    /// As `movingPoles(of:by:)`; `previewing` (a result built while a slider or handle is being dragged) lets a kernel trade a
+    /// tight bounding box for a cheap one (OpenCascade: the pole hull on a face of over 400 poles). The default forwards, ignoring it.
+    func movingPoles(of surface: Solid, by moves: [PoleMove], previewing: Bool) throws -> Solid
     /// `curve` (one piece) with its net's poles moved by `moves` (`PoleIndex.j` 0), weights kept; a periodic curve stays periodic
     /// (NS-3). An index outside the net is refused `.invalidInput`. The default refuses.
     func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve
@@ -260,6 +263,10 @@ extension Kernel {
 
     public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
         throw KernelError.unsupported("moving control points")
+    }
+
+    public func movingPoles(of surface: Solid, by moves: [PoleMove], previewing: Bool) throws -> Solid {
+        try movingPoles(of: surface, by: moves)
     }
 
     public func movingPoles(of curve: Curve, by moves: [PoleMove]) throws -> Curve {

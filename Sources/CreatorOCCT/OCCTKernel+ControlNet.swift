@@ -167,23 +167,30 @@ extension OCCTKernel {
     static let unusedTag = NodeTag(node: NodeID(rawValue: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))), item: 0)
 
     public func movingPoles(of surface: Solid, by moves: [PoleMove]) throws -> Solid {
+        try movingPoles(of: surface, by: moves, previewing: false)
+    }
+
+    public func movingPoles(of surface: Solid, by moves: [PoleMove], previewing: Bool) throws -> Solid {
         try Task.checkCancellation()
         // The same refusals as the net: a closed solid or a sheet of other than one face has no net to move.
         _ = try controlNet(of: surface)
         let source = try shape(of: surface)
         let moved = try controlNetCall("move control points") { try source.movingPoles(ofFace: 0, by: moves) }
-        return try carryingTopology(of: moved, from: surface, source: source, operation: "move control points")
+        return try carryingTopology(of: moved, from: surface, source: source, operation: "move control points",
+                                    hullBounds: previewing)
     }
 
     /// `result`, a shape with the faces, edges and vertices of `source` (the shape of `surface`) in the same order, as a `Solid` with
     /// `surface`'s tags and boundary names. Refuses a shape whose structure differs.
-    func carryingTopology(of result: OCCTShape, from surface: Solid, source: OCCTShape, operation: String) throws -> Solid {
+    /// `hullBounds` reads the bounds from the pole hull on a big net (a preview's), not by minimising over the surface.
+    func carryingTopology(of result: OCCTShape, from surface: Solid, source: OCCTShape, operation: String,
+                          hullBounds: Bool = false) throws -> Solid {
         let sameStructure = try controlNetCall(operation) { try result.hasSameStructure(as: source) }
         guard sameStructure else {
             throw KernelError.operationFailed(operation: operation, reason: "its faces and edges couldn't be matched to the originals.")
         }
         let solid = try solid(from: result, keepingTagsOf: [surface], tag: Self.unusedTag, operation: operation,
-                              carriesEdgeTags: true)
+                              carriesEdgeTags: true, hullBounds: hullBounds)
         // Tags are carried by position, so the edges must agree one by one before they are trusted.
         guard solid.topology.edges.map(\.faces) == surface.topology.edges.map(\.faces) else {
             assertionFailure("an edge's faces changed under \(operation)")

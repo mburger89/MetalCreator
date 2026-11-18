@@ -15,11 +15,12 @@ extension OCCTShape {
 }
 
 extension OCCTShape {
-    /// Tight axis-aligned bounds. Cheaper than `properties()`: no volume or area integration.
-    func bounds() throws(OCCTError) -> BoundingBox {
+    /// Tight axis-aligned bounds. Cheaper than `properties()`: no volume or area integration. `hull` true bounds a face on a B-spline
+    /// surface of over 400 poles by its pole hull (a true but loose bound that costs nothing; a preview's, NS-3) instead.
+    func bounds(hull: Bool = false) throws(OCCTError) -> BoundingBox {
         var min = [0.0, 0.0, 0.0]
         var max = [0.0, 0.0, 0.0]
-        try Self.check { status in occt_read_bounds(self.raw, &min, &max, status) }
+        try Self.check { status in occt_read_bounds(self.raw, &min, &max, hull ? 1 : 0, status) }
         return BoundingBox(min: Vector3(min[0], min[1], min[2]), max: Vector3(max[0], max[1], max[2]))
     }
 }

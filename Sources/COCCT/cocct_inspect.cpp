@@ -87,6 +87,7 @@ void bezier_face_bounds(const TopoDS_Face &face, Bnd_Box &out) {
 
 /// A face on a B-spline surface with a big net (over 400 poles). `AddOptimal` minimises over the surface and costs about 15 ms on a
 /// 30 x 30 net, which a control-point drag pays at every step; the pole hull is a true bound and costs nothing (NS-3, `surface-3`).
+/// Only a preview asks for it (`pole_hull`): everywhere else the bounds are tight.
 bool is_big_net_face(const TopoDS_Face &face) {
     TopLoc_Location location;
     const Handle(Geom_BSplineSurface) spline = Handle(Geom_BSplineSurface)::DownCast(BRep_Tool::Surface(face, location));
@@ -95,7 +96,7 @@ bool is_big_net_face(const TopoDS_Face &face) {
 
 } // namespace
 
-void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
+void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box, bool pole_hull) {
     bool has_bezier = false;
     for (TopExp_Explorer faces(shape, TopAbs_FACE); faces.More(); faces.Next()) {
         if (is_bezier_face(TopoDS::Face(faces.Current()))) {
@@ -105,7 +106,7 @@ void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
     }
     bool has_big_net = false;
     for (TopExp_Explorer faces(shape, TopAbs_FACE); faces.More() && !has_big_net; faces.Next()) {
-        has_big_net = is_big_net_face(TopoDS::Face(faces.Current()));
+        has_big_net = pole_hull && is_big_net_face(TopoDS::Face(faces.Current()));
     }
     if (!has_bezier && !has_big_net) {
         BRepBndLib::AddOptimal(shape, box, Standard_False, Standard_False);
@@ -115,7 +116,7 @@ void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
         const TopoDS_Face face = TopoDS::Face(faces.Current());
         if (is_bezier_face(face)) {
             bezier_face_bounds(face, box);
-        } else if (is_big_net_face(face)) {
+        } else if (pole_hull && is_big_net_face(face)) {
             BRepBndLib::Add(face, box, Standard_False);
         } else {
             BRepBndLib::AddOptimal(face, box, Standard_False, Standard_False);
@@ -318,7 +319,7 @@ int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_sta
         GProp_GProps surface;
         BRepGProp::SurfaceProperties(shape->shape, surface);
         Bnd_Box box;
-        shape_bounds(shape->shape, box);
+        shape_bounds(shape->shape, box, false);
         if (box.IsVoid()) {
             set_error(status, "the shape is empty");
             return 0;
@@ -334,14 +335,14 @@ int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_sta
     });
 }
 
-int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], occt_status *status) {
+int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], int pole_hull, occt_status *status) {
     return guarded(status, [&]() -> int {
         if (!shape || !min || !max) {
             set_error(status, "the shape is empty");
             return 0;
         }
         Bnd_Box box;
-        shape_bounds(shape->shape, box);
+        shape_bounds(shape->shape, box, pole_hull != 0);
         if (box.IsVoid()) {
             set_error(status, "the shape is empty");
             return 0;

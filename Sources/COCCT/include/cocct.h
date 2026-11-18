@@ -79,8 +79,9 @@ typedef struct {
 } occt_properties;
 
 int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_status *status);
-/// The shape's tight axis-aligned bounds, without computing mass properties. Returns 1 on success.
-int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], occt_status *status);
+/// The shape's tight axis-aligned bounds, without computing mass properties. `pole_hull` nonzero bounds a face on a B-spline surface
+/// of over 400 poles by its pole hull instead (loose but free; a control-point preview's). Returns 1 on success.
+int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], int pole_hull, occt_status *status);
 
 /// Surface kinds: 0 plane, 1 cylinder, 2 cone, 3 sphere, 4 torus, 5 bspline, 6 other.
 typedef struct {
@@ -547,8 +548,9 @@ int occt_control_net_of_face(const occt_shape *shape, int face_index, int max_po
 int occt_surface_info(const occt_shape *shape, int face_index, occt_surface_net *out, occt_status *status);
 void occt_surface_net_free(occt_surface_net *net);
 
-/// A curve of one piece as one B-spline (NS-3). `converted_from` -1 for a B-spline, 0 line, 1 arc, 2 other. A periodic spline is
-/// unwrapped to a clamped one (`periodic` 1). Free with occt_curve_net_free.
+/// A curve of one piece as one B-spline (NS-3). `converted_from` -1 for a B-spline, 0 line, 1 arc, 2 other. A periodic spline
+/// keeps its periodic form and unique poles (`periodic` 1) unless the edge trims it, when it is cut to a clamped segment
+/// (`periodic` 0). Free with occt_curve_net_free.
 typedef struct {
     int converted_from;
     int periodic;

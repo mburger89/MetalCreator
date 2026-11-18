@@ -31,7 +31,9 @@ public enum EditSurfaceNode: NodeDefinition {
         let surface = try inputs.solid("surface")
         let net = try await kernel.controlNet(of: surface)
         let moves = context.node.inputValues[NodeSetting.poleMoves]?.poleMoves ?? []
-        let fitting = moves.filter { $0.index.i < net.surface.uCount && $0.index.j < net.surface.vCount }
+        let fitting = moves.filter {
+            (0..<net.surface.uCount).contains($0.index.i) && (0..<net.surface.vCount).contains($0.index.j)
+        }
         var warnings: [String] = []
         if fitting.count < moves.count {
             let place = "the surface's \(net.surface.uCount.display) × \(net.surface.vCount.display) net"
@@ -39,7 +41,7 @@ public enum EditSurfaceNode: NodeDefinition {
         }
         var result = surface
         if !fitting.isEmpty {
-            result = try await kernel.movingPoles(of: surface, by: fitting)
+            result = try await kernel.movingPoles(of: surface, by: fitting, previewing: context.isScrubbing)
             if !context.isScrubbing, try await kernel.folds(result) { warnings.append(foldWarning) }
         }
         var outputs = NodeOutputs(["surface": .solid(result)], warnings: warnings)

@@ -161,7 +161,7 @@ extension OCCTKernel {
     /// A solid made from `shape` whose faces, in the shape's face map order, carry the tags of `sources`' faces in order (the
     /// operations that move or join shapes without renaming a face). A shape with another face count is refused rather than guessed at.
     func solid(from shape: OCCTShape, keepingTagsOf sources: [Solid], tag: NodeTag, operation: String,
-               carriesEdgeTags: Bool = false) throws -> Solid {
+               carriesEdgeTags: Bool = false, hullBounds: Bool = false) throws -> Solid {
         let sourceFaces = sources.flatMap(\.topology.faces)
         let history = sourceFaces.indices.map { index -> OCCTHistoryRecord in
             var position = index
@@ -173,7 +173,7 @@ extension OCCTKernel {
             return OCCTHistoryRecord(outFace: index, kind: .face, operand: operand, index: position)
         }
         let result = try solid(from: shape, history: history, inputs: sources.map(\.topology), tag: tag, operation: operation,
-                               carriesEdgeTags: carriesEdgeTags)
+                               carriesEdgeTags: carriesEdgeTags, hullBounds: hullBounds)
         guard result.topology.faces.count == sourceFaces.count else {
             throw KernelError.operationFailed(operation: operation, reason: "its faces couldn't be matched to the originals.")
         }

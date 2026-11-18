@@ -13,8 +13,8 @@ import Testing
 /// preview. A Rectangle becomes a Planar Surface, Rebuild Surface gives it 30 × 30 poles (degree 3, 27 spans each way), Edit Surface
 /// takes the drag, and the drag runs through `ControlNetSession` as the viewport's tool does: every step is a coalesced
 /// `poleMoves` edit while `DocumentModel.isScrubbing` holds. The §7.2 bracket sits in the same document with its Fillet at
-/// Curvature (G2), so the scrubbing flag is on a node that reads it and the fillet builds at G1 for the steps; it is a second branch
-/// of the graph, not downstream of the surface, since a fillet refuses a sheet. Release; prints `BENCH surface-3 …`. Recorded, not gated.
+/// Curvature (G2), a separate branch of the graph that also reads the scrubbing flag (the fillet builds at G1 for the steps); the
+/// flag reaches nothing downstream of the surface, since a fillet refuses a sheet. Release; prints `BENCH surface-3 …`. Recorded, not gated.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
 struct SurfaceBench {
