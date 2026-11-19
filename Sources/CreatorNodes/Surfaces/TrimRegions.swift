@@ -62,9 +62,9 @@ public enum TrimRegions {
     }
 
     /// The pieces of a split sheet (`SheetSplit.whole`) as lists of its faces, in the kernel's order (R6: by the smallest face tag-set
-    /// key, then the area-weighted centroid): faces joined across every edge that is not one a cutter made (`.boundary(.cut)`). It is
+    /// key, then the area-weighted centroid): faces joined across every edge that is not a cut edge `trim` made (`.boundary(.cut)` under its own node; an earlier Trim's cut edge is joined). It is
     /// what a region pick shows and toggles; the kernel's own `SheetSplit.pieces` is the same partition.
-    public static func pieces(of whole: Solid) -> [[FaceID]] {
+    public static func pieces(of whole: Solid, cutBy trim: NodeID) -> [[FaceID]] {
         let topology = whole.topology
         var parent = Array(topology.faces.indices)
         func root(_ start: Int) -> Int {
@@ -75,7 +75,11 @@ public enum TrimRegions {
             }
             return x
         }
-        for edge in topology.edges where !edge.tags.contains(where: { if case .boundary(.cut) = $0.role { true } else { false } }) {
+        // Only this Trim's own cut edges divide: an earlier Trim's cut edge is an input edge here, and the kernel joins across it.
+        func isOwnCut(_ tag: TopoTag) -> Bool {
+            if tag.node == trim, case .boundary(.cut) = tag.role { true } else { false }
+        }
+        for edge in topology.edges where !edge.tags.contains(where: isOwnCut) {
             let adjacent = Set(edge.faces.map(\.rawValue)).filter { parent.indices.contains($0) }.sorted()
             guard adjacent.count == 2 else { continue }
             let (a, b) = (root(adjacent[0]), root(adjacent[1]))

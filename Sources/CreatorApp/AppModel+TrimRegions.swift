@@ -28,7 +28,7 @@ extension AppModel {
             }
             return refusePick("“\(node.name)” has no pieces to pick yet: wire a sheet and a cutter first.")
         }
-        let pieces = TrimRegions.pieces(of: whole)
+        let pieces = TrimRegions.pieces(of: whole, cutBy: id)
         guard !pieces.isEmpty else {
             return refusePick("“\(node.name)” has no pieces to pick yet: wire a sheet and a cutter first.")
         }

@@ -103,8 +103,10 @@ extension OCCTKernel {
         for (index, edge) in tables.edges.enumerated() {
             if edge.sourceEdge > 0, sheet.topology.edges.indices.contains(edge.sourceEdge - 1) {
                 edgeTags[index] = sheet.topology.edges[edge.sourceEdge - 1].tags
-            } else if edge.sourceEdge == 0, let cutter = inputs.name(of: edge.element) {
-                edgeTags[index] = [TopoTag(tag, .boundary(.cut(cutter)))]
+            } else if edge.sourceEdge == 0 {
+                // A cut edge the shim couldn't match to an element still divides pieces, so it still gets a cut tag (the
+                // placeholder `.curve(index: -1, piece: 0)` matches no cutter); a region pick reads the division from it.
+                edgeTags[index] = [TopoTag(tag, .boundary(.cut(inputs.name(of: edge.element) ?? .curve(index: -1, piece: 0))))]
             }
         }
         return (history, faceTags, edgeTags)

@@ -115,15 +115,88 @@ struct TrimRegionPickTests {
     @Test func piecesMatchTheKernelsSplit() async throws {
         let setup = await open()
         let whole = try whole(setup)
-        let pieces = TrimRegions.pieces(of: whole)
+        let pieces = TrimRegions.pieces(of: whole, cutBy: setup.trim.id)
         #expect(pieces.count == 2 && pieces.allSatisfy { $0.count == 3 })
         let sides = pieces.map { Set($0.map { whole.topology.faces[$0.rawValue].centroid.x < 0 }) }
         #expect(sides.allSatisfy { $0.count == 1 })
         let sheet = try #require(solids(setup.app, setup.tube, "surface").first)
         let wall = try #require(solids(setup.app, setup.wall, "surface").first)
-        let split = try await OCCTKernel().split(sheet, by: .body(wall), tag: NodeTag(node: NodeID(), item: 0))
+        let tag = NodeTag(node: NodeID(), item: 0)
+        let split = try await OCCTKernel().split(sheet, by: .body(wall), tag: tag)
         #expect(split.pieces.count == 2)
-        #expect(TrimRegions.pieces(of: split.whole) == split.pieces, "the same partition in the same order")
+        #expect(TrimRegions.pieces(of: split.whole, cutBy: tag.node) == split.pieces, "the same partition in the same order")
+    }
+
+    /// A Trim of a Trim's output: the first cut's edge is an input edge of the second, so it divides nothing there.
+    @Test func piecesOfATrimOfATrimsOutputMatchTheKernel() async throws {
+        var builder = GraphBuilder()
+        let rectangle = builder.add(RectangleNode.self, ["width": .number(20), "height": .number(10)])
+        let curves = builder.add(ProfileToCurvesNode.self)
+        let tube = builder.add(ExtrudeCurveNode.self, ["distance": .number(10)])
+        let cutters = [0.0, 5.0].map { x -> Node in
+            let plane = Plane(origin: Vector3(x, 0, 0), normal: .unitX, xAxis: .unitY)
+            let wallRectangle = builder.add(RectangleNode.self, ["width": .number(80), "height": .number(60), "plane": .plane(plane)])
+            let wall = builder.add(PlanarSurfaceNode.self)
+            builder.wire(wallRectangle, "profile", to: wall, "curves")
+            return wall
+        }
+        builder.wire(rectangle, "profile", to: curves, "profile")
+        builder.wire(curves, "curves", to: tube, "curve")
+        for source in [tube] + cutters {
+            let output = builder.add(OutputNode.self)
+            builder.wire(source, "surface", to: output, "solid")
+        }
+        let app = await makeApp(builder.graph, kernel: OCCTKernel())
+        let sheet = try #require(solids(app, tube, "surface").first)
+        let first = try #require(solids(app, cutters[0], "surface").first)
+        let second = try #require(solids(app, cutters[1], "surface").first)
+        let kernel = OCCTKernel()
+        let tagA = NodeTag(node: NodeID(), item: 0)
+        let tagB = NodeTag(node: NodeID(), item: 0)
+        let firstSplit = try await kernel.split(sheet, by: .body(first), tag: tagA)
+        #expect(firstSplit.pieces.count == 2)
+        let split = try await kernel.split(firstSplit.whole, by: .body(second), tag: tagB)
+        #expect(split.pieces.count == 2, "the second cut makes two pieces; the first cut's edge divides nothing")
+        #expect(TrimRegions.pieces(of: split.whole, cutBy: tagB.node) == split.pieces)
+        // Every edge between two pieces carries this trim's cut tag, named or not.
+        var pieceOf: [FaceID: Int] = [:]
+        for (number, faces) in split.pieces.enumerated() { for face in faces { pieceOf[face] = number } }
+        for edge in split.whole.topology.edges {
+            let numbers = Set(edge.faces.compactMap { pieceOf[$0] })
+            guard numbers.count == 2 else { continue }
+            #expect(edge.tags.contains { $0.node == tagB.node && { if case .boundary(.cut) = $0.role { true } else { false } }($0) })
+        }
+    }
+
+    /// A duplicated Trim keeps the regions it was copied with: its picks name the copy's own cut sides, not the original's.
+    @Test func aDuplicatedTrimKeepsItsRegionsWithoutAWarning() async throws {
+        let setup = await open()
+        let app = setup.app
+        let first = try whole(setup)
+        let rightFace = try #require(faces(first, left: false).first)
+        let pick = try #require(first.topology.facePick(for: rightFace))
+        try app.document.perform(.setInput(setup.trim.id, NodeSetting.keepRegions, .regionPicks([RegionPick(pick: pick)])),
+                                 name: UndoName.pickTrimRegions)
+        await app.settle()
+        app.editor.selection = [setup.trim.id]
+        app.editor.duplicateSelection()
+        let copy = try #require(app.editor.canvasSelection.nodes.first)
+        try app.document.perform(.connect(Link(from: Endpoint(node: setup.tube.id, socket: "surface"), to: Endpoint(node: copy, socket: "surface"))),
+                                 name: UndoName.connect)
+        try app.document.perform(.connect(Link(from: Endpoint(node: setup.wall.id, socket: "surface"), to: Endpoint(node: copy, socket: "cutter"))),
+                                 name: UndoName.connect)
+        try app.document.perform(.connect(Link(from: Endpoint(node: copy, socket: "surface"), to: Endpoint(node: setup.output.id, socket: "solid"))),
+                                 name: UndoName.connect)
+        await app.settle()
+        let state = try #require(app.document.results[copy]?.state)
+        guard case .ok = state else {
+            Issue.record("expected the copy to keep its regions with no warning, got \(state)")
+            return
+        }
+        let kept = try #require(app.document.results[copy]?.outputs?["surface"]?.items.compactMap { scalar -> Solid? in
+            if case .solid(let solid) = scalar { solid } else { nil }
+        }.first)
+        #expect(kept.topology.faces.count == 3 && kept.topology.faces.allSatisfy { $0.centroid.x > 0 })
     }
 
     @Test func pickRegionsShowsTheWholeSplit() async throws {
