@@ -139,27 +139,10 @@ extension OCCTKernel {
                          edgeTagOverrides: overrides)
     }
 
-    /// R6: one list of faces per piece, ordered by the canonical key of the piece's smallest face tag set, then by the centroid.
+    /// R6: the order is `SheetPieces.ordered`'s, shared with Trim Surface's region picks.
     static func orderedPieces(_ tables: OCCTSplitTables, in whole: Solid) -> [[FaceID]] {
         var groups: [Int: [Int]] = [:]
         for (index, face) in tables.faces.enumerated() { groups[face.piece, default: []].append(index) }
-        let faceKey = { (index: Int) -> String in whole.topology.faces[index].tags.map(\.sortKey).sorted().joined(separator: "+") }
-        struct Entry { var faces: [Int]; var key: String; var centroid: Vector3 }
-        let entries = groups.values.map { faces -> Entry in
-            let area = faces.reduce(0) { $0 + whole.topology.faces[$1].area }
-            var centroid = Vector3.zero
-            for index in faces {
-                let face = whole.topology.faces[index]
-                centroid += face.centroid * (area > 0 ? face.area / area : 1 / Double(faces.count))
-            }
-            return Entry(faces: faces.sorted(), key: faces.map(faceKey).min() ?? "", centroid: centroid)
-        }
-        let ordered = entries.sorted { a, b in
-            if a.key != b.key { return a.key < b.key }
-            if abs(a.centroid.x - b.centroid.x) > 1e-9 { return a.centroid.x < b.centroid.x }
-            if abs(a.centroid.y - b.centroid.y) > 1e-9 { return a.centroid.y < b.centroid.y }
-            return a.centroid.z < b.centroid.z
-        }
-        return ordered.map { $0.faces.map { FaceID($0) } }
+        return SheetPieces.ordered(groups: Array(groups.values), in: whole.topology)
     }
 }

@@ -64,7 +64,9 @@ public enum TrimSurfaceNode: NodeDefinition {
             } else {
                 let resolved = TrimRegions.resolve(picks, pieces: split.pieces, in: split.whole.topology)
                 warnings += resolved.warnings
-                if resolved.pieces.isEmpty { throw NodeError.invalidValue(TrimRegions.nothingLeft) }
+                if resolved.pieces.isEmpty {
+                    throw NodeFailure(TrimRegions.nothingLeft, recovery: ["pieces": .one(.solid(split.whole))])
+                }
                 kept = resolved.pieces
             }
         }

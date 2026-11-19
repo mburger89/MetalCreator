@@ -211,6 +211,31 @@ struct TrimRegionPickTests {
         #expect(app.document.graph.nodes[setup.trim.id]?.inputValues[NodeSetting.keepRegions]?.regionPicks?.count == 1)
     }
 
+    @Test func pickingAgainAfterEveryPickVanished() async throws {
+        let setup = await open()
+        let gone = RegionPick(pick: FacePick(tags: [TopoTag(node: NodeID(), item: 0, role: .startCap)]))
+        try setup.app.document.perform(.setInput(setup.trim.id, NodeSetting.keepRegions, .regionPicks([gone])),
+                                       at: setup.app.editor.graphPath, name: UndoName.pickTrimRegions)
+        await setup.app.settle()
+        #expect(setup.app.editor.result(of: setup.trim.id)?.state.isSuccess == false)
+        await begin(setup)
+        let session = try #require(setup.app.pick)
+        #expect(session.trimRegions == setup.trim.id)
+        #expect(session.pieces.count == 2 && session.pickedPieces.isEmpty)
+        #expect(setup.app.alert == nil)
+    }
+
+    @Test func aFailedTrimRefusesInItsOwnWords() async throws {
+        let setup = await open()
+        let link = try #require(setup.app.document.graph.links.first { $0.to == Endpoint(node: setup.trim.id, socket: "cutter") })
+        try setup.app.document.perform(.disconnect(link), name: UndoName.changeParameter)
+        await setup.app.settle()
+        await begin(setup)
+        #expect(setup.app.pick == nil)
+        let message = try #require(setup.app.alert?.message)
+        #expect(!message.contains("wire a sheet and a cutter first"), "\(message)")
+    }
+
     @Test func piecesAreNotDrawnInPreview() async throws {
         let setup = await open()
         let app = setup.app

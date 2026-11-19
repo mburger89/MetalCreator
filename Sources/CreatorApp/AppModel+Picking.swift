@@ -244,6 +244,13 @@ extension AppModel {
         return nil
     }
 
+    /// A failed node's kept output (`NodeFailure.recovery`), for a pick that must start although the node has failed.
+    func recoveredSolid(at endpoint: Endpoint) -> Solid? {
+        guard let result = editor.result(of: endpoint.node) else { return nil }
+        for case .solid(let solid) in result.recovery?[endpoint.socket]?.items ?? [] { return solid }
+        return nil
+    }
+
     func refusePick(_ message: String) {
         alert = .problem(AppProblem("Nothing to pick on", message))
     }

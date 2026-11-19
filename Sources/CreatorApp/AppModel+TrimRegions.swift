@@ -20,7 +20,8 @@ extension AppModel {
             return refusePick("A region can't be picked inside a group yet. Pick it from the top level.")
         }
         let source = Endpoint(node: id, socket: "pieces")
-        guard let whole = solid(at: source) else {
+        guard let whole = solid(at: source) ?? recoveredSolid(at: source) else {
+            if case .error(let reason)? = editor.result(of: id)?.state { return refusePick(reason) }
             return refusePick("“\(node.name)” has no pieces to pick yet: wire a sheet and a cutter first.")
         }
         let pieces = TrimRegions.pieces(of: whole)
