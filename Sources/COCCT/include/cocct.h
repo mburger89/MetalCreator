@@ -585,6 +585,14 @@ occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status
 /// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x
 /// `v_count` poles.
 occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status);
+/// The one tolerance (mm) of control-net editing: poles this close count as one point, and an apex or a seam may open no more than this
+/// over what it was.
+double occt_net_coincidence(void);
+/// FOR TESTS ONLY. The one-face sheet with the poles of its collapsed boundary row (an apex) moved apart on a circle of radius `distance`
+/// about their point, in the plane across the row's direction. Bypasses the apex guard.
+occt_shape *occt_test_spread_apex(const occt_shape *shape, double distance, occt_status *status);
+/// FOR TESTS ONLY. A periodic degree-3 tube of radius 10 (eight poles round, 10 mm tall), one face over `fraction` (0, 1] of its period.
+occt_shape *occt_test_partial_periodic_sheet(double fraction, occt_status *status);
 /// FOR TESTS ONLY. Over every pole's Greville point of face `face_index`'s B-spline net: the largest |normal . tangent| / |tangent|
 /// and the largest distance from the surface point there to the pole.
 int occt_test_net_gaps(const occt_shape *shape, int face_index, double *normal_error, double *pole_gap, occt_status *status);

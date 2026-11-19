@@ -47,6 +47,10 @@ public struct PoleMove: Hashable, Codable, Sendable {
 /// What a sheet's one face was before its control net was read: a surface that is not a B-spline is converted exactly. The net is
 /// the whole underlying surface, not just the part the face's trims show (the face's pcurves stay valid against it).
 public struct SurfaceNet: Sendable {
+    /// The one tolerance (mm) of control-net editing: poles this close count as one point, and an apex or a seam may open no more than
+    /// this over what it was. The shim's `kNetCoincidence` (a test pins them together).
+    public static let coincidence: Double = 1e-6
+
     public var surface: BSplineSurface3D
     /// The unit normal at each pole's Greville point, in the same order as `surface.poles`, oriented by the face.
     public var normals: [Vector3]

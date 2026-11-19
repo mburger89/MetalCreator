@@ -1,4 +1,5 @@
 #if canImport(CreatorOCCT)
+import COCCT
 import Foundation
 import Testing
 @testable import CreatorGeometry
@@ -83,6 +84,59 @@ struct ApexSeamTests {
         #expect((net.pole(0, net.vCount - 1) - Vector3(0, 5, 0)).length < 1e-9)
         let mesh = try await kernel.tessellate(rebuilt, tolerance: 0.05, angle: 0.5)
         #expect(!mesh.indices.isEmpty)
+    }
+
+    // MARK: One tolerance, per-edge guard, centroid pin (NS-4 Task 1)
+
+    func rowSpread(_ net: BSplineSurface3D, row j: Int) -> Double {
+        let points = (0..<net.uCount).map { net.pole($0, j) }
+        let centroid = points.reduce(Vector3.zero, +) * (1 / Double(points.count))
+        return points.map { ($0 - centroid).length }.max() ?? 0
+    }
+
+    @Test func theToleranceIsShared() {
+        #expect(occt_net_coincidence() == SurfaceNet.coincidence)
+        #expect(SurfaceNet.coincidence == 1e-6)
+    }
+
+    @Test func aWideApexIsStillGuarded() async throws {
+        let wide = try await kernel.spreadingApex(of: try await dome(), by: 1e-4)
+        await #expect(throws: KernelError.invalidInput(
+            "Moving these control points opens the surface at its apex; move the matching points together.")) {
+            try await kernel.movingPoles(of: wide, by: [PoleMove(index: PoleIndex(i: 0, j: 2), offset: Vector3(0, 0, 1))])
+        }
+    }
+
+    @Test func aWideApexAllowsInteriorMoves() async throws {
+        let wide = try await kernel.spreadingApex(of: try await dome(), by: 1e-4)
+        let moved = try await kernel.movingPoles(of: wide, by: [PoleMove(index: PoleIndex(i: 2, j: 1), offset: Vector3(0, 0, 1))])
+        let mesh = try await kernel.tessellate(moved, tolerance: 0.05, angle: 0.5)
+        #expect(!mesh.indices.isEmpty)
+    }
+
+    @Test func aNearlyCollapsedRowIsPinnedToItsCentroid() async throws {
+        let nearly = try await kernel.spreadingApex(of: try await dome(), by: 5e-7)
+        let source = try await kernel.controlNet(of: nearly).surface
+        let row = source.vCount - 1
+        let centroid = (0..<source.uCount).map { source.pole($0, row) }.reduce(Vector3.zero, +) * (1 / Double(source.uCount))
+        for degree in [3, 4] {
+            let rebuilt = try await kernel.rebuilt(
+                nearly, as: RebuildSpec(degreeU: degree, degreeV: degree, spansU: 8, spansV: 4)).sheet
+            let net = try await kernel.controlNet(of: rebuilt).surface
+            for i in 0..<net.uCount { #expect((net.pole(i, net.vCount - 1) - centroid).length < 1e-12) }
+        }
+    }
+
+    @Test func aWideApexRebuildNeverWidens() async throws {
+        let wide = try await kernel.spreadingApex(of: try await dome(), by: 1e-4)
+        let before = rowSpread(try await kernel.controlNet(of: wide).surface, row: 2)
+        do {
+            let rebuilt = try await kernel.rebuilt(wide, as: RebuildSpec(degreeU: 3, degreeV: 3, spansU: 8, spansV: 4)).sheet
+            let net = try await kernel.controlNet(of: rebuilt).surface
+            #expect(rowSpread(net, row: net.vCount - 1) <= before + 1e-6)
+        } catch {
+            #expect("\(error)".contains("Rebuilding opens the surface at its apex."))
+        }
     }
 }
 #endif
