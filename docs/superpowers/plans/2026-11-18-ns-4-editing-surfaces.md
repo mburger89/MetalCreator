@@ -116,6 +116,15 @@ two-body continuity call and the control-point code this plan builds on.
   lines `u₀` and `u₀ + period` of the mapped range; the result is held to `BRepCheck_Analyzer`. The join is graded across the old
   iso line at 32 samples (G2 Natural, G1 Linear) and refused on a miss. Cost: Extend on a multi-face or trimmed sheet is refused
   (parked).
+- **R8 erratum (Task 7).** Linear does **not** approximate a rational surface. It appends the span in homogeneous coordinates (the
+  weights extended linearly with the poles, so a rational net is extended exactly and the old surface is untouched); where the weights
+  would fall below 1e-3 of the last weight the edge is refused: "This edge can't be extended Linear: the surface weakens too fast
+  across it; use Natural." in place of "This surface can't be extended Linear exactly; use Natural." (also "... the surface doesn't run
+  across it; use Natural." for a zero cross speed). The appended knot span is `last span x factor / degree`, so the parametric speed across
+  the join is continuous (C1 in parameter), not only the tangent plane. Both modes are calibrated until the distance between the old
+  and new edge's middle points is `length` (once for Linear, which is linear in its scale; by correction for Natural), and the join is
+  graded after the build: a knot that cannot be found where the map says is refused with the "moved" sentence, never passed unmeasured.
+  Tasks 8 and 9 and the spec read R8 with this.
 - **R9. Match Surface** changes a sheet of one face along an untrimmed iso edge, to one target edge. Rows 0..c (c = continuity) move;
   the cross degree is raised to at least c + 1 and knots inserted in the first cross span until there are at least c + 2 rows, so
   the opposite edge never moves. The target is reparametrised by arc-length fraction from the end nearer the edge's start. A solid

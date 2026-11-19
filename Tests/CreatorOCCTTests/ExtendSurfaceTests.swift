@@ -53,9 +53,18 @@ struct ExtendSurfaceTests {
         return try await kernel.planarSurface([loop], tag: tag)
     }
 
-    /// The grade of the join along the plane z = `z`, which cuts the result along the old edge.
-    func grade(_ sheet: Solid, cutAt z: Double) async throws -> ContinuityClass {
-        let split = try await kernel.split(sheet, by: .body(try await plane(z: z)), tag: newTag())
+    /// The vertical plane y = `y`, wide enough to cut a small sheet.
+    func plane(y: Double) async throws -> Solid {
+        let c = [Vector3(-40, y, -40), Vector3(40, y, -40), Vector3(40, y, 40), Vector3(-40, y, 40)]
+        let loop = try await kernel.makeCurve(c.indices.map { .line(c[$0], c[($0 + 1) % 4]) }, tag: tag)
+        return try await kernel.planarSurface([loop], tag: tag)
+    }
+
+    /// The grade of the join along the plane z = `z` (or y = `y`), which cuts the result along the old edge.
+    func grade(_ sheet: Solid, cutAt z: Double? = nil, y: Double? = nil) async throws -> ContinuityClass {
+        let cutter: Solid
+        if let z { cutter = try await plane(z: z) } else { cutter = try await plane(y: y ?? 0) }
+        let split = try await kernel.split(sheet, by: .body(cutter), tag: newTag())
         let cut = try #require(split.whole.topology.edges.first { $0.faces.count == 2 && $0.faces[0] != $0.faces[1] })
         return try await kernel.continuity(along: cut.id, of: split.whole).grade
     }
@@ -134,6 +143,38 @@ struct ExtendSurfaceTests {
             let grown = try topCircle(result, z: 15)
             #expect(abs(grown.length - top.length) < 1e-4)
         }
+    }
+
+    /// Across the ruling: the rational direction of a revolved sheet.
+    @Test func aRevolvedSheetExtendsAcrossItsRuling() async throws {
+        let sheet = try await quarterCylinder()
+        let ruling = try #require(sheet.topology.edges.first { $0.kind == .line && abs($0.midpoint.y) < 1e-9 && $0.midpoint.x > 9.9 })
+        for mode in [ExtendMode.natural, .linear] {
+            let result = try await kernel.extended(sheet, edges: [ruling.id], length: 5, mode: mode)
+            #expect(try await kernel.shape(of: result).isValid)
+            #expect(structure(result.topology) == structure(sheet.topology))
+            #expect(result.topology.faces[0].area > sheet.topology.faces[0].area)
+            #expect(try await grade(result, y: 0) >= (mode == .natural ? .g2 : .g1))
+            let grown = try #require(result.topology.edges.first {
+                $0.kind != .circle && $0.faces.count == 1 && $0.midpoint.y < -3 && abs($0.midpoint.z - 5) < 1e-6
+            })
+            #expect(abs((grown.midpoint - ruling.midpoint).length - 5) <= 0.5, "moved \((grown.midpoint - ruling.midpoint).length)")
+        }
+    }
+
+    /// Linear on a sheet of degree 2 keeps the cross parameter's speed continuous across the join, not only the tangent plane.
+    @Test func linearKeepsTheParameterSpeed() async throws {
+        let sheet = try await wavySheet()
+        let result = try await kernel.extended(sheet, edges: [try endEdge(sheet).id], length: 5, mode: .linear)
+        let shape = try await kernel.shape(of: result)
+        var ratios: [Double] = []
+        for inU in [true, false] {
+            if let speeds = try? OCCTKernel.serialized({ try shape.knotSpeeds(ofFace: 0, inU: inU) }) {
+                ratios.append(speeds.after / speeds.before)
+            }
+        }
+        #expect(ratios.contains { abs($0 - 1) < 0.02 }, "ratios \(ratios)")
+        #expect(ratios.allSatisfy { abs($0 - 1) < 0.02 }, "ratios \(ratios)")
     }
 
     @Test func aPeriodicSheetsEndExtends() async throws {
@@ -222,6 +263,14 @@ struct ExtendSurfaceTests {
                 == "Only an untrimmed edge can be extended; this edge is a trim.")
         #expect(await refusal { _ = try await kernel.extended(sheet, edges: [end.id], length: 0, mode: .natural) }
                 == "The length must be greater than 0 mm.")
+        let ring = [Vector3(-10, -10, 0), Vector3(10, -10, 0), Vector3(10, 10, 0), Vector3(-10, 10, 0)]
+        let hole = [Vector3(-3, -3, 0), Vector3(3, -3, 0), Vector3(3, 3, 0), Vector3(-3, 3, 0)]
+        let outer = try await kernel.makeCurve(ring.indices.map { .line(ring[$0], ring[($0 + 1) % 4]) }, tag: tag)
+        let inner = try await kernel.makeCurve(hole.indices.map { .line(hole[$0], hole[($0 + 1) % 4]) }, tag: tag)
+        let holed = try await kernel.planarSurface([outer, inner], tag: tag)
+        let outerEdge = try #require(holed.topology.edges.first { abs($0.midpoint.x - 10) < 1e-9 })
+        #expect(await refusal { _ = try await kernel.extended(holed, edges: [outerEdge.id], length: 5, mode: .natural) }
+                == "Extend Surface can't extend a sheet whose face is trimmed.")
         let cylinder = try await fullCylinder()
         let seam = try #require(cylinder.topology.edges.first { $0.isSeam })
         #expect(await refusal { _ = try await kernel.extended(cylinder, edges: [seam.id], length: 5, mode: .natural) }

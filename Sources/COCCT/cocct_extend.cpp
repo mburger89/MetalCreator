@@ -168,9 +168,10 @@ Handle(Geom_BSplineSurface) append_linear(const Handle(Geom_BSplineSurface) &sou
         knots(k) = in_u ? s->UKnot(k) : s->VKnot(k);
         mults(k) = in_u ? s->UMultiplicity(k) : s->VMultiplicity(k);
     }
-    // The new span is as long, in parameter, as the old last span times the scale, so the parameter's speed across the cross direction
-    // is continuous too (C1 parametrically, which area and mesh integration rely on), not only the tangent plane.
-    const double span = (nk >= 2 ? knots(nk) - knots(nk - 1) : 1.0) * factor;
+    // The new span is as long, in parameter, as the old last span times the scale divided by the degree: the old side's end derivative
+    // is p / L x its last pole step, the new side's is p / span x (factor / p) x the same step, so the parameter's speed across the
+    // cross direction is continuous too (C1 parametrically, which area and mesh integration rely on), not only the tangent plane.
+    const double span = (nk >= 2 ? knots(nk) - knots(nk - 1) : 1.0) * factor / p;
     mults(nk) = p;
     knots(nk + 1) = knots(nk) + span;
     mults(nk + 1) = p + 1;
@@ -334,7 +335,8 @@ void grade_join(const Handle(Geom_BSplineSurface) &grown, bool in_u, double join
         }
     }
     if (at == 0) {
-        return; // the old end is inside one polynomial span: nothing joins there
+        // Both builds put a knot at the old end; if none is where the map says, the join cannot be read, and it is never passed unmeasured.
+        throw user_error(kMoved);
     }
     const int ku = grown->NbUKnots();
     const int kv = grown->NbVKnots();
@@ -660,6 +662,46 @@ int occt_test_pcurve_gap(const occt_shape *shape, int face_index, double *gap, o
             }
         }
         *gap = worst;
+        return 1;
+    });
+}
+
+int occt_test_knot_speeds(const occt_shape *shape, int face_index, int in_u, double *before, double *after, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        occt_initialize();
+        const TopTools_IndexedMapOfShape faces = map_of(shape->shape, TopAbs_FACE);
+        if (face_index < 1 || face_index > faces.Extent() || !before || !after) {
+            throw user_error("That face no longer exists.");
+        }
+        const Handle(Geom_BSplineSurface) surface =
+            Handle(Geom_BSplineSurface)::DownCast(BRep_Tool::Surface(TopoDS::Face(faces(face_index))));
+        if (surface.IsNull()) {
+            throw user_error("That face is not a B-spline surface.");
+        }
+        const int nk = in_u ? surface->NbUKnots() : surface->NbVKnots();
+        if (nk < 3) {
+            throw user_error("That surface has no interior knot.");
+        }
+        const double join = in_u ? surface->UKnot(nk - 1) : surface->VKnot(nk - 1);
+        double u0 = 0, u1 = 0, v0 = 0, v1 = 0;
+        surface->Bounds(u0, u1, v0, v1);
+        const double across = in_u ? 0.5 * (v0 + v1) : 0.5 * (u0 + u1);
+        const int ku = surface->NbUKnots();
+        const int kv = surface->NbVKnots();
+        const auto speed = [&](bool after_join) {
+            gp_Pnt point;
+            gp_Vec du, dv;
+            const int from = after_join ? nk - 1 : nk - 2;
+            const int to = after_join ? nk : nk - 1;
+            if (in_u) {
+                surface->LocalD1(join, across, from, to, 1, kv, point, du, dv);
+            } else {
+                surface->LocalD1(across, join, 1, ku, from, to, point, du, dv);
+            }
+            return (in_u ? du : dv).Magnitude();
+        };
+        *before = speed(false);
+        *after = speed(true);
         return 1;
     });
 }

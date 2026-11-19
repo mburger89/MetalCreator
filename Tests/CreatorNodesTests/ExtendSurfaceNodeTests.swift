@@ -54,7 +54,7 @@ struct ExtendSurfaceNodeTests {
         var (h, node) = rig(mode: 0)
         h.set(node, "length", .number(0))
         let report = try await h.run([node], kernel: kernel)
-        #expect(report.error(node) != nil)
+        #expect(report.error(node) == "The length must be greater than 0 mm.")
     }
     #endif
 }

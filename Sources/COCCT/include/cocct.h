@@ -705,14 +705,18 @@ int occt_rebuild_curve(const occt_shape *wire, int degree, int spans, const occt
 /// A copy of `shape` whose one face `face_index` (1-based) is grown by `length` mm across the sides of `edge_indices` (1-based, in the
 /// shape's edge map; two edges on one side count once). Each must be a free edge on an untrimmed iso boundary of the face's surface (a face
 /// of another kind is converted to a B-spline exactly) and every other edge must be untrimmed too. `mode` 0 is Natural
-/// (GeomLib::ExtendSurfByLength, curvature continuous), 1 is Linear (a span appended straight along the cross tangent; a rational surface
-/// is approximated within 1e-7 mm first). The face keeps its edges, in order; the old surface is kept within 1e-7 mm. The join is graded
+/// (GeomLib::ExtendSurfByLength, curvature continuous), 1 is Linear (a span appended straight along the cross tangent, built in
+/// homogeneous coordinates so a rational surface is not approximated; refused with "weakens too fast across it" when the weights would
+/// fall toward zero). The face keeps its edges, in order; the old surface is kept within 1e-7 mm. The join is graded
 /// (G2 or G1) and a miss, a surface that moves, a trim and a result BRepCheck_Analyzer rejects (when the input passed it) are refused.
 occt_shape *occt_extend_face(const occt_shape *shape, int face_index, const int *edge_indices, int edge_count, double length, int mode,
                              occt_status *status);
 /// FOR TESTS ONLY. The largest distance from the surface at nine points of each pcurve (both of a seam) of face `face_index` (1-based)
 /// to that edge's 3D curve.
 int occt_test_pcurve_gap(const occt_shape *shape, int face_index, double *gap, occt_status *status);
+/// FOR TESTS ONLY. The parametric speed (the length of the partial derivative across the direction) of the B-spline face `face_index`
+/// (1-based) on each side of its last interior knot (`in_u` 1 for the u direction), at the middle of the other direction.
+int occt_test_knot_speeds(const occt_shape *shape, int face_index, int in_u, double *before, double *after, occt_status *status);
 
 /// One face of a split sheet (NS-4, R2): `source_face` is the 1-based face of the input sheet it came from, `piece` its connected set
 /// (0-based, in no order), `inside` 1 or 0 against a closed cutter and -1 when the cutter is not closed (or the face could not be

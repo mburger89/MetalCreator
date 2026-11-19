@@ -74,4 +74,13 @@ extension OCCTShape {
         try Self.check { status in occt_test_pcurve_gap(self.raw, Int32(faceIndex + 1), &gap, status) }
         return gap
     }
+
+    /// FOR TESTS ONLY. The parametric speed of face `faceIndex` (0-based) on each side of its last interior knot in u or v. Call under
+    /// `OCCTKernel.serialized`.
+    func knotSpeeds(ofFace faceIndex: Int, inU: Bool) throws(OCCTError) -> (before: Double, after: Double) {
+        var before = 0.0
+        var after = 0.0
+        try Self.check { status in occt_test_knot_speeds(self.raw, Int32(faceIndex + 1), inU ? 1 : 0, &before, &after, status) }
+        return (before, after)
+    }
 }
