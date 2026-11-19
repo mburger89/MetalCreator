@@ -112,6 +112,14 @@ struct ApexSeamTests {
         let moved = try await kernel.movingPoles(of: wide, by: [PoleMove(index: PoleIndex(i: 2, j: 1), offset: Vector3(0, 0, 1))])
         let mesh = try await kernel.tessellate(moved, tolerance: 0.05, angle: 0.5)
         #expect(!mesh.indices.isEmpty)
+        // movingPoles skips BRepCheck when its input was invalid, so the input is checked too.
+        #expect(try isValid(wide))
+        #expect(try isValid(moved))
+    }
+
+    private func isValid(_ solid: Solid) throws -> Bool {
+        let shape = try #require((solid.storage as? OCCTSolidStorage)?.shape)
+        return OCCTKernel.serialized { shape.isValid }
     }
 
     @Test func aNearlyCollapsedRowIsPinnedToItsCentroid() async throws {

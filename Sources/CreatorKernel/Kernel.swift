@@ -148,7 +148,10 @@ public protocol Kernel: Actor {
     /// a collapsed spot beside an ordinary one. A pole of a degenerate edge (a cone's apex) is not a fold. The default refuses.
     func folds(_ sheet: Solid) throws -> Bool
     /// `surface` (a sheet of one face) refitted by least squares to a non-rational B-spline of `spec`'s degree and span count over
-    /// the same parameter range (NS-3; a direction the source is periodic in is rebuilt periodic, with `spans` poles; fewer than degree + 1 spans there is refused "A closed surface needs at least N spans around at degree D."), so its faces, edges, tags and trims are the input's and only their geometry differs.
+    /// the same parameter range (NS-3; a direction the source is periodic in is rebuilt periodic, with `spans` poles, only when the face
+    /// spans the whole period, and then fewer than degree + 1 spans is refused "A closed surface needs at least N spans around at
+    /// degree D."; a face over part of the period is fitted clamped over its own UV range), so its faces, edges, tags and trims are the
+    /// input's and only their geometry differs.
     /// `deviation` is the largest distance from the source to the result over a grid twice as dense as the fit's samples. A solid is
     /// refused "Rebuild Surface takes a sheet; this is a closed solid.", a sheet of other than one face "Rebuild Surface takes a sheet
     /// with one face; this one has N. Split it first.". The default refuses.

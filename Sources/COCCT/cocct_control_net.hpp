@@ -41,8 +41,9 @@ edit_copy make_edit_copy(const occt_shape *shape, int face_index);
 /// copies of the edges, with its edges in the same order: when an edge's converted curve doesn't fit but the original's does, the
 /// original's is put back. Does not run `BRepCheck_Analyzer`: the caller checks the whole result (and skips it when the input
 /// itself was invalid). Refuses (before changing the face) a surface that opens an apex (a degenerated edge no longer maps to one
-/// point) or a seam (its two pcurves no longer meet) that was closed, by more than `kNetCoincidence` over what that edge was, at nine samples (per edge, so a surface whose apex was already open may
-/// not open it further); `rebuilding` picks the wording, `guard_openings` false (tests only) skips the check.
+/// point) or a seam (its two pcurves no longer meet) by more than `kNetCoincidence` over what that edge was, at nine samples
+/// (per edge, so a surface whose apex was already open may not open it further); `rebuilding` picks the wording,
+/// `guard_openings` false (tests only) skips the check.
 TopoDS_Face replace_face_surface(const TopoDS_Face &face, const Handle(Geom_Surface) &surface,
                                  const TopoDS_Face &original = TopoDS_Face(), bool rebuilding = false,
                                  bool guard_openings = true);

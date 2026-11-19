@@ -596,11 +596,13 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
                 }
             }
         };
-        if (!periodic_u) {
+        // Only a direction the source is itself clamped in has boundary pole columns; in a periodic net columns 1 and NbUPoles
+        // aren't the face's boundary, so a face over part of the period must not read them.
+        if (!periodic_u && !source->IsUPeriodic()) {
             pin_collapsed(true, false);
             pin_collapsed(true, true);
         }
-        if (!periodic_v) {
+        if (!periodic_v && !source->IsVPeriodic()) {
             pin_collapsed(false, false);
             pin_collapsed(false, true);
         }
