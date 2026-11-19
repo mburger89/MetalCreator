@@ -64,6 +64,14 @@ struct CutNamingTests {
         #expect(role.nestedTags == [inner])
         #expect(TopoRole.cutSide(.curve(index: 0, piece: 0), .back).nestedTags.isEmpty)
         #expect(TopoTag.instanceTags(in: [tag(node, role)]).isEmpty)
+
+        var bytes = UUID().uuid
+        bytes.6 = (bytes.6 & 0x0F) | 0x80
+        let instanceNode = NodeID(rawValue: UUID(uuid: bytes))
+        #expect(instanceNode.isInstanceQualified)
+        let nested = tag(instanceNode, .side(segment: 0), item: 4)
+        #expect(TopoTag.instanceTags(in: [tag(node, .cutSide(.face([nested]), .front))]) == [nested])
+        #expect(TopoTag.instanceTags(in: [tag(node, .boundary(.cut(.face([nested]))))]) == [nested])
     }
 
     @Test func unstableNestedTagsAreUnstable() {

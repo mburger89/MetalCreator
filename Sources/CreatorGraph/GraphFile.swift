@@ -30,7 +30,6 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// 15: the Edit Surface and Edit Curve nodes' `poleMoves` setting (`ConstantValue.poleMoves`); a version-14 reader cannot decode the kind.
     /// 16: Trim Surface's `regionPicks` setting (`ConstantValue.regionPicks`) and the `cutSide` face role and `cut` boundary role in saved
     /// picks (NS-4); a version-15 reader cannot decode them. Files 1 to 15 open unchanged and are written as 16.
-    /// Files 1 to 14 open unchanged and are written as 15.
     public static let currentFormatVersion = 16
 
     public var formatVersion: Int
