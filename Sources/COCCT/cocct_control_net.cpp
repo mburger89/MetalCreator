@@ -766,30 +766,54 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
             bool degenerate = false;
             gp_Vec normal;
         };
+        auto sample_at = [&](double u, double v) {
+            sample out;
+            if (untrimmed) {
+                out.inside = true;
+            } else {
+                classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
+                out.inside = classifier.State() == TopAbs_IN || classifier.State() == TopAbs_ON;
+            }
+            if (!out.inside) {
+                return out;
+            }
+            gp_Pnt point;
+            gp_Vec du, dv;
+            surface->D1(u, v, point, du, dv);
+            for (const gp_Pnt &pole : degenerate_points) {
+                out.ignored = out.ignored || point.Distance(pole) <= 1e-6 * size;
+            }
+            const gp_Vec n = du.Crossed(dv);
+            out.degenerate = n.Magnitude() < tiny;
+            out.normal = out.degenerate ? gp_Vec() : n.Normalized();
+            return out;
+        };
+        auto opposes = [](const sample &x, const sample &y) {
+            if (x.degenerate != y.degenerate) {
+                return true;
+            }
+            return !x.degenerate && x.normal.Dot(y.normal) < 0;
+        };
+        // R10: a flagged pair is a fold only if refining the segment between its two samples into 64 steps still shows a pair of
+        // neighbours whose normals oppose (or one degenerate). A fold's normal passes through zero and never resolves; a steep
+        // spike's normal turns smoothly, so the refined steps agree. The work is bounded: one segment of 64 samples per flagged pair.
+        auto confirmed = [&](double ua, double va, double ub, double vb) {
+            constexpr int kSteps = 64;
+            sample previous = sample_at(ua, va);
+            for (int k = 1; k <= kSteps; ++k) {
+                const double t = double(k) / kSteps;
+                const sample current = sample_at(ua + (ub - ua) * t, va + (vb - va) * t);
+                if (previous.inside && !previous.ignored && current.inside && !current.ignored && opposes(previous, current)) {
+                    return true;
+                }
+                previous = current;
+            }
+            return false;
+        };
         std::vector<sample> grid(size_t(count_u) * size_t(count_v));
         for (int a = 0; a < count_u; ++a) {
             for (int b = 0; b < count_v; ++b) {
-                sample &out = grid[size_t(a) * count_v + b];
-                const double u = lines_u[a].parameter;
-                const double v = lines_v[b].parameter;
-                if (untrimmed) {
-                    out.inside = true;
-                } else {
-                    classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
-                    out.inside = classifier.State() == TopAbs_IN || classifier.State() == TopAbs_ON;
-                }
-                if (!out.inside) {
-                    continue;
-                }
-                gp_Pnt point;
-                gp_Vec du, dv;
-                surface->D1(u, v, point, du, dv);
-                for (const gp_Pnt &pole : degenerate_points) {
-                    out.ignored = out.ignored || point.Distance(pole) <= 1e-6 * size;
-                }
-                const gp_Vec n = du.Crossed(dv);
-                out.degenerate = n.Magnitude() < tiny;
-                out.normal = out.degenerate ? gp_Vec() : n.Normalized();
+                grid[size_t(a) * count_v + b] = sample_at(lines_u[a].parameter, lines_v[b].parameter);
             }
         }
         *folds = 0;
@@ -812,9 +836,8 @@ int occt_surface_folds(const occt_shape *shape, int face_index, int *folds, occt
                     if (!next.inside || next.ignored) {
                         continue;
                     }
-                    if (here.degenerate != next.degenerate) {
-                        *folds = 1;
-                    } else if (!here.degenerate && here.normal.Dot(next.normal) < 0) {
+                    if (opposes(here, next) &&
+                        confirmed(lines_u[a].parameter, lines_v[b].parameter, lines_u[na].parameter, lines_v[nb].parameter)) {
                         *folds = 1;
                     }
                 }
