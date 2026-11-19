@@ -506,6 +506,10 @@ int occt_curve_info_of(const occt_shape *wire, occt_curve_info *out, occt_status
 void occt_curve_info_free(occt_curve_info *info);
 /// The wires that `edge_indices` (1-based, in `shape`'s edge map) chain into, as one compound ordered by each wire's lowest edge index.
 occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indices, int count, occt_status *status);
+/// The curves where `a` and `b` meet (BRepAlgoAPI_Section, no approximation), chained into wires within 1e-6 mm and returned as one
+/// compound (empty when they don't meet): an open wire runs from its lexicographically smaller end, a closed one starts at its smallest
+/// vertex, and the wires are ordered by start point (x, then y, then z, within 1e-6 mm; NS-4 R14). The same shape twice is refused.
+occt_shape *occt_intersection_curves(const occt_shape *a, const occt_shape *b, occt_status *status);
 /// The number of children of a compound made by occt_curves_from_edges, and the child at `index` (0-based).
 int occt_compound_child_count(const occt_shape *compound);
 occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_status *status);
@@ -585,6 +589,14 @@ occt_shape *occt_test_reversed_copy(const occt_shape *shape, occt_status *status
 /// FOR TESTS ONLY. A sheet of one face of the given `degree` (poles in the plane z = 0, uniform knots) with `u_count` x
 /// `v_count` poles.
 occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_status *status);
+/// The one tolerance (mm) of control-net editing: poles this close count as one point, and an apex or a seam may open no more than this
+/// over what it was.
+double occt_net_coincidence(void);
+/// FOR TESTS ONLY. The one-face sheet with the poles of its collapsed boundary row (an apex) moved apart on a circle of radius `distance`
+/// about their point, in the plane across the row's direction. Bypasses the apex guard.
+occt_shape *occt_test_spread_apex(const occt_shape *shape, double distance, occt_status *status);
+/// FOR TESTS ONLY. A periodic degree-3 tube of radius 10 (eight poles round, 10 mm tall), one face over `fraction` (0, 1] of its period.
+occt_shape *occt_test_partial_periodic_sheet(double fraction, occt_status *status);
 /// FOR TESTS ONLY. Over every pole's Greville point of face `face_index`'s B-spline net: the largest |normal . tangent| / |tangent|
 /// and the largest distance from the surface point there to the pole.
 int occt_test_net_gaps(const occt_shape *shape, int face_index, double *normal_error, double *pole_gap, occt_status *status);
@@ -689,6 +701,90 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
 /// (largest distance from the source on a grid twice as dense). `cancel` may be NULL.
 int occt_rebuild_curve(const occt_shape *wire, int degree, int spans, const occt_cancel *cancel, occt_curve_net *out,
                        double *deviation, occt_status *status);
+
+/// A copy of `shape` whose one face `face_index` (1-based) is grown by `length` mm across the sides of `edge_indices` (1-based, in the
+/// shape's edge map; two edges on one side count once). Each must be a free edge on an untrimmed iso boundary of the face's surface (a face
+/// of another kind is converted to a B-spline exactly) and every other edge must be untrimmed too. `mode` 0 is Natural
+/// (GeomLib::ExtendSurfByLength, curvature continuous), 1 is Linear (a span appended straight along the cross tangent, built in
+/// homogeneous coordinates so a rational surface is not approximated; refused with "weakens too fast across it" when the weights would
+/// fall toward zero). The face keeps its edges, in order; the old surface is kept within 1e-7 mm. The join is graded
+/// (G2 or G1) and a miss, a surface that moves, a trim and a result BRepCheck_Analyzer rejects (when the input passed it) are refused.
+occt_shape *occt_extend_face(const occt_shape *shape, int face_index, const int *edge_indices, int edge_count, double length, int mode,
+                             occt_status *status);
+/// Match Surface (NS-4, R9): the sheet's one face (`face_index`, 1-based) changed along its open edge `edge_index` so that it meets the edge
+/// `target_edge_index` of `target` at `continuity` (0, 1 or 2), by the rows of its control net nearest the edge (a rational net keeps its
+/// weights); the opposite edge, the face's edges and their order are kept. The target face is the one the sheet continues. Each result is
+/// graded and the spans along the edge doubled up to 5 times; a miss, ends over 0.01 mm apart, a closed or two-face edge, a trimmed edge and
+/// a result BRepCheck_Analyzer rejects are refused in sentences. `cancel` may be NULL; it is polled before each refinement pass and
+/// before each grade.
+occt_shape *occt_match_face(const occt_shape *shape, int face_index, int edge_index, const occt_shape *target, int target_edge_index,
+                            int continuity, const occt_cancel *cancel, occt_status *status);
+/// Blend Surface (NS-4, R10): a new sheet (one face) joining edge `first_edge` of `first` to edge `second_edge` of `second` (1-based in
+/// each shape's edge map; the shapes may be one). Each end has a `continuity` (1 or 2) and a `bulge` (0.1 to 2, the section's tangent length
+/// as a multiple of the circular one); the face an end continues is the one whose leaving direction points most toward the other edge. Sections
+/// join the edges' points at equal arc-length fractions (the second edge turned when that shortens the ends), are quintic Beziers matching
+/// position, tangent and (G2) normal curvature, and are skinned along the edges, 9 to 129 of them, until both ends grade as asked. History: the
+/// face is OCCT_FROM_SEGMENT (0, 0). Roles: the first edge's side is kind 1, the second's kind 2, the sides from the edges' starts are kind 3
+/// with a = 0 and 1. `cancel` may be NULL. Refuses in sentences ("The edges touch; a blend needs a gap between them.", ...).
+occt_shape *occt_blend_surface(const occt_shape *first, int first_edge, int first_continuity, double first_bulge,
+                               const occt_shape *second, int second_edge, int second_continuity, double second_bulge,
+                               const occt_cancel *cancel, occt_history *history, occt_boundary_roles *roles, occt_status *status);
+/// FOR TESTS ONLY. The largest distance from the surface at nine points of each pcurve (both of a seam) of face `face_index` (1-based)
+/// to that edge's 3D curve.
+int occt_test_pcurve_gap(const occt_shape *shape, int face_index, double *gap, occt_status *status);
+/// FOR TESTS ONLY. The parametric speed (the length of the partial derivative across the direction) of the B-spline face `face_index`
+/// (1-based) on each side of its last interior knot (`in_u` 1 for the u direction), at the middle of the other direction.
+int occt_test_knot_speeds(const occt_shape *shape, int face_index, int in_u, double *before, double *after, occt_status *status);
+
+/// One face of a split sheet (NS-4, R2): `source_face` is the 1-based face of the input sheet it came from, `piece` its connected set
+/// (0-based, in no order), `inside` 1 or 0 against a closed cutter and -1 when the cutter is not closed (or the face could not be
+/// classified), and `pair_start` / `pair_count` its (element, side) pairs in `pairs`.
+typedef struct {
+    int source_face;
+    int piece;
+    int inside;
+    int pair_start;
+    int pair_count;
+} occt_split_face;
+/// A cutter element a face borders and the side it lies on: `side` 0 front, 1 back, 2 inside, 3 outside. For curves `element` is the
+/// piece's number over every curve's edges in input order (0-based); for a body it is the 0-based face of the body's face map.
+typedef struct {
+    int element;
+    int side;
+} occt_split_pair;
+/// One edge of the result: `source_edge` the 1-based edge of the input it is (a piece of), or 0 for a cut edge, whose cutter element is
+/// `element` (-1 when none could be found).
+typedef struct {
+    int source_edge;
+    int element;
+} occt_split_edge;
+typedef struct {
+    occt_split_face *faces;
+    int face_count;
+    occt_split_pair *pairs;
+    int pair_count;
+    occt_split_edge *edges;
+    int edge_count;
+    int piece_count;
+    /// 1 when every face has an `inside` of 0 or 1 (the cutter is closed curves in planes the projection crosses, or a closed solid).
+    int has_inside;
+    /// 1 when part of the cutter was dropped because it ended inside a face.
+    int dangling;
+} occt_split_result;
+void occt_split_result_free(occt_split_result *result);
+
+/// `sheet` divided by a cutter (NS-4, R2, R4, R7). `kind` 0 projects `curves` (wires) along `direction` (a prism sized from the curves'
+/// and the sheet's extents along it), 1 projects them along the sheet's normals, 2 cuts with `body` (a sheet or a closed solid).
+/// The result is a shell per connected set of the pieces' faces sharing their edges (a compound when there are several); `out` says where each face and edge came from, the cutter element
+/// each cut edge lies on and the (element, side) pairs of each face. Refuses "Trim and Split take a sheet; this is a closed solid.",
+/// "The direction can't be zero." and "The cutter doesn't cut the surface.". A cut that ends inside a face is dropped (`out->dangling`).
+/// `cancel` may be NULL.
+occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape *const *curves, int curve_count,
+                             const double direction[3], const occt_shape *body, const occt_cancel *cancel,
+                             occt_split_result *out, occt_status *status);
+/// One shell of the given faces (`face_indices`, 1-based in `sheet`'s face map) sharing their edges, every face and edge the same shape as
+/// in `sheet`. `out` has `source_face` and `source_edge` per output face and edge; the other fields are zero.
+occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int count, occt_split_result *out, occt_status *status);
 
 /// FOR TESTS ONLY. The largest tolerance of any edge of `shape`.
 int occt_test_max_edge_tolerance(const occt_shape *shape, double *tolerance, occt_status *status);

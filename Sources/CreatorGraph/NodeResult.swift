@@ -4,6 +4,8 @@ import CreatorSketch
 public struct NodeResult: Sendable {
     public var state: NodeState
     public var outputs: [SocketName: Value]?
+    /// What a failed node kept (`NodeFailure.recovery`); never an input to another node.
+    public var recovery: [SocketName: Value]?
     /// What the node declared while it ran, every iteration's in order. Empty when it failed.
     public var dimensions: [DimensionSpec] = []
     /// The Sketch node's trace of profile segments to sketch entities; nil for every other node and when it failed.
@@ -14,8 +16,9 @@ public struct NodeResult: Sendable {
     public var dependencies: [FileDependency] = []
 
     public init(state: NodeState, outputs: [SocketName: Value]? = nil, dimensions: [DimensionSpec] = [], sketchTrace: SketchTrace? = nil,
-                facts: [PayloadFact] = [], dependencies: [FileDependency] = []) {
+                facts: [PayloadFact] = [], dependencies: [FileDependency] = [], recovery: [SocketName: Value]? = nil) {
         self.state = state
+        self.recovery = recovery
         self.outputs = outputs
         self.dimensions = dimensions
         self.sketchTrace = sketchTrace

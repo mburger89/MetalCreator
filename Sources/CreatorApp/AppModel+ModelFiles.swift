@@ -34,7 +34,9 @@ extension AppModel {
             case .relinkModelFile: try await chooseModelFile(target, using: picker, named: UndoName.relinkModelFile)
             case .embedModelFile: try embedModelFile(target)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-                 .editSketch, .editGroup, .makeUnique, .ungroup, .editControlPoints, .chooseImage, .linkImage, .relinkImage, .embedImage,
+                 .editSketch, .editGroup, .makeUnique, .ungroup, .editControlPoints,
+                 .pickTrimRegions, .clearTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView,
+                 .chooseImage, .linkImage, .relinkImage, .embedImage,
                  .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .choosePCBFile, .relinkPCBFile: break
             }
         }

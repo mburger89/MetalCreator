@@ -324,3 +324,19 @@ extension RebuildTests {
     }
 }
 #endif
+
+#if canImport(CreatorOCCT)
+/// NS-4 Task 1: a part of a periodic surface is rebuilt clamped over its own range.
+extension RebuildTests {
+    @Test func aPartOfAPeriodicSurfaceRebuildsClamped() async throws {
+        let half = try await kernel.partialPeriodicSheet(fraction: 0.5, tag: tag)
+        let result = try await kernel.rebuilt(half, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 3, spansV: 1))
+        #expect(result.deviation < 0.05, "deviation \(result.deviation)")
+        let net = try await kernel.controlNet(of: result.sheet).surface
+        #expect(!net.isPeriodicU && !net.isPeriodicV)
+        let whole = try await kernel.partialPeriodicSheet(fraction: 1, tag: tag)
+        let full = try await kernel.rebuilt(whole, as: RebuildSpec(degreeU: 3, degreeV: 1, spansU: 8, spansV: 1))
+        #expect(try await kernel.controlNet(of: full.sheet).surface.isPeriodicU)
+    }
+}
+#endif

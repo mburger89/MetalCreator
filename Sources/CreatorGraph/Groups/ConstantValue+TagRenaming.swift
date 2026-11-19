@@ -1,7 +1,7 @@
 import CreatorKernel
 
 extension ConstantValue {
-    /// This value with every tag of a remembered pick (`.edgePicks`, `.facePick`) that names a node in `names`
+    /// This value with every tag of a remembered pick (`.edgePicks`, `.facePick`, `.regionPicks`) that names a node in `names`
     /// renamed to the node it maps to, blend faces' source edges included; any other value, and tags naming other
     /// nodes, unchanged. Picks keep naming the faces they named when the identities those faces are made under change
     /// (groups spec §5): inside a group (`EvaluationScope.naming`) and across Group, Ungroup and Make Unique.
@@ -18,6 +18,12 @@ extension ConstantValue {
             var renamed = pick
             renamed.tags = Self.renaming(pick.tags, names)
             return .facePick(renamed)
+        case .regionPicks(let picks):
+            return .regionPicks(picks.map { region in
+                var renamed = region
+                renamed.pick.tags = Self.renaming(region.pick.tags, names)
+                return renamed
+            })
         default:
             return self
         }
@@ -29,8 +35,7 @@ extension ConstantValue {
 
     private static func renaming(_ tags: Set<TopoTag>, _ names: [NodeID: NodeID]) -> Set<TopoTag> {
         Set(tags.map { tag in
-            var role = tag.role
-            if case .blend(let edge) = tag.role { role = .blend(sourceEdge: renaming(edge, names)) }
+            let role = tag.role.mappingNestedTags { renaming([$0], names).first ?? $0 }
             return TopoTag(node: names[tag.node] ?? tag.node, item: tag.item, role: role)
         })
     }

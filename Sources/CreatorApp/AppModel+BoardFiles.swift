@@ -30,7 +30,9 @@ extension AppModel {
             case .choosePCBFile: try await chooseBoardFile(target, using: picker, named: UndoName.chooseBoardFile)
             case .relinkPCBFile: try await chooseBoardFile(target, using: picker, named: UndoName.relinkBoardFile)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-                 .editSketch, .editGroup, .makeUnique, .ungroup, .editControlPoints, .chooseImage, .linkImage, .relinkImage, .embedImage,
+                 .editSketch, .editGroup, .makeUnique, .ungroup, .editControlPoints,
+                 .pickTrimRegions, .clearTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView,
+                 .chooseImage, .linkImage, .relinkImage, .embedImage,
                  .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .chooseModelFile, .relinkModelFile, .embedModelFile: break
             }
         }

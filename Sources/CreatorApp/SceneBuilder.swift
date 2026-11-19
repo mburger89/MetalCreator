@@ -31,6 +31,8 @@ public enum SceneBuilder {
         /// The meshes the scene shows: a mesh is a display-only solid (`MeshSolids`), replaced by its refinement when
         /// `MeshRefinementModel` has made one (implicit spec §5.1).
         var meshes: MeshScene
+        /// The registry whose definitions say which outputs a node's preview leaves out (`NodeDefinition.previewHiddenOutputs`).
+        var registry: NodeRegistry?
     }
 
     /// The same, with the options spelled out.
@@ -50,7 +52,8 @@ public enum SceneBuilder {
             } else {
                 continue
             }
-            scene += items(of: node, outputs: outputs, isGhost: isGhost, graph: graph, meshes: meshes)
+            let hidden = options.registry?[node.typeID]?.previewHiddenOutputs ?? []
+            scene += items(of: node, outputs: outputs.filter { !hidden.contains($0.key) }, isGhost: isGhost, graph: graph, meshes: meshes)
         }
         let selectedSets = selection.sorted().flatMap { edgeSets(results[$0]) }
         let highlighted = highlighting(scene, selectedSets: selectedSets)

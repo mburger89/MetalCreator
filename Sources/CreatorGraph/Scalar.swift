@@ -39,7 +39,7 @@ public enum Scalar: Sendable {
         }
     }
 
-    /// The runtime form of a stored constant. `text`, `edgePicks`, `sketch`, `facePick` and `image` settings have none.
+    /// The runtime form of a stored constant. `text`, `edgePicks`, `sketch`, `facePick`, `regionPicks` and `image` settings have none.
     public init?(_ constant: ConstantValue) {
         switch constant {
         case .number(let value): self = .number(value)
@@ -47,7 +47,7 @@ public enum Scalar: Sendable {
         case .bool(let value): self = .bool(value)
         case .vector(let value): self = .vector(value)
         case .plane(let value): self = .plane(value)
-        case .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile, .modelFile, .poleMoves: return nil
+        case .text, .edgePicks, .sketch, .facePick, .image, .meshFile, .pcbFile, .modelFile, .poleMoves, .regionPicks: return nil
         }
     }
 

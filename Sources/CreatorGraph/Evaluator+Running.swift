@@ -94,6 +94,7 @@ extension Evaluator {
         } catch {
             // A node aborted by cancellation may throw something else; don't record that as an error.
             try Task.checkCancellation()
+            if let failure = error as? NodeFailure { return NodeResult(state: .error(failure.message), recovery: failure.recovery) }
             return NodeResult(state: .error(Self.message(for: error)))
         }
 
@@ -109,6 +110,7 @@ extension Evaluator {
         switch error {
         case let error as KernelError: error.userMessage
         case let error as NodeError: error.message
+        case let error as NodeFailure: error.message
         case let error as ImageProblem: error.message
         case let error as MeshImportProblem: error.message
         case let error as BoardImportProblem: error.message

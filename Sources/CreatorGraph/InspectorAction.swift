@@ -24,4 +24,10 @@ public enum InspectorAction: String, Sendable, Codable {
     /// Edit Surface's and Edit Curve's "Edit Control Points" (NURBS spec, control points): the app shell opens the control-point editor
     /// (Task 8; until then nothing handles it).
     case editControlPoints
+    /// Trim Surface's "Pick regions in view…" and "Clear regions" (NS-4, R4): the app shell carries them out (Task 11; until then
+    /// nothing handles them).
+    case pickTrimRegions, clearTrimRegions
+    /// Match Surface's "Pick target edge in view…" (socket "target") and Blend Surface's "Pick other edge in view…" (socket "other edges"),
+    /// NS-4 R15: the app shell wires an Edges by Tag rule exactly as Fillet's button does (Task 11; until then nothing handles them).
+    case pickTargetEdgesInView, pickOtherEdgesInView
 }

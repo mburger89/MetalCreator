@@ -500,8 +500,22 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
         const Handle(Geom_BSplineSurface) source = edit.surface;
         double a_u, b_u, a_v, b_v;
         source->Bounds(a_u, b_u, a_v, b_v);
-        const bool periodic_u = fits_periodically(source->IsUPeriodic(), degree_u, spans_u, "surface");
-        const bool periodic_v = fits_periodically(source->IsVPeriodic(), degree_v, spans_v, "surface");
+        // A direction is fitted periodically only when the face spans the surface's whole period there; a part of a periodic surface
+        // (no seam in the face) is fitted clamped over its own parameter range.
+        const bool whole_u = source->IsUPeriodic() &&
+                             std::abs((box_u1 - box_u0) - source->UPeriod()) <= 1e-9 * (1.0 + source->UPeriod());
+        const bool whole_v = source->IsVPeriodic() &&
+                             std::abs((box_v1 - box_v0) - source->VPeriod()) <= 1e-9 * (1.0 + source->VPeriod());
+        if (source->IsUPeriodic() && !whole_u) {
+            a_u = box_u0;
+            b_u = box_u1;
+        }
+        if (source->IsVPeriodic() && !whole_v) {
+            a_v = box_v0;
+            b_v = box_v1;
+        }
+        const bool periodic_u = fits_periodically(whole_u, degree_u, spans_u, "surface");
+        const bool periodic_v = fits_periodically(whole_v, degree_v, spans_v, "surface");
         const int nu = periodic_u ? spans_u : degree_u + spans_u;
         const int nv = periodic_v ? spans_v : degree_v + spans_v;
         const int mu = 4 * (degree_u + spans_u) + 1;
@@ -556,33 +570,39 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
                     gp_Pnt(column[3 * j] + centre.X(), column[3 * j + 1] + centre.Y(), column[3 * j + 2] + centre.Z());
             }
         }
-        // A boundary row or column of a clamped direction that is one point in the source (an apex: a dome's pole, a cone's tip) is
-        // pinned to that point, so the fit can't let its poles drift apart and open the surface there.
+        // A boundary row or column of a clamped direction whose poles all lie within kNetCoincidence of their centroid (an apex: a
+        // dome's pole, a cone's tip) is pinned to that centroid, so the fit can't let its poles drift apart and open the surface there.
         const auto pin_collapsed = [&](bool along_u, bool at_end) {
             const int fixed = along_u ? (at_end ? source->NbUPoles() : 1) : (at_end ? source->NbVPoles() : 1);
             const int count = along_u ? source->NbVPoles() : source->NbUPoles();
-            const gp_Pnt first = along_u ? source->Pole(fixed, 1) : source->Pole(1, fixed);
-            for (int k = 2; k <= count; ++k) {
+            gp_XYZ sum(0, 0, 0);
+            for (int k = 1; k <= count; ++k) {
+                sum += (along_u ? source->Pole(fixed, k) : source->Pole(k, fixed)).XYZ();
+            }
+            const gp_Pnt centroid(sum / static_cast<double>(count));
+            for (int k = 1; k <= count; ++k) {
                 const gp_Pnt other = along_u ? source->Pole(fixed, k) : source->Pole(k, fixed);
-                if (other.Distance(first) > 1e-9) {
+                if (other.Distance(centroid) > kNetCoincidence) {
                     return;
                 }
             }
             if (along_u) {
                 for (int j = 1; j <= nv; ++j) {
-                    poles(at_end ? nu : 1, j) = first;
+                    poles(at_end ? nu : 1, j) = centroid;
                 }
             } else {
                 for (int i = 1; i <= nu; ++i) {
-                    poles(i, at_end ? nv : 1) = first;
+                    poles(i, at_end ? nv : 1) = centroid;
                 }
             }
         };
-        if (!periodic_u) {
+        // Only a direction the source is itself clamped in has boundary pole columns; in a periodic net columns 1 and NbUPoles
+        // aren't the face's boundary, so a face over part of the period must not read them.
+        if (!periodic_u && !source->IsUPeriodic()) {
             pin_collapsed(true, false);
             pin_collapsed(true, true);
         }
-        if (!periodic_v) {
+        if (!periodic_v && !source->IsVPeriodic()) {
             pin_collapsed(false, false);
             pin_collapsed(false, true);
         }

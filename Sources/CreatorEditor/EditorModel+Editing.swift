@@ -151,12 +151,13 @@ extension EditorModel {
         let merge = GroupMerge.plan(importing: clipboard.definitions, into: document.content)
         var mapping: [NodeID: NodeID] = [:]
         var commands: [GraphCommand] = []
+        for original in clipboard.nodes { mapping[original.id] = NodeID() }
         for original in clipboard.nodes {
             var copy = merge.retargeting(original)
-            copy.id = NodeID()
+            copy.id = mapping[original.id] ?? NodeID()
             copy.position = original.position + offset
-            mapping[original.id] = copy.id
-            commands.append(.addNode(copy))
+            // A pick that names a copied node (a Trim's own `cutSide` tags, an edge of a copied chain) follows it to its copy.
+            commands.append(.addNode(copy.renamingTags(mapping)))
         }
         let links = clipboard.links.compactMap { link -> Link? in
             guard let from = mapping[link.from.node], let to = mapping[link.to.node] else { return nil }

@@ -377,7 +377,7 @@ edit_copy make_edit_copy(const occt_shape *shape, int face_index) {
 }
 
 TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Surface) &surface, const TopoDS_Face &original,
-                                 bool rebuilding) {
+                                 bool rebuilding, bool guard_openings) {
     const TopoDS_Face face = TopoDS::Face(given.Oriented(TopAbs_FORWARD));
     BRep_Builder builder;
     const double tolerance = std::max(BRep_Tool::Tolerance(face), 1e-7);
@@ -493,44 +493,50 @@ TopoDS_Face replace_face_surface(const TopoDS_Face &given, const Handle(Geom_Sur
     }
 
     // A degenerated edge (an apex) must still map to one point and a seam's two pcurves to one curve, whatever the poles did: the
-    // topology says "closed" either way, and BRepCheck is lenient. 0 closed, 1 apex open, 2 seam open (at nine samples, 1e-6 mm).
-    const auto opening = [&](const Handle(Geom_Surface) &on) {
+    // topology says "closed" either way, and BRepCheck is lenient. Each such edge's gap (nine samples) must not grow by more than
+    // kNetCoincidence over what it was, so a surface whose apex was already open can't open further. 0 not such an edge, else the gap.
+    const auto gaps = [&](const Handle(Geom_Surface) &on) {
+        std::vector<double> out(edges.size(), 0.0);
         if (on.IsNull()) {
-            return 0;
+            return out;
         }
-        int found = 0;
-        for (const edge_curves &entry : edges) {
+        for (size_t k = 0; k < edges.size(); ++k) {
+            const edge_curves &entry = edges[k];
             const bool degenerate = BRep_Tool::Degenerated(entry.edge);
             if (!degenerate && entry.second.IsNull()) {
                 continue;
             }
             const gp_Pnt2d a0 = entry.first->Value(entry.start);
             const gp_Pnt anchor = on->Value(a0.X(), a0.Y());
-            for (int k = 0; k <= 8; ++k) {
-                const double t = entry.start + (entry.end - entry.start) * k / 8.0;
+            for (int s = 0; s <= 8; ++s) {
+                const double t = entry.start + (entry.end - entry.start) * s / 8.0;
                 const gp_Pnt2d uv = entry.first->Value(t);
                 const gp_Pnt point = on->Value(uv.X(), uv.Y());
                 if (degenerate) {
-                    if (point.Distance(anchor) > 1e-6) {
-                        found = std::max(found, 1);
-                    }
+                    out[k] = std::max(out[k], point.Distance(anchor));
                 } else {
                     const gp_Pnt2d other = entry.second->Value(t);
-                    if (point.Distance(on->Value(other.X(), other.Y())) > 1e-6) {
-                        found = std::max(found, 2);
-                    }
+                    out[k] = std::max(out[k], point.Distance(on->Value(other.X(), other.Y())));
                 }
             }
         }
-        return found;
+        return out;
     };
-    const int was_open = opening(old_surface);
-    const int now_open = opening(surface);
-    if (now_open != 0 && was_open == 0) {
-        const std::string what = now_open == 1 ? "at its apex" : "along its seam";
-        throw user_error(rebuilding ? "Rebuilding opens the surface " + what + "."
-                                    : "Moving these control points opens the surface " + what +
-                                          "; move the matching points together.");
+    if (guard_openings) {
+        const std::vector<double> before = gaps(old_surface);
+        const std::vector<double> after = gaps(surface);
+        int now_open = 0;
+        for (size_t k = 0; k < edges.size(); ++k) {
+            if (after[k] > before[k] + kNetCoincidence) {
+                now_open = std::max(now_open, BRep_Tool::Degenerated(edges[k].edge) ? 1 : 2);
+            }
+        }
+        if (now_open != 0) {
+            const std::string what = now_open == 1 ? "at its apex" : "along its seam";
+            throw user_error(rebuilding ? "Rebuilding opens the surface " + what + "."
+                                        : "Moving these control points opens the surface " + what +
+                                              "; move the matching points together.");
+        }
     }
 
     builder.UpdateFace(face, surface, TopLoc_Location(), tolerance);
@@ -1022,6 +1028,112 @@ occt_shape *occt_test_bspline_sheet(int u_count, int v_count, int degree, occt_s
         Handle(Geom_BSplineSurface) surface =
             new Geom_BSplineSurface(poles, knots_u, knots_v, mult_u, mult_v, degree, degree);
         BRepBuilderAPI_MakeFace face(surface, 1e-7);
+        if (!face.IsDone()) {
+            throw user_error("The sheet couldn't be made.");
+        }
+        return new occt_shape{face.Face()};
+    });
+}
+
+double occt_net_coincidence(void) {
+    return cocct::kNetCoincidence;
+}
+
+occt_shape *occt_test_spread_apex(const occt_shape *shape, double distance, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        occt_initialize();
+        if (!shape || shape->shape.IsNull() || !(distance >= 0)) {
+            throw user_error("That surface no longer exists.");
+        }
+        face_at(shape, 1);
+        edit_copy edit = make_edit_copy(shape, 1);
+        const Handle(Geom_BSplineSurface) spread = Handle(Geom_BSplineSurface)::DownCast(edit.surface->Copy());
+        const int nu = spread->NbUPoles();
+        const int nv = spread->NbVPoles();
+        // The boundary row (a fixed v) whose poles are one point, else the boundary column.
+        for (int along = 0; along < 2; ++along) {
+            const bool by_row = along == 0;
+            const int count = by_row ? nu : nv;
+            for (int end = 0; end < 2; ++end) {
+                const int fixed = by_row ? (end == 0 ? 1 : nv) : (end == 0 ? 1 : nu);
+                const int neighbour = fixed == 1 ? 2 : fixed - 1;
+                const auto at = [&](int k, int f) { return by_row ? spread->Pole(k, f) : spread->Pole(f, k); };
+                const gp_Pnt first = at(1, fixed);
+                bool collapsed = true;
+                for (int k = 2; k <= count && collapsed; ++k) {
+                    collapsed = at(k, fixed).Distance(first) < 1e-9;
+                }
+                if (!collapsed) {
+                    continue;
+                }
+                // The plane the row spreads in: perpendicular to the normal the row's neighbours make (an apex's neighbours lie in
+                // its tangent plane, round it), taken from the neighbour pair whose cross product is largest.
+                gp_Vec axis(0, 0, 0);
+                for (int p = 1; p <= count; ++p) {
+                    for (int q = p + 1; q <= count; ++q) {
+                        const gp_Vec cross = gp_Vec(first, at(p, neighbour)).Crossed(gp_Vec(first, at(q, neighbour)));
+                        if (cross.Magnitude() > axis.Magnitude()) {
+                            axis = cross;
+                        }
+                    }
+                }
+                if (axis.Magnitude() < 1e-12) {
+                    continue;
+                }
+                axis.Normalize();
+                gp_Vec e1 = axis.Crossed(std::abs(axis.X()) < 0.9 ? gp_Vec(1, 0, 0) : gp_Vec(0, 1, 0));
+                e1.Normalize();
+                const gp_Vec e2 = axis.Crossed(e1);
+                // A direction whose ends are one pole in the source (a clamped closed fit) spreads its end poles alike.
+                const bool periodic = by_row ? spread->IsUPeriodic() : spread->IsVPeriodic();
+                const int turn = periodic ? count : count - 1;
+                for (int k = 1; k <= count; ++k) {
+                    const double angle = 2.0 * kPi * (k - 1) / std::max(turn, 1);
+                    const gp_Vec offset = (e1 * std::cos(angle) + e2 * std::sin(angle)) * distance;
+                    const gp_Pnt target = first.Translated(offset);
+                    if (by_row) {
+                        spread->SetPole(k, fixed, target);
+                    } else {
+                        spread->SetPole(fixed, k, target);
+                    }
+                }
+                replace_face_surface(edit.face(), spread, edit.converted ? edit.original : TopoDS_Face(), false, false);
+                return new occt_shape{edit.work};
+            }
+        }
+        throw user_error("This surface has no apex.");
+    });
+}
+
+occt_shape *occt_test_partial_periodic_sheet(double fraction, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        occt_initialize();
+        if (!(fraction > 0 && fraction <= 1)) {
+            throw user_error("The fraction must be in (0, 1].");
+        }
+        const int around = 8;
+        TColgp_Array2OfPnt poles(1, around, 1, 2);
+        for (int i = 1; i <= around; ++i) {
+            const double angle = 2.0 * kPi * (i - 1) / around;
+            for (int j = 1; j <= 2; ++j) {
+                poles(i, j) = gp_Pnt(10.0 * std::cos(angle), 10.0 * std::sin(angle), 10.0 * (j - 1));
+            }
+        }
+        TColStd_Array1OfReal knots_u(1, around + 1);
+        TColStd_Array1OfInteger mult_u(1, around + 1);
+        for (int i = 1; i <= around + 1; ++i) {
+            knots_u(i) = i - 1;
+            mult_u(i) = 1;
+        }
+        TColStd_Array1OfReal knots_v(1, 2);
+        TColStd_Array1OfInteger mult_v(1, 2);
+        knots_v(1) = 0;
+        knots_v(2) = 1;
+        mult_v(1) = 2;
+        mult_v(2) = 2;
+        Handle(Geom_BSplineSurface) surface =
+            new Geom_BSplineSurface(poles, knots_u, knots_v, mult_u, mult_v, 3, 1, Standard_True, Standard_False);
+        BRepBuilderAPI_MakeFace face(surface, 0.0, fraction * around, 0.0, 1.0, 1e-7);
         if (!face.IsDone()) {
             throw user_error("The sheet couldn't be made.");
         }

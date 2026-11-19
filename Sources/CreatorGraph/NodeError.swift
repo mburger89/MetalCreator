@@ -12,3 +12,16 @@ public enum NodeError: Error, Equatable, Sendable {
         }
     }
 }
+
+/// A node's failure that still has something to show: `recovery` is kept on its `NodeResult` beside the error state (never wired
+/// downstream: the node has failed). Trim Surface uses it to keep its `pieces` when every picked region has vanished, so the
+/// regions can be picked again.
+public struct NodeFailure: Error, Sendable {
+    public var message: String
+    public var recovery: [SocketName: Value]
+
+    public init(_ message: String, recovery: [SocketName: Value]) {
+        self.message = message
+        self.recovery = recovery
+    }
+}

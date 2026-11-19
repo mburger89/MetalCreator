@@ -17,7 +17,7 @@ extension ReadTools {
         case .vector(let vector): vectorJSON(vector)
         case .plane(let plane): planeJSON(plane)
         case .text(let text): .string(text)
-        case .edgePicks, .sketch, .facePick: pickSummaryJSON(value)
+        case .edgePicks, .sketch, .facePick, .regionPicks: pickSummaryJSON(value)
         case .image(let reference), .meshFile(let reference), .pcbFile(let reference), .modelFile(let reference): fileStatus(reference)
         case .poleMoves(let moves):
             .array(moves.map {
@@ -31,6 +31,7 @@ extension ReadTools {
         case .edgePicks(let picks): .string(picks.count == 1 ? "1 edge pick" : "\(picks.count) edge picks")
         case .sketch: .string("sketch")
         case .facePick: .string("face pick")
+        case .regionPicks(let picks): .string(picks.count == 1 ? "1 region pick" : "\(picks.count) region picks")
         case .number, .integer, .bool, .vector, .plane, .text, .image, .meshFile, .pcbFile, .modelFile, .poleMoves: .null
         }
     }

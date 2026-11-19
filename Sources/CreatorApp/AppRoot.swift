@@ -52,7 +52,8 @@ public struct AppRoot: Component {
             if let pick = model.pick {
                 HStack {
                     Spacer()
-                    PickBanner(model: model, picked: pick.picked.count, prompt: pick.prompt).fixedSize()
+                    PickBanner(model: model, picked: pick.trimRegions != nil ? pick.pickedPieces.count : pick.picked.count,
+                               prompt: pick.prompt).fixedSize()
                     Spacer()
                 }
                 .padding(bannerPadding)

@@ -80,7 +80,9 @@ public protocol Kernel: Actor {
     /// each sample of the edge projected onto the face (samples over 1 mm away or off the trimmed face are skipped), the normals compared up to
     /// sign for the curvature, and the angle gap measured between A's direction continuing past the edge and B's direction leaving it,
     /// so a face folded back over the sheet reads π. An edge that isn't a free edge is
-    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (under half the samples usable) "The edge doesn't run along that face.". The default refuses.
+    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (under half the samples usable, 15 or fewer of 32) "The edge doesn't run along that face."; an edge of which
+    /// only part lies on the face (16 to 23 usable samples) "Too few points along the edge lie on the other face to grade it." (R13: a grade
+    /// rests on at least 24 of the 32). The default refuses.
     func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) async throws -> EdgeContinuity
     /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
     /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.
@@ -148,7 +150,10 @@ public protocol Kernel: Actor {
     /// a collapsed spot beside an ordinary one. A pole of a degenerate edge (a cone's apex) is not a fold. The default refuses.
     func folds(_ sheet: Solid) throws -> Bool
     /// `surface` (a sheet of one face) refitted by least squares to a non-rational B-spline of `spec`'s degree and span count over
-    /// the same parameter range (NS-3; a direction the source is periodic in is rebuilt periodic, with `spans` poles; fewer than degree + 1 spans there is refused "A closed surface needs at least N spans around at degree D."), so its faces, edges, tags and trims are the input's and only their geometry differs.
+    /// the same parameter range (NS-3; a direction the source is periodic in is rebuilt periodic, with `spans` poles, only when the face
+    /// spans the whole period, and then fewer than degree + 1 spans is refused "A closed surface needs at least N spans around at
+    /// degree D."; a face over part of the period is fitted clamped over its own UV range), so its faces, edges, tags and trims are the
+    /// input's and only their geometry differs.
     /// `deviation` is the largest distance from the source to the result over a grid twice as dense as the fit's samples. A solid is
     /// refused "Rebuild Surface takes a sheet; this is a closed solid.", a sheet of other than one face "Rebuild Surface takes a sheet
     /// with one face; this one has N. Split it first.". The default refuses.
@@ -156,6 +161,19 @@ public protocol Kernel: Actor {
     /// `curve` refitted as one non-rational spline piece of `spec`'s `degreeU` and `spansU` (its end poles pinned to the curve's
     /// ends; a periodic B-spline curve is rebuilt periodic), made with `tag`; `deviation` as for a surface. The default refuses.
     func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild
+    /// `sheet` divided by `cutter` (NS-4, R2, R4, R7): the whole split, its connected pieces, and for a closed cutter the faces inside
+    /// it. Pieces and cut edges are named by the cutter's elements. The default refuses.
+    func split(_ sheet: Solid, by cutter: TrimCutter, tag: NodeTag) async throws -> SheetSplit
+    /// The sheet made of `faces` of `sheet`, keeping their tags (NS-4). The default refuses.
+    func subSheet(_ faces: [FaceID], of sheet: Solid) throws -> Solid
+    /// The curves where `a` and `b` meet, chained and ordered by R14 (NS-4). The default refuses.
+    func intersectionCurves(_ a: Solid, _ b: Solid, tag: NodeTag) async throws -> [Curve]
+    /// `sheet` (one face) grown by `length` across `edges` (NS-4, R8), keeping its tags and adjacency. The default refuses.
+    func extended(_ sheet: Solid, edges: [EdgeID], length: Double, mode: ExtendMode) async throws -> Solid
+    /// `sheet` (one face) changed along `edge` to meet `target` of `body` at `continuity` (NS-4, R9). The default refuses.
+    func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid, continuity: PatchContinuity) async throws -> Solid
+    /// A new sheet joining an edge of each of two bodies (NS-4, R10). The default refuses.
+    func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid
 }
 
 extension Kernel {
@@ -283,6 +301,31 @@ extension Kernel {
 
     public func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild {
         throw KernelError.unsupported("rebuilding curves")
+    }
+
+    public func split(_ sheet: Solid, by cutter: TrimCutter, tag: NodeTag) async throws -> SheetSplit {
+        throw KernelError.unsupported("splitting surfaces")
+    }
+
+    public func subSheet(_ faces: [FaceID], of sheet: Solid) throws -> Solid {
+        throw KernelError.unsupported("keeping faces of a sheet")
+    }
+
+    public func intersectionCurves(_ a: Solid, _ b: Solid, tag: NodeTag) async throws -> [Curve] {
+        throw KernelError.unsupported("intersecting bodies")
+    }
+
+    public func extended(_ sheet: Solid, edges: [EdgeID], length: Double, mode: ExtendMode) async throws -> Solid {
+        throw KernelError.unsupported("extending surfaces")
+    }
+
+    public func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid,
+                        continuity: PatchContinuity) async throws -> Solid {
+        throw KernelError.unsupported("matching surfaces")
+    }
+
+    public func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid {
+        throw KernelError.unsupported("blending surfaces")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {

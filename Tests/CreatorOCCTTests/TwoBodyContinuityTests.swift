@@ -131,5 +131,23 @@ struct TwoBodyContinuityTests {
         let text = await refusal { _ = try await kernel.continuity(of: id, in: solid, against: FaceID(0), of: b) }
         #expect(text == "The edge must be a surface's free edge.")
     }
+
+    @Test func tooFewSamplesThrow() async throws {
+        let kernel = OCCTKernel()
+        let a = try await strip(kernel, from: .zero, to: Vector3(10, 0, 0), direction: Vector3(0, 1, 0))
+        let id = try edge(of: a, near: Vector3(5, 10, 0))
+        // 60 % of A's far edge lies on B (about 19 of 32 samples): too few to grade.
+        let sixty = try await strip(kernel, from: Vector3(4, 10, 0), to: Vector3(14, 10, 0), direction: Vector3(0, 1, 0))
+        let few = await refusal { _ = try await kernel.continuity(of: id, in: a, against: FaceID(0), of: sixty) }
+        #expect(few == "Too few points along the edge lie on the other face to grade it.")
+        // A third of it is still "doesn't run along that face".
+        let third = try await strip(kernel, from: Vector3(6.7, 10, 0), to: Vector3(16.7, 10, 0), direction: Vector3(0, 1, 0))
+        let none = await refusal { _ = try await kernel.continuity(of: id, in: a, against: FaceID(0), of: third) }
+        #expect(none == "The edge doesn't run along that face.")
+        // Most of it (80 %, about 25 samples) grades.
+        let most = try await strip(kernel, from: Vector3(2, 10, 0), to: Vector3(12, 10, 0), direction: Vector3(0, 1, 0))
+        let found = try await kernel.continuity(of: id, in: a, against: FaceID(0), of: most)
+        #expect(found.grade == .g2)
+    }
 }
 #endif
