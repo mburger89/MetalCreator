@@ -106,6 +106,8 @@ extension OCCTKernel {
             } else if edge.sourceEdge == 0 {
                 // A cut edge the shim couldn't match to an element still divides pieces, so it still gets a cut tag (the
                 // placeholder `.curve(index: -1, piece: 0)` matches no cutter); a region pick reads the division from it.
+                // Limit: every such edge shares the placeholder, so an Edges by Tag pick on one matches them all (rare: it
+                // needs a failed ancestor lookup).
                 edgeTags[index] = [TopoTag(tag, .boundary(.cut(inputs.name(of: edge.element) ?? .curve(index: -1, piece: 0))))]
             }
         }

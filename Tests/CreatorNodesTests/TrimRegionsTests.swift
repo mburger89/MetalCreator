@@ -115,6 +115,15 @@ struct TrimRegionsTests {
         #expect(result.warnings == [TrimRegions.narrowedPick])
     }
 
+    @Test func aPickWhoseSheetNowFacesTheOtherWayVanishes() {
+        let topology = diskAndRing
+        let other = TopoTag(node: NodeID(), item: 0, role: .startCap)
+        let pick = RegionPick(pick: FacePick(tags: topology.faces[1].tags.union([other]), normal: -.unitZ, centroid: Vector3(8, 0, 0)))
+        let result = TrimRegions.resolve([pick], pieces: [[FaceID(0)], [FaceID(1)]], in: topology)
+        #expect(result.pieces.isEmpty)
+        #expect(result.warnings == [TrimRegions.vanishedPick])
+    }
+
     @Test func pickForPieceRecordsSharedBy() throws {
         let topology = diskAndRing
         let disk = try #require(TrimRegions.pick(forPiece: 0, pieces: [[FaceID(0)], [FaceID(1)]], in: topology))

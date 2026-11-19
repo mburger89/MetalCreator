@@ -7,7 +7,7 @@ public enum TrimRegions {
     static let nothingLeft = "None of the picked regions exist any more; pick the regions to keep again."
 
     /// A pick whose own names match nothing now (the cutter changed kind or order) and was found again by where it came from.
-    static let narrowedPick = "A picked region no longer matches the cutter exactly, so Trim Surface kept the piece nearest "
+    static let narrowedPick = "A picked region no longer matches exactly, so Trim Surface kept the piece nearest "
         + "where it was picked; pick the regions again to settle it."
 
     static func sharedWarning(_ count: Int) -> String {
