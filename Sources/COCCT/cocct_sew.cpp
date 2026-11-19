@@ -84,7 +84,7 @@ bool lies_on(const gp_Pnt &point, const TopoDS_Face &face, double tolerance) {
 }
 
 /// Whether `face` lies on `earlier` within `tolerance`: a 5 x 5 grid over its parameter domain (the points the face holds) and each
-/// edge's midpoint are all that near.
+/// edge's midpoint are all within `tolerance` of it.
 bool lies_on_face(const TopoDS_Face &face, const TopoDS_Face &earlier, double tolerance) {
     double u0 = 0, u1 = 0, v0 = 0, v1 = 0;
     BRepTools::UVBounds(face, u0, u1, v0, v1);

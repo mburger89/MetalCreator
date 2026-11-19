@@ -32,6 +32,25 @@ struct SewTests {
         solid.topology.faces.map { $0.tags.map(\.sortKey).sorted() }.sorted { $0.joined() < $1.joined() }
     }
 
+    /// Each face of `sewn` carries the tags of the face of `source` it sits on (same centroid within 1e-6), so a permuted
+    /// history fails; returns how many faces were paired.
+    @discardableResult
+    func expectFaceTagsFollow(_ source: Solid, in sewn: [FaceInfo], sourceFaces: [FaceInfo]? = nil) -> Int {
+        var paired = 0
+        for face in sourceFaces ?? source.topology.faces {
+            let match = sewn.filter {
+                abs($0.centroid.x - face.centroid.x) < 1e-6 && abs($0.centroid.y - face.centroid.y) < 1e-6
+                    && abs($0.centroid.z - face.centroid.z) < 1e-6
+            }
+            #expect(match.count == 1)
+            if let found = match.first {
+                #expect(Set(found.tags.map(\.sortKey)) == Set(face.tags.map(\.sortKey)))
+                paired += 1
+            }
+        }
+        return paired
+    }
+
     @Test func sixFacesOfABoxSewIntoASolid() async throws {
         let kernel = OCCTKernel()
         let sheet = try await looseSheet(kernel)
@@ -39,7 +58,7 @@ struct SewTests {
         #expect(sewn.solids == 1 && sewn.sheets == 0 && sewn.unclosable == 0)
         #expect(!sewn.body.hasOpenShell)
         #expect(try await abs(kernel.properties(of: sewn.body).volume - 1000) <= 1e-3)
-        #expect(tagSets(sewn.body) == tagSets(sheet))
+        #expect(expectFaceTagsFollow(sheet, in: sewn.body.topology.faces) == 6)
         #expect(sewn.body.topology.edges.allSatisfy { !$0.isBoundary })
     }
 
@@ -52,6 +71,8 @@ struct SewTests {
         #expect(tight.body.topology.edges.filter(\.isBoundary).count == 8)
         let wide = try await kernel.sewn([sheet], tolerance: 0.1, tag: sewTag)
         #expect(wide.solids == 1 && wide.sheets == 0)
+        #expect(!wide.body.hasOpenShell)
+        #expect(try await abs(kernel.properties(of: wide.body).volume - 1000) <= 5)
     }
 
     @Test func aDuplicateFaceNeverMakesAnInvalidSolid() async throws {
@@ -101,7 +122,8 @@ struct SewTests {
         let sewn = try await kernel.sewn([box, far], tolerance: 0.01, tag: sewTag)
         #expect(sewn.solids == 1 && sewn.sheets == 1)
         let closed = sewn.body.topology.faces.filter { !$0.isOnOpenShell }
-        #expect(closed.map { $0.tags.map(\.sortKey).sorted() }.sorted { $0.joined() < $1.joined() } == tagSets(box))
+        #expect(closed.count == box.topology.faces.count)
+        #expect(expectFaceTagsFollow(box, in: closed) == box.topology.faces.count)
     }
 
     @Test func refusals() async throws {
