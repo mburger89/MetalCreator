@@ -323,7 +323,16 @@ int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_sta
     return guarded(status, [&]() -> int {
         *out = occt_properties{};
         GProp_GProps volume;
-        BRepGProp::VolumeProperties(shape->shape, volume);
+        if (TopExp_Explorer(shape->shape, TopAbs_SOLID).More()) {
+            // A value that holds solids and sheets (NS-5, R17) has the solids' volume: a loose face adds a flux term, not a volume.
+            for (TopExp_Explorer solid(shape->shape, TopAbs_SOLID); solid.More(); solid.Next()) {
+                GProp_GProps one;
+                BRepGProp::VolumeProperties(solid.Current(), one);
+                volume.Add(one);
+            }
+        } else {
+            BRepGProp::VolumeProperties(shape->shape, volume);
+        }
         GProp_GProps surface;
         BRepGProp::SurfaceProperties(shape->shape, surface);
         Bnd_Box box;

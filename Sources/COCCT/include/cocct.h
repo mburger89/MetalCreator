@@ -800,6 +800,20 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
 /// in `sheet`. `out` has `source_face` and `source_edge` per output face and edge; the other fields are zero.
 occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int count, occt_split_result *out, occt_status *status);
 
+/// Sews the faces of `bodies` (sheets and solids alike, in order) at `tolerance` (NS-5, R6). A face that coincides with an earlier face is
+/// not sewn and stays loose in the result. Each closed shell becomes a solid; the rest stay sheets. `history` is OCCT_FROM_FACE per result face
+/// (operand = the body's position, index its 1-based face); `edges` says which input edges (1-based) each result edge was made from.
+/// `solids`, `sheets` and `unclosable` are counted as the plan's R6 says. Refuses "Sew needs at least one surface.", "The tolerance must
+/// be greater than 0." and "Sewing made an invalid shape; try a smaller tolerance.". `cancel` may be NULL.
+occt_shape *occt_sew(const occt_shape *const *bodies, int count, double tolerance, const occt_cancel *cancel,
+                     occt_history *history, occt_edge_history *edges, int *solids, int *sheets, int *unclosable,
+                     occt_status *status);
+/// FOR TESTS ONLY. A copy of `shape` that shares no geometry or topology with it.
+occt_shape *occt_test_independent_copy(const occt_shape *shape, occt_status *status);
+/// FOR TESTS ONLY. The six faces of a `size` mm box, each copied on its own, as one compound; the top face moved `move_top` mm along z and,
+/// when `double_top` is nonzero, written a second time last.
+occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_top, occt_status *status);
+
 /// FOR TESTS ONLY. The largest tolerance of any edge of `shape`.
 int occt_test_max_edge_tolerance(const occt_shape *shape, double *tolerance, occt_status *status);
 
