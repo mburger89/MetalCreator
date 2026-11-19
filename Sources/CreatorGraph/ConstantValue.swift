@@ -40,6 +40,11 @@ public enum ConstantValue: Hashable, Sendable {
         if case .poleMoves(let moves) = self { moves } else { nil }
     }
 
+    /// The picks of a `regionPicks` setting (Trim Surface's keep regions), else `nil`.
+    public var regionPicks: [RegionPick]? {
+        if case .regionPicks(let picks) = self { picks } else { nil }
+    }
+
     /// The reference of an `image`, `meshFile`, `pcbFile` or `modelFile` setting: what paths, stamps, hashes and the clipboard read,
     /// because all four kinds are held, resolved and embedded the same way.
     public var fileReference: ImageReference? {

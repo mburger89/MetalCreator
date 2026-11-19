@@ -33,8 +33,8 @@ extension AppModel {
             handleFileButton(request)
         case .editControlPoints:
             editControlPoints(of: request.node)
-        case .editGroup, .makeUnique, .ungroup:
-            break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
+        case .editGroup, .makeUnique, .ungroup, .pickTrimRegions, .clearTrimRegions:
+            break  // The graph panel carries the group buttons out itself (`EditorModel.press`); Trim Surface's are Task 11's.
         }
     }
 
@@ -46,7 +46,7 @@ extension AppModel {
         case .chooseModelFile, .relinkModelFile, .embedModelFile: handleModelFile(request)
         case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
              .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .editGroup, .makeUnique, .ungroup,
-             .editControlPoints: break
+             .editControlPoints, .pickTrimRegions, .clearTrimRegions: break
         }
     }
 

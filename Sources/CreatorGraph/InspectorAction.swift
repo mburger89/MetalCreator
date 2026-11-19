@@ -24,4 +24,7 @@ public enum InspectorAction: String, Sendable, Codable {
     /// Edit Surface's and Edit Curve's "Edit Control Points" (NURBS spec, control points): the app shell opens the control-point editor
     /// (Task 8; until then nothing handles it).
     case editControlPoints
+    /// Trim Surface's "Pick regions in view…" and "Clear regions" (NS-4, R4): the app shell carries them out (Task 11; until then
+    /// nothing handles them).
+    case pickTrimRegions, clearTrimRegions
 }

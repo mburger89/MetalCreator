@@ -44,6 +44,9 @@ public protocol NodeDefinition: Sendable {
     static var singleValuesRefusal: String? { get }
     /// The title of the inspector section that lists the facts a node returns in `NodeOutputs.facts` ("Facts" by default).
     static var factsTitle: String { get }
+    /// Outputs the viewport leaves out when this node is the one being previewed (Trim Surface's `pieces`: the whole split, which a
+    /// keep pick names but which should not cover the kept surface). Empty by default.
+    static var previewHiddenOutputs: Set<SocketName> { get }
     /// Stored settings (`NodeSetting` names) a new node starts with. `NodeRegistry.makeNode`
     /// applies them, so every reader sees a stored value and none relies on "absent means …".
     static var defaultSettings: [SocketName: ConstantValue] { get }
@@ -69,6 +72,7 @@ extension NodeDefinition {
     public static var placesInstances: Bool { false }
     public static var singleValuesRefusal: String? { nil }
     public static var factsTitle: String { "Facts" }
+    public static var previewHiddenOutputs: Set<SocketName> { [] }
     public static var defaultSettings: [SocketName: ConstantValue] { [:] }
     public static func migrate(_ node: Node, from version: Int) -> Node { node }
 }
