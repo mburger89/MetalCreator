@@ -775,7 +775,7 @@ void occt_split_result_free(occt_split_result *result);
 
 /// `sheet` divided by a cutter (NS-4, R2, R4, R7). `kind` 0 projects `curves` (wires) along `direction` (a prism sized from the curves'
 /// and the sheet's extents along it), 1 projects them along the sheet's normals, 2 cuts with `body` (a sheet or a closed solid).
-/// The result is one shell of the pieces' faces sharing their edges; `out` says where each face and edge came from, the cutter element
+/// The result is a shell per connected set of the pieces' faces sharing their edges (a compound when there are several); `out` says where each face and edge came from, the cutter element
 /// each cut edge lies on and the (element, side) pairs of each face. Refuses "Trim and Split take a sheet; this is a closed solid.",
 /// "The direction can't be zero." and "The cutter doesn't cut the surface.". A cut that ends inside a face is dropped (`out->dangling`).
 /// `cancel` may be NULL.

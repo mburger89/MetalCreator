@@ -22,25 +22,29 @@ struct PickRenamingClipboardTests {
 
     @Test func aDuplicatedNodesPicksNameTheCopy() throws {
         let editor = scene.editor()
-        try editor.document.perform(.setInput(scene.a1.id, NodeSetting.keepRegions, pick(scene.a1.id, scene.b1.id)), name: UndoName.pickTrimRegions)
+        try editor.document.perform(.setInput(scene.a1.id, NodeSetting.keepRegions, pick(scene.a1.id, scene.b1.id)),
+                                    name: UndoName.pickTrimRegions)
         editor.selection = [scene.a1.id]
         editor.duplicateSelection()
         let copy = try #require(editor.canvasSelection.nodes.first)
         #expect(copy != scene.a1.id)
         let tags = try #require(tags(of: copy, in: editor))
-        #expect(tags.contains { $0.node == copy && $0.role == TopoRole.cutSide(.curve(index: 0, piece: 0), .front) }, "the copy's own tag follows it")
+        let side = TopoRole.cutSide(.curve(index: 0, piece: 0), .front)
+        #expect(tags.contains { $0.node == copy && $0.role == side }, "the copy's own tag follows it")
         #expect(tags.contains { $0.node == scene.b1.id }, "a node that wasn't copied keeps its name")
         #expect(!tags.contains { $0.node == scene.a1.id })
     }
 
     @Test func aCopiedChainsPicksNameTheCopiesOfItsNodes() throws {
         let editor = scene.editor()
-        try editor.document.perform(.setInput(scene.a1.id, NodeSetting.keepRegions, pick(scene.a1.id, scene.b1.id)), name: UndoName.pickTrimRegions)
+        try editor.document.perform(.setInput(scene.a1.id, NodeSetting.keepRegions, pick(scene.a1.id, scene.b1.id)),
+                                    name: UndoName.pickTrimRegions)
         editor.selection = [scene.a1.id, scene.b1.id]
         editor.duplicateSelection()
         let copies = editor.canvasSelection.nodes
         #expect(copies.count == 2)
-        let tagged = try #require(copies.compactMap { tags(of: $0, in: editor) }.first)
+        let all = copies.compactMap { tags(of: $0, in: editor) }
+        let tagged = try #require(all.first)
         #expect(tagged.allSatisfy { copies.contains($0.node) }, "both names moved to the copies")
     }
 }

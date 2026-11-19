@@ -106,13 +106,13 @@ struct TrimRegionsTests {
         #expect(result.warnings == ["A picked region no longer exists; pick the regions again."])
     }
 
-    @Test func aNarrowedPickIsKeptWithTheMergedWarning() {
+    @Test func aNarrowedPickIsKeptWithItsOwnWarning() {
         let topology = diskAndRing
         let other = TopoTag(node: NodeID(), item: 0, role: .startCap)
         let pick = RegionPick(pick: FacePick(tags: topology.faces[1].tags.union([other]), normal: .unitZ, centroid: Vector3(8, 0, 0)))
         let result = TrimRegions.resolve([pick], pieces: [[FaceID(0)], [FaceID(1)]], in: topology)
         #expect(result.pieces == [1])
-        #expect(result.warnings == [FacePickWording.merged("Trim Surface keeps")])
+        #expect(result.warnings == [TrimRegions.narrowedPick])
     }
 
     @Test func pickForPieceRecordsSharedBy() throws {

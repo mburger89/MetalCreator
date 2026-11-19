@@ -83,6 +83,14 @@ struct SecondEdgePickTests {
         let app = await makeApp(builder.graph)
         app.beginPick(for: blend.id, socket: "other edges")
         #expect(app.pick == nil)
-        #expect(app.alert?.message == "Wire an edge rule into “Blend Surface” first, so there are edges to pick on.")
+        #expect(app.alert?.message == "Wire an edge rule into “other edges” of “Blend Surface” first, so there are edges to pick on.")
+    }
+
+    @Test func anUnwiredTargetNamesTheTargetSocket() async throws {
+        var builder = GraphBuilder()
+        let match = builder.add(MatchSurfaceNode.self)
+        let app = await makeApp(builder.graph)
+        app.beginPick(for: match.id, socket: "target")
+        #expect(app.alert?.message == "Wire an edge rule into “target” of “Match Surface” first, so there are edges to pick on.")
     }
 }

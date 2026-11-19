@@ -6,6 +6,10 @@ public enum TrimRegions {
     static let vanishedPick = "A picked region no longer exists; pick the regions again."
     static let nothingLeft = "None of the picked regions exist any more; pick the regions to keep again."
 
+    /// A pick whose own names match nothing now (the cutter changed kind or order) and was found again by where it came from.
+    static let narrowedPick = "A picked region no longer matches the cutter exactly, so Trim Surface kept the piece nearest "
+        + "where it was picked; pick the regions again to settle it."
+
     static func sharedWarning(_ count: Int) -> String {
         "A picked region now names \(count.display) pieces; Trim Surface kept the one nearest where it was picked."
     }
@@ -32,7 +36,7 @@ public enum TrimRegions {
                 warn(vanishedPick)
                 continue
             }
-            if resolution.isNarrowed { warn(FacePickWording.merged("Trim Surface keeps")) }
+            if resolution.isNarrowed { warn(narrowedPick) }
             if pick.touchesUnnamedFace { warn(FacePickWording.unnamed("trim")) }
             if named.count == 1 {
                 kept.insert(named[0])

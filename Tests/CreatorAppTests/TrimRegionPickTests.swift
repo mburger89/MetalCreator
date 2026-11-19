@@ -168,6 +168,10 @@ struct TrimRegionPickTests {
         }
     }
 
+    func wire(_ from: Node, _ out: SocketName, _ to: NodeID, _ input: SocketName) -> Link {
+        Link(from: Endpoint(node: from.id, socket: out), to: Endpoint(node: to, socket: input))
+    }
+
     /// A duplicated Trim keeps the regions it was copied with: its picks name the copy's own cut sides, not the original's.
     @Test func aDuplicatedTrimKeepsItsRegionsWithoutAWarning() async throws {
         let setup = await open()
@@ -181,11 +185,12 @@ struct TrimRegionPickTests {
         app.editor.selection = [setup.trim.id]
         app.editor.duplicateSelection()
         let copy = try #require(app.editor.canvasSelection.nodes.first)
-        try app.document.perform(.connect(Link(from: Endpoint(node: setup.tube.id, socket: "surface"), to: Endpoint(node: copy, socket: "surface"))),
+        try app.document.perform(.connect(wire(setup.tube, "surface", copy, "surface")),
                                  name: UndoName.connect)
-        try app.document.perform(.connect(Link(from: Endpoint(node: setup.wall.id, socket: "surface"), to: Endpoint(node: copy, socket: "cutter"))),
+        try app.document.perform(.connect(wire(setup.wall, "surface", copy, "cutter")),
                                  name: UndoName.connect)
-        try app.document.perform(.connect(Link(from: Endpoint(node: copy, socket: "surface"), to: Endpoint(node: setup.output.id, socket: "solid"))),
+        try app.document.perform(.connect(Link(from: Endpoint(node: copy, socket: "surface"),
+                                                to: Endpoint(node: setup.output.id, socket: "solid"))),
                                  name: UndoName.connect)
         await app.settle()
         let state = try #require(app.document.results[copy]?.state)

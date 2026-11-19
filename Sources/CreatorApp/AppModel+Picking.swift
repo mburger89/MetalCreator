@@ -92,7 +92,10 @@ extension AppModel {
         }
         let consumer = Endpoint(node: id, socket: socket)
         guard let link = graph.incomingLink(to: consumer), let upstream = graph.nodes[link.from.node] else {
-            return refusePick("Wire an edge rule into “\(node.name)” first, so there are edges to pick on.")
+            // Match and Blend Surface have two edge sockets, so their sentence says which one is unwired.
+            let twoSockets = node.typeID == MatchSurfaceNode.typeID || node.typeID == BlendSurfaceNode.typeID
+            let target = twoSockets ? "“\(socket)” of “\(node.name)”" : "“\(node.name)”"
+            return refusePick("Wire an edge rule into \(target) first, so there are edges to pick on.")
         }
         if upstream.typeID == EdgesByTagNode.typeID { return beginPick(for: upstream.id) }
         guard let set = SceneBuilder.edgeSets(editor.result(of: upstream.id)).first, let source = producer(of: set.solid) else {

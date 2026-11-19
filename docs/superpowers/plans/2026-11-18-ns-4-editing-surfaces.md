@@ -69,7 +69,7 @@ two-body continuity call and the control-point code this plan builds on.
   split); a piece of an input edge keeps that edge's tags. Why: a pick on the disk cut by a circle must still name the disk when the
   circle grows or the sheet changes. Cost: reversing an open cutter curve swaps front and back, so a keep pick then names the other
   side; reordering the cutter curves, or inserting or removing one before another, shifts `.curve(index:)` and renames every piece
-  bordered by the shifted curves, so their keep picks vanish (warned, never a silent swap); closed cutters wired in a fixed order
+  bordered by the shifted curves, so their keep picks no longer match (narrowed by origin to the nearest piece and warned, never a silent swap); closed cutters wired in a fixed order
   (the common hole) are immune. Documented in CLAUDE.md and the human checks. R2 does not make every piece's name unique: pieces
   bordered by the same elements on the same sides share one tag set (a circle crossing a strip leaves two `.outside` pieces both
   named {source, cutSide(c0, outside)}; an open curve crossing a face twice does the same). R17 says how picks live with that.
