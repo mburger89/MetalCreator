@@ -159,6 +159,19 @@ public protocol Kernel: Actor {
     /// `curve` refitted as one non-rational spline piece of `spec`'s `degreeU` and `spansU` (its end poles pinned to the curve's
     /// ends; a periodic B-spline curve is rebuilt periodic), made with `tag`; `deviation` as for a surface. The default refuses.
     func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild
+    /// `sheet` divided by `cutter` (NS-4, R2, R4, R7): the whole split, its connected pieces, and for a closed cutter the faces inside
+    /// it. Pieces and cut edges are named by the cutter's elements. The default refuses.
+    func split(_ sheet: Solid, by cutter: TrimCutter, tag: NodeTag) async throws -> SheetSplit
+    /// The sheet made of `faces` of `sheet`, keeping their tags (NS-4). The default refuses.
+    func subSheet(_ faces: [FaceID], of sheet: Solid) throws -> Solid
+    /// The curves where `a` and `b` meet, chained and ordered by R14 (NS-4). The default refuses.
+    func intersectionCurves(_ a: Solid, _ b: Solid, tag: NodeTag) async throws -> [Curve]
+    /// `sheet` (one face) grown by `length` across `edges` (NS-4, R8), keeping its tags and adjacency. The default refuses.
+    func extended(_ sheet: Solid, edges: [EdgeID], length: Double, mode: ExtendMode) async throws -> Solid
+    /// `sheet` (one face) changed along `edge` to meet `target` of `body` at `continuity` (NS-4, R9). The default refuses.
+    func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid, continuity: PatchContinuity) async throws -> Solid
+    /// A new sheet joining an edge of each of two bodies (NS-4, R10). The default refuses.
+    func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid
 }
 
 extension Kernel {
@@ -286,6 +299,31 @@ extension Kernel {
 
     public func rebuilt(_ curve: Curve, as spec: RebuildSpec, tag: NodeTag) async throws -> CurveRebuild {
         throw KernelError.unsupported("rebuilding curves")
+    }
+
+    public func split(_ sheet: Solid, by cutter: TrimCutter, tag: NodeTag) async throws -> SheetSplit {
+        throw KernelError.unsupported("splitting surfaces")
+    }
+
+    public func subSheet(_ faces: [FaceID], of sheet: Solid) throws -> Solid {
+        throw KernelError.unsupported("keeping faces of a sheet")
+    }
+
+    public func intersectionCurves(_ a: Solid, _ b: Solid, tag: NodeTag) async throws -> [Curve] {
+        throw KernelError.unsupported("intersecting bodies")
+    }
+
+    public func extended(_ sheet: Solid, edges: [EdgeID], length: Double, mode: ExtendMode) async throws -> Solid {
+        throw KernelError.unsupported("extending surfaces")
+    }
+
+    public func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid,
+                        continuity: PatchContinuity) async throws -> Solid {
+        throw KernelError.unsupported("matching surfaces")
+    }
+
+    public func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid {
+        throw KernelError.unsupported("blending surfaces")
     }
 
     public func readShapes(_ data: Data, format: SolidModelFormat, tag: NodeTag) throws -> ImportedShapes {

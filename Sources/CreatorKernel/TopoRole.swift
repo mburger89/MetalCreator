@@ -15,6 +15,8 @@ public indirect enum TopoRole: Hashable, Sendable {
     case imported(face: Int)
     /// A sheet's boundary edge (`BoundaryRole`). Only edges carry it: a face never does.
     case boundary(BoundaryRole)
+    /// A face of a sheet a cutter divided (NS-4, R2): the side of cutter element `CutterName` the face lies on.
+    case cutSide(CutterName, CutSide)
 
     /// A deterministic text form, used to order tags canonically. Outer walls keep the
     /// pre-hole form `side(k)`; hole walls are `side(loop:k)`.
@@ -28,6 +30,7 @@ public indirect enum TopoRole: Hashable, Sendable {
         case .unnamed(let face): "unnamed(\(face))"
         case .imported(let face): "imported(\(face))"
         case .boundary(let role): "boundary(\(role.sortKey))"
+        case .cutSide(let name, let side): "cutSide(\(name.sortKey):\(side.rawValue))"
         }
     }
 }

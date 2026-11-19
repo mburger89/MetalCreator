@@ -11,7 +11,7 @@ extension TopoTag {
     static func instanceTags(in tags: Set<TopoTag>) -> [TopoTag] {
         tags.flatMap { tag in
             var found = tag.node.isInstanceQualified ? [tag] : []
-            if case .blend(let edge) = tag.role { found += instanceTags(in: edge.first.union(edge.second)) }
+            found += instanceTags(in: tag.role.nestedTags)
             return found
         }
     }
@@ -19,8 +19,6 @@ extension TopoTag {
 
 extension TopoRole {
     func qualified(item: Int, _ qualify: (NodeID) -> NodeID) -> TopoRole {
-        guard case .blend(let edge) = self else { return self }
-        return .blend(sourceEdge: EdgeKey(Set(edge.first.map { $0.qualified(item: item, qualify) }),
-                                          Set(edge.second.map { $0.qualified(item: item, qualify) })))
+        mappingNestedTags { $0.qualified(item: item, qualify) }
     }
 }

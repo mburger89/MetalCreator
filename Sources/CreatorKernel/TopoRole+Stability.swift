@@ -4,8 +4,8 @@ extension TopoRole {
     public var isUnstable: Bool {
         switch self {
         case .unnamed: true
-        case .blend(let source): source.first.union(source.second).contains { $0.role.isUnstable }
-        case .startCap, .endCap, .side, .imported, .boundary: false
+        case .blend, .cutSide, .boundary: nestedTags.contains { $0.role.isUnstable }
+        case .startCap, .endCap, .side, .imported: false
         }
     }
 }
