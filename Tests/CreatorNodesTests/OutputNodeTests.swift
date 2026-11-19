@@ -10,7 +10,7 @@ struct OutputNodeTests {
     /// (Hole, Boss, Slot, Pattern Feature; 7a-2), and the variation nodes (Cull Pattern, Cull Index, Cull by Region,
     /// Random Reduce, Random Values, Jitter; 7a-3b), the Fields nodes (fields spec §3; Image Field, 7b-2), and the Implicit nodes
     /// (implicit spec §3: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit and Isosurface), the TPMS, Strut and Voronoi lattices and the Mesh node,
-    /// and the twelve Surfaces nodes (NURBS spec: three curve nodes, seven that make sheets, Trim Surface and Split Surface; NS-4), in 12 categories, 106 nodes.
+    /// and the sixteen Surfaces nodes (NURBS spec: five curve nodes, Edit Surface and Rebuild Surface, seven that make sheets, Trim Surface and Split Surface; NS-4), in 12 categories, 106 nodes.
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesTheFieldNodesAndTheImplicitNodesInTwelveCategories() {
         #expect(BuiltInNodes.all.count == 106)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)

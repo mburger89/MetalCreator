@@ -11,6 +11,9 @@ public enum TrimSurfaceNode: NodeDefinition {
     public static let librarySubgroup: String? = "Edit"
     public static let keepOptions = ["Picked", "Inside", "Outside"]
     public static let nothingPicked = "Pick the regions to keep; until then Trim Surface keeps every piece."
+    /// Defensive: the kernel refuses a cutter that cuts nothing first, so no known input reaches these two.
+    public static let nothingInside = "No piece of the surface lies inside the cutter."
+    public static let nothingOutside = "No piece of the surface lies outside the cutter."
     public static let needsClosedCutter = "Inside and Outside need a closed cutter: closed flat curves or a closed solid. "
         + "Pick the regions to keep instead."
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.keepRegions: .regionPicks([])]
@@ -52,8 +55,7 @@ public enum TrimSurfaceNode: NodeDefinition {
                 return keep == 1 ? faces.allSatisfy(inside.contains) : !faces.contains(where: inside.contains)
             }
             if kept.isEmpty {
-                throw NodeError.invalidValue(keep == 1 ? "No piece of the surface lies inside the cutter."
-                                                       : "No piece of the surface lies outside the cutter.")
+                throw NodeError.invalidValue(keep == 1 ? nothingInside : nothingOutside)
             }
         default:
             let picks = context.node.inputValues[NodeSetting.keepRegions]?.regionPicks ?? []

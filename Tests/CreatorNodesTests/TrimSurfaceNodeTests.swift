@@ -223,8 +223,25 @@ struct TrimSurfaceNodeTests {
         var areas: [Double] = []
         for piece in sheets { areas.append(try await area(piece)) }
         // R6: the pieces are ordered by their smallest face tag set; the disk and the ring differ only in their cut side.
-        #expect(areas.contains { isClose($0, 25 * .pi, relative: 1e-6) })
-        #expect(areas.contains { isClose($0, 400 - 25 * .pi, relative: 1e-6) })
+        #expect(areas.count == 2)
+        #expect(isClose(areas[0], 25 * .pi, relative: 1e-6), "areas \(areas)")
+        #expect(isClose(areas[1], 400 - 25 * .pi, relative: 1e-6), "areas \(areas)")
+    }
+
+    /// Inside and Outside never reach `nothingInside` / `nothingOutside` with a real kernel: a cutter that misses the sheet
+    /// is refused first, in the kernel's words (the node's two sentences are a defensive guard).
+    @Test(arguments: [1, 2])
+    func aCutterThatMissesTheSheetIsRefusedForInsideAndOutside(keep: Int) async throws {
+        var h = Harness()
+        let rect = h.add(RectangleNode.self, ["width": .number(20), "height": .number(20)])
+        let sheet = h.add(PlanarSurfaceNode.self)
+        let circle = h.add(CircleNode.self, ["diameter": .number(100)])
+        let trim = h.add(TrimSurfaceNode.self, ["keep": .integer(keep)])
+        h.wire(rect, "profile", to: sheet, "curves")
+        h.wire(sheet, "surface", to: trim, "surface")
+        h.wire(circle, "profile", to: trim, "curves")
+        let report = try await h.run([trim], kernel: kernel)
+        #expect(report.error(trim) == "The cutter doesn't cut the surface.", "\(String(describing: report.state(trim)))")
     }
 
     @Test func aProfileWithAHoleTrimsAnAnnulus() async throws {
