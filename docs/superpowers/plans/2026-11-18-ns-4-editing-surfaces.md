@@ -8,7 +8,7 @@ format that keep picks on their results from drifting, the viewport picks they n
 **Architecture:** One kernel call (`Kernel.split`) cuts a sheet by curves (projected) or a body with OCCT's `BRepAlgoAPI_Splitter`
 and names every piece by the cutter elements it borders and the side it lies on (`TopoRole.cutSide`), and every cut edge by its
 cutter element (`BoundaryRole.cut`); Trim and Split choose pieces from that one result. Extend and Match change one untrimmed
-face's B-spline in place on a copy (NS-3's `replace_face_surface` path), so the topology, and every tag, is the input's. Blend
+face's B-spline in place on a copy (NS-3's `replace_face_surface` path), so every tag and the adjacency are the input's. Blend
 builds a new sheet from quintic sections (`cocct_g2_section.hpp`) skinned with the G2 fillet's skinning code, lifted into a
 shared header. Every G1/G2 promise is measured after the build with the two-body continuity grade and refused in words when it
 misses.
@@ -31,14 +31,17 @@ two-body continuity call and the control-point code this plan builds on.
 - **Promises are measured** (spec anti-goal): a G1 or G2 join is graded after the build with `edge_continuity_against` (the
   thresholds of `Kernel.continuity`: position 1e-4 mm, angle 0.01°, curvature within 1 %) and a miss is refused in words; a
   result is never labelled better than it measured.
-- **Picks don't drift:** Extend Surface and Match Surface keep the input's topology tables unchanged (`carryingTopology`); Trim
-  and Split name pieces and cut edges by R2.
+- **Picks don't drift:** Extend Surface and Match Surface keep the input's tags and adjacency (`carryingTopology`): the same
+  faces and edges in the same order, `faces.map(\.tags)`, `edges.map(\.tags)` and `edges.map(\.faces)` equal to the input's (as
+  `RebuildTests.aTrimmedFaceKeepsItsTrim` compares). The measured geometry in the tables (`FaceInfo` area, centroid and normal,
+  `EdgeInfo` length and midpoint) changes with the surface, so tests never compare whole `Topology` values. Trim and Split name
+  pieces and cut edges by R2.
 - **Separate sheets** (spec §Joining a part): Blend Surface outputs a new sheet; nothing is sewn into a part.
 - **Limits:** at most 100,000 control points per surface; every limit and refusal is a full sentence, numbers through
   `Locale.messages` (`Double.display`, `Int.display`).
 - **Cancellation** is asked between sections, curves, refinement passes and splitter stages (`occt_cancel`, as
   `networkSurface` polls it).
-- **File format 16** (`GraphFile.currentFormatVersion`): `ConstantValue.facePicks`, `TopoRole.cutSide` and `BoundaryRole.cut` in
+- **File format 16** (`GraphFile.currentFormatVersion`): `ConstantValue.regionPicks`, `TopoRole.cutSide` and `BoundaryRole.cut` in
   saved picks. Files of format 1 to 15 open unchanged and are written as 16.
 - **Undo names** have no numbers and no typed text: "Pick Trim Regions", "Clear Trim Regions"; edge picks keep "Pick Edges".
 - **Kernel calls** are refused by default and in `FakeKernel` with `KernelError.unsupported`, named as gerund phrases ("splitting
@@ -65,48 +68,94 @@ two-body continuity call and the control-point code this plan builds on.
   normal (a sheet cutter). A cut edge carries `TopoTag(node, .boundary(.cut(element)))` (also when it is a two-face edge of the whole
   split); a piece of an input edge keeps that edge's tags. Why: a pick on the disk cut by a circle must still name the disk when the
   circle grows or the sheet changes. Cost: reversing an open cutter curve swaps front and back, so a keep pick then names the other
-  side; closed cutters (the common hole) are immune. Documented in CLAUDE.md and the human checks.
-- **R3. Format 16** for R2's two roles and the `facePicks` kind (older readers can't decode them).
-- **R4. Trim's `keep`** is Picked (default), Inside or Outside. Picked with no picks keeps every piece and warns. Each pick keeps
-  one face of the whole split: its single match, the match nearest its centroid when it names several (warned), or the narrowed
-  part (`Topology.resolution(of:)`, warned in `FacePickWording`'s words); a pick naming nothing warns; all picks naming nothing is a
-  refusal. Inside and Outside are even-odd over the cutter's closed flat curves (classified in the curves' plane along the
-  projection) or the closed solid's inside, and are refused for any other cutter. Why: deterministic, never silent.
+  side; reordering the cutter curves, or inserting or removing one before another, shifts `.curve(index:)` and renames every piece
+  bordered by the shifted curves, so their keep picks vanish (warned, never a silent swap); closed cutters wired in a fixed order
+  (the common hole) are immune. Documented in CLAUDE.md and the human checks. R2 does not make every piece's name unique: pieces
+  bordered by the same elements on the same sides share one tag set (a circle crossing a strip leaves two `.outside` pieces both
+  named {source, cutSide(c0, outside)}; an open curve crossing a face twice does the same). R17 says how picks live with that.
+- **R3. Format 16** for R2's two roles and the `regionPicks` kind (older readers can't decode them).
+- **R4. Trim's `keep`** is Picked (default), Inside or Outside. Picked with no picks keeps every piece and warns. **The unit of
+  keep is a piece** (a connected set of faces, `SheetSplit.pieces`), never a lone face, because the spec keeps "picked regions" and
+  one region of a multi-face sheet (a two-face ruled loft, a sweep along a polyline) spans several faces. Each pick resolves to faces
+  (its matches, or the narrowed part by `Topology.resolution(of:)`, warned in `FacePickWording`'s words), each face maps to the piece
+  holding it, and the pick keeps one piece: its single piece, or, when it names more pieces than R17's `sharedBy`, the piece whose
+  area-weighted centroid is nearest the pick's recorded centroid (warned); a pick naming nothing warns; all picks naming nothing is
+  a refusal. The kept sheet is `subSheet` of the kept pieces' faces. Inside and Outside are even-odd over the cutter's closed flat
+  curves (classified in the curves' plane along the projection) or the closed solid's inside, keep every piece whose faces are all
+  inside (outside), and are refused for any other cutter. Why: deterministic, never silent.
 - **R5. Trim has a second output, `pieces`:** the whole split as one sheet (every piece, cut edges shared). It is what keep picks
   name and what "Pick regions in view…" shows; the node lists it in `NodeDefinition.previewHiddenOutputs`, so a selected Trim
   shows only the kept surface. Cost: one more output to explain; the alternative (the app re-running the split) duplicates the
   node's input reading.
 - **R6. Split Surface's list** holds one sheet per connected piece (faces joined across uncut edges), ordered by the canonical sort
-  key of the piece's smallest face tag set (tag `sortKey`s sorted and joined by "+"), ties by centroid x, then y, then z.
-- **R7. Projection.** Along a direction the cutter is the curves' prism through the sheet both ways (`BRepPrimAPI_MakePrism` over
-  twice the sheet's bounding diagonal, centred), each prism face named `.curve(index:piece:)`; along normals,
-  `BRepOffsetAPI_NormalProjection` puts edges on the faces. Both are cut with `BRepAlgoAPI_Splitter`. A cutter part that doesn't
-  divide a face (it ends inside it) is dropped with a warning; no division at all is a refusal.
+  key of the piece's smallest face tag set (tag `sortKey`s sorted and joined by "+"), ties by centroid x, then y, then z. Pieces
+  that share a name (R2) are therefore ordered by centroid alone, so moving one past the other swaps their places in the list.
+- **R7. Projection.** Along a direction d the cutter is the curves' prism (`BRepPrimAPI_MakePrism`), each prism face named
+  `.curve(index:piece:)` through the prism's `Generated` history. Its extent along d is taken from the union of the curves' and the
+  sheet's bounds, so projection never depends on how far the curves are from the sheet: with `[s₀, s₁]` the sheet's range of
+  `p · d̂`, `c₁` the curves' largest `p · d̂` and `c₀` their smallest, and the margin `m = 1 mm + 1 %` of `(max(s₁, c₁) − min(s₀, c₀))`,
+  the curves are moved by `(s₀ − m − c₁) d̂` and swept by `(s₁ + m − c₀ − (s₀ − m − c₁)) d̂`, so every curve point's line along d
+  passes the whole sheet. Along normals, `BRepOffsetAPI_NormalProjection` puts edges on the faces. Both are cut with
+  `BRepAlgoAPI_Splitter`. Why not the spec's `BRepProj_Projection`: it returns projected wires, not a cutting tool; a prism of
+  faces is something the splitter's Boolean intersects exactly, its `Generated` history names each cut edge by its curve piece, and
+  it takes the same splitter path as a body cutter (one naming code, R2). A cutter part that doesn't divide a face (it ends inside
+  it) is dropped with a warning; no division at all is a refusal.
 - **R8. Extend Surface** takes a sheet of one face and edges that are untrimmed iso-boundaries of its (converted) B-spline surface.
-  Natural is `GeomLib::ExtendSurfByLength` with continuity 2. Linear is ours: one span appended across the edge whose poles lie
-  evenly on the line from each boundary pole along `P0 − P1` (the cross tangent), scaled so the extension at the edge's middle pole
-  is `length` (it varies where the cross speed varies). The face keeps its edges (pcurves moved to the new iso values), so the
-  topology is the input's. The join is graded across the old iso line at 32 samples (G2 Natural, G1 Linear) and refused on a miss.
-  Cost: Extend on a multi-face or trimmed sheet is refused (parked).
+  Natural is `GeomLib::ExtendSurfByLength` with continuity 2 (it extends a rational surface in homogeneous coordinates). Linear is
+  ours: one span appended across the edge whose poles lie evenly on the line from each boundary pole along `P0 − P1` (the cross
+  tangent), scaled so the extension at the edge's middle pole is `length` (it varies where the cross speed varies). Linear needs a
+  non-rational net: a rational surface (Revolve Curve's, a converted cylinder's) is first approximated by a non-rational one over
+  the same parameter domain (`GeomConvert_ApproxSurface`, 1e-7 mm, C2, degree ≤ 9), refused when it can't reach that: "This
+  surface can't be extended Linear exactly; use Natural.". The face keeps its edges, so tags and adjacency are the input's.
+  **Parameters:** `ExtendSurfByLength` may raise the degree, re-knot or rescale the old domain, so after either mode the map from
+  old to new parameters is found per direction (affine, from the knots, then checked: 25 points of the old surface at their mapped
+  parameters within 1e-7 mm, else "The extension moved the surface; this edge can't be extended.") and applied to **every** pcurve
+  of the face (both seam pcurves of a periodic face included), not only the extended side's; the extended side's pcurve then moves
+  to the new iso value and its two neighbours' ranges widen to the new corners. A direction that was periodic and is no longer
+  periodic after the extension keeps its seam edge, now a closed seam on a non-periodic surface whose two pcurves are the two iso
+  lines `u₀` and `u₀ + period` of the mapped range; the result is held to `BRepCheck_Analyzer`. The join is graded across the old
+  iso line at 32 samples (G2 Natural, G1 Linear) and refused on a miss. Cost: Extend on a multi-face or trimmed sheet is refused
+  (parked).
 - **R9. Match Surface** changes a sheet of one face along an untrimmed iso edge, to one target edge. Rows 0..c (c = continuity) move;
   the cross degree is raised to at least c + 1 and knots inserted in the first cross span until there are at least c + 2 rows, so
   the opposite edge never moves. The target is reparametrised by arc-length fraction from the end nearer the edge's start. A solid
-  target edge has two faces: the one whose outward cross direction at the target's midpoint best agrees with the sheet's inward
-  cross direction is matched. Refinement doubles the spans along the edge up to 5 times (or to 100,000 poles), then refuses
-  naming the grade it reached. Ends more than 0.01 mm apart refuse in the spec's words. Never refused for being ugly; a fold warns.
+  target edge has two faces: the one whose outward cross direction at the target's midpoint (the direction leaving that face across
+  the edge) best agrees with the sheet's inward cross direction (from the edge into the sheet) is matched. Refinement doubles the
+  spans along the edge up to 5 times (or to 100,000 poles), then refuses naming the grade it reached. Ends more than 0.01 mm apart
+  refuse in the spec's words. Never refused for being ugly; a fold warns. **Rational sheets** (Revolve Curve's, converted cylinders
+  and circles) are matched exactly with their weights held fixed: degree raising and knot insertion are exact in homogeneous
+  coordinates, and with every weight fixed `S = Σ wᵢⱼ Nᵢⱼ Pᵢⱼ / Σ wᵢⱼ Nᵢⱼ` is linear in the poles, as are its r-derivatives, so
+  each row's fit below is a linear least-squares problem in the rational basis `Rᵢⱼ = wᵢⱼ Nᵢⱼ / W` and its r-derivatives (for a
+  non-rational net, all weights 1, it is the plain basis); the moved rows keep their weights. The pole rows of the fit are only
+  those whose basis functions or their first c r-derivatives are non-zero at r = 0 (rows 0..c of a clamped edge), so the opposite
+  edge still never moves.
 - **R10. Blend Surface** takes one edge on each side (a sheet's or a solid's). A solid edge uses the face whose outward cross
-  direction at the edge's midpoint points most toward the other edge's midpoint. The second edge is reversed when that makes the
-  sum of end-to-end distances smaller. Each section is `quintic_poles` with tangent length `bulge × circular_tangent_length`;
+  direction at the edge's midpoint (the direction leaving that face across the edge) points most toward the other edge's midpoint.
+  The second edge is reversed when that makes the sum of end-to-end distances smaller. Section k joins the points at the same
+  arc-length fraction `k / (n − 1)` from the paired starts of the two edges (as R9 reparametrises the target). The two edges may be
+  edges of one body (a sheet of two faces, or two free edges of one face); the same edge twice refuses "Blend Surface needs two
+  different edges.". Each section is `quintic_poles` with tangent length `bulge × circular_tangent_length`;
   a G2 end takes the face's normal curvature as acceleration, a G1 end zero acceleration (so G1 and G2 differ). Sections start at
   9, skinned cubic, then quintic, doubling to at most 129, as the G2 fillet strips do (their skinning moves to
   `cocct_g2_skin.hpp`, unchanged). Naming as Network Surface's R6: face `.side(loop: 0, segment: 0)`, first edge
   `.boundary(.start)`, second `.boundary(.end)`, sides `.boundary(.rail(0))` (from the first edge's start) and `.rail(1)`.
 - **R11. Scrubbing.** Match Surface and Blend Surface asked for G2 build at G1 while `context.isScrubbing`, with no warnings, and
   `readsScrubbing(for:)` is true only when G2 is chosen (the G2 fillet's rule), so a drag stays fast and the G2 build follows.
+  Match's fold check follows the same line: at G0 and G1 it **always** runs, scrubbing or not, because a G0/G1 node's cache key has
+  no `isScrubbing` and its last drag step's result is the one kept after the release (a skipped check would never warn); at G2 it is
+  skipped only for the G1 stand-in built while scrubbing, and the G2 build after the release, under its own key, runs it. Why not
+  Edit Surface's "always reads scrubbing": Match re-runs its whole fit and grade on every drag step anyway, so the fold query is a
+  small part of a step, and keeping G0/G1 cached across drags elsewhere is worth more. Cost if wrong: a G0/G1 match drag is slower
+  by one fold query per step.
 - **R12. Continuity type.** Match and Blend reuse `PatchContinuity` (G0/G1/G2); Blend refuses `.g0` ("Blend Surface joins at G1 or
   G2.") though its control offers only G1 and G2.
-- **R13. Two-body grade needs most samples** (backlog item): `edge_continuity_against` throws "Too few points along the edge lie on
-  the other face to grade it." when fewer than 24 of its 32 samples are usable, so a G2 grade can't rest on half an edge.
+- **R13. Two-body grade needs most samples** (backlog item), in bands of `used` (usable samples of 32) in `grade_samples`'s two-body
+  branch: 0 to 15 (none, or under half) keeps today's "The edge doesn't run along that face." (pinned by
+  `TwoBodyContinuityTests.aFaceOnTheSamePlaneBeyondItsBoundaryIsRefused` and `aFaceElsewhereIsRefused` and the doc comment of
+  `Kernel.continuity(of:in:against:of:)`, all unchanged); 16 to 23 throws the new "Too few points along the edge lie on the other face
+  to grade it."; 24 or more grades. So a G2 grade can't rest on half an edge, and an edge that misses the face still reads as one.
+  The doc comment gains the middle band. Boundary Patch grades its patch edges with this call (`OCCTKernel+Patch.swift`), so its
+  suites are rerun.
 - **R14. Intersection Curves** chains the section edges into wires (`ShapeAnalysis_FreeBounds::ConnectEdgesToWires`, 1e-6 mm); an
   open curve runs from its lexicographically smaller end (x, y, z with 1e-6 ties), a closed one starts at its lexicographically
   smallest vertex, and the list is ordered by start point the same way, so the order survives a common move.
@@ -120,6 +169,15 @@ two-body continuity call and the control-point code this plan builds on.
   quantised position; typing applies to a selection that is one coincident group, as one "Change Control Point" step; a drag on a
   partly selected group selects the whole group first. Also pulled in: a face covering only part of a periodic surface's period
   rebuilds clamped over the face's range, so it no longer earns "A closed surface needs at least N spans…".
+- **R17. Picks of pieces that share a name** (R2's gap). A Trim keep pick is a `RegionPick`: the `FacePick` (tags, normal,
+  centroid) plus `sharedBy`, the number of pieces its tags named in the split it was picked on (1 when it named its piece alone).
+  `TrimRegions.resolve` warns "A picked region now names N pieces; …" only when a pick names more pieces than its `sharedBy`; when
+  it names `sharedBy` or fewer (but at least one) it keeps the piece nearest its recorded centroid without a warning, because nothing
+  changed that the user can act on. So a keep pick on either `.outside` piece of a band cut picks cleanly and still follows the
+  circle's radius. Why not make names unique (adding the bordering input edges' tags to piece faces): a face carrying edge roles
+  confuses `Topology.key` and edge picks, and on a periodic sheet two pieces can border the same input edges anyway. Cost: between
+  pieces that share a name the choice is geometric, so a cutter change that moves one such piece past the other's old centroid can
+  swap them silently; documented beside R2's cost.
 
 **Backlog (`nurbs-backlog-after-ns2` memory).** Pulled in: the NS-3 follow-up (R16, Tasks 1 and 2), the partial periodic Rebuild
 (Task 1), the two-body half-sample grade (R13, Task 8), `into_face_range`'s periodic remap test (Task 4). Parked: the guide
@@ -127,20 +185,23 @@ sweep's fixed 1e-3 mm tolerance and multi-face guide edges; Network Surface's to
 Boundary Patch limits; twist parallel transport; the `unsupported` sentence's grammar (NS-4's names are gerunds); the fold
 check's false positives; `extraDemand` reference counting; cancelling superseded net reads; the theme editor's Esc; the closed
 degree-3 Curve through Points' C1 seam. New parked items from this plan: Extend on multi-face or trimmed sheets, Match on trimmed
-edges, chains of edges for Match and Blend.
+edges, chains of edges for Match and Blend, unique names for pieces that share a tag set (R17).
 
 ## Review Focus
 
 1. **A cutter that only partly crosses the sheet** (a curve ending inside a face): that part is dropped with the warning, the rest
    still cuts; nothing cut is a refusal, never an unchanged sheet passed off as trimmed. Task 4 (`aDanglingCurveWarns`).
 2. **A keep pick after the cutter moves** (the picked piece splits in two, or vanishes): Trim keeps one piece deterministically and
-   warns, never silently the other side. Task 5 (`aPickThatNamesTwoPiecesWarns`, `aVanishedPickWarns`).
+   warns, never silently the other side; a pick on one of two pieces that share a name (R17) keeps its piece without a false
+   warning, and a pick on a multi-face region keeps the whole region (R4). Task 5 (`aPickThatNamesTwoPiecesWarns`,
+   `aVanishedPickWarns`, `aBandCutLeavesTwoOutsidePiecesThatPickCleanly`, `aPickKeepsItsWholePiece`).
 3. **Trimming a closed (360°) sheet across its seam:** the pieces are right and grading on the trimmed periodic face works
    (`into_face_range`). Task 4 (`aPeriodicSheetSplitsAcrossItsSeam`).
 4. **Match or Blend against a solid's edge** (two faces) **or a target running the other way:** the face and direction are chosen
    by R9 and R10 and the result grades as promised. Tasks 8 and 9 (`aSolidTargetUsesTheContinuedFace`, `aReversedEdgeIsPaired`).
 5. **A slider dragged upstream of a G2 Match or Blend:** G1 while dragging, no stale warning, the G2 build after; never a G2 claim
-   on a G1 surface. Task 10 (`matchBuildsG1WhileScrubbing`, `blendBuildsG1WhileScrubbing`).
+   on a G1 surface; a G0/G1 Match dragged into a fold still warns after the release (R11). Task 10 (`matchBuildsG1WhileScrubbing`,
+   `blendBuildsG1WhileScrubbing`, `aG1FoldWarnsAfterADrag`).
 
 ---
 
@@ -212,13 +273,14 @@ edges, chains of edges for Match and Blend.
 
 **Files:**
 - Create: `Sources/CreatorKernel/CutterName.swift`, `Sources/CreatorKernel/SurfaceEditing.swift`,
-  `Sources/CreatorKernel/TopoRole+NestedTags.swift`
+  `Sources/CreatorKernel/TopoRole+NestedTags.swift`, `Sources/CreatorKernel/RegionPick.swift`
 - Modify: `Sources/CreatorKernel/BoundaryRole.swift`, `TopoRole.swift`, `TopoRole+Codable.swift`, `TopoRole+Stability.swift`,
   `TopoTag+Item.swift`, `TopoTag+Instance.swift`, `Kernel.swift` (requirements and refusing defaults),
-  `Sources/CreatorGraph/Groups/ConstantValue+TagRenaming.swift`, `Sources/CreatorGraph/ConstantValue.swift`, `NodeSetting.swift`,
+  `Sources/CreatorGraph/Groups/ConstantValue+TagRenaming.swift` (and `GroupScopes+PickRenaming.swift` where it lists pick kinds),
+  `Sources/CreatorGraph/ConstantValue.swift`, `NodeSetting.swift`,
   `GraphFile.swift`, and every exhaustive `switch` the compiler names (`Scalar.swift`, `InspectorBuilder.swift`,
   `CreatorMCP/Tools/ReadTools+Values.swift`)
-- Test: `Tests/CreatorKernelTests/CutNamingTests.swift`, `Tests/CreatorGraphTests/FacePicksFileTests.swift`
+- Test: `Tests/CreatorKernelTests/CutNamingTests.swift`, `Tests/CreatorGraphTests/RegionPicksFileTests.swift`
 
 **Interfaces:**
 - Produces (CreatorKernel):
@@ -245,20 +307,27 @@ edges, chains of edges for Match and Blend.
     `matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid, continuity: PatchContinuity) async throws -> Solid`
     ("matching surfaces"); `blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid`
     ("blending surfaces").
-- Produces (CreatorGraph): `ConstantValue.facePicks([FacePick])` (Codable kind `facePicks`; always finite);
-  `NodeSetting.keepRegions: SocketName = "keepRegions"` (in `all` and `reservedForSockets`); `GraphFile.currentFormatVersion == 16`;
-  group renaming (`ConstantValue+TagRenaming`) renames every pick in a `facePicks`.
+  - `RegionPick.swift` (R17): `public struct RegionPick: Hashable, Sendable { public var pick: FacePick; public var sharedBy: Int }`
+    (`sharedBy` ≥ 1; JSON `{"pick": <FacePick as saved today>, "sharedBy": n}`, `sharedBy` written only when greater than 1 and read
+    as 1 when missing).
+- Produces (CreatorGraph): `ConstantValue.regionPicks([RegionPick])` (Codable kind `regionPicks`; always finite; named apart from
+  the existing single `ConstantValue.facePick`); `NodeSetting.keepRegions: SocketName = "keepRegions"`, in `all` only, **not** in
+  `reservedForSockets` (only Trim Surface has it, so by `NodeSetting.swift`'s convention for `poleMoves`, `startFace`, `image` and
+  the file settings, an older file with a group socket or exposed dimension of that name keeps working; its doc comment gains
+  `keepRegions` in the list); `GraphFile.currentFormatVersion == 16`; group renaming (`ConstantValue+TagRenaming`, so
+  `EvaluationScope.naming` and `GroupScopes.renamingPicks`) renames the `FacePick` in every `RegionPick`, keeping `sharedBy`.
 
 - [ ] **Step 1: Tests.**
   - `cutSideRoundTrips`: `.cutSide(.curve(index: 1, piece: 2), .inside)` and `.cutSide(.face([a, b]), .front)` encode and decode
     equal; `sortKey` of the first is `"cutSide(curve(1:2):inside)"`.
   - `cutEdgeRoundTrips`: `.boundary(.cut(.curve(index: 0, piece: 0)))`, sortKey `"boundary(cut(curve(0:0)))"`.
   - `nestedTagsAreRenamed`: a `.cutSide(.face([t]))` tag → `withItem(5)` gives the nested `t.item == 5`; `qualified` qualifies it;
-    `isUnstable` is true when `t` is `.unnamed`; group renaming of a `facePicks` value renames nested tags.
-  - `facePicksRoundTrip`, `aFormat15FileOpens` (an existing format-15 fixture decodes), `theFormatIs16`, `keepRegionsIsReserved` (a
-    group socket named "keepRegions" is refused).
+    `isUnstable` is true when `t` is `.unnamed`; group renaming of a `regionPicks` value renames nested tags and keeps `sharedBy`.
+  - `regionPicksRoundTrip` (with `sharedBy` 1, written without the key, and 2), `aFormat15FileOpens` (an existing format-15 fixture
+    decodes), `theFormatIs16`, `keepRegionsIsNotReserved` (`keepRegions` is in `NodeSetting.all` and not in `reservedForSockets`; a
+    group socket named "keepRegions" is accepted, as `PoleMovesFileTests` asserts for `poleMoves`).
   - `fakeKernelRefusesTheNewCalls`: each of the six calls on `FakeKernel` throws `.unsupported` with its name.
-- [ ] **Step 2: Run** `swift test --filter 'CutNamingTests|FacePicksFileTests'`; compile failure.
+- [ ] **Step 2: Run** `swift test --filter 'CutNamingTests|RegionPicksFileTests'`; compile failure.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter, then `swift test --filter CreatorKernelTests` and `--filter CreatorGraphTests`; pass.
 - [ ] **Step 5: Commit** "NURBS: cut naming and format 16".
@@ -282,7 +351,8 @@ edges, chains of edges for Match and Blend.
   - `subSheet` (`occt_sub_sheet`) keeps the listed faces of `sheet` sharing their edges; each output face and edge maps to the same
     shape in `sheet`, whose tags it carries, so a cut edge between two pieces becomes a boundary edge already tagged `.cut`.
 - Algorithm (the shim): refuse a closed solid ("Trim and Split take a sheet; this is a closed solid."); build the cutter (R7: a
-  centred prism both ways for curves along a direction, refusing a zero direction "The direction can't be zero."; normal projection
+  prism along the direction sized and placed from the union of the curves' and the sheet's extents along it, refusing a zero
+  direction "The direction can't be zero."; normal projection
   per face; the body itself); `BRepAlgoAPI_Splitter` (arguments: the sheet, tools: the cutter), polling cancellation; history
   `Modified` maps faces and edges back to the sheet's; a cut edge whose face lies on both its sides (it ends inside the face) is
   removed and warned; no face divided refuses "The cutter doesn't cut the surface."; a point inside each piece face (the face's UV
@@ -309,6 +379,10 @@ edges, chains of edges for Match and Blend.
   - `aDanglingCurveWarns`: the circle plus a line from (0, 0, 5) to (30, 0, 5) (ends inside) → split still made by the circle, the
     warning above; the line alone → "The cutter doesn't cut the surface."
   - `aMissingCutterRefuses`: a circle centred at (100, 100) → "The cutter doesn't cut the surface."
+  - `aDistantCurveStillCuts` (R7): the circle at z = 100, then at z = −250 → the same 2 pieces and the same disk area as at z = 5;
+    a circle at z = 5 with direction (0, 0, −1) cuts the same disk.
+  - `aBandCutLeavesTwoOutsidePiecesWithOneName` (R2's documented gap): a 20 × 6 strip (x −10…10, y −3…3) cut by the circle → 3
+    pieces; the two `.outside` pieces have equal tag sets and R6 orders them by centroid (x < 0 first).
   - `aClosedSolidIsRefused`: a box as the sheet → "Trim and Split take a sheet; this is a closed solid."
   - `piecesAreConnectedSets`: a ruled Loft Surface of three open curves (2 faces) cut by one plane sheet across both → 2 pieces of 2
     faces, in R6 order.
@@ -340,14 +414,19 @@ edges, chains of edges for Match and Blend.
   - `creator.trimSurface`: inputs `surface` (`.solid`), `curves` (`.curve`, list, optional), `cutter` (`.solid`, optional),
     `projection` (integer, segmented "Along Direction" / "Along Normals", default 0), `direction` (vector, default (0, 0, 1), shown only
     along a direction via `inspector(for:)`), `keep` (integer, segmented "Picked" / "Inside" / "Outside", default 0); setting
-    `keepRegions` (seeded `.facePicks([])`); outputs `surface` and `pieces` (`previewHiddenOutputs == ["pieces"]`). In Picked: a note
+    `keepRegions` (seeded `.regionPicks([])`); outputs `surface` and `pieces` (`previewHiddenOutputs == ["pieces"]`). In Picked: a note
     "No regions picked" / "1 region picked" / "N regions picked" and the buttons "Pick regions in view…" (`.pickTrimRegions`) and
     "Clear regions" (`.clearTrimRegions`).
   - `creator.splitSurface`: inputs `surface`, `curves`, `cutter`, `projection`, `direction`; output `pieces` (`.solid`, list).
   - `TrimCutterInput.read(_ inputs: NodeInputs, node: String, kernel:, tag:) async throws -> TrimCutter`: curves through
     `CurveInput.loops(_, holes: .all, …)`; both wired → "<node> takes cutting curves or a cutting body, not both."; neither →
     "Wire curves or a body to cut with."
-  - `TrimRegions.resolve(_ picks: [FacePick], in topology: Topology) -> (faces: [FaceID], warnings: [String])` (R4), pure.
+  - `TrimRegions.resolve(_ picks: [RegionPick], pieces: [[FaceID]], in topology: Topology) -> (pieces: [Int], warnings:
+    [String])` (R4, R17), pure: the indices into `pieces` to keep, sorted and without repeats (two picks of one piece keep it once);
+    the node keeps `subSheet` of the union of their faces. A piece's centroid is its faces' `FaceInfo.centroid` weighted by area.
+  - `TrimRegions.pick(forPiece: Int, pieces: [[FaceID]], in topology: Topology) -> RegionPick?`: the `RegionPick` Task 11 writes for a
+    kept piece: `facePick(for:)` of the piece's face with the smallest tag-set sort key (R6's key), and `sharedBy` the number of
+    pieces that pick names in this split.
 - Wording (R4): "Pick the regions to keep; until then Trim Surface keeps every piece."; "A picked region now names 2 pieces; Trim
   Surface kept the one nearest where it was picked."; "A picked region no longer exists; pick the regions again."; refusal "None of
   the picked regions exist any more; pick the regions to keep again."; narrowed picks use `FacePickWording.merged("Trim Surface
@@ -355,14 +434,24 @@ edges, chains of edges for Match and Blend.
   closed flat curves or a closed solid. Pick the regions to keep instead."
 
 - [ ] **Step 1: Tests.**
-  - `TrimRegionsTests` over hand-built `Topology` values: `aSingleMatchIsKept`; `aPickThatNamesTwoPiecesWarns` (keeps the one nearer
-    the pick's centroid, the warning); `aVanishedPickWarns`; `noPicksMatchingIsARefusal` (the caller's refusal when `faces` is empty
-    and picks were given); `aNarrowedPickIsKeptWithTheMergedWarning`.
+  - `TrimRegionsTests` over hand-built `Topology` values: `aSingleMatchIsKept`; `aPickThatNamesTwoPiecesWarns` (`sharedBy` 1, now
+    names 2: keeps the one nearer the pick's centroid, the warning); `aPickSharedWhenMadeDoesNotWarn` (`sharedBy` 2, names 2: the
+    nearer piece, no warning); `aPickNamingMorePiecesThanWhenMadeWarns` (`sharedBy` 2, names 3); `aPickKeepsItsWholePiece` (a piece
+    of two faces; the pick matches one → the piece index, both faces kept); `twoPicksOfOnePieceKeepItOnce`; `aVanishedPickWarns`;
+    `noPicksMatchingIsARefusal` (the caller's refusal when `pieces` is empty and picks were given);
+    `aNarrowedPickIsKeptWithTheMergedWarning`; `pickForPieceRecordsSharedBy` (1 for the disk, 2 for an `.outside` piece of a band).
   - `TrimSurfaceNodeTests` (OCCT-gated, graph-level through the real Evaluator): `insideKeepsTheDisk` (area 25π);
     `outsideKeepsTheRing`; `aPickedRegionIsKept`; `noPicksKeepsEverythingAndWarns`; `piecesOutputIsTheWholeSplit`;
     `aPickFollowsTheDiskWhenTheRadiusChanges` (Circle radius 5 → 6 upstream, the kept area is 36π); `insideNeedsAClosedCutter`;
     `curvesAndBodyRefuse`; `splitListsPieces` (two sheets in R6 order); `aProfileWithAHoleTrimsAnAnnulus` (a Circle profile with a
-    hole wired into `curves`, Inside → area of the annulus); `piecesAreHiddenInPreview`.
+    hole wired into `curves`, Inside → area of the annulus); `piecesAreHiddenInPreview`;
+    `aBandCutLeavesTwoOutsidePiecesThatPickCleanly` (Task 4's band: a pick written by `TrimRegions.pick(forPiece:)` for the x < 0
+    outside piece keeps it with no warning; after the radius goes 5 → 4 it still keeps the x < 0 piece, no warning);
+    `aPickKeepsTheWholeRegionOfAMultiFaceSheet` (Task 4's two-face ruled loft cut by the plane sheet: a pick on one face of a piece
+    keeps both its faces, area of the piece); `aPickSurvivesGroupingAndTwoInstances` (naming through groups: Planar Surface, Circle
+    and a Trim with a disk pick at the top level are grouped by `GroupCommands` with the radius exposed (`GroupScopes.renamingPicks`
+    renames the pick into the definition), then a second group node uses the same definition; radii 5 and 6 → the instances keep
+    disks of 25π and 36π, no warnings, each read through `EvaluationScope.naming` over the `regionPicks` setting).
   - `OutputNodeTests`: 106 nodes, `.surface` 16.
 - [ ] **Step 2: Run** `swift test --filter 'TrimRegionsTests|TrimSurfaceNodeTests|OutputNodeTests'`; fail.
 - [ ] **Step 3: Implement**, in the `.surface` category, library section "Edit".
@@ -406,9 +495,10 @@ edges, chains of edges for Match and Blend.
 
 **Interfaces:**
 - Consumes: Task 3's requirement; `make_edit_copy` and `replace_face_surface` (`cocct_control_net.hpp`, NS-3);
-  `carryingTopology(of:from:source:operation:)`. `replace_face_surface` keeps pcurves as given, so Extend first moves the extended
-  side's iso pcurve to its new value and widens the two neighbouring sides' pcurve ranges (their corner vertices moved to the new
-  corners); the face's edges stay the same edges, in the same order.
+  `carryingTopology(of:from:source:operation:)`. `replace_face_surface` keeps pcurves as given, so Extend first remaps every pcurve
+  of the face through R8's old-to-new parameter map (both seam pcurves of a periodic face included), then moves the extended side's
+  iso pcurve to its new value and widens the two neighbouring sides' pcurve ranges (their corner vertices moved to the new corners);
+  the face's edges stay the same edges, in the same order.
 - Produces: `OCCTKernel.extended(_:edges:length:mode:)` (R8). Sentences: "Extend Surface takes a sheet with one face; this one has
   3."; "Extend Surface takes a sheet; this is a closed solid."; "Only a sheet's open edges can be extended."; "Only an untrimmed edge
   can be extended; this edge is a trim."; "The length must be greater than 0 mm."; a missed join: "The extension isn't curvature
@@ -424,8 +514,13 @@ edges, chains of edges for Match and Blend.
   along the old edge with Task 4's `split` by a sheet made from the old edge (Curve from Edges, Extrude Curve along the face normal
   both ways) → `continuity(along:of:)` on the cut edge is `.g2`); `linearIsTangentAndStraight` (Linear on a curved sheet → the same
   cut grades at least `.g1`, and the new edge's midpoint lies on the old edge's tangent plane within 1e-6); `topologyIsKept`
-  (`result.topology == input.topology`, so an Edges by Tag pick names the same edge); the refusals (a 2-face ruled loft, a box, a
-  Planar Surface circle's edge, length 0); node: `theNodeExtends`, `OutputNodeTests` 108, `.surface` 18.
+  (`faces.map(\.tags)`, `edges.map(\.tags)` and `edges.map(\.faces)` equal the input's, so an Edges by Tag pick names the same
+  edge; areas and lengths are not compared); `aRevolvedSheetExtends` (a 90° Revolve Curve sheet of a line, rational: Natural grades
+  `.g2` at the old line and `topologyIsKept`'s three tables hold; Linear grades ≥ `.g1` through the non-rational approximation);
+  `aPeriodicSheetsEndExtends` (a 360° Revolve Curve sheet, radius 10, height 20: its top end edge extended 5 mm in both modes → valid
+  (`BRepCheck_Analyzer`), the seam edge still has the face on both sides, the old line grades as promised, every pcurve, both seam
+  pcurves included, lies on the new surface within 1e-7 at 9 samples, and the bottom edge is unchanged within 1e-9); the refusals (a
+  2-face ruled loft, a box, a Planar Surface circle's edge, length 0); node: `theNodeExtends`, `OutputNodeTests` 108, `.surface` 18.
 - [ ] **Step 2: Run** `swift test --filter 'ExtendSurface|OutputNodeTests'`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter and `ControlNetTests`; pass.
@@ -435,47 +530,59 @@ edges, chains of edges for Match and Blend.
 
 **Files:**
 - Create: `Sources/COCCT/cocct_match.cpp`, `Sources/CreatorOCCT/OCCTKernel+Match.swift`
-- Modify: `Sources/COCCT/include/cocct.h`, `Sources/COCCT/cocct_continuity.cpp` (R13), `Sources/COCCT/cocct_internal.hpp`
+- Modify: `Sources/COCCT/include/cocct.h`, `Sources/COCCT/cocct_continuity.cpp` (R13), `Sources/COCCT/cocct_internal.hpp`,
+  `Sources/CreatorKernel/Kernel.swift` (the doc comment of `continuity(of:in:against:of:)` gains R13's middle band)
 - Test: `Tests/CreatorOCCTTests/MatchSurfaceTests.swift`, `Tests/CreatorOCCTTests/TwoBodyContinuityTests.swift`
 
 **Interfaces:**
 - Consumes: Task 3's requirement, `make_edit_copy` and `replace_face_surface` (`cocct_control_net.hpp`), `edge_continuity_against`.
-- Produces: `OCCTKernel.matched(_:edge:to:of:continuity:)` (R9), the result carrying the input's topology. Sentences: "Match Surface
-  changes a sheet with one face; this one has 3."; "Match Surface takes a sheet; this is a closed solid."; "Match Surface changes an
-  open edge of the sheet; this edge has two faces."; "Match Surface works on an untrimmed edge of its surface; this edge is a trim.";
-  "The target edge must be on another body."; "The edges' ends are 0.8 mm apart; Match needs them to meet." (the larger end gap);
-  a miss after refining: "Match couldn't make the edge curvature continuous with the target; it reached G1. Choose G1, or rebuild the
-  surface with more spans." (G1 asked: "… tangent continuous with the target; it reached G0. …"; G0: "Match couldn't make the edge
-  meet the target within 0.0001 mm.").
+- Produces: `OCCTKernel.matched(_:edge:to:of:continuity:)` (R9), the result carrying the input's tags and adjacency
+  (`carryingTopology`). Sentences: "Match Surface changes a sheet with one face; this one has 3."; "Match Surface takes a sheet; this
+  is a closed solid."; "Match Surface changes an open edge of the sheet; this edge has two faces."; "Match Surface works on an
+  untrimmed edge of its surface; this edge is a trim."; "The target edge must be on another body."; "The edges' ends are 0.8 mm apart;
+  Match needs them to meet." (the larger end gap); a miss after refining: "Match couldn't make the edge curvature continuous with the
+  target; it reached G1. Choose G1, or rebuild the surface with more spans." (G1 asked: "… tangent continuous with the target; it
+  reached G0. …"; G0: "Match couldn't make the edge meet the target within 0.0001 mm.").
 - The rows (the shim, our code), with s along the edge and r across it (r = 0 at the edge), after R9's degree raise and knot
-  insertion, at each refinement level:
+  insertion, at each refinement level. Every fit is linear least squares in the rational basis `Rᵢⱼ = wᵢⱼ Nᵢⱼ / W` and its
+  r-derivatives with every weight held fixed (R9; all weights 1 for a non-rational net), solving for one row at a time with the
+  rows before it fixed:
 
 ```text
-row 0: least squares in the s-basis to C(σ(s)) at 4 × (poles) + 1 samples, end poles pinned to C's ends
-row 1 (G1, G2): fit P1 − P0 so the cross derivative is m(s)·d(s): d the target face's continuation direction (unit, in its tangent
-       plane, perpendicular to C', pointing away from the target face), m the sheet's cross speed before the match
-row 2 (G2): fit P2 so S_rr's normal part is κ(s)·|S_r|²·N(s) (κ the target's normal curvature across the edge, N its oriented normal),
-       its tangential part kept from before
+row 0: S(s, 0) = C(σ(s)) at 4 × (poles) + 1 samples, end poles pinned to C's ends
+row 1 (G1, G2): S_r(s, 0) = m(s)·d(s): d the target face's continuation direction (unit, in its tangent plane, perpendicular to C',
+       pointing away from the target face), m the sheet's cross speed |S_r| before the match
+row 2 (G2): S_rr(s, 0) = its tangential part from before + κ(s)·|S_r|²·N(s) (κ the target's normal curvature across the edge, N its
+       oriented normal)
 measure edge_continuity_against(edge, sheet face, target face): pass when positionGap ≤ 1e-4 and grade ≥ requested;
        else insert a knot at the middle of every span along s and repeat (≤ 5 times, ≤ 100,000 poles)
 ```
 
-- R13 in `cocct_continuity.cpp`: fewer than 24 of 32 usable samples throws `user_error("Too few points along the edge lie on the other
-  face to grade it.")`.
+- R13 in `cocct_continuity.cpp`, two-body branch only: `used` 0 to 15 keeps `user_error("The edge doesn't run along that face.")`;
+  16 to 23 throws `user_error("Too few points along the edge lie on the other face to grade it.")`; 24 or more grades. The one-body
+  branch (`edge_continuity`) is unchanged.
 
 - [ ] **Step 1: Tests.** Fixtures: A, a Loft Surface of the lines (0, 0, 0)–(0, 10, 0) and (10, 0, 0)–(10, 10, 0) (its
   `.boundary(.end)` edge on x = 10); B, a Revolve Curve sheet of the line (10, 0, 0)–(10, 10, 0) about the axis through
   (0, 0, 17.3205) along +y, 60°, turned so it leaves the edge along (cos 30°, 0, sin 30°) (G0 to A).
   `g1MakesTheEdgeTangent` and `g2MakesItCurvatureContinuous` (`continuity(of:in:against:of:)` of the result against B's face:
   grade ≥ requested, positionGap ≤ 1e-4); `g0MeetsAWavyTarget` (B replaced by a sheet whose start edge bulges 0.3 mm mid-span →
-  positionGap ≤ 1e-4); `theOppositeEdgeStays` (A's start edge at 9 samples unchanged within 1e-9, G2); `topologyIsKept`;
-  `endsApartRefuse` (B moved by (0, 0.8, 0) → the sentence with "0.8 mm"); `aTwoFaceEdgeRefuses`; `aTrimmedEdgeRefuses`;
-  `aSolidTargetUsesTheContinuedFace` (target: an edge of a box whose top face continues A → graded ≥ G1 against that face);
-  `aReversedEdgeIsPaired` (B's edge running −y → still G1); `aSteepMatchIsNotRefused` (B leaving at 150° → a valid result);
-  `tooFewSamplesThrow` (TwoBody: an edge only a third of which lies on the other face → the R13 sentence).
+  positionGap ≤ 1e-4); `theOppositeEdgeStays` (A's start edge at 9 samples unchanged within 1e-9, G2); `topologyIsKept` (the
+  three tables of the Global Constraints equal A's); `endsApartRefuse` (B moved by (0, 0.8, 0) → the sentence with "0.8 mm");
+  `aTwoFaceEdgeRefuses`; `aTrimmedEdgeRefuses`; `aSolidTargetUsesTheContinuedFace` (A tilted: its start line lowered to
+  (0, 0, −2)–(0, 10, −2), so it meets the box only at G0 (asserted before the match); target: the edge x = 10, z = 0 of a box over
+  x 10…20, y 0…10, z −10…0, whose faces there are the top (z = 0, leaving across the edge along −x) and the side x = 10 (leaving
+  along +z); A's inward direction ≈ (−0.98, 0, −0.2) agrees best with −x, so R9 picks the top → the result graded ≥ G1 against the
+  top face); `aReversedEdgeIsPaired` (B's edge running −y → still G1); `aSteepMatchIsNotRefused` (B leaving at 150° → a valid
+  result); `aRationalSheetIsMatched` (the roles swapped: B, a rational Revolve Curve sheet, matched at G1 and at G2 to A's edge, so
+  the fixed-weight fit is exercised → graded ≥ requested, positionGap ≤ 1e-4, B's far edge unchanged within 1e-9, B's weights
+  unchanged); `tooFewSamplesThrow` (TwoBody: an edge of which 60 % lies on the other face, about 19 usable samples → "Too few points
+  along the edge lie on the other face to grade it."; one a third of which does → still "The edge doesn't run along that face.").
 - [ ] **Step 2: Run** `swift test --filter 'MatchSurfaceTests|TwoBodyContinuityTests'`; fail.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** the filter and `BoundaryPatchTests`, `EdgeContinuityOCCTTests`; pass.
+- [ ] **Step 4: Run** the filter, then `swift test --filter 'BoundaryPatch|EdgeContinuityOCCTTests'` (the regex covers
+  `BoundaryPatchTests`, `BoundaryPatchG2Tests`, `BoundaryPatchR2Tests` and `BoundaryPatchNodeTests`: Boundary Patch grades with this
+  call); pass.
 - [ ] **Step 5: Commit** "NURBS: match an edge at G0, G1 or G2".
 
 ### Task 9: Blending two edges (kernel)
@@ -489,7 +596,8 @@ measure edge_continuity_against(edge, sheet face, target face): pass when positi
 
 **Interfaces:**
 - Consumes: Task 3's requirement, `cocct::g2::quintic_poles` and `circular_tangent_length`, `edge_continuity_against`.
-- Produces: `OCCTKernel.blendSurface(_:_:tag:)` (R10, R12). Sentences: "Blend Surface joins at G1 or G2."; "The bulge must be from
+- Produces: `OCCTKernel.blendSurface(_:_:tag:)` (R10, R12). Sections pair points at equal arc-length fractions from the paired
+  starts (R10). Sentences: "Blend Surface joins at G1 or G2."; "Blend Surface needs two different edges."; "The bulge must be from
   0.1 to 2."; "The edges touch; a blend needs a gap between them." (any section chord under 0.01 mm); misses after 129 sections: "The
   blend can't be made curvature continuous along these edges." (G2 on a side) / "The blend can't be made tangent continuous along
   these edges.".
@@ -498,8 +606,12 @@ measure edge_continuity_against(edge, sheet face, target face): pass when positi
   20…30 (its edge on x = 20). `g1BlendIsTangentAtBothEnds` and `g2BlendIsCurvatureContinuous` (each side graded against its face:
   ≥ requested, positionGap ≤ 1e-4); `bulgeChangesTheShape` (0.5 against 1.5: the blend's midpoint moves more than 0.1 mm);
   `edgesAreNamed` (the face and four edges by R10); `aReversedEdgeIsPaired` (B's edge reversed → the same surface within 1e-6 at 9
-  points); `edgesThatTouchRefuse`; `aSolidEdgeUsesTheFaceThatFacesTheOtherEdge` (a box's top edge against A → G1 graded against the
-  box's top face); `cancellationStops`. Regression: the G2 fillet suites pass unchanged.
+  points); `edgesThatTouchRefuse`; `aSolidEdgeUsesTheFaceThatFacesTheOtherEdge` (B replaced by a box over x 20…30, y 0…10, z 0…10;
+  its edge x = 20, z = 10 against A's: the top face leaves across it along −x, the side x = 20 along +z, and the direction to A's
+  edge midpoint (10, 5, 0) is (−0.71, 0, −0.71), so R10 picks the top → G1 graded against the box's top face);
+  `twoEdgesOfOneBodyBlend` (A and B joined by `Kernel.compound` into one sheet: its two edges blend to the same surface as A's and
+  B's within 1e-6 at 9 points); `theSameEdgeTwiceRefuses`; `sectionsPairByArcLength` (B's edge 20 mm long against A's 10: the
+  blend's middle section joins the two edges' midpoints within 1e-6); `cancellationStops`. Regression: the G2 fillet suites pass unchanged.
 - [ ] **Step 2: Run** `swift test --filter BlendSurfaceTests`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter and `swift test --filter 'G2Fillet|LoftEnd'`; pass.
@@ -519,8 +631,8 @@ measure edge_continuity_against(edge, sheet face, target face): pass when positi
   - `creator.matchSurface`: inputs `edges` (`.edgeSet`), `target` (`.edgeSet`), `continuity` (segmented "G0" / "G1" / "G2", default
     1); output `surface`; inspector: the segmented control, `.ruleSummary("edges")`, "Pick edge in view…" (`.pickEdgesInView`),
     `.ruleSummary("target")`, "Pick target edge in view…" (`.pickTargetEdgesInView`). Each set must hold one edge: "Match Surface takes
-    one edge to change; “edges” gives 3." / "… one target edge; “target” gives 2." A fold warns `EditSurfaceNode.foldWarning` (not
-    while scrubbing).
+    one edge to change; “edges” gives 3." / "… one target edge; “target” gives 2." A fold warns `EditSurfaceNode.foldWarning` (R11:
+    always at G0 and G1; at G2 not for the G1 stand-in built while scrubbing).
   - `creator.blendSurface`: inputs `edges`, `other edges` (`.edgeSet`), `continuity` and `other continuity` (segmented "G1" / "G2",
     default 0, mapped to `.g1` / `.g2`), `bulge` and `other bulge` (number 0.1 to 2, default 1); output `surface`; inspector with both
     rule summaries and "Pick edge in view…" / "Pick other edge in view…" (`.pickOtherEdgesInView`). "Blend Surface takes one edge on
@@ -530,8 +642,10 @@ measure edge_continuity_against(edge, sheet face, target face): pass when positi
   - Library section "Edit".
 
 - [ ] **Step 1: Tests** (OCCT-gated, graph-level, Task 8 and 9 fixtures): `matchNodeMatches`; `matchCountsEdges`;
-  `matchBuildsG1WhileScrubbing` (an `EvalContext` with `isScrubbing` → graded G1 not G2, no warnings; `readsScrubbing(for:)` false at
-  G1, true at G2); `blendNodeBlends`; `blendTakesOneEdgeEachSide`; `blendBuildsG1WhileScrubbing`; `OutputNodeTests` 110, `.surface` 20.
+  `matchBuildsG1WhileScrubbing` (G2 chosen, an `EvalContext` with `isScrubbing` → graded G1 not G2, no warnings;
+  `readsScrubbing(for:)` false at G0 and G1, true at G2); `aG1FoldWarnsAfterADrag` (a G1 Match whose target, moved by an upstream
+  number, folds the sheet: evaluated with `isScrubbing` true it already warns `foldWarning`, and the evaluation after the flag clears
+  reuses that cached result, warning included; the G2 version warns only after the flag clears); `blendNodeBlends`; `blendTakesOneEdgeEachSide`; `blendBuildsG1WhileScrubbing`; `OutputNodeTests` 110, `.surface` 20.
 - [ ] **Step 2: Run** `swift test --filter 'MatchBlendNodeTests|OutputNodeTests'`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter and `swift test --filter CreatorNodesTests`; pass.
@@ -541,23 +655,27 @@ measure edge_continuity_against(edge, sheet face, target face): pass when positi
 
 **Files:**
 - Create: `Sources/CreatorApp/AppModel+TrimRegions.swift`
-- Modify: `Sources/CreatorApp/PickSession.swift` (`trimRegions: NodeID?`, `pickedFaces: [FaceID]`, `Prompt.trimRegions`),
+- Modify: `Sources/CreatorApp/PickSession.swift` (`trimRegions: NodeID?`, `pickedPieces: [Int]`, `Prompt.trimRegions`),
   `AppModel+Picking.swift` (`beginPick(for:socket:)`, routing the four new actions, region clicks, Done), `AppModel+Scene.swift`
   (a region pick's item shows `selectedFaces`), `SceneBuilder.swift` (skips `previewHiddenOutputs`), `Sources/CreatorGraph/UndoName.swift`
   (`pickTrimRegions = "Pick Trim Regions"`, `clearTrimRegions = "Clear Trim Regions"`), `Sources/CreatorEditor/EditorModel+Inspector.swift`
 - Test: `Tests/CreatorAppTests/TrimRegionPickTests.swift`, `Tests/CreatorAppTests/SecondEdgePickTests.swift`
 
 **Interfaces:**
-- Consumes: Tasks 5 and 10; `TrimRegions.resolve`, `Topology.facePick(for:)`.
+- Consumes: Tasks 5 and 10; `TrimRegions.resolve`, `TrimRegions.pick(forPiece:pieces:in:)`, the Trim node's split pieces (the
+  `pieces` output's faces grouped into connected pieces, as `SheetSplit.pieces`).
 - Produces: `AppModel.beginTrimRegionPick(for: NodeID)`, `AppModel.clearTrimRegions(of: NodeID)`, `AppModel.beginPick(for:socket:)`.
-- Behaviour: the region pick shows the Trim node's `pieces` sheet alone, starting from the faces its current picks resolve to; a click
-  on a face toggles it; Done writes `.facePicks` (each face's `facePick(for:)`, in face order) to `keepRegions` as one step "Pick Trim
-  Regions" and selects the node; Cancel changes nothing; the banner reads "Click the regions to keep · N picked". Refusals: inside a
+- Behaviour: the region pick shows the Trim node's `pieces` sheet alone, starting from the pieces its current picks resolve to (all
+  of a piece's faces shown selected); a click on any face toggles the whole piece holding it (R4); Done writes `.regionPicks` (one
+  `TrimRegions.pick(forPiece:)` per kept piece, in piece order) to `keepRegions` as one step "Pick Trim Regions" and selects the
+  node; Cancel changes nothing; the banner reads "Click the regions to keep · N picked". Refusals: inside a
   group "A region can't be picked inside a group yet. Pick it from the top level."; no pieces "“<node>” has no pieces to pick yet: wire a
   sheet and a cutter first."; refused while control points are being edited (as every pick is). Clear is one step "Clear Trim Regions".
   The two edge actions pick for sockets "target" and "other edges" as Fillet's button does for "edges".
 
-- [ ] **Step 1: Tests:** `pickRegionsShowsTheWholeSplit`; `clickingTogglesARegion`; `doneWritesFacePicksAsOneStep` ("Undo Pick Trim
+- [ ] **Step 1: Tests:** `pickRegionsShowsTheWholeSplit`; `clickingTogglesARegion`; `clickingTogglesAWholePiece` (Task 4's two-face
+  ruled loft cut by the plane sheet: a click on one face selects both faces of its piece, a second click on the other face clears
+  both; Done writes one pick); `doneWritesFacePicksAsOneStep` ("Undo Pick Trim
   Regions"; the setting holds the picks; the kept area follows); `cancelLeavesTheGraph`; `clearRegionsIsOneStep`;
   `insideAGroupIsRefused`; `noPiecesRefuses`; `refusedWhileEditingControlPoints`; `pickTargetEdgeWiresARuleIntoTarget` (Match: Done adds
   an Edges by Tag rule wired from B into `target`); `pickOtherEdgeWiresARuleIntoOtherEdges` (Blend); `piecesAreNotDrawnInPreview` (a
@@ -570,9 +688,12 @@ measure edge_continuity_against(edge, sheet face, target face): pass when positi
 ### Task 12: Docs and the suites
 
 **Files:**
-- Modify: `CLAUDE.md` (an NS-4 paragraph after NS-3's: the six nodes, the kernel calls and shim files, R1 to R16, format 16, 110
-  nodes and `.surface` 20, the R2 cost, the parked items; the NS-3 paragraph's tolerance sentences updated to 1e-6 and the
-  partial periodic Rebuild), `docs/verification/human-checks.md` (group NS-4: trim a disk out of a sheet and change the circle's
+- Modify: `CLAUDE.md` (an NS-4 paragraph after NS-3's: the six nodes, the kernel calls and shim files, R1 to R17, format 16, 110
+  nodes and `.surface` 20, the R2 and R17 costs, the parked items; the NS-3 paragraph's tolerance sentences updated to 1e-6 and the
+  partial periodic Rebuild; the rules sentence "File format is version 15 (…)" becomes "version 16" with a clause "16 added
+  `ConstantValue.regionPicks` (Trim Surface's `keepRegions`), `TopoRole.cutSide` and `BoundaryRole.cut` in saved picks" before the
+  closing "files of format 1 to 15 open unchanged and are written as 16"; the `CreatorNodes` module line "the 104 built-in node
+  definitions" becomes 110), `docs/verification/human-checks.md` (group NS-4: trim a disk out of a sheet and change the circle's
   radius; pick regions and undo; Inside on a holed profile; split a revolved sheet and zebra-check the pieces; extend Natural and
   Linear and compare stripes; match G1 and G2 and read Measure's continuity row; blend two sheets at G2 with two bulges; drag a slider
   upstream of a G2 blend and see it build at G1 while dragging; an apex typed as one point), the spec's status line ("NS-4 done
