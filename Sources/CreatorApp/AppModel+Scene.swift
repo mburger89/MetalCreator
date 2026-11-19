@@ -63,7 +63,8 @@ extension AppModel {
         var scene: [SceneItem]
         if viewport.isPicking != (pick != nil) { viewport.isPicking = pick != nil }
         if let pick {
-            scene = [SceneItem(item: ViewportItem(solid: pick.solid, selectedEdges: Set(pick.picked)), source: pick.source)]
+            let shown = ViewportItem(solid: pick.solid, selectedFaces: pick.selectedFaces, selectedEdges: Set(pick.picked))
+            scene = [SceneItem(item: shown, source: pick.source)]
         } else {
             scene = shownScene()
         }
@@ -128,7 +129,7 @@ extension AppModel {
         if previewMode == .final {
             let meshes = followMeshes(shown: outputNodes, results: document.results)
             let options = SceneBuilder.Options(selection: editor.isInsideGroup ? [] : editor.selection, showsGuides: sketch == nil,
-                                               meshes: meshes)
+                                               meshes: meshes, registry: registry)
             return SceneBuilder.scene(shown: outputNodes, graph: document.graph, results: document.results,
                                       lastGood: document.lastGoodOutputs, options: options)
         }
@@ -136,7 +137,7 @@ extension AppModel {
             ? (editor.selection.count == 1 ? Array(editor.selection) : [])
             : (document.previewNode.map { [$0] } ?? [])
         let meshes = followMeshes(shown: shown, results: editor.levelResults)
-        let options = SceneBuilder.Options(selection: editor.selection, showsGuides: false, meshes: meshes)
+        let options = SceneBuilder.Options(selection: editor.selection, showsGuides: false, meshes: meshes, registry: registry)
         return SceneBuilder.scene(shown: shown, graph: editor.graph, results: editor.levelResults,
                                   lastGood: editor.isInsideGroup ? [:] : document.lastGoodOutputs, options: options)
     }

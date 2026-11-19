@@ -19,7 +19,7 @@ struct PickBanner: Component {
                     .foregroundStyle(Palette(themes).selection.color)
                 Button("Cancel") { model.cancelPick() }
                     .keyboardShortcut(.escape, modifiers: [])
-                if prompt == .edges {
+                if prompt == .edges || prompt == .trimRegions {
                     Button("Done") { model.finishPick() }
                         .keyboardShortcut(.return, modifiers: [])
                 }

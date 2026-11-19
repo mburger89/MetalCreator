@@ -107,6 +107,8 @@ public enum UndoName {
     public static let mapLatticeToFace = "Map Lattice to Face"
     public static let pickLoftFace = "Pick Loft Face"
     public static let clearLoftFace = "Clear Loft Face"
+    public static let pickTrimRegions = "Pick Trim Regions"
+    public static let clearTrimRegions = "Clear Trim Regions"
     public static let editSketch = "Edit Sketch"
     /// A sketch editor commit: its fixed step name (`SketchCommit.name`, "Add Line"), or "Edit Sketch" when it has none.
     public static func sketch(_ name: String) -> String { cleaned(name) ?? editSketch }

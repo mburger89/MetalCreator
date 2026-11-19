@@ -2,7 +2,7 @@ import CreatorGeometry
 import CreatorKernel
 
 /// Trim Surface's keep picks against the pieces of a split (NS-4, R4 and R17): pure, so a test needs no kernel.
-enum TrimRegions {
+public enum TrimRegions {
     static let vanishedPick = "A picked region no longer exists; pick the regions again."
     static let nothingLeft = "None of the picked regions exist any more; pick the regions to keep again."
 
@@ -13,7 +13,7 @@ enum TrimRegions {
     /// The indices into `pieces` the picks keep, sorted and without repeats, and the warnings the picks earn. A pick keeps the one
     /// piece holding its faces, or, when it names several, the piece whose area-weighted centroid is nearest the pick's recorded
     /// centroid (warned only when it names more pieces than `sharedBy`, R17). When nothing is kept the caller refuses.
-    static func resolve(_ picks: [RegionPick], pieces: [[FaceID]], in topology: Topology) -> (pieces: [Int], warnings: [String]) {
+    public static func resolve(_ picks: [RegionPick], pieces: [[FaceID]], in topology: Topology) -> (pieces: [Int], warnings: [String]) {
         var pieceOf: [FaceID: Int] = [:]
         for (index, faces) in pieces.enumerated() { for face in faces { pieceOf[face] = index } }
         var kept: Set<Int> = []
@@ -46,7 +46,7 @@ enum TrimRegions {
 
     /// The `RegionPick` that names piece `index`: a pick of its face with the smallest tag-set key, and how many pieces that pick names
     /// in this split. `nil` for a piece that isn't there or has no faces in the table.
-    static func pick(forPiece index: Int, pieces: [[FaceID]], in topology: Topology) -> RegionPick? {
+    public static func pick(forPiece index: Int, pieces: [[FaceID]], in topology: Topology) -> RegionPick? {
         guard pieces.indices.contains(index) else { return nil }
         let faces = pieces[index].compactMap { topology.face($0) }
         func key(_ face: FaceInfo) -> String { face.tags.map(\.sortKey).sorted().joined(separator: "+") }
@@ -59,6 +59,52 @@ enum TrimRegions {
         for (number, members) in pieces.enumerated() { for face in members { pieceOf[face] = number } }
         let shared = Set(topology.faces(matching: pick).compactMap { pieceOf[$0.id] }).count
         return RegionPick(pick: pick, sharedBy: max(1, shared))
+    }
+
+    /// The pieces of a split sheet (`SheetSplit.whole`) as lists of its faces, in the kernel's order (R6: by the smallest face tag-set
+    /// key, then the area-weighted centroid): faces joined across every edge that is not one a cutter made (`.boundary(.cut)`). It is
+    /// what a region pick shows and toggles; the kernel's own `SheetSplit.pieces` is the same partition.
+    public static func pieces(of whole: Solid) -> [[FaceID]] {
+        let topology = whole.topology
+        var parent = Array(topology.faces.indices)
+        func root(_ start: Int) -> Int {
+            var x = start
+            while parent[x] != x {
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            }
+            return x
+        }
+        for edge in topology.edges where !edge.tags.contains(where: { if case .boundary(.cut) = $0.role { true } else { false } }) {
+            let adjacent = Set(edge.faces.map(\.rawValue)).filter { parent.indices.contains($0) }.sorted()
+            guard adjacent.count == 2 else { continue }
+            let (a, b) = (root(adjacent[0]), root(adjacent[1]))
+            parent[max(a, b)] = min(a, b)
+        }
+        var groups: [Int: [Int]] = [:]
+        for index in topology.faces.indices { groups[root(index), default: []].append(index) }
+        func key(_ index: Int) -> String { topology.faces[index].tags.map(\.sortKey).sorted().joined(separator: "+") }
+        struct Entry {
+            var faces: [Int]
+            var key: String
+            var centroid: Vector3
+        }
+        let entries = groups.values.map { faces -> Entry in
+            let area = faces.reduce(0) { $0 + topology.faces[$1].area }
+            var centroid = Vector3.zero
+            for index in faces {
+                let face = topology.faces[index]
+                centroid += face.centroid * (area > 0 ? face.area / area : 1 / Double(faces.count))
+            }
+            return Entry(faces: faces.sorted(), key: faces.map(key).min() ?? "", centroid: centroid)
+        }
+        let ordered = entries.sorted { a, b in
+            if a.key != b.key { return a.key < b.key }
+            if abs(a.centroid.x - b.centroid.x) > 1e-9 { return a.centroid.x < b.centroid.x }
+            if abs(a.centroid.y - b.centroid.y) > 1e-9 { return a.centroid.y < b.centroid.y }
+            return a.centroid.z < b.centroid.z
+        }
+        return ordered.map { $0.faces.map { FaceID($0) } }
     }
 
     /// The piece among `candidates` whose area-weighted centroid is nearest `point` (the first when the pick recorded none).

@@ -23,6 +23,12 @@ public struct PickSession {
     public var lattice: NodeID?
     /// The Loft node and end a face is being picked for, or `nil`.
     public var loftEnd: LoftEndTarget?
+    /// The Trim Surface node whose regions are being picked (`solid` is its `pieces` sheet), or `nil`.
+    public var trimRegions: NodeID?
+    /// The pieces of `solid` a region pick keeps, as indices into `pieces`, sorted.
+    public var pickedPieces: [Int]
+    /// The sheet's pieces as lists of faces (`TrimRegions.pieces(of:)`), for a region pick.
+    public var pieces: [[FaceID]]
 
     /// The Loft end a face pick sets: the loft's `startFace` or `endFace`.
     public struct LoftEndTarget: Equatable {
@@ -41,6 +47,7 @@ public struct PickSession {
         case latticeFace
         case loftStartFace
         case loftEndFace
+        case trimRegions
 
         /// The banner's sentence; `picked` is the number of edges chosen so far.
         public func text(picked: Int) -> String {
@@ -49,21 +56,24 @@ public struct PickSession {
             case .latticeFace: "Click a face of the part to map the lattice to it"
             case .loftStartFace: "Click a flat face of the part for the loft's start"
             case .loftEndFace: "Click a flat face of the part for the loft's end"
+            case .trimRegions: "Click the regions to keep · \(picked) picked"
             }
         }
     }
 
     /// What this pick asks the person to click.
     public var prompt: Prompt {
+        if trimRegions != nil { return .trimRegions }
         if let loftEnd { return loftEnd.isStart ? .loftStartFace : .loftEndFace }
         return lattice != nil ? .latticeFace : .edges
     }
 
-    /// Whether this picks one face for a node (a lattice's or a loft's end) rather than edges.
-    public var picksFace: Bool { lattice != nil || loftEnd != nil }
+    /// Whether this picks one face for a node (a lattice's, a loft's end or a trim's regions) rather than edges.
+    public var picksFace: Bool { lattice != nil || loftEnd != nil || trimRegions != nil }
 
     public init(solid: Solid, source: Endpoint, rule: NodeID?, consumer: Endpoint?, picked: [EdgeID], level: [NodeID] = [],
-                lattice: NodeID? = nil, loftEnd: LoftEndTarget? = nil) {
+                lattice: NodeID? = nil, loftEnd: LoftEndTarget? = nil, trimRegions: NodeID? = nil,
+                pickedPieces: [Int] = [], pieces: [[FaceID]] = []) {
         self.solid = solid
         self.source = source
         self.rule = rule
@@ -72,6 +82,24 @@ public struct PickSession {
         self.level = level
         self.lattice = lattice
         self.loftEnd = loftEnd
+        self.trimRegions = trimRegions
+        self.pickedPieces = pickedPieces
+        self.pieces = pieces
+    }
+
+    /// The faces of the kept pieces, which a region pick draws selected.
+    public var selectedFaces: Set<FaceID> {
+        Set(pickedPieces.filter { pieces.indices.contains($0) }.flatMap { pieces[$0] })
+    }
+
+    /// Adds the piece holding `face` to the kept ones, or removes it when it is kept (R4: a click toggles the whole piece).
+    public mutating func togglePiece(holding face: FaceID) {
+        guard let index = pieces.firstIndex(where: { $0.contains(face) }) else { return }
+        if let at = pickedPieces.firstIndex(of: index) {
+            pickedPieces.remove(at: at)
+        } else {
+            pickedPieces = (pickedPieces + [index]).sorted()
+        }
     }
 
     /// Adds `edge`, or removes it if it's already picked.

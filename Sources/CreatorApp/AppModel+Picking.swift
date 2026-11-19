@@ -9,10 +9,8 @@ extension AppModel {
     /// An inspector button (spec §6.4), from `EditorModel.inspectorRequest`.
     public func handle(_ request: InspectorRequest) {
         switch request.action {
-        case .pickEdgesInView:
-            beginPick(for: request.node)
-        case .pickFacesInView:
-            beginFacePick(for: request.node)
+        case .pickEdgesInView, .pickFacesInView:
+            handleSurfaceEditPick(request)
         case .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace:
             handleLoftEnd(request)
         case .editSketch:
@@ -33,8 +31,23 @@ extension AppModel {
             handleFileButton(request)
         case .editControlPoints:
             editControlPoints(of: request.node)
-        case .editGroup, .makeUnique, .ungroup, .pickTrimRegions, .clearTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView:
-            break  // The graph panel carries the group buttons out itself (`EditorModel.press`); Trim Surface's are Task 11's.
+        case .pickTrimRegions, .clearTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView:
+            handleSurfaceEditPick(request)
+        case .editGroup, .makeUnique, .ungroup:
+            break  // The graph panel carries the group buttons out itself (`EditorModel.press`).
+        }
+    }
+
+    /// The pick buttons: edges and faces, Trim Surface's regions, Match Surface's target and Blend Surface's other edge.
+    private func handleSurfaceEditPick(_ request: InspectorRequest) {
+        switch request.action {
+        case .pickEdgesInView: beginPick(for: request.node)
+        case .pickFacesInView: beginFacePick(for: request.node)
+        case .pickTrimRegions: beginTrimRegionPick(for: request.node)
+        case .clearTrimRegions: clearTrimRegions(of: request.node)
+        case .pickTargetEdgesInView: beginPick(for: request.node, socket: "target")
+        case .pickOtherEdgesInView: beginPick(for: request.node, socket: "other edges")
+        default: break
         }
     }
 
@@ -56,6 +69,12 @@ extension AppModel {
     /// - a feature whose edges come from another rule picks on that rule's solid, starting from its edges, and Done
     ///   wires a new Edges by Tag rule in its place.
     public func beginPick(for id: NodeID) {
+        beginPick(for: id, socket: "edges")
+    }
+
+    /// The same for the edge socket named `socket` of a feature: Fillet's and Chamfer's `edges`, Match Surface's `edges` and `target`,
+    /// Blend Surface's `edges` and `other edges`. An Edges by Tag rule picks on its own solid whatever the socket.
+    public func beginPick(for id: NodeID, socket: SocketName) {
         guard controlNet == nil else { return }
         editor.commitPendingEntry()
         // The banner's Escape and Return are button shortcuts, which run before the palette's keys in `onInput`.
@@ -71,7 +90,7 @@ extension AppModel {
             pick = PickSession(solid: solid, source: source, rule: id, consumer: nil, picked: current, level: editor.levelPath)
             return
         }
-        let consumer = Endpoint(node: id, socket: "edges")
+        let consumer = Endpoint(node: id, socket: socket)
         guard let link = graph.incomingLink(to: consumer), let upstream = graph.nodes[link.from.node] else {
             return refusePick("Wire an edge rule into “\(node.name)” first, so there are edges to pick on.")
         }
@@ -90,6 +109,10 @@ extension AppModel {
         pick = nil
         // The level changed and `refreshScene` hasn't cancelled the pick yet: its nodes belong to another graph.
         guard session.level == editor.levelPath else { return }
+        if let trim = session.trimRegions {
+            finishTrimRegionPick(trim, session)
+            return
+        }
         // A face pick (for a lattice's region) never writes an Edges by Tag rule.
         guard !session.picksFace else { return }
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
@@ -134,6 +157,10 @@ extension AppModel {
         }
         if let end = session.loftEnd {
             finishLoftFacePick(end, session, target)
+            return
+        }
+        if session.trimRegions != nil {
+            toggleTrimRegion(session, target)
             return
         }
         guard case .edge(let index, let edge)? = target, viewport.items.indices.contains(index),
