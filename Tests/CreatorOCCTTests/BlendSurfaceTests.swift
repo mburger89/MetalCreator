@@ -11,10 +11,10 @@ struct BlendSurfaceTests {
     let kernel = OCCTKernel()
 
     /// A flat ruled Loft Surface over x `from`...`to`, y 0...10, at height `z`. Its start edge is on x = from, its end edge on x = to.
-    func flat(from: Double, to: Double, z: Double, length: Double = 10, reversedEnd: Bool = false) async throws -> Solid {
+    func flat(from: Double, to: Double, z: Double, length: Double = 10) async throws -> Solid {
         let first = try await kernel.makeCurve([.line(Vector3(from, 0, z), Vector3(from, length, z))], tag: tag)
         let second = try await kernel.makeCurve(
-            [reversedEnd ? .line(Vector3(to, length, z), Vector3(to, 0, z)) : .line(Vector3(to, 0, z), Vector3(to, length, z))], tag: tag)
+            [.line(Vector3(to, 0, z), Vector3(to, length, z))], tag: tag)
         return try await kernel.loftSurface([first, second], ruled: true, closed: false, tag: tag)
     }
 
@@ -113,12 +113,10 @@ struct BlendSurfaceTests {
     @Test func aReversedEdgeIsPaired() async throws {
         let a = try await a()
         let straight = try await b()
-        let reversed = try await flat(from: 20, to: 30, z: 10, reversedEnd: false)
         // The same loft with its start line drawn the other way.
         let first = try await kernel.makeCurve([.line(Vector3(20, 10, 10), Vector3(20, 0, 10))], tag: tag)
         let second = try await kernel.makeCurve([.line(Vector3(30, 10, 10), Vector3(30, 0, 10))], tag: tag)
         let turned = try await kernel.loftSurface([first, second], ruled: true, closed: false, tag: tag)
-        _ = reversed
         let one = try await blend(a, try edge(a, .end).id, straight, try edge(straight, .start).id)
         let two = try await blend(a, try edge(a, .end).id, turned, try edge(turned, .start).id)
         for point in try await points(of: one) {
@@ -191,6 +189,29 @@ struct BlendSurfaceTests {
         // The middle section joins the midpoints of the 10 mm and the 20 mm edges: (10, 5, 0) and (20, 10, 10), whose middle is
         // (15, 7.5, 5) at the blend's centre by symmetry, so the point is on the surface.
         #expect(try await distance(Vector3(15, 7.5, 5), to: result) < 1e-6)
+    }
+
+    @Test func aClosedEdgeIsRefused() async throws {
+        let a = try await a()
+        let line = try await kernel.makeCurve([.line(Vector3(5, 0, 0), Vector3(5, 4, 0))], tag: tag)
+        let tube = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: Vector3(0, 1, 0)),
+                                            angle: Angle(radians: 2 * .pi), tag: tag)
+        let rim = try edge(tube, .rail(0))
+        let text = await refusal { _ = try await blend(a, try edge(a, .end).id, tube, rim.id) }
+        #expect(text == "Blend Surface can't blend a closed edge yet.")
+    }
+
+    @Test func aCancelledFlagStopsTheShimBeforeItBuilds() async throws {
+        let a = try await a(), b = try await b()
+        let flag = OCCTCancelFlag()
+        flag.cancel()
+        let one = BlendEndShape(shape: try #require((a.storage as? OCCTSolidStorage)?.shape), edge: try edge(a, .end).id.rawValue,
+                                continuity: 2, bulge: 1)
+        let two = BlendEndShape(shape: try #require((b.storage as? OCCTSolidStorage)?.shape), edge: try edge(b, .start).id.rawValue,
+                                continuity: 2, bulge: 1)
+        #expect {
+            try OCCTKernel.serialized { try OCCTShape.blendSurface(one, two, cancel: flag) }
+        } throws: { ($0 as? OCCTError)?.message == OCCTCancelFlag.message }
     }
 
     @Test func cancellationStops() async throws {

@@ -191,13 +191,16 @@ two-body continuity call and the control-point code this plan builds on.
 - **R9 erratum (Task 8).** Match Surface raises the along degree to at least 3, which is exact for the edge it follows, and refuses a
   periodic (closed) edge: "Match Surface can't match an edge of a surface that closes on itself yet."
 
+- **R10 erratum (Task 9).** Blend Surface refuses a closed edge: "Blend Surface can't blend a closed edge yet." A closed edge (a tube's
+  circular rim) needs a periodic skin and a chosen start for the pairing, which the open sections don't have. Parked below.
+
 **Backlog (`nurbs-backlog-after-ns2` memory).** Pulled in: the NS-3 follow-up (R16, Tasks 1 and 2), the partial periodic Rebuild
 (Task 1), the two-body half-sample grade (R13, Task 8), `into_face_range`'s periodic remap test (Task 4). Parked: the guide
 sweep's fixed 1e-3 mm tolerance and multi-face guide edges; Network Surface's tolerance against arc approximations; the G2
 Boundary Patch limits; twist parallel transport; the `unsupported` sentence's grammar (NS-4's names are gerunds); the fold
 check's false positives; `extraDemand` reference counting; cancelling superseded net reads; the theme editor's Esc; the closed
 degree-3 Curve through Points' C1 seam. New parked items from this plan: Extend on multi-face or trimmed sheets, Match on trimmed
-edges, Match on closed (periodic) edges, chains of edges for Match and Blend, unique names for pieces that share a tag set (R17).
+edges, Match on closed (periodic) edges, Blend on closed edges, chains of edges for Match and Blend, unique names for pieces that share a tag set (R17).
 
 ## Review Focus
 
