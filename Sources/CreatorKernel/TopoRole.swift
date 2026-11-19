@@ -5,7 +5,7 @@ public indirect enum TopoRole: Hashable, Sendable {
     /// The side face swept from segment `segment` of profile loop `loop`: 0 is the outer loop,
     /// n is hole n (`Profile2D.loops`). `loop` defaults to 0, so `.side(segment: k)` is an outer wall.
     case side(loop: Int = 0, segment: Int)
-    /// The blend face a fillet or chamfer made from the edge `sourceEdge`.
+    /// A face generated from the edge `sourceEdge`: a fillet's or chamfer's blend, a Thicken wall or a cap (NS-5).
     case blend(sourceEdge: EdgeKey)
     /// A face the operation's history does not explain. Unstable across rebuilds by design;
     /// it exists so that no face ever has an empty tag set (M2 plan decision).

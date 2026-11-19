@@ -311,6 +311,14 @@ void occt_history_free(occt_history *history) {
     }
 }
 
+void occt_edge_history_free(occt_edge_history *history) {
+    if (history) {
+        std::free(history->records);
+        history->records = nullptr;
+        history->count = 0;
+    }
+}
+
 int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_status *status) {
     return guarded(status, [&]() -> int {
         *out = occt_properties{};

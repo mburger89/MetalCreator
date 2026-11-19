@@ -6,6 +6,7 @@
 // borders and whether it is inside a closed cutter.
 
 #include "cocct_sheet.hpp"
+#include "cocct_splitter.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -50,6 +51,7 @@ using namespace cocct;
 namespace {
 
 constexpr const char *kClosedSolid = "Trim and Split take a sheet; this is a closed solid.";
+constexpr const char *kCutterFailure = "The cutter couldn't divide this surface.";
 constexpr const char *kNoCut = "The cutter doesn't cut the surface.";
 constexpr double kNameTolerance = 1e-3;
 
@@ -193,30 +195,6 @@ bool loop_contains(const Loop &loop, const gp_Pnt &point, const gp_Vec *directio
         }
     }
     return inside;
-}
-
-struct SplitRun {
-    std::unique_ptr<BRepAlgoAPI_Splitter> splitter;
-    TopoDS_Shape whole;
-};
-
-SplitRun run_splitter(const TopoDS_Shape &sheet, const TopTools_ListOfShape &tools, const occt_cancel *cancel) {
-    poll(cancel);
-    SplitRun run;
-    run.splitter = std::make_unique<BRepAlgoAPI_Splitter>();
-    TopTools_ListOfShape arguments;
-    arguments.Append(sheet);
-    run.splitter->SetArguments(arguments);
-    run.splitter->SetTools(tools);
-    run.splitter->SetRunParallel(Standard_False);
-    run.splitter->SetNonDestructive(Standard_True);
-    run.splitter->Build();
-    poll(cancel);
-    if (!run.splitter->IsDone() || run.splitter->HasErrors()) {
-        throw user_error("The cutter couldn't divide this surface.");
-    }
-    run.whole = run.splitter->Shape();
-    return run;
 }
 
 /// For each shape of `sources` (the sheet's faces or edges), the shapes of the result it became, as the splitter's history says.
@@ -586,7 +564,7 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
         }
 
         // The first split; a cut edge with one face is a cut that ended inside it.
-        SplitRun run = run_splitter(input, tools, cancel);
+        SplitRun run = run_splitter(input, tools, cancel, kCutterFailure);
         TopTools_IndexedMapOfShape whole_edges = map_of(run.whole, TopAbs_EDGE);
         TopTools_IndexedDataMapOfShapeListOfShape whole_ancestors;
         TopExp::MapShapesAndAncestors(run.whole, TopAbs_EDGE, TopAbs_FACE, whole_ancestors);
@@ -612,7 +590,7 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
             throw user_error(kNoCut);
         }
         if (dangling) {
-            run = run_splitter(input, dividing, cancel);
+            run = run_splitter(input, dividing, cancel, kCutterFailure);
         }
 
         // The final faces as a sheet: a shell per connected set, so a loose-faced input stays valid.

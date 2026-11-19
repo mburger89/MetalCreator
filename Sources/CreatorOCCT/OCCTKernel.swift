@@ -271,7 +271,7 @@ public actor OCCTKernel: Kernel {
     func solid(from shape: OCCTShape, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
                operation: String, boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false,
                hullBounds: Bool = false, extraFaceTags: [Int: Set<TopoTag>] = [:],
-               edgeTagOverrides: [Int: Set<TopoTag>] = [:]) throws -> Solid {
+               edgeTagOverrides: [Int: Set<TopoTag>] = [:], edgeHistory: [OCCTEdgeHistoryRecord] = []) throws -> Solid {
         do {
             // Untyped throws on purpose: Swift 6.4 crashes ("unsupported collection upcast kind") with typed throws returning a tuple. Revert once fixed.
             let (raw, bounds) = try Self.serialized { () throws -> (OCCTRawTopology, BoundingBox) in
@@ -282,7 +282,8 @@ public actor OCCTKernel: Kernel {
             }
             let topology = OCCTTagger.topology(raw: raw, history: history, inputs: inputs, tag: tag,
                                                boundaryRoles: boundaryRoles, carriesEdgeTags: carriesEdgeTags,
-                                               extraFaceTags: extraFaceTags, edgeTagOverrides: edgeTagOverrides)
+                                               extraFaceTags: extraFaceTags, edgeTagOverrides: edgeTagOverrides,
+                                               edgeHistory: edgeHistory)
             return Solid(topology: topology, bounds: bounds,
                          storage: OCCTSolidStorage(shape: shape, faceCount: raw.faces.count))
         } catch let error as OCCTError {

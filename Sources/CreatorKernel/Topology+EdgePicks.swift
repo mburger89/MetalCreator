@@ -2,7 +2,7 @@ extension Topology {
     /// Whether `key` names `edge`. Each side of the key must be a subset of the tags of one of the
     /// edge's two faces (a union merges coplanar faces and their tag sets, so a merged face still
     /// matches). A boundary edge matches a key whose one side is a subset of its face's tags and whose other is a
-    /// subset of its own. Seams never match.
+    /// subset of its own, and so does a two-face edge that carries tags (a sewn edge, NS-5 R5). Seams never match.
     public func edge(_ edge: EdgeInfo, matches key: EdgeKey) -> Bool {
         if edge.isBoundary {
             guard !edge.tags.isEmpty, let face = face(edge.faces[0])?.tags else { return false }
@@ -11,8 +11,14 @@ extension Topology {
         }
         guard !edge.isSeam, edge.faces.count == 2,
               let a = face(edge.faces[0])?.tags, let b = face(edge.faces[1])?.tags else { return false }
-        return (key.first.isSubset(of: a) && key.second.isSubset(of: b))
-            || (key.first.isSubset(of: b) && key.second.isSubset(of: a))
+        if (key.first.isSubset(of: a) && key.second.isSubset(of: b))
+            || (key.first.isSubset(of: b) && key.second.isSubset(of: a)) {
+            return true
+        }
+        // R5: a sewn edge also answers to the key it had as a boundary edge before the sew (one face's side, its own tags).
+        guard !edge.tags.isEmpty else { return false }
+        return ((key.first.isSubset(of: a) || key.first.isSubset(of: b)) && key.second.isSubset(of: edge.tags))
+            || (key.first.isSubset(of: edge.tags) && (key.second.isSubset(of: a) || key.second.isSubset(of: b)))
     }
 
     /// Every edge `key` names, ordered by midpoint (x, then y, then z, to 1e-6 mm), then by ID.

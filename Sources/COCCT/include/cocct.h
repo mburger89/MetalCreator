@@ -70,6 +70,20 @@ typedef struct {
 
 void occt_history_free(occt_history *history);
 
+/// One edge of a result made from an edge of an input (NS-5, R5): all indices 1-based, `operand` the input's position.
+typedef struct {
+    int out_edge;
+    int operand;
+    int index;
+} occt_edge_record;
+
+typedef struct {
+    occt_edge_record *records;
+    int count;
+} occt_edge_history;
+
+void occt_edge_history_free(occt_edge_history *history);
+
 typedef struct {
     double volume;
     double area;

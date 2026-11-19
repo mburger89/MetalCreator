@@ -174,6 +174,16 @@ public protocol Kernel: Actor {
     func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid, continuity: PatchContinuity) async throws -> Solid
     /// A new sheet joining an edge of each of two bodies (NS-4, R10). The default refuses.
     func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid
+    /// Every face of `bodies` sewn at `tolerance` (NS-5, R6): closed shells become solids, the rest stay sheets. The default refuses.
+    func sewn(_ bodies: [Solid], tolerance: Double, tag: NodeTag) async throws -> SewResult
+    /// `sheet` offset by `distance` along its normals (NS-5, R7), each face named by its source's tags plus `.endCap`. The default refuses.
+    func offsetSurface(_ sheet: Solid, distance: Double, tag: NodeTag) async throws -> Solid
+    /// `sheet` grown into a solid `distance` thick on `side` (NS-5, R3). The default refuses.
+    func thickened(_ sheet: Solid, distance: Double, side: ThickenSide, tag: NodeTag) async throws -> Solid
+    /// `sheet`'s flat holes capped (NS-5, R12). The default refuses.
+    func cappingPlanarHoles(_ sheet: Solid, tag: NodeTag) async throws -> CapResult
+    /// `solid` divided by `tools` (NS-5, R13). The default refuses.
+    func splitSolid(_ solid: Solid, by tools: [Solid], tag: NodeTag) async throws -> SolidSplit
 }
 
 extension Kernel {

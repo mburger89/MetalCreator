@@ -4,13 +4,15 @@ import CreatorGeometry
 /// call it, so the two can never disagree about which piece is which.
 public enum SheetPieces {
     /// `groups` holds each piece as indices of `topology`'s faces; the result is one list of faces per piece, each sorted, the pieces
-    /// ordered by the canonical key of the piece's smallest face tag set, then by the area-weighted centroid (1e-9 mm ties).
+    /// ordered by the canonical key of the piece's smallest face tag set, then by the area-weighted centroid (1e-9 mm ties), then by the piece's
+    /// smallest face index (NS-5), so pieces that tie come out the same whatever order `groups` came in.
     public static func ordered(groups: [[Int]], in topology: Topology) -> [[FaceID]] {
         func key(_ index: Int) -> String { topology.faces[index].tags.map(\.sortKey).sorted().joined(separator: "+") }
         struct Entry {
             var faces: [Int]
             var key: String
             var centroid: Vector3
+            var smallestFace: Int
         }
         let entries = groups.map { faces -> Entry in
             let area = faces.reduce(0) { $0 + topology.faces[$1].area }
@@ -19,13 +21,15 @@ public enum SheetPieces {
                 let face = topology.faces[index]
                 centroid += face.centroid * (area > 0 ? face.area / area : 1 / Double(faces.count))
             }
-            return Entry(faces: faces.sorted(), key: faces.map(key).min() ?? "", centroid: centroid)
+            let sorted = faces.sorted()
+            return Entry(faces: sorted, key: faces.map(key).min() ?? "", centroid: centroid, smallestFace: sorted.first ?? 0)
         }
         let ordered = entries.sorted { a, b in
             if a.key != b.key { return a.key < b.key }
             if abs(a.centroid.x - b.centroid.x) > 1e-9 { return a.centroid.x < b.centroid.x }
             if abs(a.centroid.y - b.centroid.y) > 1e-9 { return a.centroid.y < b.centroid.y }
-            return a.centroid.z < b.centroid.z
+            if abs(a.centroid.z - b.centroid.z) > 1e-9 { return a.centroid.z < b.centroid.z }
+            return a.smallestFace < b.smallestFace
         }
         return ordered.map { $0.faces.map { FaceID($0) } }
     }
