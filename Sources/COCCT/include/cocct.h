@@ -719,6 +719,16 @@ occt_shape *occt_extend_face(const occt_shape *shape, int face_index, const int 
 /// before each grade.
 occt_shape *occt_match_face(const occt_shape *shape, int face_index, int edge_index, const occt_shape *target, int target_edge_index,
                             int continuity, const occt_cancel *cancel, occt_status *status);
+/// Blend Surface (NS-4, R10): a new sheet (one face) joining edge `first_edge` of `first` to edge `second_edge` of `second` (1-based in
+/// each shape's edge map; the shapes may be one). Each end has a `continuity` (1 or 2) and a `bulge` (0.1 to 2, the section's tangent length
+/// as a multiple of the circular one); the face an end continues is the one whose leaving direction points most toward the other edge. Sections
+/// join the edges' points at equal arc-length fractions (the second edge turned when that shortens the ends), are quintic Beziers matching
+/// position, tangent and (G2) normal curvature, and are skinned along the edges, 9 to 129 of them, until both ends grade as asked. History: the
+/// face is OCCT_FROM_SEGMENT (0, 0). Roles: the first edge's side is kind 1, the second's kind 2, the sides from the edges' starts are kind 3
+/// with a = 0 and 1. `cancel` may be NULL. Refuses in sentences ("The edges touch; a blend needs a gap between them.", ...).
+occt_shape *occt_blend_surface(const occt_shape *first, int first_edge, int first_continuity, double first_bulge,
+                               const occt_shape *second, int second_edge, int second_continuity, double second_bulge,
+                               const occt_cancel *cancel, occt_history *history, occt_boundary_roles *roles, occt_status *status);
 /// FOR TESTS ONLY. The largest distance from the surface at nine points of each pcurve (both of a seam) of face `face_index` (1-based)
 /// to that edge's 3D curve.
 int occt_test_pcurve_gap(const occt_shape *shape, int face_index, double *gap, occt_status *status);
