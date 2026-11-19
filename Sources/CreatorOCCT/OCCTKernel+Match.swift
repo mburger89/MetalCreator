@@ -7,9 +7,12 @@ extension OCCTShape {
     /// The shape with face `faceIndex` and its edge `edge` (0-based) matched to `target`'s edge `targetEdge`.
     /// Call under `OCCTKernel.serialized`.
     func matchingFace(_ faceIndex: Int, edge: Int, to target: OCCTShape, targetEdge: Int,
-                      continuity: Int) throws(OCCTError) -> OCCTShape {
+                      continuity: Int, cancel: OCCTCancelFlag) throws(OCCTError) -> OCCTShape {
         try Self.make { status in
-            occt_match_face(self.raw, Int32(faceIndex + 1), Int32(edge + 1), target.raw, Int32(targetEdge + 1), Int32(continuity), status)
+            occt_match_face(
+                self.raw, Int32(faceIndex + 1), Int32(edge + 1), target.raw, Int32(targetEdge + 1),
+                Int32(continuity), cancel.raw, status
+            )
         }
     }
 }
@@ -32,13 +35,18 @@ extension OCCTKernel {
         let other = try shape(of: body)
         guard source !== other else { throw KernelError.invalidInput("The target edge must be on another body.") }
         let grade = continuity == .g0 ? 0 : continuity == .g1 ? 1 : 2
+        let flag = OCCTCancelFlag()
         let result: OCCTShape
         do {
-            // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure.
-            result = try Self.serialized { () throws -> OCCTShape in
-                try source.matchingFace(0, edge: edge.rawValue, to: other, targetEdge: target.rawValue, continuity: grade)
-            }
+            result = try await withTaskCancellationHandler {
+                // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure.
+                try Self.serialized { () throws -> OCCTShape in
+                    try source.matchingFace(0, edge: edge.rawValue, to: other, targetEdge: target.rawValue, continuity: grade,
+                                            cancel: flag)
+                }
+            } onCancel: { flag.cancel() }
         } catch let error as OCCTError {
+            if error.message == OCCTCancelFlag.message { throw CancellationError() }
             if error.message.hasPrefix("occt: ") { throw KernelError.occt("match surface", error) }
             throw KernelError.invalidInput(Self.writingNumbers(in: error.message))
         }

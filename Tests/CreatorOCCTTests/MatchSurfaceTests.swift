@@ -116,6 +116,50 @@ struct MatchSurfaceTests {
         #expect(text == "The edges' ends are 0.8 mm apart; Match needs them to meet.")
     }
 
+    @Test func farApartEndsReadInPlainDecimals() async throws {
+        let a = try await sheetA()
+        let b = try await sheetB(from: 12, to: 22)
+        let text = await refusal {
+            _ = try await kernel.matched(a, edge: try endEdge(a).id, to: try lineAtX10(b).id, of: b, continuity: .g1)
+        }
+        #expect(text == "The edges' ends are 12 mm apart; Match needs them to meet.")
+    }
+
+    @Test func aSolidIsNotASheet() async throws {
+        let box = try await kernel.extrude(.rectangle(width: 20, height: 20, plane: .xy), distance: 10, mode: .oneSided, tag: tag)
+        let b = try await sheetB()
+        let text = await refusal {
+            _ = try await kernel.matched(box, edge: box.topology.edges[0].id, to: try lineAtX10(b).id, of: b, continuity: .g1)
+        }
+        #expect(text == "Match Surface takes a sheet; this is a closed solid.")
+    }
+
+    @Test func aSheetOfSeveralFacesRefuses() async throws {
+        let rows = [0.0, 5, 10, 15]
+        var sections: [Curve] = []
+        for (i, x) in rows.enumerated() {
+            sections.append(try await kernel.makeCurve([.line(Vector3(x, 0, Double(i % 2)), Vector3(x, 10, Double(i % 2)))], tag: tag))
+        }
+        let three = try await kernel.loftSurface(sections, ruled: true, closed: false, tag: tag)
+        #expect(three.topology.faces.count == 3)
+        let b = try await sheetB()
+        let text = await refusal {
+            _ = try await kernel.matched(three, edge: three.topology.edges[0].id, to: try lineAtX10(b).id, of: b, continuity: .g1)
+        }
+        #expect(text == "Match Surface changes a sheet with one face; this one has 3.")
+    }
+
+    @Test func aSurfaceThatClosesOnItselfRefuses() async throws {
+        let line = try await kernel.makeCurve([.line(Vector3(10, 0, 0), Vector3(10, 0, 20))], tag: tag)
+        let tube = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: .unitZ), angle: .degrees(360), tag: tag)
+        let rim = try #require(tube.topology.edges.first { $0.kind == .circle && abs($0.midpoint.z) < 1e-6 })
+        let ring = try await kernel.makeCurve([.line(Vector3(10, 0, 0), Vector3(10, 10, 0))], tag: tag)
+        let b = try await kernel.revolve(ring, axis: Axis(origin: Vector3(0, 0, 17.3205), direction: Vector3(0, -1, 0)),
+                                         angle: .degrees(60), tag: tag)
+        let text = await refusal { _ = try await kernel.matched(tube, edge: rim.id, to: try lineAtX10(b).id, of: b, continuity: .g1) }
+        #expect(text == "Match Surface can't match an edge of a surface that closes on itself yet.")
+    }
+
     @Test func aTwoFaceEdgeRefuses() async throws {
         let line = try await kernel.makeCurve([.line(Vector3(10, 0, 0), Vector3(10, 0, 20))], tag: tag)
         let cylinder = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: .unitZ), angle: .degrees(360), tag: tag)

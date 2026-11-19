@@ -274,12 +274,6 @@ struct sample_data {
     gp_Vec cross2;      // S_rr of the sheet before the match
 };
 
-std::string millimetres(double value) {
-    char text[48];
-    std::snprintf(text, sizeof text, "%.2g", value);
-    return text;
-}
-
 /// Splits the grade a measured edge reaches: -1 (not even G0), 0, 1 or 2.
 int grade_of(const occt_edge_continuity &found) {
     if (!(found.position_gap <= kPositionLimit)) {
@@ -304,7 +298,7 @@ std::string miss_sentence(int asked, int reached) {
 }
 
 occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const occt_shape *target, int target_edge_index,
-                  int continuity) {
+                  int continuity, const occt_cancel *cancel) {
     occt_initialize();
     if (!shape || shape->shape.IsNull() || !target || target->shape.IsNull()) {
         throw user_error("That surface no longer exists.");
@@ -384,7 +378,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     const double end_gap = std::max(sheet_start.Distance(forward ? target_lo : target_hi),
                                     sheet_end.Distance(forward ? target_hi : target_lo));
     if (end_gap > kEndGap) {
-        throw user_error("The edges' ends are " + millimetres(end_gap) + " mm apart; Match needs them to meet.");
+        throw user_error("The edges' ends are " + number(end_gap) + " mm apart; Match needs them to meet.");
     }
 
     // The target face whose continuation the sheet takes, and which way is "away from it" along the face's own normal.
@@ -437,6 +431,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     level.surface = Handle(Geom_BSplineSurface)::DownCast(base.surface->Copy());
     int reached = -1;
     for (int refinement = 0; refinement <= kRefinements; ++refinement) {
+        poll(cancel);
         if (refinement > 0) {
             const std::vector<double> flat = level.along_flat();
             std::vector<double> mids;
@@ -628,11 +623,13 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
         } else if (side.side == kVEnd) {
             candidate->VReverse();
         }
+        poll(cancel);
         edit_copy built = make_edit_copy(shape, face_index);
         const TopoDS_Face built_face = built.face();
         replace_face_surface(built_face, candidate, built.converted ? built.original : TopoDS_Face());
         const TopTools_IndexedMapOfShape built_edges = map_of(built.work, TopAbs_EDGE);
         const TopoDS_Edge built_edge = TopoDS::Edge(built_edges(edge_index));
+        poll(cancel);
         const occt_edge_continuity found = edge_continuity_against(built_edge, built_face, target_face, 32);
         reached = grade_of(found);
         if (reached >= continuity) {
@@ -650,9 +647,9 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
 extern "C" {
 
 occt_shape *occt_match_face(const occt_shape *shape, int face_index, int edge_index, const occt_shape *target, int target_edge_index,
-                            int continuity, occt_status *status) {
+                            int continuity, const occt_cancel *cancel, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
-        return match(shape, face_index, edge_index, target, target_edge_index, continuity);
+        return match(shape, face_index, edge_index, target, target_edge_index, continuity, cancel);
     });
 }
 

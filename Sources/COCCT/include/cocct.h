@@ -715,9 +715,10 @@ occt_shape *occt_extend_face(const occt_shape *shape, int face_index, const int 
 /// `target_edge_index` of `target` at `continuity` (0, 1 or 2), by the rows of its control net nearest the edge (a rational net keeps its
 /// weights); the opposite edge, the face's edges and their order are kept. The target face is the one the sheet continues. Each result is
 /// graded and the spans along the edge doubled up to 5 times; a miss, ends over 0.01 mm apart, a closed or two-face edge, a trimmed edge and
-/// a result BRepCheck_Analyzer rejects are refused in sentences.
+/// a result BRepCheck_Analyzer rejects are refused in sentences. `cancel` may be NULL; it is polled before each refinement pass and
+/// before each grade.
 occt_shape *occt_match_face(const occt_shape *shape, int face_index, int edge_index, const occt_shape *target, int target_edge_index,
-                            int continuity, occt_status *status);
+                            int continuity, const occt_cancel *cancel, occt_status *status);
 /// FOR TESTS ONLY. The largest distance from the surface at nine points of each pcurve (both of a seam) of face `face_index` (1-based)
 /// to that edge's 3D curve.
 int occt_test_pcurve_gap(const occt_shape *shape, int face_index, double *gap, occt_status *status);
