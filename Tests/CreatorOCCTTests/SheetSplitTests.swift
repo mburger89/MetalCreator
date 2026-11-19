@@ -138,6 +138,32 @@ struct SheetSplitTests {
             [CutSide.front, .back].filter { face.tags.contains(TopoTag(splitTag, .cutSide(name, $0))) }
         }
         #expect(Set(sides) == [.front, .back])
+        // R2: front is the side the cutter face's oriented normal points to.
+        let wallFace = try #require(wall.topology.faces.first)
+        let normal = try #require(wallFace.normal)
+        let frontFace = try #require(split.whole.topology.faces.first {
+            $0.tags.contains(TopoTag(splitTag, .cutSide(name, .front)))
+        })
+        let towardFront = frontFace.centroid.x - 3
+        #expect(towardFront * normal.x > 0)
+    }
+
+    @Test func anOpenCurveAlongNormalsHasFrontAndBack() async throws {
+        let kernel = OCCTKernel()
+        let sections = try await [-10.0, 0, 10].enumerated().asyncMap { index, y in
+            try await kernel.makeCurve([.line(Vector3(-10, y, index == 1 ? 3 : 0), Vector3(10, y, index == 1 ? 3 : 0))], tag: source)
+        }
+        let bump = try await kernel.loftSurface(sections, ruled: false, closed: false, tag: source)
+        let cutter = try await line(kernel, Vector3(0, -20, 10), Vector3(0, 20, 10))
+        let split = try await kernel.split(bump, by: .curves([cutter], projection: .alongNormals, direction: .unitZ), tag: splitTag)
+        #expect(split.pieces.count == 2)
+        let name = CutterName.curve(index: 0, piece: 0)
+        let front = try #require(split.whole.topology.faces.first { $0.tags.contains(TopoTag(splitTag, .cutSide(name, .front))) })
+        let back = try #require(split.whole.topology.faces.first { $0.tags.contains(TopoTag(splitTag, .cutSide(name, .back))) })
+        // R2: front is t x N. The curve runs along +y; the loft's normal at the top of the bump is +z (u along x, v along y), so
+        // front is the +x side.
+        #expect(front.centroid.x > 0)
+        #expect(back.centroid.x < 0)
     }
 
     @Test func aClosedSolidCutterGivesInside() async throws {
@@ -264,8 +290,50 @@ struct SheetSplitPieceTests {
         let split = try await kernel.split(ruled, by: .body(wall), tag: splitTag)
         #expect(split.pieces.count == 2)
         #expect(split.pieces.allSatisfy { $0.count == 2 })
-        let xs = split.pieces.map { ids in ids.map { split.whole.topology.faces[$0.rawValue].centroid.x }.reduce(0, +) / 2 }
-        #expect(xs[0] < xs[1] || xs[0] > xs[1])
+        let keys = split.pieces.map { ids in
+            ids.map { split.whole.topology.faces[$0.rawValue].tags.map(\.sortKey).sorted().joined(separator: "+") }.min() ?? ""
+        }
+        #expect(keys[0] < keys[1])
+    }
+
+    /// A sheet of two loose faces, as Import Model makes: a STEP file of two separate squares.
+    func looseSheet(_ kernel: OCCTKernel) async throws -> Solid {
+        let a = try await kernel.shape(of: try await helper.square(kernel, half: 5))
+        let far = try await helper.rectangle(kernel, x: 20...30, y: 0...10)
+        let b = try await kernel.shape(of: try await kernel.planarSurface([far], tag: source))
+        let directory = URL.temporaryDirectory.appending(path: "loose-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "model")
+        try OCCTKernel.serialized { () throws in
+            try OCCTShape.compound([a, b]).writeSTEP(to: url, unit: "MM")
+        }
+        let read = try await kernel.readShapes(try Data(contentsOf: url), format: .step, tag: source)
+        return try #require(read.sheets.first)
+    }
+
+    @Test func aSheetOfLooseFacesSplits() async throws {
+        let kernel = OCCTKernel()
+        let sheet = try await looseSheet(kernel)
+        #expect(sheet.topology.faces.count == 2)
+        let cutter = try await circle(kernel, radius: 2, at: Vector3(0, 0, 5))
+        let split = try await kernel.split(sheet, by: along([cutter]), tag: splitTag)
+        #expect(split.whole.topology.faces.count == 3)
+        #expect(split.pieces.count == 3)
+        #expect(split.inside != nil)
+    }
+
+    @Test func subSheetOfDisjointPiecesIsValid() async throws {
+        let kernel = OCCTKernel()
+        let strip = try await kernel.planarSurface([try await rectangle(kernel, x: -10...10, y: -3...3)], tag: source)
+        let cutter = try await circle(kernel, radius: 5, at: Vector3(0, 0, 5))
+        let split = try await kernel.split(strip, by: along([cutter]), tag: splitTag)
+        let outside = TopoTag(splitTag, .cutSide(.curve(index: 0, piece: 0), .outside))
+        let ids = split.whole.topology.faces.filter { $0.tags.contains(outside) }.map(\.id)
+        #expect(ids.count == 2)
+        let sub = try await kernel.subSheet(ids, of: split.whole)
+        #expect(sub.topology.faces.count == 2)
+        #expect(try await kernel.shape(of: sub).isValid)
     }
 
     @Test func subSheetCarriesNames() async throws {

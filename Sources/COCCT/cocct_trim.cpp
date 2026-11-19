@@ -22,6 +22,9 @@
 #include <BRepTools.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <BRep_Builder.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <GCPnts_QuasiUniformDeflection.hxx>
 #include <GeomAbs_Shape.hxx>
 #include <Geom2d_Curve.hxx>
@@ -242,6 +245,71 @@ void source_map(BRepAlgoAPI_Splitter &splitter, const TopTools_IndexedMapOfShape
 }
 
 /// A point strictly inside `face`: the UV box sampled 8 x 8, then 32 x 32, then 128 x 128, the inside sample nearest the box's middle.
+/// The faces as a sheet: one shell per set of faces that join over shared edges (cut edges included), so a sheet whose faces are
+/// loose, as an imported one can be, stays valid. One set is that shell; several are a compound of shells.
+TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
+    BRep_Builder builder;
+    TopoDS_Compound all;
+    builder.MakeCompound(all);
+    for (const TopoDS_Face &face : faces) {
+        builder.Add(all, face);
+    }
+    TopTools_IndexedMapOfShape face_map;
+    for (const TopoDS_Face &face : faces) {
+        face_map.Add(face);
+    }
+    TopTools_IndexedDataMapOfShapeListOfShape ancestors;
+    TopExp::MapShapesAndAncestors(all, TopAbs_EDGE, TopAbs_FACE, ancestors);
+    std::vector<int> parent(face_map.Extent());
+    std::iota(parent.begin(), parent.end(), 0);
+    const auto root = [&](int x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    for (int e = 1; e <= ancestors.Extent(); ++e) {
+        int first = -1;
+        for (TopTools_ListOfShape::Iterator it(ancestors(e)); it.More(); it.Next()) {
+            const int index = face_map.FindIndex(it.Value()) - 1;
+            if (index < 0) {
+                continue;
+            }
+            if (first < 0) {
+                first = index;
+            } else {
+                const int a = root(first);
+                const int b = root(index);
+                parent[std::max(a, b)] = std::min(a, b);
+            }
+        }
+    }
+    std::vector<int> labels;
+    std::vector<TopoDS_Shell> shells;
+    for (int f = 0; f < face_map.Extent(); ++f) {
+        const int r = root(f);
+        auto found = std::find(labels.begin(), labels.end(), r);
+        if (found == labels.end()) {
+            labels.push_back(r);
+            TopoDS_Shell shell;
+            builder.MakeShell(shell);
+            shells.push_back(shell);
+            found = labels.end() - 1;
+        }
+        builder.Add(shells[found - labels.begin()], face_map(f + 1));
+    }
+    if (shells.size() == 1) {
+        return shells[0];
+    }
+    TopoDS_Compound compound;
+    builder.MakeCompound(compound);
+    for (const TopoDS_Shell &shell : shells) {
+        builder.Add(compound, shell);
+    }
+    return compound;
+}
+
 bool interior_point(const TopoDS_Face &face, gp_Pnt &point) {
     double u0 = 0;
     double u1 = 0;
@@ -492,6 +560,7 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
                 for (TopExp_Explorer explorer(projection.Shape(), TopAbs_EDGE); explorer.More(); explorer.Next()) {
                     const TopoDS_Edge projected = TopoDS::Edge(explorer.Current());
                     Element element;
+                    element.id = -1;
                     element.shape = projected;
                     try {
                         const TopoDS_Shape &ancestor = projection.Ancestor(projected);
@@ -546,14 +615,13 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
             run = run_splitter(input, dividing, cancel);
         }
 
-        // One shell of the final faces, so the result is one sheet.
+        // The final faces as a sheet: a shell per connected set, so a loose-faced input stays valid.
         const TopTools_IndexedMapOfShape split_faces = map_of(run.whole, TopAbs_FACE);
-        BRep_Builder builder;
-        TopoDS_Shell shell;
-        builder.MakeShell(shell);
+        std::vector<TopoDS_Face> split_list;
         for (int i = 1; i <= split_faces.Extent(); ++i) {
-            builder.Add(shell, split_faces(i));
+            split_list.push_back(TopoDS::Face(split_faces(i)));
         }
+        const TopoDS_Shape shell = assemble_sheet(split_list);
         if (input_valid && !BRepCheck_Analyzer(shell).IsValid()) {
             throw user_error("The cutter couldn't divide this surface cleanly.");
         }
@@ -680,7 +748,15 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
                 }
                 double u = 0;
                 double v = 0;
-                distance.ParOnFaceS2(1, u, v);
+                if (distance.SupportTypeShape2(1) == BRepExtrema_IsInFace) {
+                    distance.ParOnFaceS2(1, u, v);
+                } else {
+                    GeomAPI_ProjectPointOnSurf projector(on_edge, BRep_Tool::Surface(body_faces[element.id]));
+                    if (!projector.IsDone() || projector.NbPoints() < 1) {
+                        return kFront;
+                    }
+                    projector.LowerDistanceParameters(u, v);
+                }
                 BRepGProp_Face cutter_face(body_faces[element.id]);
                 gp_Pnt unused;
                 cutter_face.Normal(u, v, unused, cutting);
@@ -772,7 +848,11 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
         out->edges = copy_out(edge_table);
         out->edge_count = static_cast<int>(edge_table.size());
         out->piece_count = static_cast<int>(labels.size());
-        out->has_inside = has_inside ? 1 : 0;
+        bool classified = has_inside;
+        for (const occt_split_face &entry : face_table) {
+            classified = classified && entry.inside >= 0;
+        }
+        out->has_inside = classified ? 1 : 0;
         out->dangling = dangling ? 1 : 0;
         return new occt_shape{shell};
     });
@@ -790,9 +870,7 @@ occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int
         }
         const TopTools_IndexedMapOfShape input_faces = map_of(sheet->shape, TopAbs_FACE);
         const TopTools_IndexedMapOfShape input_edges = map_of(sheet->shape, TopAbs_EDGE);
-        BRep_Builder builder;
-        TopoDS_Shell shell;
-        builder.MakeShell(shell);
+        std::vector<TopoDS_Face> kept;
         std::vector<int> chosen;
         for (int k = 0; k < count; ++k) {
             const int index = face_indices[k];
@@ -803,7 +881,11 @@ occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int
                 continue;
             }
             chosen.push_back(index);
-            builder.Add(shell, input_faces(index));
+            kept.push_back(TopoDS::Face(input_faces(index)));
+        }
+        const TopoDS_Shape shell = assemble_sheet(kept);
+        if (BRepCheck_Analyzer(sheet->shape).IsValid() && !BRepCheck_Analyzer(shell).IsValid()) {
+            throw user_error("Those faces don't make a valid surface.");
         }
         const TopTools_IndexedMapOfShape faces = map_of(shell, TopAbs_FACE);
         const TopTools_IndexedMapOfShape edges = map_of(shell, TopAbs_EDGE);
