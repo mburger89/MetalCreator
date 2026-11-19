@@ -38,7 +38,8 @@ extension AppModel {
             case .embedMeshFile: try embedMeshFile(target)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
                  .editSketch, .editGroup, .makeUnique, .ungroup, .editControlPoints,
-                 .pickTrimRegions, .clearTrimRegions, .chooseImage, .linkImage, .relinkImage, .embedImage,
+                 .pickTrimRegions, .clearTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView,
+                 .chooseImage, .linkImage, .relinkImage, .embedImage,
                  .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile, .embedModelFile: break
             }
         }

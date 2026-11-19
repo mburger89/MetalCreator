@@ -10,6 +10,10 @@ public actor FakeKernel: Kernel {
     /// The profile of every fillet asked for, and the tangent-only counts a fillet reports (a test sets them).
     public private(set) var filletProfiles: [FilletProfile] = []
     public private(set) var filletTangentOnly: (corners: Int, joins: Int) = (0, 0)
+    /// The continuity of every `matched` call and of each side of every `blendSurface` call, in order (both are then refused:
+    /// the fake has no surfaces to bend, so a test reads what the node asked for).
+    public private(set) var matchContinuities: [PatchContinuity] = []
+    public private(set) var blendContinuities: [[PatchContinuity]] = []
     /// The `angle` of each `tessellate` call, in order.
     public private(set) var tessellationAngles: [Double] = []
     var sectionHook: (@Sendable () async throws -> Void)?
@@ -307,4 +311,15 @@ extension FakeKernel {
 
     /// Makes later fillets report these tangent-only counts.
     public func setFilletTangentOnly(corners: Int, joins: Int) { filletTangentOnly = (corners, joins) }
+
+    public func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid,
+                        continuity: PatchContinuity) async throws -> Solid {
+        matchContinuities.append(continuity)
+        throw KernelError.unsupported("matching surfaces")
+    }
+
+    public func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid {
+        blendContinuities.append([first.continuity, second.continuity])
+        throw KernelError.unsupported("blending surfaces")
+    }
 }

@@ -115,7 +115,7 @@ extension EditorModel {
         case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
              .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .chooseMeshFile, .relinkMeshFile, .embedMeshFile,
              .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile, .embedModelFile, .editControlPoints,
-             .pickTrimRegions, .clearTrimRegions:
+             .pickTrimRegions, .clearTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView:
             requestSerial += 1
             setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
         }
