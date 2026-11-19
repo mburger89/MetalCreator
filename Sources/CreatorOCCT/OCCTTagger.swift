@@ -4,9 +4,11 @@ import CreatorKernel
 enum OCCTTagger {
     /// `boundaryRoles` names a sheet builder's boundary edges, one entry per edge in the shape's edge order (`nil`: not
     /// named). `carriesEdgeTags` is for a move (transform, place): output edge n is input 0's edge n, so its tags come
-    /// along when the counts agree.
+    /// along when the counts agree. `extraFaceTags` adds names to output faces after the history's (a split's cut sides) and
+    /// `edgeTagOverrides` gives an output edge its tags outright (a split's input edges and cut edges).
     static func topology(raw: OCCTRawTopology, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
-                         boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false) -> Topology {
+                         boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false,
+                         extraFaceTags: [Int: Set<TopoTag>] = [:], edgeTagOverrides: [Int: Set<TopoTag>] = [:]) -> Topology {
         var tags: [Int: Set<TopoTag>] = [:]
         for record in history where raw.faces.indices.contains(record.outFace) {
             switch record.kind {
@@ -28,6 +30,9 @@ enum OCCTTagger {
                 tags[record.outFace, default: []].insert(TopoTag(tag, .blend(sourceEdge: key)))
             }
         }
+        for (face, extra) in extraFaceTags where raw.faces.indices.contains(face) {
+            tags[face, default: []].formUnion(extra)
+        }
         let faces = raw.faces.enumerated().map { index, face in
             FaceInfo(id: FaceID(index), kind: face.kind, normal: face.normal, area: face.area, centroid: face.centroid,
                      tags: tags[index].flatMap { $0.isEmpty ? nil : $0 } ?? [TopoTag(tag, .unnamed(face: index))],
@@ -38,7 +43,7 @@ enum OCCTTagger {
         let edges = raw.edges.enumerated().map { index, edge in
             EdgeInfo(id: EdgeID(index), kind: edge.kind, direction: edge.direction, length: edge.length,
                      midpoint: edge.midpoint, convexity: edge.convexity, faces: edge.faces.map(FaceID.init),
-                     curve: edge.curve, tags: edgeTags(at: index, boundaryRoles, carried, tag: tag))
+                     curve: edge.curve, tags: edgeTagOverrides[index] ?? edgeTags(at: index, boundaryRoles, carried, tag: tag))
         }
         return Topology(faces: faces, edges: edges)
     }

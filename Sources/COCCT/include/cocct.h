@@ -698,6 +698,56 @@ occt_shape *occt_rebuild_face(const occt_shape *shape, int face_index, int degre
 int occt_rebuild_curve(const occt_shape *wire, int degree, int spans, const occt_cancel *cancel, occt_curve_net *out,
                        double *deviation, occt_status *status);
 
+/// One face of a split sheet (NS-4, R2): `source_face` is the 1-based face of the input sheet it came from, `piece` its connected set
+/// (0-based, in no order), `inside` 1 or 0 against a closed cutter and -1 when the cutter is not closed (or the face could not be
+/// classified), and `pair_start` / `pair_count` its (element, side) pairs in `pairs`.
+typedef struct {
+    int source_face;
+    int piece;
+    int inside;
+    int pair_start;
+    int pair_count;
+} occt_split_face;
+/// A cutter element a face borders and the side it lies on: `side` 0 front, 1 back, 2 inside, 3 outside. For curves `element` is the
+/// piece's number over every curve's edges in input order (0-based); for a body it is the 0-based face of the body's face map.
+typedef struct {
+    int element;
+    int side;
+} occt_split_pair;
+/// One edge of the result: `source_edge` the 1-based edge of the input it is (a piece of), or 0 for a cut edge, whose cutter element is
+/// `element` (-1 when none could be found).
+typedef struct {
+    int source_edge;
+    int element;
+} occt_split_edge;
+typedef struct {
+    occt_split_face *faces;
+    int face_count;
+    occt_split_pair *pairs;
+    int pair_count;
+    occt_split_edge *edges;
+    int edge_count;
+    int piece_count;
+    /// 1 when every face has an `inside` of 0 or 1 (the cutter is closed curves in planes the projection crosses, or a closed solid).
+    int has_inside;
+    /// 1 when part of the cutter was dropped because it ended inside a face.
+    int dangling;
+} occt_split_result;
+void occt_split_result_free(occt_split_result *result);
+
+/// `sheet` divided by a cutter (NS-4, R2, R4, R7). `kind` 0 projects `curves` (wires) along `direction` (a prism sized from the curves'
+/// and the sheet's extents along it), 1 projects them along the sheet's normals, 2 cuts with `body` (a sheet or a closed solid).
+/// The result is one shell of the pieces' faces sharing their edges; `out` says where each face and edge came from, the cutter element
+/// each cut edge lies on and the (element, side) pairs of each face. Refuses "Trim and Split take a sheet; this is a closed solid.",
+/// "The direction can't be zero." and "The cutter doesn't cut the surface.". A cut that ends inside a face is dropped (`out->dangling`).
+/// `cancel` may be NULL.
+occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape *const *curves, int curve_count,
+                             const double direction[3], const occt_shape *body, const occt_cancel *cancel,
+                             occt_split_result *out, occt_status *status);
+/// One shell of the given faces (`face_indices`, 1-based in `sheet`'s face map) sharing their edges, every face and edge the same shape as
+/// in `sheet`. `out` has `source_face` and `source_edge` per output face and edge; the other fields are zero.
+occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int count, occt_split_result *out, occt_status *status);
+
 /// FOR TESTS ONLY. The largest tolerance of any edge of `shape`.
 int occt_test_max_edge_tolerance(const occt_shape *shape, double *tolerance, occt_status *status);
 
