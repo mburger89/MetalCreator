@@ -65,3 +65,13 @@ extension OCCTKernel {
         return try solid(from: shape, history: [], inputs: [], tag: tag, operation: "test sheet")
     }
 }
+
+extension OCCTShape {
+    /// FOR TESTS ONLY. The largest distance from the surface at nine points of each pcurve of face `faceIndex` (0-based) to its edge's
+    /// 3D curve. Call under `OCCTKernel.serialized`.
+    func pcurveGap(ofFace faceIndex: Int) throws(OCCTError) -> Double {
+        var gap = 0.0
+        try Self.check { status in occt_test_pcurve_gap(self.raw, Int32(faceIndex + 1), &gap, status) }
+        return gap
+    }
+}
