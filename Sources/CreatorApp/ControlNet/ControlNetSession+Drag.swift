@@ -43,7 +43,7 @@ extension ControlNetSession {
             return true
         }
         guard let reach = reach(at: point, grabbed: grabbed, hit: hit, projector: projector) else { return false }
-        if !selection.contains(hit) { selection = group(of: hit) }
+        if selection.contains(hit) { selection = expanded(selection) } else { selection = group(of: hit) }
         var startOffsets: [PoleIndex: Vector3] = [:]
         for index in selection { startOffsets[index] = offsets[index] ?? .zero }
         drag = Drag(mode: .move(MoveDrag(grabbed: grabbed, startOffsets: startOffsets, reach: reach)))

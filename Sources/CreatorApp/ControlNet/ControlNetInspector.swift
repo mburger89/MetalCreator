@@ -1,5 +1,6 @@
 import CreatorEditor
 import CreatorGeometry
+import CreatorKernel
 import CreatorStyle
 import MetalUI
 
@@ -21,8 +22,8 @@ struct ControlNetInspector: Component {
                 Text(session.kind == .surface ? "The surface isn't ready." : "The curve isn't ready.")
                     .font(.caption).foregroundStyle(palette.statusWarning.color)
             }
-            Text(Self.selectionText(session.selection.count)).font(.callout).foregroundStyle(palette.primaryText.color)
-            if session.selection.count == 1, let index = session.selection.first {
+            Text(Self.selectionText(points: session.selection, in: session)).font(.callout).foregroundStyle(palette.primaryText.color)
+            if let index = session.typedTarget {
                 let offset = session.offsets[index] ?? .zero
                 ControlNetOffsetField(label: "X", value: offset.x, units: units) { session.setOffset(0, to: $0) }
                 ControlNetOffsetField(label: "Y", value: offset.y, units: units) { session.setOffset(1, to: $0) }
@@ -42,6 +43,17 @@ struct ControlNetInspector: Component {
 
     private func lockToggle(_ title: String, _ lock: ControlNetSession.AxisLock) -> some ElementGroup {
         Toggle(title, isOn: Binding(get: { session.lock == lock }, set: { _ in session.toggleLock(lock) }))
+    }
+
+    /// A coincident group counts once.
+    static func selectionText(points: Set<PoleIndex>, in session: ControlNetSession) -> String {
+        var counted = 0
+        var seen: Set<PoleIndex> = []
+        for index in points.sorted() where !seen.contains(index) {
+            seen.formUnion(session.group(of: index))
+            counted += 1
+        }
+        return selectionText(counted)
     }
 
     static func selectionText(_ count: Int) -> String {

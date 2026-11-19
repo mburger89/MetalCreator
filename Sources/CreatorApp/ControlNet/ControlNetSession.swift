@@ -88,7 +88,7 @@ final class ControlNetSession: ViewportTool {
     internal(set) var boxRect: ScreenRect?
     @ObservationIgnored var events: Events
     @ObservationIgnored var drag: Drag?
-    /// For each pole that shares its base position with others (within 1e-9 mm: an apex, a collapsed row), those others. A pole alone
+    /// For each pole that shares its base position with others (within `SurfaceNet.coincidence`: an apex, a collapsed row), those others. A pole alone
     /// is not here. Poles move and are picked together so a dome's apex never opens.
     @ObservationIgnored private(set) var coincident: [PoleIndex: Set<PoleIndex>] = [:]
     /// A net shown while a drag was under way, applied when it ends.
@@ -126,17 +126,24 @@ final class ControlNetSession: ViewportTool {
         self.lock = self.lock == lock ? nil : lock
     }
 
-    /// Types one component (0 x, 1 y, 2 z) of the one selected point's offset.
+    /// The selection's smallest index when the selection is exactly one coincident group (a lone pole is a group of one), else `nil`.
+    var typedTarget: PoleIndex? {
+        guard let first = selection.min(), net.contains(first), group(of: first) == selection else { return nil }
+        return first
+    }
+
+    /// Types one component (0 x, 1 y, 2 z) of the selected point's offset; a group of coincident poles moves together.
     func setOffset(_ component: Int, to value: Double) {
-        guard selection.count == 1, let index = selection.first, net.contains(index), (0..<3).contains(component) else { return }
-        var offset = offsets[index] ?? .zero
+        guard let target = typedTarget, (0..<3).contains(component) else { return }
+        var offset = offsets[target] ?? .zero
         switch component {
         case 0: offset.x = value
         case 1: offset.y = value
         default: offset.z = value
         }
-        offsets[index] = offset
-        events.moved([PoleMove(index: index, offset: offset)], .typed)
+        let members = selection.sorted()
+        for index in members { offsets[index] = offset }
+        events.moved(members.map { PoleMove(index: $0, offset: offset) }, .typed)
     }
 
     // MARK: - ViewportTool
@@ -174,19 +181,68 @@ final class ControlNetSession: ViewportTool {
         selection.reduce(into: selection) { $0.formUnion(coincident[$1] ?? []) }
     }
 
+    private struct Bucket: Hashable {
+        var x: Int
+        var y: Int
+        var z: Int
+    }
+
+    private static func neighbours(of key: Bucket, in buckets: [Bucket: [Int]]) -> [Int] {
+        var found: [Int] = []
+        for dx in -1...1 {
+            for dy in -1...1 {
+                for dz in -1...1 {
+                    let (x, ox) = key.x.addingReportingOverflow(dx)
+                    let (y, oy) = key.y.addingReportingOverflow(dy)
+                    let (z, oz) = key.z.addingReportingOverflow(dz)
+                    if !(ox || oy || oz), let others = buckets[Bucket(x: x, y: y, z: z)] { found += others }
+                }
+            }
+        }
+        return found
+    }
+
+    /// Poles within `SurfaceNet.coincidence` of one another, grouped transitively: poles are bucketed by `floor(coordinate / coincidence)`
+    /// per axis, each is compared with the poles of the 27 buckets around it, and the connected sets (union-find) are the groups.
     private static func coincidentPoles(in net: ControlNetGrid) -> [PoleIndex: Set<PoleIndex>] {
         guard net.poles.count == net.uCount * net.vCount, net.poles.count > 1 else { return [:] }
-        let order = net.poles.indices.sorted { net.poles[$0].x < net.poles[$1].x }
-        var found: [PoleIndex: Set<PoleIndex>] = [:]
-        for (position, first) in order.enumerated() {
-            for second in order[(position + 1)...] {
-                if net.poles[second].x - net.poles[first].x > 1e-9 { break }
-                guard (net.poles[second] - net.poles[first]).length <= 1e-9 else { continue }
-                let a = PoleIndex(i: first / net.vCount, j: first % net.vCount)
-                let b = PoleIndex(i: second / net.vCount, j: second % net.vCount)
-                found[a, default: []].insert(b)
-                found[b, default: []].insert(a)
+        let tolerance = SurfaceNet.coincidence
+        func cell(_ value: Double) -> Int {
+            let scaled = (value / tolerance).rounded(.down)
+            guard scaled.isFinite else { return 0 }
+            return Int(max(-4e18, min(4e18, scaled)))
+        }
+        var buckets: [Bucket: [Int]] = [:]
+        var keys: [Bucket] = []
+        keys.reserveCapacity(net.poles.count)
+        for (position, pole) in net.poles.enumerated() {
+            let key = Bucket(x: cell(pole.x), y: cell(pole.y), z: cell(pole.z))
+            keys.append(key)
+            buckets[key, default: []].append(position)
+        }
+        var parent = Array(net.poles.indices)
+        func root(_ start: Int) -> Int {
+            var node = start
+            while parent[node] != node {
+                parent[node] = parent[parent[node]]
+                node = parent[node]
             }
+            return node
+        }
+        for (position, pole) in net.poles.enumerated() {
+            let near = neighbours(of: keys[position], in: buckets)
+            for other in near where other > position && (net.poles[other] - pole).length <= tolerance {
+                let a = root(position)
+                let b = root(other)
+                if a != b { parent[max(a, b)] = min(a, b) }
+            }
+        }
+        var members: [Int: [Int]] = [:]
+        for position in net.poles.indices { members[root(position), default: []].append(position) }
+        var found: [PoleIndex: Set<PoleIndex>] = [:]
+        for group in members.values where group.count > 1 {
+            let indices = group.map { PoleIndex(i: $0 / net.vCount, j: $0 % net.vCount) }
+            for index in indices { found[index] = Set(indices).subtracting([index]) }
         }
         return found
     }
