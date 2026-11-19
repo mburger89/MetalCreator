@@ -80,7 +80,9 @@ public protocol Kernel: Actor {
     /// each sample of the edge projected onto the face (samples over 1 mm away or off the trimmed face are skipped), the normals compared up to
     /// sign for the curvature, and the angle gap measured between A's direction continuing past the edge and B's direction leaving it,
     /// so a face folded back over the sheet reads π. An edge that isn't a free edge is
-    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (under half the samples usable) "The edge doesn't run along that face.". The default refuses.
+    /// `KernelError.invalidInput` "The edge must be a surface's free edge."; a face the edge doesn't run along (under half the samples usable, 15 or fewer of 32) "The edge doesn't run along that face."; an edge of which
+    /// only part lies on the face (16 to 23 usable samples) "Too few points along the edge lie on the other face to grade it." (R13: a grade
+    /// rests on at least 24 of the 32). The default refuses.
     func continuity(of edge: EdgeID, in first: Solid, against face: FaceID, of second: Solid) async throws -> EdgeContinuity
     /// A solid model read from bytes, in millimetres. Every face is tagged `TopoTag(tag, .imported(face: i))`, i its index in the shape's face
     /// map as read; several bodies are one compound. A file with no shapes is refused: "The model contains no shapes.". The default refuses.

@@ -1,3 +1,4 @@
+#include "cocct_continuity.hpp"
 #include "cocct_internal.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
@@ -25,27 +26,6 @@ using namespace cocct;
 namespace cocct::continuity_detail {
 
 constexpr double kCurvatureFloor = 1e-4;
-
-struct side_sample {
-    gp_Pnt point;
-    gp_Vec normal;
-    double curvature = 0;
-    bool ok = false;
-};
-
-/// One face of the edge: its pcurve and surface adaptor, built once per call.
-struct face_side {
-    const TopoDS_Face &face;
-    opencascade::handle<Geom2d_Curve> pcurve;
-    BRepAdaptor_Surface surface;
-
-    face_side(const TopoDS_Edge &edge, const TopoDS_Face &f) : face(f), surface(f, Standard_True) {
-        double first = 0, last = 0;
-        pcurve = BRep_Tool::CurveOnSurface(edge, f, first, last);
-    }
-    /// A face the edge doesn't border: its uv comes from projecting points onto it.
-    explicit face_side(const TopoDS_Face &f) : face(f), surface(f, Standard_True) {}
-};
 
 /// The point, outward unit normal and normal curvature across the edge (the direction in the tangent plane perpendicular to
 /// `tangent`) of the face at the edge parameter `t`.
@@ -148,13 +128,6 @@ bool strictly_inside(const TopoDS_Face &face, const opencascade::handle<Geom_Sur
     return BRepClass_FaceClassifier(face, gp_Pnt2d(u, v), 1e-6).State() == TopAbs_IN;
 }
 
-/// The unit direction in the face's tangent plane, perpendicular to `tangent`, that runs from `p` into the face (`normal` is the
-/// face's unit normal there). `found` is false when neither side is inside; `both` when both are (the edge is in the face's interior).
-struct inward {
-    gp_Vec direction;
-    bool found = false;
-    bool both = false;
-};
 inward inward_direction(const TopoDS_Face &face, const opencascade::handle<Geom_Surface> &surface, const gp_Pnt &p,
                         const gp_Vec &normal, const gp_Vec &tangent) {
     inward out;
@@ -241,6 +214,10 @@ occt_edge_continuity grade_samples(const TopoDS_Edge &edge, const TopoDS_Face &f
     }
     if (used == 0 || (project_b && used * 2 < samples)) {
         throw user_error(project_b ? "The edge doesn't run along that face." : "The surfaces along this edge can't be compared.");
+    }
+    // R13: a grade across two bodies rests on at least three quarters of the samples, so a G2 never stands on half an edge.
+    if (project_b && used * 4 < samples * 3) {
+        throw user_error("Too few points along the edge lie on the other face to grade it.");
     }
     out.position_gap = position;
     out.angle_gap = angle;
