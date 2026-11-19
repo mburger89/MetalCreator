@@ -70,7 +70,7 @@ typedef struct {
 
 void occt_history_free(occt_history *history);
 
-/// One edge of a result made from an edge of an input (NS-5, R5): all indices 1-based, `operand` the input's position.
+/// One edge of a result made from an edge of an input (NS-5, R5): `out_edge` and `index` are 1-based, `operand` is 0-based (the input's position).
 typedef struct {
     int out_edge;
     int operand;

@@ -176,7 +176,7 @@ public protocol Kernel: Actor {
     func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid
     /// Every face of `bodies` sewn at `tolerance` (NS-5, R6): closed shells become solids, the rest stay sheets. The default refuses.
     func sewn(_ bodies: [Solid], tolerance: Double, tag: NodeTag) async throws -> SewResult
-    /// `sheet` offset by `distance` along its normals (NS-5, R7), each face named by its source's tags plus `.endCap`. The default refuses.
+    /// `sheet` offset by `distance` along its normals (NS-5: R7 is the build, R4 the names), each face named by its source's tags plus `.endCap`. The default refuses.
     func offsetSurface(_ sheet: Solid, distance: Double, tag: NodeTag) async throws -> Solid
     /// `sheet` grown into a solid `distance` thick on `side` (NS-5, R3). The default refuses.
     func thickened(_ sheet: Solid, distance: Double, side: ThickenSide, tag: NodeTag) async throws -> Solid

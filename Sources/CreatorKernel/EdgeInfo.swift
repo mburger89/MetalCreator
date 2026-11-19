@@ -14,7 +14,8 @@ public struct EdgeInfo: Hashable, Sendable {
     public var curve: EdgeCurve?
     /// The edge's own names (NURBS spec): set on a sheet's boundary edges, which border one face and so can't be named by
     /// two, and (NS-5, R5) on an edge made by sewing, which holds the union of the tags of the boundary edges sewn into it.
-    /// A tagged edge is therefore not necessarily a boundary edge: test `isBoundary`, never `tags.isEmpty`. Empty otherwise.
+    /// A tagged edge is therefore not necessarily a boundary edge: test `isBoundary`, never `tags.isEmpty`. Split and trim edges carry tags too (NS-4: a trim's `.boundary(.cut)` is copied onto the edge even when it later
+    /// lies between two faces). Empty otherwise.
     public var tags: Set<TopoTag>
 
     public init(id: EdgeID, kind: CurveKind, direction: Vector3?, length: Double, midpoint: Vector3,
