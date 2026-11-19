@@ -808,6 +808,19 @@ occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int
 occt_shape *occt_sew(const occt_shape *const *bodies, int count, double tolerance, const occt_cancel *cancel,
                      occt_history *history, occt_edge_history *edges, int *solids, int *sheets, int *unclosable,
                      occt_status *status);
+/// `sheet` offset by `distance` mm along its normals (NS-5, Task 4; R7, R8): a shell of faces, each source face's image, with `history`
+/// OCCT_FROM_FACE (operand 0, the source face) and `edges` pairing each source boundary edge (index) with its image (out_edge). Refuses
+/// "The distance can't be 0.", "The offset couldn't be built." (nothing valid at this distance: tolerances over 0.01 mm count) and "The
+/// offset changed the surface's open edges, so it can't be offset.". `cancel` may be NULL.
+occt_shape *occt_offset_surface(const occt_shape *sheet, double distance, const occt_cancel *cancel, occt_history *history,
+                                occt_edge_history *edges, occt_status *status);
+/// The smallest positive distance (written to `limit`) at which an offset of `sheet` along its normals (`sign` > 0) or against them
+/// (`sign` < 0) reaches a centre of curvature (R8); +infinity when none.
+int occt_offset_limit(const occt_shape *sheet, int sign, double *limit, occt_status *status);
+/// Whether two different pieces of `sheet` have edges that sewing at 0.01 mm would join (R11), written to `touching`.
+int occt_touching_pieces(const occt_shape *sheet, int *touching, occt_status *status);
+/// FOR TESTS ONLY. A one-face non-periodic cubic B-spline sheet wrapped round a circle of `radius` whose first and last pole columns coincide.
+occt_shape *occt_test_wrapped_sheet(double radius, double height, occt_status *status);
 /// FOR TESTS ONLY. A copy of `shape` that shares no geometry or topology with it.
 occt_shape *occt_test_independent_copy(const occt_shape *shape, occt_status *status);
 /// FOR TESTS ONLY. The six faces of a `size` mm box, each copied on its own, as one compound; the top face moved `move_top` mm along z and,
