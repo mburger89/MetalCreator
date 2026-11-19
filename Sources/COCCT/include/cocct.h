@@ -506,6 +506,10 @@ int occt_curve_info_of(const occt_shape *wire, occt_curve_info *out, occt_status
 void occt_curve_info_free(occt_curve_info *info);
 /// The wires that `edge_indices` (1-based, in `shape`'s edge map) chain into, as one compound ordered by each wire's lowest edge index.
 occt_shape *occt_curves_from_edges(const occt_shape *shape, const int *edge_indices, int count, occt_status *status);
+/// The curves where `a` and `b` meet (BRepAlgoAPI_Section, no approximation), chained into wires within 1e-6 mm and returned as one
+/// compound (empty when they don't meet): an open wire runs from its lexicographically smaller end, a closed one starts at its smallest
+/// vertex, and the wires are ordered by start point (x, then y, then z, within 1e-6 mm; NS-4 R14). The same shape twice is refused.
+occt_shape *occt_intersection_curves(const occt_shape *a, const occt_shape *b, occt_status *status);
 /// The number of children of a compound made by occt_curves_from_edges, and the child at `index` (0-based).
 int occt_compound_child_count(const occt_shape *compound);
 occt_shape *occt_compound_child(const occt_shape *compound, int index, occt_status *status);

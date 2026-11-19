@@ -39,7 +39,7 @@ public enum BuiltInNodes {
         CurveThroughPointsNode.self, CurveFromEdgesNode.self, ProfileToCurvesNode.self, ExtrudeCurveNode.self, RevolveCurveNode.self,
         LoftSurfaceNode.self, SweepNode.self, PlanarSurfaceNode.self, NetworkSurfaceNode.self, BoundaryPatchNode.self,
         EditSurfaceNode.self, EditCurveNode.self, RebuildSurfaceNode.self, RebuildCurveNode.self,
-        TrimSurfaceNode.self, SplitSurfaceNode.self,
+        TrimSurfaceNode.self, SplitSurfaceNode.self, IntersectionCurvesNode.self,
         OutputNode.self,
     ]
 
