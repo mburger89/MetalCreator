@@ -33,6 +33,24 @@ struct TrimRegionRefusalTests {
         #expect(app.alert?.message == "“Trim Surface” has no pieces to pick yet: wire a sheet and a cutter first.")
     }
 
+    @Test func aFailingUpstreamNodeGivesItsOwnReason() async throws {
+        var builder = GraphBuilder()
+        let (_, extrude) = builder.solid(distance: 0)
+        let trim = builder.add(TrimSurfaceNode.self)
+        let output = builder.add(OutputNode.self)
+        builder.wire(extrude, "solid", to: trim, "surface")
+        builder.wire(trim, "surface", to: output, "solid")
+        let app = await makeApp(builder.graph)
+        guard case .idle(let reason?)? = app.editor.result(of: trim.id)?.state else {
+            Issue.record("expected an idle trim, got \(String(describing: app.editor.result(of: trim.id)?.state))")
+            return
+        }
+        app.beginTrimRegionPick(for: trim.id)
+        #expect(app.pick == nil)
+        #expect(app.alert?.message == reason)
+        #expect(app.alert?.message.contains("wire a sheet and a cutter first") == false)
+    }
+
     @Test func refusedWhileEditingControlPoints() async throws {
         var builder = GraphBuilder()
         let trim = builder.add(TrimSurfaceNode.self)

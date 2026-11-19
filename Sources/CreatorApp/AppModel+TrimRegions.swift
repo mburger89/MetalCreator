@@ -21,7 +21,11 @@ extension AppModel {
         }
         let source = Endpoint(node: id, socket: "pieces")
         guard let whole = solid(at: source) ?? recoveredSolid(at: source) else {
-            if case .error(let reason)? = editor.result(of: id)?.state { return refusePick(reason) }
+            switch editor.result(of: id)?.state {
+            case .error(let reason)?: return refusePick(reason)
+            case .idle(let reason?)?: return refusePick(reason)
+            default: break
+            }
             return refusePick("“\(node.name)” has no pieces to pick yet: wire a sheet and a cutter first.")
         }
         let pieces = TrimRegions.pieces(of: whole)
