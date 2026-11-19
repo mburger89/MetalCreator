@@ -244,7 +244,6 @@ void source_map(BRepAlgoAPI_Splitter &splitter, const TopTools_IndexedMapOfShape
     }
 }
 
-/// A point strictly inside `face`: the UV box sampled 8 x 8, then 32 x 32, then 128 x 128, the inside sample nearest the box's middle.
 /// The faces as a sheet: one shell per set of faces that join over shared edges (cut edges included), so a sheet whose faces are
 /// loose, as an imported one can be, stays valid. One set is that shell; several are a compound of shells.
 TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
@@ -310,6 +309,7 @@ TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
     return compound;
 }
 
+/// A point strictly inside `face`: the UV box sampled 8 x 8, then 32 x 32, then 128 x 128, the inside sample nearest the box's middle.
 bool interior_point(const TopoDS_Face &face, gp_Pnt &point) {
     double u0 = 0;
     double u1 = 0;
