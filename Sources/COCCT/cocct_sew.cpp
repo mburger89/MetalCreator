@@ -26,6 +26,8 @@
 #include <GProp_GProps.hxx>
 #include <TopAbs_State.hxx>
 #include <TopoDS_Compound.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Pnt2d.hxx>
@@ -177,16 +179,24 @@ occt_shape *occt_sew(const occt_shape *const *bodies, int count, double toleranc
             }
             body_edges.push_back(map_of(bodies[b]->shape, TopAbs_EDGE));
             const TopTools_IndexedMapOfShape faces = map_of(bodies[b]->shape, TopAbs_FACE);
-            // R6: a closed solid in the list passes through as a solid (a void is one of its shells), so its faces are not offered.
-            TopTools_IndexedMapOfShape loose;
-            for (TopExp_Explorer it(bodies[b]->shape, TopAbs_FACE, TopAbs_SOLID); it.More(); it.Next()) {
-                loose.Add(it.Current());
-            }
+            // R6: a closed solid in the list passes through as a solid (a void is one of its shells), so its faces are not offered;
+            // a solid with an open shell is not closed, and its faces go to the sewer with the loose ones.
+            TopTools_IndexedMapOfShape held;
             for (TopExp_Explorer it(bodies[b]->shape, TopAbs_SOLID); it.More(); it.Next()) {
+                bool closed = true;
+                for (TopExp_Explorer shells(it.Current(), TopAbs_SHELL); shells.More(); shells.Next()) {
+                    closed = closed && BRep_Tool::IsClosed(shells.Current());
+                }
+                if (!closed) {
+                    continue;
+                }
+                for (TopExp_Explorer solid_faces(it.Current(), TopAbs_FACE); solid_faces.More(); solid_faces.Next()) {
+                    held.Add(solid_faces.Current());
+                }
                 aside.push_back(AsideSolid{b, it.Current(), std::make_shared<BRepBuilderAPI_Copy>(it.Current(), Standard_False, Standard_False)});
             }
             for (int f = 1; f <= faces.Extent(); ++f) {
-                if (loose.FindIndex(faces(f)) <= 0) {
+                if (held.FindIndex(faces(f)) > 0) {
                     continue;
                 }
                 Source source;
@@ -280,15 +290,31 @@ occt_shape *occt_sew(const occt_shape *const *bodies, int count, double toleranc
             }
             used[i] = true;
             TopoDS_Shape outer = solidify_closed_shell(ranked[i].second);
+            // Every shell inside this one is a void, unless it lies inside a void already taken (an island: a solid of its own).
+            std::vector<size_t> taken;
             for (size_t j = i + 1; j < ranked.size(); ++j) {
-                if (used[j]) {
+                if (used[j] || solid_with_void(ranked[i].second, ranked[j].second).IsNull()) {
                     continue;
                 }
-                const TopoDS_Shape holed = solid_with_void(ranked[i].second, ranked[j].second);
+                bool island = false;
+                for (const size_t k : taken) {
+                    island = island || !solid_with_void(ranked[k].second, ranked[j].second).IsNull();
+                }
+                if (!island) {
+                    taken.push_back(j);
+                }
+            }
+            if (!taken.empty()) {
+                std::vector<TopoDS_Shape> voids;
+                for (const size_t k : taken) {
+                    voids.push_back(ranked[k].second);
+                }
+                const TopoDS_Shape holed = solid_with_voids(ranked[i].second, voids);
                 if (!holed.IsNull()) {
                     outer = holed;
-                    used[j] = true;
-                    break;
+                    for (const size_t k : taken) {
+                        used[k] = true;
+                    }
                 }
             }
             ++solid_count;
@@ -388,7 +414,7 @@ occt_shape *occt_test_independent_copy(const occt_shape *shape, occt_status *sta
     });
 }
 
-occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_top, occt_status *status) {
+occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_top, int as_solid, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         occt_initialize();
         const TopoDS_Shape box = BRepPrimAPI_MakeBox(size, size, size).Shape();
@@ -416,6 +442,18 @@ occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_t
         }
         if (double_top != 0 && !top.IsNull()) {
             builder.Add(compound, BRepBuilderAPI_Copy(top, Standard_True, Standard_False).Shape());
+        }
+        if (as_solid != 0) {
+            // The faces in one shell in one solid, built without a check: a solid whose shell has gaps.
+            TopoDS_Shell shell;
+            builder.MakeShell(shell);
+            for (TopoDS_Iterator it(compound); it.More(); it.Next()) {
+                builder.Add(shell, it.Value());
+            }
+            TopoDS_Solid solid;
+            builder.MakeSolid(solid);
+            builder.Add(solid, shell);
+            return new occt_shape{solid};
         }
         return new occt_shape{compound};
     });

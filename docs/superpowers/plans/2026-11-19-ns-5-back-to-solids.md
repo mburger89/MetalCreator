@@ -76,13 +76,15 @@ check, cut naming (R2, R17) and the splitter this plan builds on.
   and `EdgeKey.operandKeys` can't do that (it only splits a side that merged several origins; it never looks at edge tags). Cost:
   `EdgeInfo.tags` no longer implies a boundary edge; every reader must test `isBoundary`, never `tags.isEmpty`. Only Sew and Cap
   Planar Holes write edge records; Thicken, Offset (beyond R4) and Split Solid don't.
-- **R6. Sew.** Every face of every input body (sheets and solids alike, the spec's "solids' faces") is offered to
+- **R6. Sew.** A closed solid in the input passes through untouched (`OCCT_FROM_FACE` records for its faces, a loose face that
+  coincides with one of its faces is no longer treated as a duplicate); every other face (loose faces, and the faces of a solid with an
+  open shell, so gaps in an imported solid can be healed) is offered to
   `BRepBuilderAPI_Sewing` at `tolerance` (default 0.01 mm, non-manifold mode off), in input order. Each closed shell of the result
   becomes a solid through `solidify_closed_shell` (lifted out of `cocct_import.cpp`: outward by signed volume, valid by
   `BRepCheck_Analyzer`, else a null shape); a closed shell that makes no valid solid stays a sheet and is warned about; open shells
   stay sheets and the free edges are counted in a warning. The result is one body (a compound when several), each face keeping its
   input face's tags (history `OCCT_FROM_FACE`, operand = the input's index) and each edge the edge records of R5. An invalid sewn
-  shape is refused. A closed solid in the list re-sews into its own closed shell, so it passes through as a solid with its names.
+  shape is refused. Contained closed shells become voids of the shell that holds them (several per solid; a shell inside a void stays a solid of its own).
   **What one sheet is** (review 2026-11-19): `SewResult.sheets` counts the connected open pieces of the result, two faces being
   connected when they share an edge: each open shell is one sheet, each face in no shell is one sheet, and each closed shell that
   made no valid solid is one sheet (also counted in `unclosable`, so `unclosable ≤ sheets`); `solids` counts solids. A single shell
@@ -170,7 +172,7 @@ check, cut naming (R2, R17) and the splitter this plan builds on.
   solid." and "Offset Surface takes sheets only; this value also holds a closed solid." (a value that is only solids keeps the
   sentence "… takes a sheet; this is a closed solid."). Cap Planar Holes passes the solids through untouched: the shim splits the
   input into its `TopAbs_SOLID`s and the rest, caps and sews only the rest, and puts the solids back into the result compound with
-  `OCCT_FROM_FACE` records for their faces, so their names are unchanged. Sew needs no rule (R6 offers every face), and Split Solid's
+  `OCCT_FROM_FACE` records for their faces, so their names are unchanged. Sew needs no rule (R6: closed solids pass through, open solids' faces are sewn), and Split Solid's
   `solid` is refused by `hasOpenShell` while its tools are named per face (R13). Cost: a user with a mixed value must split it
   first (no node does that yet; parked).
 - **R18. Tests never assume a curved sheet's normal** (review 2026-11-19). Revolve Curve's normal depends on the line's direction

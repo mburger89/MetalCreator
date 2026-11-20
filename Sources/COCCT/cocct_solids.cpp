@@ -97,4 +97,55 @@ TopoDS_Shape solid_with_void(const TopoDS_Shape &a, const TopoDS_Shape &b) {
     return result;
 }
 
+TopoDS_Shape solid_with_voids(const TopoDS_Shape &outer, const std::vector<TopoDS_Shape> &voids) {
+    if (outer.IsNull() || outer.ShapeType() != TopAbs_SHELL || voids.empty()) {
+        return TopoDS_Shape();
+    }
+    const TopoDS_Shape outer_solid = solidify_closed_shell(outer);
+    if (outer_solid.IsNull()) {
+        return TopoDS_Shape();
+    }
+    const double outer_volume = volume_of(outer_solid);
+    TopExp_Explorer outer_shells(outer_solid, TopAbs_SHELL);
+    if (!(outer_volume > 0) || !outer_shells.More()) {
+        return TopoDS_Shape();
+    }
+    BRepBuilderAPI_MakeSolid maker(TopoDS::Shell(outer_shells.Current()));
+    double expected = outer_volume;
+    for (const TopoDS_Shape &hole : voids) {
+        if (hole.IsNull() || hole.ShapeType() != TopAbs_SHELL) {
+            return TopoDS_Shape();
+        }
+        const TopoDS_Shape inner_solid = solidify_closed_shell(hole);
+        if (inner_solid.IsNull()) {
+            return TopoDS_Shape();
+        }
+        const double inner_volume = volume_of(inner_solid);
+        TopExp_Explorer inner_shells(inner_solid, TopAbs_SHELL);
+        TopExp_Explorer inner_vertices(inner_solid, TopAbs_VERTEX);
+        if (!(inner_volume > 0) || !inner_shells.More() || !inner_vertices.More()) {
+            return TopoDS_Shape();
+        }
+        const gp_Pnt probe = BRep_Tool::Pnt(TopoDS::Vertex(inner_vertices.Current()));
+        BRepClass3d_SolidClassifier classifier(outer_solid, probe, 1e-7);
+        if (classifier.State() != TopAbs_IN) {
+            return TopoDS_Shape();
+        }
+        maker.Add(TopoDS::Shell(inner_shells.Current().Reversed()));
+        expected -= inner_volume;
+    }
+    if (!maker.IsDone()) {
+        return TopoDS_Shape();
+    }
+    const TopoDS_Shape result = maker.Solid();
+    if (!BRepCheck_Analyzer(result).IsValid()) {
+        return TopoDS_Shape();
+    }
+    const double volume = volume_of(result);
+    if (!(volume > 0) || !(expected > 0) || std::abs(volume - expected) > 1e-6 * outer_volume) {
+        return TopoDS_Shape();
+    }
+    return result;
+}
+
 } // namespace cocct

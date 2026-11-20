@@ -176,6 +176,40 @@ struct SewTests {
         #expect(try await abs(kernel.properties(of: sewn.body).volume - expected) / expected < 1e-4)
     }
 
+    @Test func aSolidWithGapsIsOfferedToTheSewer() async throws {
+        let kernel = OCCTKernel()
+        let gapped = try await kernel.gappedBoxSolid(movingTopBy: 0.005, tag: newTag())
+        #expect(gapped.hasOpenShell)
+        let sewn = try await kernel.sewn([gapped], tolerance: 0.05, tag: sewTag)
+        #expect(sewn.solids == 1 && sewn.sheets == 0)
+        #expect(!sewn.body.hasOpenShell)
+        #expect(try await abs(kernel.properties(of: sewn.body).volume - 1000) / 1000 < 1e-2)
+    }
+
+    @Test func severalCavitiesAreAllVoidsOfOneSolid() async throws {
+        let kernel = OCCTKernel()
+        let move = { (solid: Solid, x: Double) in
+            try await kernel.transform(solid, by: Transform(translation: Vector3(x, 0, 0)), tag: newTag())
+        }
+        let sheets = try await [
+            sphereSheet(kernel, radius: 20), move(sphereSheet(kernel, radius: 4), -8), move(sphereSheet(kernel, radius: 4), 8),
+        ]
+        let sewn = try await kernel.sewn([kernel.compound(sheets, tag: newTag())], tolerance: 0.01, tag: sewTag)
+        #expect(sewn.solids == 1 && sewn.sheets == 0)
+        let expected = 4.0 / 3 * Double.pi * (8000 - 64 - 64)
+        #expect(try await abs(kernel.properties(of: sewn.body).volume - expected) / expected < 1e-4)
+    }
+
+    @Test func anIslandInsideACavityStaysItsOwnSolid() async throws {
+        let kernel = OCCTKernel()
+        let both = try await kernel.compound(
+            [sphereSheet(kernel, radius: 20), sphereSheet(kernel, radius: 10), sphereSheet(kernel, radius: 4)], tag: newTag())
+        let sewn = try await kernel.sewn([both], tolerance: 0.01, tag: sewTag)
+        #expect(sewn.solids == 2 && sewn.sheets == 0)
+        let expected = 4.0 / 3 * Double.pi * (8000 - 1000 + 64)
+        #expect(try await abs(kernel.properties(of: sewn.body).volume - expected) / expected < 1e-4)
+    }
+
     @Test func refusals() async throws {
         let kernel = OCCTKernel()
         let sheet = try await rectangle(kernel, x: 0...10, y: 0...10)

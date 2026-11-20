@@ -883,8 +883,8 @@ occt_shape *occt_test_wrapped_sheet(double radius, double height, occt_status *s
 /// FOR TESTS ONLY. A copy of `shape` that shares no geometry or topology with it.
 occt_shape *occt_test_independent_copy(const occt_shape *shape, occt_status *status);
 /// FOR TESTS ONLY. The six faces of a `size` mm box, each copied on its own, as one compound; the top face moved `move_top` mm along z and,
-/// when `double_top` is nonzero, written a second time last.
-occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_top, occt_status *status);
+/// when `double_top` is nonzero, written a second time last; with `as_solid` nonzero the faces are one unchecked solid with gaps.
+occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_top, int as_solid, occt_status *status);
 
 /// FOR TESTS ONLY. The largest tolerance of any edge of `shape`.
 int occt_test_max_edge_tolerance(const occt_shape *shape, double *tolerance, occt_status *status);
