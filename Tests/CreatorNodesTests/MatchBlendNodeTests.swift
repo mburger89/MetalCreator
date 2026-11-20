@@ -171,26 +171,47 @@ struct MatchBlendNodeTests {
         #expect(released.isOK(rig.node))
     }
 
-    @Test func aG1FoldWarnsAfterADrag() async throws {
+    /// 165 degrees is a smooth hairpin: the normal turns through it without ever vanishing, so it is no fold (R10).
+    @Test func aSmoothHairpinIsNotAFold() async throws {
         let rig = try await makeRig(degrees: 165, values: ["continuity": .integer(1)])
-        let evaluator = Evaluator(registry: BuiltInNodes.registry, kernel: kernel)
-        let dragging = try await evaluate(rig, evaluator, scrubbing: true)
+        let report = try await rig.h.run([rig.node], kernel: kernel)
+        #expect(report.isOK(rig.node) && report.warning(rig.node) == nil, "\(String(describing: report.state(rig.node)))")
+        #expect(try await kernel.folds(solid(report, rig.node)) == false)
+    }
+    #endif
+
+    /// The fake kernel hands back the sheet and says it folds, so these test the node's timing around the warning alone (a
+    /// Match cannot be made to fold for real: its result bends smoothly, `FoldConfirmationTests` holds a true fold).
+    func foldRig(grade: Int) async throws -> (rig: (h: Harness, node: Node), fake: FakeKernel, evaluator: Evaluator) {
+        let rig = try await boxRig(MatchSurfaceNode.self, ("edges", "target"), ["continuity": .integer(grade)])
+        let fake = FakeKernel()
+        await fake.setMatchPassThrough(folds: true)
+        return (rig, fake, Evaluator(registry: BuiltInNodes.registry, kernel: fake))
+    }
+
+    func run(_ rig: (h: Harness, node: Node), _ evaluator: Evaluator, scrubbing: Bool) async throws -> EvaluationReport {
+        try await evaluator.evaluate(rig.h.graph, demand: [rig.node.id], isScrubbing: scrubbing)
+    }
+
+    @Test func aG1FoldWarnsAfterADrag() async throws {
+        let (rig, _, evaluator) = try await foldRig(grade: 1)
+        let dragging = try await run(rig, evaluator, scrubbing: true)
         #expect(dragging.warning(rig.node) == EditSurfaceNode.foldWarning, "\(String(describing: dragging.state(rig.node)))")
-        let released = try await evaluate(rig, evaluator, scrubbing: false)
+        let released = try await run(rig, evaluator, scrubbing: false)
         #expect(!released.evaluatedNodes.contains(rig.node.id))
         #expect(released.warning(rig.node) == EditSurfaceNode.foldWarning)
     }
 
     @Test func aG2FoldWarnsOnlyAfterTheFlagClears() async throws {
-        let rig = try await makeRig(degrees: 165, values: ["continuity": .integer(2)])
-        let evaluator = Evaluator(registry: BuiltInNodes.registry, kernel: kernel)
-        let dragging = try await evaluate(rig, evaluator, scrubbing: true)
+        let (rig, _, evaluator) = try await foldRig(grade: 2)
+        let dragging = try await run(rig, evaluator, scrubbing: true)
         #expect(dragging.isOK(rig.node) && dragging.warning(rig.node) == nil, "\(String(describing: dragging.state(rig.node)))")
-        let released = try await evaluate(rig, evaluator, scrubbing: false)
+        let released = try await run(rig, evaluator, scrubbing: false)
         #expect(released.evaluatedNodes.contains(rig.node.id))
         #expect(released.warning(rig.node) == EditSurfaceNode.foldWarning, "\(String(describing: released.state(rig.node)))")
     }
 
+    #if canImport(CreatorOCCT)
     @Test func blendNodeBlends() async throws {
         let rig = try await makeRig(BlendSurfaceNode.self, degrees: 0, gap: 4, second: "other edges")
         let report = try await rig.h.run([rig.node], kernel: kernel)

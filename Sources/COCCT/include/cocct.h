@@ -70,6 +70,20 @@ typedef struct {
 
 void occt_history_free(occt_history *history);
 
+/// One edge of a result made from an edge of an input (NS-5, R5): `out_edge` and `index` are 1-based, `operand` is 0-based (the input's position).
+typedef struct {
+    int out_edge;
+    int operand;
+    int index;
+} occt_edge_record;
+
+typedef struct {
+    occt_edge_record *records;
+    int count;
+} occt_edge_history;
+
+void occt_edge_history_free(occt_edge_history *history);
+
 typedef struct {
     double volume;
     double area;
@@ -785,6 +799,92 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
 /// One shell of the given faces (`face_indices`, 1-based in `sheet`'s face map) sharing their edges, every face and edge the same shape as
 /// in `sheet`. `out` has `source_face` and `source_edge` per output face and edge; the other fields are zero.
 occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int count, occt_split_result *out, occt_status *status);
+
+/// One face of a piece of a split solid (NS-5, R13). Faces are listed piece by piece, each piece's in the order of its own face map (so the
+/// k-th entry of piece p is face k of the p-th child of the returned compound). `source_operand` is 0 for a face of the divided solid or
+/// 1 + the tool's position for a cut face, and `source_face` the 1-based face of that body it is (a piece of); `pair_start` /
+/// `pair_count` index the (element, side) pairs, `element` being the tool faces' number over every tool's face map in input order and
+/// `side` 0 front, 1 back, 2 inside, 3 outside (inside and outside for a tool face of a closed solid).
+typedef struct {
+    int piece;
+    int source_operand;
+    int source_face;
+    int pair_start;
+    int pair_count;
+} occt_split_solid_face;
+typedef struct {
+    occt_split_solid_face *faces;
+    int face_count;
+    occt_split_pair *pairs;
+    int pair_count;
+    int piece_count;
+    /// 1 when part of a tool was dropped because it doesn't cross the solid from side to side.
+    int dangling;
+} occt_split_solid_result;
+void occt_split_solid_result_free(occt_split_solid_result *result);
+
+/// `solid` (closed) divided by `tools` (sheets or closed solids, each one shape) with the Splitter (NS-5, R13, R15). The result is a
+/// compound of the pieces' solids; `out` says where every face of every piece came from and the (element, side) pairs it carries. A tool
+/// face that cuts nothing across is removed from the piece that holds it (`out->dangling`). Refuses "The tools don't cut the solid into
+/// pieces." and "The tools couldn't divide this solid." (the splitter failed or a piece is invalid). `cancel` may be NULL.
+occt_shape *occt_split_solid(const occt_shape *solid, const occt_shape *const *tools, int tool_count, const occt_cancel *cancel,
+                             occt_split_solid_result *out, occt_status *status);
+
+/// Sews the faces of `bodies` (sheets and solids alike, in order) at `tolerance` (NS-5, R6). A face that coincides with an earlier face is
+/// not sewn and stays loose in the result. Each closed shell becomes a solid; the rest stay sheets. `history` is OCCT_FROM_FACE per result face
+/// (operand = the body's position, index its 1-based face); `edges` says which input edges (1-based) each result edge was made from.
+/// `solids`, `sheets` and `unclosable` are counted as the plan's R6 says. Refuses "Sew needs at least one surface.", "The tolerance must
+/// be greater than 0." and "Sewing made an invalid shape; try a smaller tolerance.". `cancel` may be NULL.
+occt_shape *occt_sew(const occt_shape *const *bodies, int count, double tolerance, const occt_cancel *cancel,
+                     occt_history *history, occt_edge_history *edges, int *solids, int *sheets, int *unclosable,
+                     occt_status *status);
+/// `sheet` offset by `distance` mm along its normals (NS-5, Task 4; R7, R8): a shell of faces, each source face's image, with `history`
+/// OCCT_FROM_FACE (operand 0, the source face) and `edges` pairing each source boundary edge (index) with its image (out_edge). Refuses
+/// "The distance can't be 0.", "The offset couldn't be built." (nothing valid at this distance: tolerances over 0.01 mm count) and "The
+/// offset changed the surface's open edges, so it can't be offset.". `cancel` may be NULL.
+occt_shape *occt_offset_surface(const occt_shape *sheet, double distance, const occt_cancel *cancel, occt_history *history,
+                                occt_edge_history *edges, occt_status *status);
+/// The smallest positive distance (written to `limit`) at which an offset of `sheet` along its normals (`sign` > 0) or against them
+/// (`sign` < 0) reaches a centre of curvature (R8); +infinity when none.
+int occt_offset_limit(const occt_shape *sheet, int sign, double *limit, occt_status *status);
+/// Whether two different pieces of `sheet` have edges that sewing at 0.01 mm would join (R11), written to `touching`.
+int occt_touching_pieces(const occt_shape *sheet, int *touching, occt_status *status);
+/// `sheet` grown into a solid `distance` mm thick (NS-5, Task 5; R3, R7): `side` 0 puts the sheet at the start and the far face at
+/// +distance, 1 puts the start face at -distance and the sheet at the end, 2 puts them at -/+ distance / 2. `history` has OCCT_FROM_FACE
+/// (operand 0, the source face) with OCCT_FROM_START_CAP (the face looking against the normal) or OCCT_FROM_END_CAP on each side face, and
+/// OCCT_FROM_EDGE (operand 0, the source boundary edge) on each wall. The result is valid, closed, with tolerances within 0.01 mm and
+/// positive volumes. Refuses "The distance must be greater than 0.", "The offset couldn't be built." and "The offset changed the
+/// surface's open edges, so it can't be offset.". `cancel` may be NULL.
+occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, const occt_cancel *cancel, occt_history *history,
+                         occt_status *status);
+/// One source edge of a cap's outer loop (NS-5, R12): `face` is the cap's 1-based face in the result, `edge` the input's 1-based edge.
+typedef struct {
+    int face;
+    int edge;
+} occt_cap_loop_edge;
+
+typedef struct {
+    occt_cap_loop_edge *records;
+    int count;
+} occt_cap_loops;
+
+void occt_cap_loops_free(occt_cap_loops *loops);
+
+/// `sheet`'s closed free loops that are flat (every sample within `flatness` mm of the plane through the samples' centroid with Newell's normal; a flat loop with a planar face of the sheet already in its plane stays open and is not counted in `not_flat`) capped with planar faces
+/// (NS-5, Task 6; R12, R17): loops in one plane are nested even-odd into faces with holes, the caps are sewn to the sheet at 0.01 mm and
+/// every closed shell made a solid. The input's `TopAbs_SOLID`s are set aside and put back unchanged. `history` is OCCT_FROM_FACE (operand 0,
+/// the input face) for every face that came from one; `edges` is sew's R5 edge records; `loops` lists each cap's outer-loop source edges.
+/// `capped` counts the caps made and `not_flat` the closed free loops left open. Refuses "Capping made an invalid shape; the holes can't be
+/// capped.". `cancel` may be NULL.
+occt_shape *occt_cap_planar_holes(const occt_shape *sheet, double flatness, const occt_cancel *cancel, occt_history *history,
+                                  occt_edge_history *edges, occt_cap_loops *loops, int *capped, int *not_flat, occt_status *status);
+/// FOR TESTS ONLY. A one-face non-periodic cubic B-spline sheet wrapped round a circle of `radius` whose first and last pole columns coincide.
+occt_shape *occt_test_wrapped_sheet(double radius, double height, occt_status *status);
+/// FOR TESTS ONLY. A copy of `shape` that shares no geometry or topology with it.
+occt_shape *occt_test_independent_copy(const occt_shape *shape, occt_status *status);
+/// FOR TESTS ONLY. The six faces of a `size` mm box, each copied on its own, as one compound; the top face moved `move_top` mm along z and,
+/// when `double_top` is nonzero, written a second time last; with `as_solid` nonzero the faces are one unchecked solid with gaps.
+occt_shape *occt_test_loose_box_faces(double size, double move_top, int double_top, int as_solid, occt_status *status);
 
 /// FOR TESTS ONLY. The largest tolerance of any edge of `shape`.
 int occt_test_max_edge_tolerance(const occt_shape *shape, double *tolerance, occt_status *status);

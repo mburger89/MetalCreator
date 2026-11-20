@@ -41,6 +41,7 @@ public enum BuiltInNodes {
         EditSurfaceNode.self, EditCurveNode.self, RebuildSurfaceNode.self, RebuildCurveNode.self,
         TrimSurfaceNode.self, SplitSurfaceNode.self, IntersectionCurvesNode.self, ExtendSurfaceNode.self,
         MatchSurfaceNode.self, BlendSurfaceNode.self,
+        SewNode.self, ThickenNode.self, OffsetSurfaceNode.self, CapPlanarHolesNode.self, SplitSolidNode.self,
         OutputNode.self,
     ]
 

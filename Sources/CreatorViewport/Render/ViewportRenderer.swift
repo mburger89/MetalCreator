@@ -212,11 +212,11 @@ final class ViewportRenderer {
         let selectedOnly = frame.shading == .shaded
         // A ghost curve is drawn, faded, so a sketch's scene keeps its curves in view; a ghost solid's edges are not.
         for item in frame.items where (!item.isGhost || item.isCurve) && !item.isGuide
-            && (!selectedOnly || item.isCurve || !item.selectedEdges.isEmpty) {
+            && (!selectedOnly || item.isCurve || !item.selectedEdges.isEmpty || !item.warningEdges.isEmpty) {
             // A curve is all edges, in every display mode.
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges,
                                       selectedOnly: selectedOnly && !item.isCurve, scale: scale, isCurve: item.isCurve,
-                                      isGhost: item.isGhost)
+                                      isGhost: item.isGhost, warning: item.warningEdges)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style,
                       clip: ClipUniforms(frame.clip), encoder)

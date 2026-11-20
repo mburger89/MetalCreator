@@ -6,6 +6,7 @@
 // borders and whether it is inside a closed cutter.
 
 #include "cocct_sheet.hpp"
+#include "cocct_splitter.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -50,6 +51,7 @@ using namespace cocct;
 namespace {
 
 constexpr const char *kClosedSolid = "Trim and Split take a sheet; this is a closed solid.";
+constexpr const char *kCutterFailure = "The cutter couldn't divide this surface.";
 constexpr const char *kNoCut = "The cutter doesn't cut the surface.";
 constexpr double kNameTolerance = 1e-3;
 
@@ -195,55 +197,6 @@ bool loop_contains(const Loop &loop, const gp_Pnt &point, const gp_Vec *directio
     return inside;
 }
 
-struct SplitRun {
-    std::unique_ptr<BRepAlgoAPI_Splitter> splitter;
-    TopoDS_Shape whole;
-};
-
-SplitRun run_splitter(const TopoDS_Shape &sheet, const TopTools_ListOfShape &tools, const occt_cancel *cancel) {
-    poll(cancel);
-    SplitRun run;
-    run.splitter = std::make_unique<BRepAlgoAPI_Splitter>();
-    TopTools_ListOfShape arguments;
-    arguments.Append(sheet);
-    run.splitter->SetArguments(arguments);
-    run.splitter->SetTools(tools);
-    run.splitter->SetRunParallel(Standard_False);
-    run.splitter->SetNonDestructive(Standard_True);
-    run.splitter->Build();
-    poll(cancel);
-    if (!run.splitter->IsDone() || run.splitter->HasErrors()) {
-        throw user_error("The cutter couldn't divide this surface.");
-    }
-    run.whole = run.splitter->Shape();
-    return run;
-}
-
-/// For each shape of `sources` (the sheet's faces or edges), the shapes of the result it became, as the splitter's history says.
-void source_map(BRepAlgoAPI_Splitter &splitter, const TopTools_IndexedMapOfShape &sources, const TopTools_IndexedMapOfShape &result,
-                std::vector<int> &out) {
-    out.assign(result.Extent(), 0);
-    for (int i = 1; i <= sources.Extent(); ++i) {
-        const TopoDS_Shape &source = sources(i);
-        const TopTools_ListOfShape &modified = splitter.Modified(source);
-        if (modified.IsEmpty()) {
-            if (!splitter.IsDeleted(source)) {
-                const int index = result.FindIndex(source);
-                if (index > 0) {
-                    out[index - 1] = i;
-                }
-            }
-            continue;
-        }
-        for (TopTools_ListOfShape::Iterator it(modified); it.More(); it.Next()) {
-            const int index = result.FindIndex(it.Value());
-            if (index > 0) {
-                out[index - 1] = i;
-            }
-        }
-    }
-}
-
 /// The faces as a sheet: one shell per set of faces that join over shared edges (cut edges included), so a sheet whose faces are
 /// loose, as an imported one can be, stays valid. One set is that shell; several are a compound of shells.
 TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
@@ -309,44 +262,15 @@ TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
     return compound;
 }
 
-/// A point strictly inside `face`: the UV box sampled 8 x 8, then 32 x 32, then 128 x 128, the inside sample nearest the box's middle.
+/// A point strictly inside `face` (see `cocct::interior_uv`).
 bool interior_point(const TopoDS_Face &face, gp_Pnt &point) {
-    double u0 = 0;
-    double u1 = 0;
-    double v0 = 0;
-    double v1 = 0;
-    BRepTools::UVBounds(face, u0, u1, v0, v1);
-    BRepAdaptor_Surface surface(face);
-    for (const int n : {8, 32, 128}) {
-        bool found = false;
-        double best = 0;
-        double best_u = 0;
-        double best_v = 0;
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                const double u = u0 + (i + 0.5) / n * (u1 - u0);
-                const double v = v0 + (j + 0.5) / n * (v1 - v0);
-                BRepClass_FaceClassifier classifier;
-                classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
-                if (classifier.State() != TopAbs_IN) {
-                    continue;
-                }
-                const double d = std::hypot((u - 0.5 * (u0 + u1)) / std::max(u1 - u0, 1e-12),
-                                            (v - 0.5 * (v0 + v1)) / std::max(v1 - v0, 1e-12));
-                if (!found || d < best) {
-                    found = true;
-                    best = d;
-                    best_u = u;
-                    best_v = v;
-                }
-            }
-        }
-        if (found) {
-            point = surface.Value(best_u, best_v);
-            return true;
-        }
+    double u = 0;
+    double v = 0;
+    if (!interior_uv(face, u, v)) {
+        return false;
     }
-    return false;
+    point = BRepAdaptor_Surface(face).Value(u, v);
+    return true;
 }
 
 /// The point of `edge` nearest `target` (distance in the plane across `skip`, when given) and the edge's tangent there, running with
@@ -586,7 +510,7 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
         }
 
         // The first split; a cut edge with one face is a cut that ended inside it.
-        SplitRun run = run_splitter(input, tools, cancel);
+        SplitRun run = run_splitter(input, tools, cancel, kCutterFailure);
         TopTools_IndexedMapOfShape whole_edges = map_of(run.whole, TopAbs_EDGE);
         TopTools_IndexedDataMapOfShapeListOfShape whole_ancestors;
         TopExp::MapShapesAndAncestors(run.whole, TopAbs_EDGE, TopAbs_FACE, whole_ancestors);
@@ -612,7 +536,7 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
             throw user_error(kNoCut);
         }
         if (dangling) {
-            run = run_splitter(input, dividing, cancel);
+            run = run_splitter(input, dividing, cancel, kCutterFailure);
         }
 
         // The final faces as a sheet: a shell per connected set, so a loose-faced input stays valid.

@@ -21,7 +21,7 @@ public enum BooleanNode: NodeDefinition {
         let op: BooleanOp = [.union, .subtract, .intersect][try inputs.choice("operation", options: operations)]
         let (target, tools) = (try inputs.solid("target"), try inputs.solids("tools"))
         try ClosedSolidCheck.requireInput(target, "target")
-        for tool in tools { try ClosedSolidCheck.requireInput(tool, "tools") }
+        for tool in tools { try ClosedSolidCheck.requireToolInput(tool, "tools") }
         // A wired but empty tool list (Hole count 0) changes nothing for a union or subtract. The
         // kernel would refuse it; an intersect with nothing keeps that error.
         if tools.isEmpty, op != .intersect {

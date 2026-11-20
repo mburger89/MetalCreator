@@ -68,6 +68,19 @@ struct SDLRenderTests {
         #expect(pink[0] > 200 && pink[2] > 150 && pink[1] < 170, "a rule's edge still shows, in the selection pink: \(pink)")
     }
 
+    @Test func aWarnedEdgeIsDrawnInTheWarningColourInShadedMode() async throws {
+        let rig = try Rig()
+        var frame = RenderFixtures.boxFrame()
+        frame.shading = .shaded
+        let plain = try await rig.draw(frame)
+        frame.items[0].warningEdges = [EdgeID(1)]
+        let warned = try await rig.draw(frame)
+        let expected = Rig.bytes(palette.warning)
+        let found = Rig.color(warned, 100, 25)
+        for channel in 0..<3 { #expect(abs(found[channel] - expected[channel]) <= 40, "\(found) against \(expected)") }
+        #expect(found != Rig.color(plain, 100, 25))
+    }
+
     @Test func hoverSelectionAndWarningTintTheFaceTheyNameAndNoOther() async throws {
         let rig = try Rig()
         let plain = try await rig.draw(RenderFixtures.boxFrame())

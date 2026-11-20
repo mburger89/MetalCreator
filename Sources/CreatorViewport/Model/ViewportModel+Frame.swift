@@ -14,7 +14,7 @@ extension ViewportModel {
                                         isGhost: item.isGhost, hoveredFace: hoveredFace,
                                         selectedFaces: item.selectedFaces, selectedEdges: item.selectedEdges,
                                         isGuide: item.isGuide, fieldValues: item.fieldValues, fieldRamp: item.fieldRamp,
-                                        warningFaces: item.warningFaces,
+                                        warningFaces: item.warningFaces, warningEdges: item.warningEdges,
                                         openShellFaces: cached.openShellFaces,
                                         isCurve: item.isCurve))
         }

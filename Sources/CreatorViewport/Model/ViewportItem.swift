@@ -22,6 +22,8 @@ public struct ViewportItem: Sendable {
     public var fieldRamp: FieldRamp?
     /// Faces drawn in the theme's warning colour: the triangles a mesh check flagged (implicit spec §5.1).
     public var warningFaces: Set<FaceID>
+    /// Edges drawn in the theme's warning colour in every display mode (a sheet's free edges, NS-5 R14); a selected edge keeps the selection colour.
+    public var warningEdges: Set<EdgeID>
     /// A curve (`init(curve:)`): its solid has no faces, only one edge polyline, and the viewport draws every edge in the
     /// reference colour in every display mode. It is never in the ID pass, so it picks nothing and opens no face menu; its
     /// bounds count in `sceneBounds`.
@@ -29,7 +31,7 @@ public struct ViewportItem: Sendable {
 
     public init(solid: Solid, isGhost: Bool = false, selectedFaces: Set<FaceID> = [], selectedEdges: Set<EdgeID> = [],
                 isGuide: Bool = false, fieldValues: [Float]? = nil, fieldRamp: FieldRamp? = nil, warningFaces: Set<FaceID> = [],
-                isCurve: Bool = false) {
+                isCurve: Bool = false, warningEdges: Set<EdgeID> = []) {
         self.solid = solid
         self.isGhost = isGhost
         self.selectedFaces = selectedFaces
@@ -38,6 +40,7 @@ public struct ViewportItem: Sendable {
         self.fieldValues = fieldValues
         self.fieldRamp = fieldRamp
         self.warningFaces = warningFaces
+        self.warningEdges = warningEdges
         self.isCurve = isCurve
     }
 

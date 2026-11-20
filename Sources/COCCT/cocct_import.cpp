@@ -1,4 +1,5 @@
 #include "cocct_internal.hpp"
+#include "cocct_solids.hpp"
 
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
@@ -62,25 +63,6 @@ public:
         setg(begin, begin, begin + size);
     }
 };
-
-/// The valid, outward-oriented solid a closed free shell makes, or a null shape when `shell` is open or makes no valid solid.
-TopoDS_Shape solidify_closed_shell(const TopoDS_Shape &shell) {
-    if (!BRep_Tool::IsClosed(shell)) {
-        return TopoDS_Shape();
-    }
-    BRepBuilderAPI_MakeSolid maker(TopoDS::Shell(shell));
-    if (!maker.IsDone()) {
-        return TopoDS_Shape();
-    }
-    TopoDS_Shape solid = maker.Solid();
-    GProp_GProps volume;
-    BRepGProp::VolumeProperties(solid, volume);
-    if (volume.Mass() < 0) {
-        solid.Reverse();
-    }
-    BRepCheck_Analyzer check(solid);
-    return check.IsValid() ? solid : TopoDS_Shape();
-}
 
 /// `shape` with every closed free shell made a solid (through compounds; solids, open shells and loose faces stay as they are).
 /// Returns `shape` itself, untouched, when nothing changes, so a model that was already solids keeps its faces in their order.

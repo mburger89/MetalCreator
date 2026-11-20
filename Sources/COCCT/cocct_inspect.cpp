@@ -311,11 +311,28 @@ void occt_history_free(occt_history *history) {
     }
 }
 
+void occt_edge_history_free(occt_edge_history *history) {
+    if (history) {
+        std::free(history->records);
+        history->records = nullptr;
+        history->count = 0;
+    }
+}
+
 int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_status *status) {
     return guarded(status, [&]() -> int {
         *out = occt_properties{};
         GProp_GProps volume;
-        BRepGProp::VolumeProperties(shape->shape, volume);
+        if (TopExp_Explorer(shape->shape, TopAbs_SOLID).More()) {
+            // A value that holds solids and sheets (NS-5, R17) has the solids' volume: a loose face adds a flux term, not a volume.
+            for (TopExp_Explorer solid(shape->shape, TopAbs_SOLID); solid.More(); solid.Next()) {
+                GProp_GProps one;
+                BRepGProp::VolumeProperties(solid.Current(), one);
+                volume.Add(one);
+            }
+        } else {
+            BRepGProp::VolumeProperties(shape->shape, volume);
+        }
         GProp_GProps surface;
         BRepGProp::SurfaceProperties(shape->shape, surface);
         Bnd_Box box;
@@ -387,6 +404,14 @@ void occt_topology_free(occt_topology *topology) {
         std::free(topology->faces);
         std::free(topology->edges);
         *topology = occt_topology{};
+    }
+}
+
+void occt_cap_loops_free(occt_cap_loops *loops) {
+    if (loops) {
+        std::free(loops->records);
+        loops->records = nullptr;
+        loops->count = 0;
     }
 }
 

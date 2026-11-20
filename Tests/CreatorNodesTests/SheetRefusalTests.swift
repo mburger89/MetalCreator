@@ -47,7 +47,7 @@ struct SheetRefusalTests {
         h.wire(surface, "surface", to: asTarget, "target")
         h.wire(box, "solid", to: asTarget, "tools")
         let report = try await h.run([asTool, asTarget], kernel: kernel)
-        #expect(report.error(asTool) == "“tools” is an open surface; use Split or Trim, or Thicken or Sew it first.")
+        #expect(report.error(asTool) == "“tools” is an open surface; use Split Solid to cut with it, or Thicken or Sew it first.")
         #expect(report.error(asTarget) == "“target” is an open surface; use Split or Trim, or Thicken or Sew it first.")
     }
 
@@ -71,7 +71,7 @@ struct SheetRefusalTests {
         let surface = try #require(report.results[loft.id]?.outputs?["surface"]?.items.first)
         guard case .solid(let solid) = surface else { Issue.record("not a solid"); return }
         #expect(solid.hasOpenShell && solid.isClosed, "a closed bare shell is a sheet (isClosed stays edge-level)")
-        #expect(report.error(boolean) == "“tools” is an open surface; use Split or Trim, or Thicken or Sew it first.")
+        #expect(report.error(boolean) == "“tools” is an open surface; use Split Solid to cut with it, or Thicken or Sew it first.")
     }
 
     @Test func toImplicitRefusesASheet() async throws {

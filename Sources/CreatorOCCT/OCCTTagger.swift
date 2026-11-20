@@ -5,10 +5,12 @@ enum OCCTTagger {
     /// `boundaryRoles` names a sheet builder's boundary edges, one entry per edge in the shape's edge order (`nil`: not
     /// named). `carriesEdgeTags` is for a move (transform, place): output edge n is input 0's edge n, so its tags come
     /// along when the counts agree. `extraFaceTags` adds names to output faces after the history's (a split's cut sides) and
-    /// `edgeTagOverrides` gives an output edge its tags outright (a split's input edges and cut edges).
+    /// `edgeTagOverrides` gives an output edge its tags outright (a split's input edges and cut edges). `edgeHistory` gives an
+    /// edge the union of the tags of the input edges its records name, after the overrides and before the roles (a sewn edge, R5).
     static func topology(raw: OCCTRawTopology, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
                          boundaryRoles: [BoundaryRole?] = [], carriesEdgeTags: Bool = false,
-                         extraFaceTags: [Int: Set<TopoTag>] = [:], edgeTagOverrides: [Int: Set<TopoTag>] = [:]) -> Topology {
+                         extraFaceTags: [Int: Set<TopoTag>] = [:], edgeTagOverrides: [Int: Set<TopoTag>] = [:],
+                         edgeHistory: [OCCTEdgeHistoryRecord] = []) -> Topology {
         var tags: [Int: Set<TopoTag>] = [:]
         for record in history where raw.faces.indices.contains(record.outFace) {
             switch record.kind {
@@ -40,10 +42,16 @@ enum OCCTTagger {
         }
         // Carried edge tags are dropped when the counts differ: only a rigid move (transform, place) carries them.
         let carried = carriesEdgeTags && inputs.count == 1 && inputs[0].edges.count == raw.edges.count ? inputs[0].edges : []
+        var historyTags: [Int: Set<TopoTag>] = [:]
+        for record in edgeHistory where raw.edges.indices.contains(record.outEdge) && inputs.indices.contains(record.operand)
+            && inputs[record.operand].edges.indices.contains(record.index) {
+            historyTags[record.outEdge, default: []].formUnion(inputs[record.operand].edges[record.index].tags)
+        }
         let edges = raw.edges.enumerated().map { index, edge in
             EdgeInfo(id: EdgeID(index), kind: edge.kind, direction: edge.direction, length: edge.length,
                      midpoint: edge.midpoint, convexity: edge.convexity, faces: edge.faces.map(FaceID.init),
-                     curve: edge.curve, tags: edgeTagOverrides[index] ?? edgeTags(at: index, boundaryRoles, carried, tag: tag))
+                     curve: edge.curve, tags: edgeTagOverrides[index] ?? historyTags[index].flatMap { $0.isEmpty ? nil : $0 }
+                         ?? edgeTags(at: index, boundaryRoles, carried, tag: tag))
         }
         return Topology(faces: faces, edges: edges)
     }
