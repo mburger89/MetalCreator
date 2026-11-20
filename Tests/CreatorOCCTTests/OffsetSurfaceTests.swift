@@ -83,6 +83,25 @@ struct OffsetSurfaceTests {
         #expect(away.topology.faces.count == 1)
     }
 
+    @Test func theQuarterCylindersCurvatureLimitsAreItsRadiusAndNone() async throws {
+        let sheet = try await quarterCylinder()
+        let limits = [try await kernel.curvatureLimit(of: sheet, sign: 1), try await kernel.curvatureLimit(of: sheet, sign: -1)]
+        let finite = limits.filter { $0.isFinite }
+        #expect(finite.count == 1)
+        #expect(abs((finite.first ?? 0) - 10) < 1e-6)
+        #expect(limits.contains { $0 == .infinity })
+    }
+
+    @Test func offsetFailedWordsEachBranch() {
+        func text(_ error: KernelError) -> String { message(error) }
+        #expect(text(.offsetFailed(distance: -12, largest: nil)) == "The surface can't be offset by -12 mm; even -0.01 mm fails.")
+        #expect(text(.offsetFailed(distance: 12, largest: nil, thickening: true))
+            == "The surface can't be thickened by 12 mm; even 0.01 mm fails.")
+        #expect(text(.offsetFailed(distance: 0.01, largest: nil)) == "The surface can't be offset by 0.01 mm.")
+        #expect(text(.offsetFailed(distance: -12, largest: 9.9))
+            == "The surface can't be offset by -12 mm; the most that works is -9.9 mm.")
+    }
+
     @Test func anLSheetOffsetsAcrossItsSharpEdge() async throws {
         let line = try await kernel.makeCurve([
             .line(Vector3(0, 0, 0), Vector3(10, 0, 0)), .line(Vector3(10, 0, 0), Vector3(10, 10, 0)),
