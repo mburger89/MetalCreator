@@ -13,6 +13,9 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRep_Tool.hxx>
+#include <GeomLib_IsPlanarSurface.hxx>
+#include <Geom_Surface.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
@@ -146,15 +149,16 @@ bool lies_on_sheet(const loop_info &loop, const TopTools_IndexedMapOfShape &edge
     for (int index : loop.edges) {
         const TopoDS_Shape &edge = edge_map(index);
         for (const TopoDS_Face &face : distinct_faces(edge, ancestors)) {
-            const BRepAdaptor_Surface surface(face);
-            if (surface.GetType() != GeomAbs_Plane) {
+            // Planar by distance, not by type: a B-spline face (a G0 patch, a rebuilt plane, an imported flat face) counts too.
+            const Handle(Geom_Surface) geometry = BRep_Tool::Surface(face);
+            if (geometry.IsNull()) {
                 continue;
             }
-            const gp_Pln plane = surface.Plane();
-            const gp_Dir face_normal = plane.Axis().Direction();
-            if (gp_Vec(face_normal).Crossed(gp_Vec(loop.normal)).Magnitude() > kNormalTolerance) {
+            const GeomLib_IsPlanarSurface planar(geometry, kSewTolerance);
+            if (!planar.IsPlanar()) {
                 continue;
             }
+            const gp_Pln plane = planar.Plan();
             const bool coplanar = std::all_of(loop.points.begin(), loop.points.end(),
                                               [&](const gp_Pnt &p) { return plane.Distance(p) <= 0.01; });
             if (coplanar) {

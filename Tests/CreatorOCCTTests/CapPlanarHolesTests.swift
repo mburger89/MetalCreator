@@ -163,6 +163,19 @@ struct CapPlanarHolesTests {
         #expect(result.body.topology.faces.map { Set($0.tags) } == sheet.topology.faces.map { Set($0.tags) })
     }
 
+    @Test func aFlatBSplineSheetIsNotCapped() async throws {
+        let patch = try await kernel.boundaryPatch(PatchBoundary(curves: [circle(10, z: 0)], edges: [], part: nil), interior: [],
+                                                   interior: [], continuity: .g0, tag: newTag()).sheet
+        let rebuilt = try await kernel.rebuilt(try await kernel.planarSurface([circle(10, z: 0)], tag: newTag()),
+                                               as: RebuildSpec(degreeU: 3, degreeV: 3, spansU: 4, spansV: 4)).sheet
+        for sheet in [patch, rebuilt] {
+            let result = try await kernel.cappingPlanarHoles(sheet, tag: tag)
+            #expect(result.capped == 0)
+            #expect(result.body.hasOpenShell)
+            #expect(result.body.topology.faces.count == 1)
+        }
+    }
+
     @Test func concentricLoopsAlongADiagonalAxisMakeAnAnnulus() async throws {
         let root = 0.5.squareRoot()
         let direction = Vector3(root, -root, 0)
