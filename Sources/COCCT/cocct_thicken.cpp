@@ -196,40 +196,95 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
             pieces.push_back({upper.faces[f], OCCT_FROM_END_CAP, int(f) + 1});
         }
 
-        TopoDS_Shape result;
-        std::vector<occt_history_record> records;
-        if (walls.empty()) {
-            // A closed bare shell: its two sides are an outer shell and a void.
+        // Split the source into connected pieces (faces joined by shared edges). A piece with no wall edge is a closed bare shell:
+        // its two sides are an outer shell and a void, one solid. The open pieces are sewn together with their walls.
+        const int faceCount = faces.Extent();
+        std::vector<int> parent(faceCount + 1);
+        for (int f = 0; f <= faceCount; ++f) {
+            parent[f] = f;
+        }
+        auto root = [&](int f) {
+            while (parent[f] != f) {
+                parent[f] = parent[parent[f]];
+                f = parent[f];
+            }
+            return f;
+        };
+        std::map<int, int> edgeOwner;
+        for (int f = 1; f <= faceCount; ++f) {
+            for (TopExp_Explorer it(faces(f), TopAbs_EDGE); it.More(); it.Next()) {
+                const int e = edges.FindIndex(it.Current());
+                const auto found = edgeOwner.find(e);
+                if (found == edgeOwner.end()) {
+                    edgeOwner[e] = f;
+                } else {
+                    parent[root(f)] = root(found->second);
+                }
+            }
+        }
+        std::map<int, bool> componentOpen;
+        for (const auto &wall : walls) {
+            const auto owner = edgeOwner.find(wall.first);
+            if (owner != edgeOwner.end()) {
+                componentOpen[root(owner->second)] = true;
+            }
+        }
+        auto isOpenFace = [&](int f) { return componentOpen.count(root(f)) != 0; };
+
+        struct record_request {
+            TopoDS_Shape face;
+            int kind;
+            int index;
+        };
+        std::vector<record_request> requests;
+        std::vector<TopoDS_Shape> solids;
+
+        // Closed bare shells, each on its own.
+        std::map<int, std::vector<int>> closedGroups;
+        for (int f = 1; f <= faceCount; ++f) {
+            if (!isOpenFace(f)) {
+                closedGroups[root(f)].push_back(f);
+            }
+        }
+        for (const auto &group : closedGroups) {
             BRep_Builder make;
             TopoDS_Shell low, high;
             make.MakeShell(low);
             make.MakeShell(high);
-            for (const TopoDS_Shape &face : lower.faces) {
-                make.Add(low, face);
+            for (int f : group.second) {
+                make.Add(low, lower.faces[f - 1]);
+                make.Add(high, upper.faces[f - 1]);
             }
-            for (const TopoDS_Shape &face : upper.faces) {
-                make.Add(high, face);
-            }
-            result = solid_with_void(low, high);
-            if (result.IsNull()) {
+            const TopoDS_Shape solid = solid_with_void(low, high);
+            if (solid.IsNull()) {
                 throw user_error(kOffsetFailed);
             }
-            history_builder faces_of(result);
-            for (const piece &p : pieces) {
-                faces_of.add(p.face, OCCT_FROM_FACE, 0, p.index);
-                faces_of.add(p.face, p.kind, 0, 0);
+            solids.push_back(solid);
+            for (int f : group.second) {
+                requests.push_back({lower.faces[f - 1], OCCT_FROM_FACE, f});
+                requests.push_back({lower.faces[f - 1], OCCT_FROM_START_CAP, 0});
+                requests.push_back({upper.faces[f - 1], OCCT_FROM_FACE, f});
+                requests.push_back({upper.faces[f - 1], OCCT_FROM_END_CAP, 0});
             }
-            records = faces_of.records();
-        } else {
+        }
+
+        // Open pieces: sew their faces and walls.
+        std::vector<piece> openPieces;
+        for (const piece &p : pieces) {
+            if (isOpenFace(p.index)) {
+                openPieces.push_back(p);
+            }
+        }
+        if (!openPieces.empty()) {
             double tolerance = kMinimumSewing;
-            for (const piece &p : pieces) {
+            for (const piece &p : openPieces) {
                 tolerance = std::max(tolerance, 2 * largest_tolerance(p.face));
             }
             for (const auto &wall : walls) {
                 tolerance = std::max(tolerance, 2 * largest_tolerance(wall.second));
             }
             BRepBuilderAPI_Sewing sewing(tolerance, Standard_True, Standard_True, Standard_True, Standard_False);
-            for (const piece &p : pieces) {
+            for (const piece &p : openPieces) {
                 sewing.Add(p.face);
             }
             for (const auto &wall : walls) {
@@ -239,7 +294,6 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
             poll(cancel);
             std::vector<TopoDS_Shape> parts;
             collect(sewing.SewedShape(), parts);
-            std::vector<TopoDS_Shape> solids;
             for (const TopoDS_Shape &part : parts) {
                 if (part.ShapeType() != TopAbs_SHELL || !BRep_Tool::IsClosed(part)) {
                     throw user_error(kOffsetFailed);
@@ -250,34 +304,38 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
                 }
                 solids.push_back(solid);
             }
-            if (solids.empty()) {
-                throw user_error(kOffsetFailed);
-            }
-            if (solids.size() == 1) {
-                result = solids[0];
-            } else {
-                BRep_Builder make;
-                TopoDS_Compound compound;
-                make.MakeCompound(compound);
-                for (const TopoDS_Shape &solid : solids) {
-                    make.Add(compound, solid);
-                }
-                result = compound;
-            }
-            history_builder faces_of(result);
             auto image_of = [&](const TopoDS_Shape &face) -> TopoDS_Shape {
                 return sewing.IsModified(face) ? sewing.Modified(face) : face;
             };
-            for (const piece &p : pieces) {
+            for (const piece &p : openPieces) {
                 const TopoDS_Shape image = image_of(p.face);
-                faces_of.add(image, OCCT_FROM_FACE, 0, p.index);
-                faces_of.add(image, p.kind, 0, 0);
+                requests.push_back({image, OCCT_FROM_FACE, p.index});
+                requests.push_back({image, p.kind, 0});
             }
             for (const auto &wall : walls) {
-                faces_of.add(image_of(wall.second), OCCT_FROM_EDGE, 0, wall.first);
+                requests.push_back({image_of(wall.second), OCCT_FROM_EDGE, wall.first});
             }
-            records = faces_of.records();
         }
+        if (solids.empty()) {
+            throw user_error(kOffsetFailed);
+        }
+        TopoDS_Shape result;
+        if (solids.size() == 1) {
+            result = solids[0];
+        } else {
+            BRep_Builder make;
+            TopoDS_Compound compound;
+            make.MakeCompound(compound);
+            for (const TopoDS_Shape &solid : solids) {
+                make.Add(compound, solid);
+            }
+            result = compound;
+        }
+        history_builder faces_of(result);
+        for (const record_request &r : requests) {
+            faces_of.add(r.face, r.kind, 0, r.index);
+        }
+        const std::vector<occt_history_record> records = faces_of.records();
         poll(cancel);
         if (!BRepCheck_Analyzer(result).IsValid() || largest_tolerance(result) > kMaxTolerance) {
             throw user_error(kOffsetFailed);

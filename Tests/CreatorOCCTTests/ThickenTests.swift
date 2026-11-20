@@ -50,6 +50,11 @@ struct ThickenTests {
         let end = plate.topology.faces.filter { $0.tags.contains(TopoTag(tag, .endCap)) }
         #expect(start.count == 1 && end.count == 1)
         #expect(abs((end.first?.centroid.z ?? 0) - 2) < 1e-6)
+        // R3: both caps carry the source face's own tags besides the cap role.
+        let sourceTags = Set(sheet.topology.faces[0].tags)
+        #expect(!sourceTags.isEmpty)
+        #expect(start.allSatisfy { sourceTags.isSubset(of: Set($0.tags)) })
+        #expect(end.allSatisfy { sourceTags.isSubset(of: Set($0.tags)) })
         var keys: [EdgeKey] = []
         for face in plate.topology.faces {
             for item in face.tags {
@@ -123,6 +128,32 @@ struct ThickenTests {
         let hollow = try await volume(both)
         #expect(abs(hollow - shell) / shell < 1e-4)
         #expect(hollow < 4.0 / 3 * Double.pi * 1331)
+    }
+
+    func sphereSheet(centreX: Double = 0) async throws -> Solid {
+        let half = CurvePiece.arc(center: Vector3(centreX, 0, 0), normal: Vector3(0, 1, 0), radius: 10,
+                                  start: Vector3(centreX, 0, -10), sweep: .pi)
+        let arc = try await kernel.makeCurve([half], tag: newTag())
+        return try await kernel.revolve(arc, axis: Axis(origin: Vector3(centreX, 0, 0), direction: Vector3(0, 0, 1)),
+                                        angle: Angle(radians: 2 * .pi), tag: newTag())
+    }
+
+    @Test func aClosedSheetBesideAPlateStaysHollow() async throws {
+        let sphere = try await sphereSheet()
+        let plate = try await offsets.square(x: 20...30)
+        let mixed = try await kernel.compound([sphere, plate], tag: newTag())
+        let result = try await kernel.thickened(mixed, distance: 1, side: .front, tag: tag)
+        let plateOnly = try await volume(try await kernel.thickened(plate, distance: 1, side: .front, tag: tag))
+        let expected = 4.0 / 3 * Double.pi * (1331 - 1000) + plateOnly
+        #expect(abs(try await volume(result) - expected) / expected < 1e-4)
+        #expect(!result.hasOpenShell)
+    }
+
+    @Test func twoClosedSheetsEachStayHollow() async throws {
+        let pair = try await kernel.compound([try await sphereSheet(), try await sphereSheet(centreX: 40)], tag: newTag())
+        let result = try await kernel.thickened(pair, distance: 1, side: .front, tag: tag)
+        let expected = 2 * 4.0 / 3 * Double.pi * (1331 - 1000)
+        #expect(abs(try await volume(result) - expected) / expected < 1e-4)
     }
 
     @Test func pastTheRadiusNamesTheLargest() async throws {
