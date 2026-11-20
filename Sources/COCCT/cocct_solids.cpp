@@ -26,7 +26,13 @@ TopoDS_Shape solidify_closed_shell(const TopoDS_Shape &shell) {
     GProp_GProps volume;
     BRepGProp::VolumeProperties(solid, volume);
     if (volume.Mass() < 0) {
-        solid.Reverse();
+        // Turn the shell, not the solid: a solid with a reversed orientation flag is valid but fillets, offsets and booleans
+        // misjudge it (the fillet of a thickened plate came back invalid).
+        BRepBuilderAPI_MakeSolid turned(TopoDS::Shell(shell.Reversed()));
+        if (!turned.IsDone()) {
+            return TopoDS_Shape();
+        }
+        solid = turned.Solid();
     }
     BRepCheck_Analyzer check(solid);
     return check.IsValid() ? solid : TopoDS_Shape();

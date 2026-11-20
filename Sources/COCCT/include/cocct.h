@@ -819,6 +819,14 @@ occt_shape *occt_offset_surface(const occt_shape *sheet, double distance, const 
 int occt_offset_limit(const occt_shape *sheet, int sign, double *limit, occt_status *status);
 /// Whether two different pieces of `sheet` have edges that sewing at 0.01 mm would join (R11), written to `touching`.
 int occt_touching_pieces(const occt_shape *sheet, int *touching, occt_status *status);
+/// `sheet` grown into a solid `distance` mm thick (NS-5, Task 5; R3, R7): `side` 0 puts the sheet at the start and the far face at
+/// +distance, 1 puts the start face at -distance and the sheet at the end, 2 puts them at -/+ distance / 2. `history` has OCCT_FROM_FACE
+/// (operand 0, the source face) with OCCT_FROM_START_CAP (the face looking against the normal) or OCCT_FROM_END_CAP on each side face, and
+/// OCCT_FROM_EDGE (operand 0, the source boundary edge) on each wall. The result is valid, closed, with tolerances within 0.01 mm and
+/// positive volumes. Refuses "The distance must be greater than 0.", "The offset couldn't be built." and "The offset changed the
+/// surface's open edges, so it can't be offset.". `cancel` may be NULL.
+occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, const occt_cancel *cancel, occt_history *history,
+                         occt_status *status);
 /// FOR TESTS ONLY. A one-face non-periodic cubic B-spline sheet wrapped round a circle of `radius` whose first and last pole columns coincide.
 occt_shape *occt_test_wrapped_sheet(double radius, double height, occt_status *status);
 /// FOR TESTS ONLY. A copy of `shape` that shares no geometry or topology with it.
