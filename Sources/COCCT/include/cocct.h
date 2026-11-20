@@ -827,6 +827,27 @@ int occt_touching_pieces(const occt_shape *sheet, int *touching, occt_status *st
 /// surface's open edges, so it can't be offset.". `cancel` may be NULL.
 occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, const occt_cancel *cancel, occt_history *history,
                          occt_status *status);
+/// One source edge of a cap's outer loop (NS-5, R12): `face` is the cap's 1-based face in the result, `edge` the input's 1-based edge.
+typedef struct {
+    int face;
+    int edge;
+} occt_cap_loop_edge;
+
+typedef struct {
+    occt_cap_loop_edge *records;
+    int count;
+} occt_cap_loops;
+
+void occt_cap_loops_free(occt_cap_loops *loops);
+
+/// `sheet`'s closed free loops that are flat (every sample within `flatness` mm of the loop's least-squares plane) capped with planar faces
+/// (NS-5, Task 6; R12, R17): loops in one plane are nested even-odd into faces with holes, the caps are sewn to the sheet at 0.01 mm and
+/// every closed shell made a solid. The input's `TopAbs_SOLID`s are set aside and put back unchanged. `history` is OCCT_FROM_FACE (operand 0,
+/// the input face) for every face that came from one; `edges` is sew's R5 edge records; `loops` lists each cap's outer-loop source edges.
+/// `capped` counts the caps made and `not_flat` the closed free loops left open. Refuses "Capping made an invalid shape; the holes can't be
+/// capped.". `cancel` may be NULL.
+occt_shape *occt_cap_planar_holes(const occt_shape *sheet, double flatness, const occt_cancel *cancel, occt_history *history,
+                                  occt_edge_history *edges, occt_cap_loops *loops, int *capped, int *not_flat, occt_status *status);
 /// FOR TESTS ONLY. A one-face non-periodic cubic B-spline sheet wrapped round a circle of `radius` whose first and last pole columns coincide.
 occt_shape *occt_test_wrapped_sheet(double radius, double height, occt_status *status);
 /// FOR TESTS ONLY. A copy of `shape` that shares no geometry or topology with it.

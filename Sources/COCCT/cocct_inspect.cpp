@@ -407,4 +407,12 @@ void occt_topology_free(occt_topology *topology) {
     }
 }
 
+void occt_cap_loops_free(occt_cap_loops *loops) {
+    if (loops) {
+        std::free(loops->records);
+        loops->records = nullptr;
+        loops->count = 0;
+    }
+}
+
 } // extern "C"
