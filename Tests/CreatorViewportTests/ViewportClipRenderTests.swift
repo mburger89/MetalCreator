@@ -38,6 +38,19 @@ struct ViewportClipRenderTests {
         return [Int(bytes[at + 2]), Int(bytes[at + 1]), Int(bytes[at])]
     }
 
+    @Test func aWarnedEdgeIsDrawnInTheWarningColourInShadedMode() throws {
+        let rig = try RendererCacheTests.Rig()
+        var shaded = frame()
+        shaded.shading = .shaded
+        let plain = try rig.draw(shaded)
+        shaded.items[0].warningEdges = [EdgeID(1)]
+        let warned = try rig.draw(shaded)
+        let expected = bytes(ViewportPalette.dracula.warning)
+        let found = color(warned, 100, 25)
+        for channel in 0..<3 { #expect(abs(found[channel] - expected[channel]) <= 40, "\(found) against \(expected)") }
+        #expect(found != color(plain, 100, 25))
+    }
+
     @Test func aPlaneBehindThePartCutsNothing() throws {
         let rig = try RendererCacheTests.Rig()
         #expect(try rig.draw(frame(clip: nearSide(-50))) == rig.draw(frame()))

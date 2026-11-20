@@ -12,4 +12,6 @@ struct EdgeInstanceKey: Hashable {
     var isCurve = false
     /// A ghost curve: drawn faded.
     var isGhost = false
+    /// Edges in the warning colour (`ViewportItem.warningEdges`); they are drawn even when `selectedOnly`.
+    var warning: Set<EdgeID> = []
 }

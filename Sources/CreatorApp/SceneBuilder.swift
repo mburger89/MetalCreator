@@ -53,7 +53,8 @@ public enum SceneBuilder {
                 continue
             }
             let hidden = options.registry?[node.typeID]?.previewHiddenOutputs ?? []
-            scene += items(of: node, outputs: outputs.filter { !hidden.contains($0.key) }, isGhost: isGhost, graph: graph, meshes: meshes)
+            scene += items(of: node, outputs: outputs.filter { !hidden.contains($0.key) }, isGhost: isGhost, graph: graph, meshes: meshes,
+                           registry: options.registry)
         }
         let selectedSets = selection.sorted().flatMap { edgeSets(results[$0]) }
         let highlighted = highlighting(scene, selectedSets: selectedSets)
@@ -62,16 +63,21 @@ public enum SceneBuilder {
 
     /// The items one node's outputs make, socket by socket in name order.
     static func items(of node: Node, outputs: [SocketName: Value], isGhost: Bool, graph: Graph,
-                      meshes: MeshScene = MeshScene(solids: MeshSolids())) -> [SceneItem] {
+                      meshes: MeshScene = MeshScene(solids: MeshSolids()),
+                      registry: NodeRegistry? = nil) -> [SceneItem] {
         // An Output node passes its input through, so the solid's source is what's wired into it.
         let passThrough = node.isOutput ? graph.incomingLink(to: Endpoint(node: node.id, socket: "solid"))?.from : nil
         let ruleSolid = graph.incomingLink(to: Endpoint(node: node.id, socket: "solid"))?.from
+        // R14: the free edges of a node that asks for them (Sew, Cap Planar Holes), or of the node wired straight into an Output.
+        let producer = passThrough.flatMap { graph.nodes[$0.node] } ?? node
+        let warnsFreeEdges = registry?[producer.typeID]?.showsFreeEdges ?? false
         var items: [SceneItem] = []
         for (socket, value) in outputs.sorted(by: { $0.key < $1.key }) {
             for scalar in value.items {
                 switch scalar {
                 case .solid(let solid):
-                    items.append(SceneItem(item: ViewportItem(solid: solid, isGhost: isGhost),
+                    items.append(SceneItem(item: ViewportItem(solid: solid, isGhost: isGhost,
+                                                              warningEdges: warnsFreeEdges ? freeEdges(of: solid) : []),
                                            source: passThrough ?? Endpoint(node: node.id, socket: socket)))
                 case .edgeSet(let set):
                     items.append(SceneItem(item: ViewportItem(solid: set.solid, isGhost: isGhost,
@@ -92,6 +98,11 @@ public enum SceneBuilder {
             }
         }
         return items
+    }
+
+    /// Every boundary edge of `solid`.
+    static func freeEdges(of solid: Solid) -> Set<EdgeID> {
+        Set(solid.topology.edges.filter(\.isBoundary).map(\.id))
     }
 
     /// The preview meshes the shown nodes' current results hold that can be refined (`TriangleMesh.source`), in node order. A stale
