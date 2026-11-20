@@ -16,4 +16,19 @@ enum ClosedSolidCheck {
             throw NodeError.invalidValue("“\(input)” is an open surface; use Split or Trim, or Thicken or Sew it first.")
         }
     }
+
+    /// Boolean's tools: a sheet can't be one, and Split Solid is the way to cut with it (NS-5).
+    static func requireToolInput(_ solid: Solid, _ input: String) throws {
+        guard !solid.hasOpenShell else {
+            throw NodeError.invalidValue("“\(input)” is an open surface; use Split Solid to cut with it, or Thicken or Sew it first.")
+        }
+    }
+
+    /// Split Solid's `solid` (R13).
+    static func requireForSplitSolid(_ solid: Solid) throws {
+        guard !solid.hasOpenShell else {
+            throw NodeError.invalidValue(
+                "Split Solid takes a closed solid; “solid” is an open surface. Use Split to cut a surface, or Thicken or Sew it first.")
+        }
+    }
 }

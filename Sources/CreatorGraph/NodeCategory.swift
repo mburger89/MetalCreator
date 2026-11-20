@@ -28,7 +28,7 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
         case .fields: ["Sources", "Maths", "Using"]
         case .implicit: ["Shapes", "Combine", "Modify", "Lattices"]
         case .mesh: ["Make", "Check", "Tools"]
-        case .surface: ["Curves", "Make", "Edit"]
+        case .surface: ["Curves", "Make", "Edit", "Solids"]
         default: []
         }
     }
