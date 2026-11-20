@@ -35,7 +35,6 @@ using namespace cocct;
 
 namespace {
 
-constexpr double kMaxTolerance = 0.01;
 constexpr double kMinimumSewing = 1e-6;
 
 /// One side of the solid: an image of every source face and, per source boundary edge (1-based), the edge on this side.
@@ -337,7 +336,7 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
         }
         const std::vector<occt_history_record> records = faces_of.records();
         poll(cancel);
-        if (!BRepCheck_Analyzer(result).IsValid() || largest_tolerance(result) > kMaxTolerance) {
+        if (!BRepCheck_Analyzer(result).IsValid() || largest_tolerance(result) > accepted_tolerance(sheet->shape)) {
             throw user_error(kOffsetFailed);
         }
         for (TopExp_Explorer it(result, TopAbs_SOLID); it.More(); it.Next()) {

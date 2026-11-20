@@ -126,6 +126,56 @@ struct SewTests {
         #expect(expectFaceTagsFollow(box, in: closed) == box.topology.faces.count)
     }
 
+    func cube(_ kernel: OCCTKernel, size: Double, at offset: Double = 0) async throws -> Solid {
+        let profile = Profile2D(plane: .xy, segments: [
+            .line(Vector2(0, 0), Vector2(size, 0)), .line(Vector2(size, 0), Vector2(size, size)),
+            .line(Vector2(size, size), Vector2(0, size)), .line(Vector2(0, size), Vector2(0, 0)),
+        ])
+        let box = try await kernel.extrude(profile, distance: size, mode: .oneSided, tag: newTag())
+        let move = Transform(translation: Vector3(offset, offset, offset))
+        return offset == 0 ? box : try await kernel.transform(box, by: move, tag: newTag())
+    }
+
+    @Test func aSolidWithAVoidStaysOneSolid() async throws {
+        let kernel = OCCTKernel()
+        let outer = try await cube(kernel, size: 10)
+        let inner = try await cube(kernel, size: 4, at: 3)
+        let hollow = try await kernel.boolean(.subtract, outer, [inner], tag: newTag())
+        let before = try await kernel.properties(of: hollow).volume
+        #expect(abs(before - 936) <= 1e-3)
+        let sewn = try await kernel.sewn([hollow], tolerance: 0.01, tag: sewTag)
+        #expect(sewn.solids == 1 && sewn.sheets == 0 && sewn.unclosable == 0)
+        #expect(try await abs(kernel.properties(of: sewn.body).volume - 936) <= 1e-3)
+        #expect(sewn.body.topology.faces.count == hollow.topology.faces.count)
+    }
+
+    func sphereSheet(_ kernel: OCCTKernel, radius: Double) async throws -> Solid {
+        let half = CurvePiece.arc(center: .zero, normal: Vector3(0, 1, 0), radius: radius, start: Vector3(0, 0, -radius), sweep: .pi)
+        let arc = try await kernel.makeCurve([half], tag: newTag())
+        let axis = Axis(origin: .zero, direction: Vector3(0, 0, 1))
+        return try await kernel.revolve(arc, axis: axis, angle: Angle(radians: 2 * .pi), tag: newTag())
+    }
+
+    @Test func aClosedOneFaceSheetBecomesASolid() async throws {
+        let kernel = OCCTKernel()
+        let sphere = try await sphereSheet(kernel, radius: 10)
+        #expect(sphere.hasOpenShell)
+        let sewn = try await kernel.sewn([sphere], tolerance: 0.01, tag: sewTag)
+        #expect(sewn.solids == 1 && sewn.sheets == 0 && sewn.unclosable == 0)
+        #expect(!sewn.body.hasOpenShell)
+        let expected = 4.0 / 3 * Double.pi * 1000
+        #expect(try await abs(kernel.properties(of: sewn.body).volume - expected) / expected < 1e-4)
+    }
+
+    @Test func twoNestedClosedSheetsBecomeOneHollowSolid() async throws {
+        let kernel = OCCTKernel()
+        let both = try await kernel.compound([sphereSheet(kernel, radius: 10), sphereSheet(kernel, radius: 8)], tag: newTag())
+        let sewn = try await kernel.sewn([both], tolerance: 0.01, tag: sewTag)
+        #expect(sewn.solids == 1 && sewn.sheets == 0)
+        let expected = 4.0 / 3 * Double.pi * (1000 - 512)
+        #expect(try await abs(kernel.properties(of: sewn.body).volume - expected) / expected < 1e-4)
+    }
+
     @Test func refusals() async throws {
         let kernel = OCCTKernel()
         let sheet = try await rectangle(kernel, x: 0...10, y: 0...10)

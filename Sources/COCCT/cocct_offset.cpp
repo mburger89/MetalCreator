@@ -39,6 +39,8 @@ namespace cocct {
 namespace {
 
 constexpr double kMaxTolerance = 0.01;
+/// Room a result's tolerances get above the input's own (a sheet sewn at 0.05 mm is only accurate to that).
+constexpr double kToleranceMargin = 0.005;
 
 /// The free edges of `shape`: edges with one distinct face that are neither seams nor degenerate.
 std::vector<int> free_edge_indices(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &edges) {
@@ -72,6 +74,17 @@ double pairing_cost(const edge_points &a, const edge_points &b) {
 }
 
 } // namespace
+
+double accepted_tolerance(const TopoDS_Shape &sheet) {
+    double largest = 0;
+    for (TopExp_Explorer it(sheet, TopAbs_EDGE); it.More(); it.Next()) {
+        largest = std::max(largest, BRep_Tool::Tolerance(TopoDS::Edge(it.Current())));
+    }
+    for (TopExp_Explorer it(sheet, TopAbs_VERTEX); it.More(); it.Next()) {
+        largest = std::max(largest, BRep_Tool::Tolerance(TopoDS::Vertex(it.Current())));
+    }
+    return std::max(kMaxTolerance, largest + kToleranceMargin);
+}
 
 offset_result offset_shell(const TopoDS_Shape &sheet, double distance, const occt_cancel *cancel) {
     if (!std::isfinite(distance) || distance == 0) {
@@ -164,13 +177,14 @@ offset_result offset_shell(const TopoDS_Shape &sheet, double distance, const occ
         }
         result.shell = compound;
     }
+    const double accepted = accepted_tolerance(sheet);
     for (TopExp_Explorer it(result.shell, TopAbs_EDGE); it.More(); it.Next()) {
-        if (BRep_Tool::Tolerance(TopoDS::Edge(it.Current())) > kMaxTolerance) {
+        if (BRep_Tool::Tolerance(TopoDS::Edge(it.Current())) > accepted) {
             throw user_error(kOffsetFailed);
         }
     }
     for (TopExp_Explorer it(result.shell, TopAbs_VERTEX); it.More(); it.Next()) {
-        if (BRep_Tool::Tolerance(TopoDS::Vertex(it.Current())) > kMaxTolerance) {
+        if (BRep_Tool::Tolerance(TopoDS::Vertex(it.Current())) > accepted) {
             throw user_error(kOffsetFailed);
         }
     }

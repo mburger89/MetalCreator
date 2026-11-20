@@ -37,6 +37,19 @@ struct ThickenTests {
 
     func zRange(_ face: FaceInfo) -> Double { face.centroid.z }
 
+    /// Two squares 0.03 mm apart sewn at 0.05 mm: the sheet's own edges are only accurate to about that, so its distance isn't to blame.
+    @Test func aSheetSewnAtAWideToleranceStillThickensAndOffsets() async throws {
+        let first = try await offsets.square(x: 0...10, y: 0...10)
+        let second = try await offsets.square(x: 10.03...20, y: 0...10)
+        let sewn = try await kernel.sewn([first, second], tolerance: 0.05, tag: newTag())
+        #expect(sewn.solids == 0 && sewn.sheets == 1)
+        let plate = try await kernel.thickened(sewn.body, distance: 1, side: .front, tag: tag)
+        #expect(!plate.hasOpenShell)
+        #expect(try await volume(plate) > 150)
+        let moved = try await kernel.offsetSurface(sewn.body, distance: 1, tag: tag)
+        #expect(moved.hasOpenShell)
+    }
+
     @Test func aPlateThickensToItsVolume() async throws {
         let sheet = try await rectangle(width: 20, depth: 30)
         let normal = sheet.topology.faces[0].normal

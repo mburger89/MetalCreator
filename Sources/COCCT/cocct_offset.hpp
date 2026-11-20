@@ -31,9 +31,12 @@ inline constexpr const char *kOffsetFailed = "The offset couldn't be built.";
 /// The message an offset whose boundary edges can't be matched to the source's carries.
 inline constexpr const char *kOffsetOpenEdges = "The offset changed the surface's open edges, so it can't be offset.";
 
+/// The largest edge or vertex tolerance a result may hold: 0.01 mm, or the sheet's own largest tolerance plus 0.005 mm when that is more.
+double accepted_tolerance(const TopoDS_Shape &sheet);
+
 /// `sheet` offset by `distance` along its face normals (the orientation of each face counts), `BRepOffsetAPI_MakeOffsetShape` in
 /// skin mode with an intersection join. Throws `user_error` (`kOffsetFailed`, `kOffsetOpenEdges`, or `kCancelled` when `cancel` was set)
-/// when the shape isn't built, isn't valid, has an edge or vertex tolerance over 0.01 mm, or has boundary edges that can't be paired.
+/// when the shape isn't built, isn't valid, has an edge or vertex tolerance over `accepted_tolerance`, or has boundary edges that can't be paired.
 offset_result offset_shell(const TopoDS_Shape &sheet, double distance, const occt_cancel *cancel);
 
 /// The smallest positive distance d with d x kappa = 1 on the `sign` side (+1 along the normals, -1 against), kappa the principal

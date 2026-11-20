@@ -57,6 +57,13 @@ struct Source {
     double area = 0;
 };
 
+/// A solid of the input, set aside: its copy goes into the result unchanged.
+struct AsideSolid {
+    int operand = 0;
+    TopoDS_Shape original;
+    std::shared_ptr<BRepBuilderAPI_Copy> copier;
+};
+
 double area_of(const TopoDS_Face &face) {
     GProp_GProps properties;
     BRepGProp::SurfaceProperties(face, properties);
@@ -163,13 +170,25 @@ occt_shape *occt_sew(const occt_shape *const *bodies, int count, double toleranc
         // The faces in input order, each copied; a face that coincides with an earlier offered one is a duplicate (R6).
         std::vector<Source> sources;
         std::vector<TopTools_IndexedMapOfShape> body_edges;
+        std::vector<AsideSolid> aside;
         for (int b = 0; b < count; ++b) {
             if (!bodies[b] || bodies[b]->shape.IsNull()) {
                 throw user_error("This surface can't be used.");
             }
             body_edges.push_back(map_of(bodies[b]->shape, TopAbs_EDGE));
             const TopTools_IndexedMapOfShape faces = map_of(bodies[b]->shape, TopAbs_FACE);
+            // R6: a closed solid in the list passes through as a solid (a void is one of its shells), so its faces are not offered.
+            TopTools_IndexedMapOfShape loose;
+            for (TopExp_Explorer it(bodies[b]->shape, TopAbs_FACE, TopAbs_SOLID); it.More(); it.Next()) {
+                loose.Add(it.Current());
+            }
+            for (TopExp_Explorer it(bodies[b]->shape, TopAbs_SOLID); it.More(); it.Next()) {
+                aside.push_back(AsideSolid{b, it.Current(), std::make_shared<BRepBuilderAPI_Copy>(it.Current(), Standard_False, Standard_False)});
+            }
             for (int f = 1; f <= faces.Extent(); ++f) {
+                if (loose.FindIndex(faces(f)) <= 0) {
+                    continue;
+                }
                 Source source;
                 source.operand = b;
                 source.index = f;
@@ -212,22 +231,68 @@ occt_shape *occt_sew(const occt_shape *const *bodies, int count, double toleranc
         int sheet_count = 0;
         int unclosable_count = 0;
         std::vector<TopoDS_Shape> result_parts;
-        for (const TopoDS_Shape &part : parts) {
-            if (part.ShapeType() == TopAbs_SHELL && BRep_Tool::IsClosed(part)) {
-                const TopoDS_Shape solid = solidify_closed_shell(part);
-                if (!solid.IsNull()) {
-                    ++solid_count;
-                    result_parts.push_back(solid);
-                    continue;
+        std::vector<TopoDS_Shape> closed_shells;
+        for (const AsideSolid &solid : aside) {
+            ++solid_count;
+            result_parts.push_back(solid.copier->Shape());
+        }
+        for (const TopoDS_Shape &found : parts) {
+            // A lone face may close on itself (a sphere's one face): it is judged as the shell it makes.
+            TopoDS_Shape part = found;
+            if (found.ShapeType() == TopAbs_FACE) {
+                BRep_Builder shell_builder;
+                TopoDS_Shell shell;
+                shell_builder.MakeShell(shell);
+                shell_builder.Add(shell, found);
+                if (BRep_Tool::IsClosed(shell)) {
+                    part = shell;
                 }
-                ++unclosable_count;
+            }
+            if (part.ShapeType() == TopAbs_SHELL && BRep_Tool::IsClosed(part)) {
+                closed_shells.push_back(part);
             } else if (part.ShapeType() == TopAbs_SOLID) {
                 ++solid_count;
                 result_parts.push_back(part);
+            } else {
+                ++sheet_count;
+                result_parts.push_back(part);
+            }
+        }
+        // Closed shells, largest first: a shell inside another is that solid's void (R6), else each is a solid of its own.
+        std::vector<std::pair<double, TopoDS_Shape>> ranked;
+        for (const TopoDS_Shape &shell : closed_shells) {
+            const TopoDS_Shape solid = solidify_closed_shell(shell);
+            if (solid.IsNull()) {
+                ++unclosable_count;
+                ++sheet_count;
+                result_parts.push_back(shell);
                 continue;
             }
-            ++sheet_count;
-            result_parts.push_back(part);
+            GProp_GProps properties;
+            BRepGProp::VolumeProperties(solid, properties);
+            ranked.emplace_back(properties.Mass(), shell);
+        }
+        std::stable_sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+        std::vector<bool> used(ranked.size(), false);
+        for (size_t i = 0; i < ranked.size(); ++i) {
+            if (used[i]) {
+                continue;
+            }
+            used[i] = true;
+            TopoDS_Shape outer = solidify_closed_shell(ranked[i].second);
+            for (size_t j = i + 1; j < ranked.size(); ++j) {
+                if (used[j]) {
+                    continue;
+                }
+                const TopoDS_Shape holed = solid_with_void(ranked[i].second, ranked[j].second);
+                if (!holed.IsNull()) {
+                    outer = holed;
+                    used[j] = true;
+                    break;
+                }
+            }
+            ++solid_count;
+            result_parts.push_back(outer);
         }
         for (const Source &source : sources) {
             if (source.duplicate) {
@@ -258,6 +323,28 @@ occt_shape *occt_sew(const occt_shape *const *bodies, int count, double toleranc
         history_builder face_history(result);
         const TopTools_IndexedMapOfShape out_edges = map_of(result, TopAbs_EDGE);
         std::set<std::tuple<int, int, int>> edge_records;
+        for (const AsideSolid &solid : aside) {
+            const TopTools_IndexedMapOfShape solid_faces = map_of(solid.original, TopAbs_FACE);
+            const TopTools_IndexedMapOfShape body_faces = map_of(bodies[solid.operand]->shape, TopAbs_FACE);
+            for (int f = 1; f <= solid_faces.Extent(); ++f) {
+                const int index = body_faces.FindIndex(solid_faces(f));
+                if (index > 0) {
+                    face_history.add(solid.copier->ModifiedShape(solid_faces(f)), OCCT_FROM_FACE, solid.operand, index);
+                }
+            }
+            const TopTools_IndexedMapOfShape solid_edges = map_of(solid.original, TopAbs_EDGE);
+            for (int e = 1; e <= solid_edges.Extent(); ++e) {
+                const int index = body_edges[solid.operand].FindIndex(solid_edges(e));
+                const TopoDS_Shape copied = solid.copier->ModifiedShape(solid_edges(e));
+                if (index <= 0 || copied.IsNull()) {
+                    continue;
+                }
+                const int out = out_edges.FindIndex(copied);
+                if (out > 0) {
+                    edge_records.insert(std::make_tuple(out, solid.operand, index));
+                }
+            }
+        }
         for (const Source &source : sources) {
             const TopoDS_Shape face_image = !source.duplicate && sewing.IsModified(source.copy) ? sewing.Modified(source.copy) : source.copy;
             face_history.add(face_image, OCCT_FROM_FACE, source.operand, source.index);
