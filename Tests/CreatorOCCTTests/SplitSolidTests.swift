@@ -14,14 +14,14 @@ struct SplitSolidTests {
     func tenBox() async throws -> Solid { try await box(kernel, 10, 10, 10) }
 
     /// A Planar Surface at `z`, `width` mm square about the z axis (normal +z), over `x` when given.
-    func plane(z: Double, width: Double = 30, x: ClosedRange<Double>? = nil) async throws -> Solid {
+    func plane(z: Double, width: Double = 30, x: ClosedRange<Double>? = nil, tag planeTag: NodeTag? = nil) async throws -> Solid {
         let xs = x ?? (-width / 2)...(width / 2)
         let y = width / 2
         let corners = [Vector3(xs.lowerBound, -y, z), Vector3(xs.lowerBound, y, z),
                        Vector3(xs.upperBound, y, z), Vector3(xs.upperBound, -y, z),
         ]
         let loop = try await kernel.makeCurve(corners.indices.map { .line(corners[$0], corners[($0 + 1) % 4]) }, tag: newTag())
-        return try await kernel.planarSurface([loop], tag: newTag())
+        return try await kernel.planarSurface([loop], tag: planeTag ?? newTag())
     }
 
     /// A closed cylinder of radius 3 along z from -5 to 15.
@@ -119,8 +119,10 @@ struct SplitSolidTests {
         let part = try await tenBox()
         let low = try await plane(z: 4)
         let high = try await plane(z: 6)
-        let first = try await kernel.splitSolid(part, by: [low], tag: tag)
-        let moved = try await kernel.splitSolid(part, by: [high], tag: tag)
+        // Pieces are ordered by their names, which hold the tool's tag: the same tool moved keeps its tag, so it is the same node.
+        let movedTag = newTag()
+        let first = try await kernel.splitSolid(part, by: [plane(z: 4, tag: movedTag)], tag: tag)
+        let moved = try await kernel.splitSolid(part, by: [plane(z: 6, tag: movedTag)], tag: tag)
         #expect(first.pieces.count == 2 && moved.pieces.count == 2)
         // The same half comes first whatever the plane's height.
         #expect((first.pieces[0].bounds.min.z < first.pieces[1].bounds.min.z)
