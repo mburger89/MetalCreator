@@ -12,7 +12,10 @@
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepAdaptor_Surface.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <BRepLib.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <BRep_Builder.hxx>
@@ -53,6 +56,7 @@ struct loop_info {
     gp_Pnt centre;
     gp_Dir normal = gp_Dir(0, 0, 1);
     bool flat = false;
+    bool on_sheet = false; // flat, but a planar face of the sheet already lies in its plane
     // Filled once the loop's plane group is known.
     std::vector<std::pair<double, double>> plane_points;
     double signed_area = 0;
@@ -134,6 +138,31 @@ void classify(loop_info &loop, double flatness) {
         }
     }
     loop.flat = true;
+}
+
+/// Whether a face along the loop is a plane the loop lies in: a planar cap there would coincide with that face.
+bool lies_on_sheet(const loop_info &loop, const TopTools_IndexedMapOfShape &edge_map,
+                   const TopTools_IndexedDataMapOfShapeListOfShape &ancestors) {
+    for (int index : loop.edges) {
+        const TopoDS_Shape &edge = edge_map(index);
+        for (const TopoDS_Face &face : distinct_faces(edge, ancestors)) {
+            const BRepAdaptor_Surface surface(face);
+            if (surface.GetType() != GeomAbs_Plane) {
+                continue;
+            }
+            const gp_Pln plane = surface.Plane();
+            const gp_Dir face_normal = plane.Axis().Direction();
+            if (gp_Vec(face_normal).Crossed(gp_Vec(loop.normal)).Magnitude() > kNormalTolerance) {
+                continue;
+            }
+            const bool coplanar = std::all_of(loop.points.begin(), loop.points.end(),
+                                              [&](const gp_Pnt &p) { return plane.Distance(p) <= 0.01; });
+            if (coplanar) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool inside_polygon(const std::vector<std::pair<double, double>> &polygon, double x, double y) {
@@ -283,16 +312,7 @@ occt_shape *occt_cap_planar_holes(const occt_shape *sheet, double flatness, cons
         Handle(TopTools_HSequenceOfShape) free_edges = new TopTools_HSequenceOfShape();
         for (int i = 1; i <= ancestors.Extent(); ++i) {
             const TopoDS_Edge edge = TopoDS::Edge(ancestors.FindKey(i));
-            if (BRep_Tool::Degenerated(edge)) {
-                continue;
-            }
-            std::vector<TopoDS_Shape> distinct;
-            for (TopTools_ListOfShape::Iterator it(ancestors(i)); it.More(); it.Next()) {
-                if (std::none_of(distinct.begin(), distinct.end(), [&](const TopoDS_Shape &s) { return s.IsSame(it.Value()); })) {
-                    distinct.push_back(it.Value());
-                }
-            }
-            if (distinct.size() == 1 && !BRep_Tool::IsClosed(edge, TopoDS::Face(distinct[0]))) {
+            if (is_boundary_edge(edge, distinct_faces(edge, ancestors))) {
                 free_edges->Append(edge);
             }
         }
@@ -316,19 +336,25 @@ occt_shape *occt_cap_planar_holes(const occt_shape *sheet, double flatness, cons
                 loop.wire = wire;
                 sample_loop(loop, work_edges);
                 classify(loop, flatness);
+                if (loop.flat && lies_on_sheet(loop, work_edges, ancestors)) {
+                    loop.flat = false;
+                    loop.on_sheet = true; // a cap here would sit on the sheet's own face: left open, and not "not flat"
+                }
                 loops.push_back(std::move(loop));
             }
             std::vector<plane_group> groups;
             for (size_t i = 0; i < loops.size(); ++i) {
                 if (!loops[i].flat) {
-                    ++not_flat_count;
+                    if (!loops[i].on_sheet) {
+                        ++not_flat_count;
+                    }
                     continue;
                 }
                 bool placed = false;
                 for (plane_group &group : groups) {
                     const gp_Vec cross = gp_Vec(group.normal).Crossed(gp_Vec(loops[i].normal));
                     const double offset = gp_Vec(group.origin, loops[i].centre).Dot(gp_Vec(group.normal));
-                    if (cross.Magnitude() <= kNormalTolerance && group.normal.Dot(loops[i].normal) > 0 && std::abs(offset) <= 0.01) {
+                    if (cross.Magnitude() <= kNormalTolerance && std::abs(offset) <= 0.01) {
                         group.loops.push_back(static_cast<int>(i));
                         placed = true;
                         break;
@@ -394,7 +420,12 @@ occt_shape *occt_cap_planar_holes(const occt_shape *sheet, double flatness, cons
                 }
                 if (part.ShapeType() == TopAbs_SHELL && BRep_Tool::IsClosed(part)) {
                     const TopoDS_Shape solid = solidify_closed_shell(part);
+                    GProp_GProps properties;
                     if (!solid.IsNull()) {
+                        BRepGProp::VolumeProperties(solid, properties);
+                    }
+                    // A shell with no volume (two faces on top of each other) is no solid.
+                    if (!solid.IsNull() && properties.Mass() > 1e-9) {
                         result_parts.push_back(solid);
                         continue;
                     }

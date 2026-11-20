@@ -75,6 +75,6 @@ extension OCCTKernel {
         return CapResult(body: body, capped: built.tables.capped, notFlat: built.tables.notFlat)
     }
 
-    /// R12's fixed flatness: every sample of a loop within this many millimetres of its least-squares plane.
+    /// R12's fixed flatness: every sample of a loop within this many millimetres of the plane through its samples' centroid with Newell's normal.
     static let capFlatness = 0.01
 }

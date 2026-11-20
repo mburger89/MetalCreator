@@ -130,13 +130,56 @@ struct CapPlanarHolesTests {
         let result = try await kernel.cappingPlanarHoles(mixed, tag: tag)
         #expect(result.capped == 2)
         #expect(!result.body.hasOpenShell)
-        let expected = 1000 + Double.pi * 20 * (100 + 60 + 36) / 3
+        let frustum = Double.pi * 20 * (100 + 60 + 36) / 3
         let measured = try await volume(result.body)
-        #expect(abs(measured - expected) / expected < 1e-4)
+        #expect(abs(measured - (1000 + frustum)) / (1000 + frustum) < 1e-4)
+        // Two bodies: faces joined by a shared edge belong together (no API names bodies, so the topology says).
+        let topology = result.body.topology
+        var parent = Array(topology.faces.indices)
+        func root(_ i: Int) -> Int { parent[i] == i ? i : root(parent[i]) }
+        for edge in topology.edges where edge.faces.count == 2 {
+            let ids = edge.faces.compactMap { id in topology.faces.firstIndex { $0.id == id } }
+            if ids.count == 2 { parent[root(ids[0])] = root(ids[1]) }
+        }
+        var sizes: [Int: Int] = [:]
+        for i in topology.faces.indices { sizes[root(i), default: 0] += 1 }
+        #expect(sizes.values.sorted() == [3, 6])
+        // The box is untouched (volume 1000 from the original), so the other body carries the frustum's remainder.
+        let boxVolume = try await volume(moved)
+        #expect(abs(boxVolume - 1000) < 1e-6)
+        #expect(abs(measured - boxVolume - frustum) / frustum < 1e-4)
         let boxFaces = result.body.topology.faces.filter { $0.centroid.x > 40 }
         #expect(boxFaces.count == 6)
         #expect(Set(boxFaces.map { Set($0.tags) }) == Set(moved.topology.faces.map { Set($0.tags) }))
         #expect(boxFaces.allSatisfy { blendKeys($0).isEmpty })
+    }
+
+    @Test func aFlatSheetIsNotCapped() async throws {
+        let sheet = try await kernel.planarSurface([circle(10, z: 0)], tag: newTag())
+        let result = try await kernel.cappingPlanarHoles(sheet, tag: tag)
+        #expect(result.capped == 0)
+        #expect(result.body.hasOpenShell)
+        #expect(result.body.topology.faces.count == 1)
+        #expect(result.body.topology.faces.map { Set($0.tags) } == sheet.topology.faces.map { Set($0.tags) })
+    }
+
+    @Test func concentricLoopsAlongADiagonalAxisMakeAnAnnulus() async throws {
+        let root = 0.5.squareRoot()
+        let direction = Vector3(root, -root, 0)
+        func sheet(_ radius: Double) async throws -> Solid {
+            let start = Vector3(radius * root, radius * root, 0)
+            let end = Vector3(start.x + 20 * direction.x, start.y + 20 * direction.y, 0)
+            let line = try await kernel.makeCurve([.line(start, end)], tag: newTag())
+            return try await kernel.revolve(line, axis: Axis(origin: .zero, direction: direction),
+                                            angle: Angle(radians: 2 * .pi), tag: newTag())
+        }
+        let both = try await kernel.compound([sheet(10), sheet(6)], tag: newTag())
+        let result = try await kernel.cappingPlanarHoles(both, tag: tag)
+        #expect(result.capped == 2 && result.notFlat == 0)
+        #expect(!result.body.hasOpenShell)
+        let expected = Double.pi * (100 - 36) * 20
+        let measured = try await volume(result.body)
+        #expect(abs(measured - expected) / expected < 1e-4)
     }
 }
 #endif

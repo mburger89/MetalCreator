@@ -840,7 +840,7 @@ typedef struct {
 
 void occt_cap_loops_free(occt_cap_loops *loops);
 
-/// `sheet`'s closed free loops that are flat (every sample within `flatness` mm of the loop's least-squares plane) capped with planar faces
+/// `sheet`'s closed free loops that are flat (every sample within `flatness` mm of the plane through the samples' centroid with Newell's normal; a flat loop with a planar face of the sheet already in its plane stays open and is not counted in `not_flat`) capped with planar faces
 /// (NS-5, Task 6; R12, R17): loops in one plane are nested even-odd into faces with holes, the caps are sewn to the sheet at 0.01 mm and
 /// every closed shell made a solid. The input's `TopAbs_SOLID`s are set aside and put back unchanged. `history` is OCCT_FROM_FACE (operand 0,
 /// the input face) for every face that came from one; `edges` is sew's R5 edge records; `loops` lists each cap's outer-loop source edges.
