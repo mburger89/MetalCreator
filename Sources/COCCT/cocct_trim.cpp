@@ -197,31 +197,6 @@ bool loop_contains(const Loop &loop, const gp_Pnt &point, const gp_Vec *directio
     return inside;
 }
 
-/// For each shape of `sources` (the sheet's faces or edges), the shapes of the result it became, as the splitter's history says.
-void source_map(BRepAlgoAPI_Splitter &splitter, const TopTools_IndexedMapOfShape &sources, const TopTools_IndexedMapOfShape &result,
-                std::vector<int> &out) {
-    out.assign(result.Extent(), 0);
-    for (int i = 1; i <= sources.Extent(); ++i) {
-        const TopoDS_Shape &source = sources(i);
-        const TopTools_ListOfShape &modified = splitter.Modified(source);
-        if (modified.IsEmpty()) {
-            if (!splitter.IsDeleted(source)) {
-                const int index = result.FindIndex(source);
-                if (index > 0) {
-                    out[index - 1] = i;
-                }
-            }
-            continue;
-        }
-        for (TopTools_ListOfShape::Iterator it(modified); it.More(); it.Next()) {
-            const int index = result.FindIndex(it.Value());
-            if (index > 0) {
-                out[index - 1] = i;
-            }
-        }
-    }
-}
-
 /// The faces as a sheet: one shell per set of faces that join over shared edges (cut edges included), so a sheet whose faces are
 /// loose, as an imported one can be, stays valid. One set is that shell; several are a compound of shells.
 TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
@@ -287,44 +262,15 @@ TopoDS_Shape assemble_sheet(const std::vector<TopoDS_Face> &faces) {
     return compound;
 }
 
-/// A point strictly inside `face`: the UV box sampled 8 x 8, then 32 x 32, then 128 x 128, the inside sample nearest the box's middle.
+/// A point strictly inside `face` (see `cocct::interior_uv`).
 bool interior_point(const TopoDS_Face &face, gp_Pnt &point) {
-    double u0 = 0;
-    double u1 = 0;
-    double v0 = 0;
-    double v1 = 0;
-    BRepTools::UVBounds(face, u0, u1, v0, v1);
-    BRepAdaptor_Surface surface(face);
-    for (const int n : {8, 32, 128}) {
-        bool found = false;
-        double best = 0;
-        double best_u = 0;
-        double best_v = 0;
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                const double u = u0 + (i + 0.5) / n * (u1 - u0);
-                const double v = v0 + (j + 0.5) / n * (v1 - v0);
-                BRepClass_FaceClassifier classifier;
-                classifier.Perform(face, gp_Pnt2d(u, v), 1e-7);
-                if (classifier.State() != TopAbs_IN) {
-                    continue;
-                }
-                const double d = std::hypot((u - 0.5 * (u0 + u1)) / std::max(u1 - u0, 1e-12),
-                                            (v - 0.5 * (v0 + v1)) / std::max(v1 - v0, 1e-12));
-                if (!found || d < best) {
-                    found = true;
-                    best = d;
-                    best_u = u;
-                    best_v = v;
-                }
-            }
-        }
-        if (found) {
-            point = surface.Value(best_u, best_v);
-            return true;
-        }
+    double u = 0;
+    double v = 0;
+    if (!interior_uv(face, u, v)) {
+        return false;
     }
-    return false;
+    point = BRepAdaptor_Surface(face).Value(u, v);
+    return true;
 }
 
 /// The point of `edge` nearest `target` (distance in the plane across `skip`, when given) and the edge's tangent there, running with

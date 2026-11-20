@@ -800,6 +800,36 @@ occt_shape *occt_split_sheet(const occt_shape *sheet, int kind, const occt_shape
 /// in `sheet`. `out` has `source_face` and `source_edge` per output face and edge; the other fields are zero.
 occt_shape *occt_sub_sheet(const occt_shape *sheet, const int *face_indices, int count, occt_split_result *out, occt_status *status);
 
+/// One face of a piece of a split solid (NS-5, R13). Faces are listed piece by piece, each piece's in the order of its own face map (so the
+/// k-th entry of piece p is face k of the p-th child of the returned compound). `source_operand` is 0 for a face of the divided solid or
+/// 1 + the tool's position for a cut face, and `source_face` the 1-based face of that body it is (a piece of); `pair_start` /
+/// `pair_count` index the (element, side) pairs, `element` being the tool faces' number over every tool's face map in input order and
+/// `side` 0 front, 1 back, 2 inside, 3 outside (inside and outside for a tool face of a closed solid).
+typedef struct {
+    int piece;
+    int source_operand;
+    int source_face;
+    int pair_start;
+    int pair_count;
+} occt_split_solid_face;
+typedef struct {
+    occt_split_solid_face *faces;
+    int face_count;
+    occt_split_pair *pairs;
+    int pair_count;
+    int piece_count;
+    /// 1 when part of a tool was dropped because it doesn't cross the solid from side to side.
+    int dangling;
+} occt_split_solid_result;
+void occt_split_solid_result_free(occt_split_solid_result *result);
+
+/// `solid` (closed) divided by `tools` (sheets or closed solids, each one shape) with the Splitter (NS-5, R13, R15). The result is a
+/// compound of the pieces' solids; `out` says where every face of every piece came from and the (element, side) pairs it carries. A tool
+/// face that cuts nothing across is removed from the piece that holds it (`out->dangling`). Refuses "The tools don't cut the solid into
+/// pieces." and "The tools couldn't divide this solid." (the splitter failed or a piece is invalid). `cancel` may be NULL.
+occt_shape *occt_split_solid(const occt_shape *solid, const occt_shape *const *tools, int tool_count, const occt_cancel *cancel,
+                             occt_split_solid_result *out, occt_status *status);
+
 /// Sews the faces of `bodies` (sheets and solids alike, in order) at `tolerance` (NS-5, R6). A face that coincides with an earlier face is
 /// not sewn and stays loose in the result. Each closed shell becomes a solid; the rest stay sheets. `history` is OCCT_FROM_FACE per result face
 /// (operand = the body's position, index its 1-based face); `edges` says which input edges (1-based) each result edge was made from.
