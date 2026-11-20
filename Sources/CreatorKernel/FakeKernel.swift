@@ -14,6 +14,9 @@ public actor FakeKernel: Kernel {
     /// the fake has no surfaces to bend, so a test reads what the node asked for).
     public private(set) var matchContinuities: [PatchContinuity] = []
     public private(set) var blendContinuities: [[PatchContinuity]] = []
+    /// A test sets these: a `matched` call then returns its sheet as it is, and `folds` answers `foldsAnswer`.
+    public private(set) var matchPassesThrough = false
+    public private(set) var foldsAnswer = false
     /// The `angle` of each `tessellate` call, in order.
     public private(set) var tessellationAngles: [Double] = []
     var sectionHook: (@Sendable () async throws -> Void)?
@@ -315,7 +318,19 @@ extension FakeKernel {
     public func matched(_ sheet: Solid, edge: EdgeID, to target: EdgeID, of body: Solid,
                         continuity: PatchContinuity) async throws -> Solid {
         matchContinuities.append(continuity)
+        if matchPassesThrough { return sheet }
         throw KernelError.unsupported("matching surfaces")
+    }
+
+    /// Makes later `matched` calls return their sheet unchanged and `folds` answer `folded` (the plumbing around a fold, not a fold).
+    public func setMatchPassThrough(folds folded: Bool) {
+        matchPassesThrough = true
+        foldsAnswer = folded
+    }
+
+    public func folds(_ sheet: Solid) throws -> Bool {
+        if matchPassesThrough { return foldsAnswer }
+        throw KernelError.unsupported("fold detection")
     }
 
     public func blendSurface(_ first: SurfaceBlendEnd, _ second: SurfaceBlendEnd, tag: NodeTag) async throws -> Solid {
