@@ -16,9 +16,18 @@ struct HoleReaderOCCTTests {
     private func tag() -> NodeTag { NodeTag(node: NodeID(), item: 0) }
 
     /// The block with a hole cut from the points of `profile` (x = radius, y = height; the axis is the box's centre line).
-    private func block(_ profile: [(Double, Double)]) async throws -> Solid {
-        let box = try await kernel.extrude(
-            .rectangle(width: 40, height: 40, plane: .xy), distance: 20, mode: .oneSided, tag: tag())
+    private func block(_ profile: [(Double, Double)], round: Bool = false) async throws -> Solid {
+        let box: Solid
+        if round {
+            box = try await kernel.revolve(
+                Profile2D(plane: .xz, segments: [
+                    .line(Vector2(0, 0), Vector2(20, 0)), .line(Vector2(20, 0), Vector2(20, 20)),
+                    .line(Vector2(20, 20), Vector2(0, 20)), .line(Vector2(0, 20), Vector2(0, 0)),
+                ]), axis: Axis(origin: .zero, direction: Vector3(0, 0, 1)), angle: Angle(radians: 2 * .pi), tag: tag())
+        } else {
+            box = try await kernel.extrude(
+                .rectangle(width: 40, height: 40, plane: .xy), distance: 20, mode: .oneSided, tag: tag())
+        }
         var segments: [Segment2D] = []
         for index in profile.indices {
             let next = profile[(index + 1) % profile.count]
@@ -61,6 +70,22 @@ struct HoleReaderOCCTTests {
         let solid = try await block([(0, 21), (5.5, 21), (5.5, 14), (3, 14), (3, -1), (0, -1)])
         expect(try read(solid, radius: 5.5, z: 20), diameter: 6, depth: nil, counterbore: (11, 6))
         // The inner circle on the floor reads the same.
+        expect(try read(solid, radius: 3, z: 14), diameter: 6, depth: nil, counterbore: (11, 6))
+    }
+
+    @Test func occtBlindCounterbore() async throws {
+        let solid = try await block([(0, 21), (5.5, 21), (5.5, 14), (3, 14), (3, 4), (0, 4)])
+        expect(try read(solid, radius: 5.5, z: 20), diameter: 6, depth: 10, counterbore: (11, 6))
+    }
+
+    @Test func occtHoleOnARoundPart() async throws {
+        let solid = try await block([(0, 21), (3, 21), (3, -1), (0, -1)], round: true)
+        expect(try read(solid, radius: 3, z: 20), diameter: 6, depth: nil)
+    }
+
+    @Test func occtCounterboreOnARoundPart() async throws {
+        let solid = try await block([(0, 21), (5.5, 21), (5.5, 14), (3, 14), (3, -1), (0, -1)], round: true)
+        expect(try read(solid, radius: 5.5, z: 20), diameter: 6, depth: nil, counterbore: (11, 6))
         expect(try read(solid, radius: 3, z: 14), diameter: 6, depth: nil, counterbore: (11, 6))
     }
 

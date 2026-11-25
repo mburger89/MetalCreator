@@ -123,6 +123,79 @@ struct HoleReaderTests {
         #expect(read(topology, edge: 1) == .notAHole)
     }
 
+    /// A round part: its top face (0) is an annulus out to a larger coaxial circle on the outer cylinder (9) going down.
+    private func roundPart(faces: [FaceInfo], edges: [EdgeInfo]) -> Topology {
+        let outer = [
+            face(0, .plane, normal: up, z: 0), face(1, .plane, normal: Vector3(0, 0, -1), z: -20),
+            face(9, .cylinder, normal: up, z: -10, radius: 20),
+        ]
+        let rim = [ring(100, z: 0, radius: 20, 9, 0), ring(101, z: -20, radius: 20, 9, 1)]
+        return Topology(faces: outer + faces, edges: rim + edges)
+    }
+
+    @Test func aHoleOnTheAxisOfARoundPart() {
+        let topology = roundPart(
+            faces: [face(2, .cylinder, normal: up, z: -10, radius: 3)],
+            edges: [ring(0, z: 0, radius: 3, 2, 0), ring(1, z: -20, radius: 3, 2, 1)])
+        #expect(shape(read(topology, edge: 0)) == HoleShape(diameter: 6))
+    }
+
+    @Test func aCounterboreOnTheAxisOfARoundPart() {
+        let topology = roundPart(
+            faces: [
+                face(2, .cylinder, normal: up, z: -3, radius: 5.5), face(3, .plane, normal: up, z: -6),
+                face(4, .cylinder, normal: up, z: -13, radius: 3),
+            ],
+            edges: [
+                ring(0, z: 0, radius: 5.5, 2, 0), ring(1, z: -6, radius: 5.5, 2, 3), ring(2, z: -6, radius: 3, 3, 4),
+                ring(3, z: -20, radius: 3, 4, 1),
+            ])
+        let expected = HoleShape(diameter: 6, counterbore: .init(diameter: 11, depth: 6))
+        #expect(shape(read(topology, edge: 0)) == expected)
+        #expect(shape(read(topology, edge: 2)) == expected)
+    }
+
+    @Test func aQuarterArcCornerIsNotAHole() {
+        let topology = part(
+            faces: [face(2, .cylinder, normal: up, z: -10, radius: 3)],
+            edges: [
+                Fixture.circle(0, center: v(0), axis: up, radius: 3, sweep: .pi / 2, between: 2, 0),
+                Fixture.circle(1, center: v(-20), axis: up, radius: 3, sweep: .pi / 2, between: 2, 1),
+            ])
+        #expect(read(topology, edge: 0) == .notAHole)
+    }
+
+    @Test func aSlotEndIsNotAHole() {
+        let topology = part(
+            faces: [face(2, .cylinder, normal: up, z: -10, radius: 3)],
+            edges: [
+                Fixture.circle(0, center: v(0), axis: up, radius: 3, sweep: .pi, between: 2, 0),
+                Fixture.circle(1, center: v(-20), axis: up, radius: 3, sweep: .pi, between: 2, 1),
+            ])
+        #expect(read(topology, edge: 0) == .notAHole)
+    }
+
+    @Test func theOutwardNormalAloneRefusesAWallOnTheOutwardSide() {
+        // Rings and a far end below the mouth would read as a hole, but the wall's centroid lies on the plane's outward side.
+        let topology = part(
+            faces: [face(2, .cylinder, normal: up, z: 10, radius: 3)],
+            edges: [ring(0, z: 0, radius: 3, 2, 0), ring(1, z: -20, radius: 3, 2, 1)])
+        #expect(read(topology, edge: 0) == .notAHole)
+    }
+
+    @Test func aBlindCounterbore() {
+        let topology = part(
+            faces: [
+                face(2, .cylinder, normal: up, z: -3, radius: 5.5), face(3, .plane, normal: up, z: -6),
+                face(4, .cylinder, normal: up, z: -11, radius: 3), face(5, .plane, normal: up, z: -16),
+            ],
+            edges: [
+                ring(0, z: 0, radius: 5.5, 2, 0), ring(1, z: -6, radius: 5.5, 2, 3), ring(2, z: -6, radius: 3, 3, 4),
+                ring(3, z: -16, radius: 3, 4, 5),
+            ])
+        #expect(shape(read(topology, edge: 0)) == HoleShape(diameter: 6, depth: 10, counterbore: .init(diameter: 11, depth: 6)))
+    }
+
     @Test func aCircleSeenEdgeOnIsForeshortened() {
         #expect(read(through, edge: 0, frame: StandardOrientation.front.frame) == .lost(.foreshortened))
     }

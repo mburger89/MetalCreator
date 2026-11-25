@@ -71,7 +71,9 @@ public enum HoleReader {
         }
 
         func ring(_ edge: EdgeInfo) -> Ring? {
-            guard !edge.isSeam, case .circle(let center, let circleAxis, let radius, _, _)? = edge.curve else { return nil }
+            guard !edge.isSeam, case .circle(let center, let circleAxis, let radius, _, let sweep)? = edge.curve,
+                abs(sweep) >= 2 * .pi - 1e-9
+            else { return nil }
             guard isParallel(circleAxis), isOnAxis(center) else { return nil }
             return Ring(edge: edge, center: center, radius: radius)
         }
@@ -106,14 +108,15 @@ public enum HoleReader {
                     .filter { $0.radius > current.radius + HoleReader.sameRadius && $0.edge.id != current.edge.id }
                     .sorted { $0.radius < $1.radius }
                 guard let step = larger.first else { return (current, wall, plane) }
-                guard let outerWall = face(across: step, from: plane), isWall(outerWall) else { return nil }
-                // The step's wall must rise out of this plane, on the side its normal points to.
+                // A larger circle whose wall doesn't rise out of this plane is the plane's own outer rim, not a step: stop here.
                 let outward = plane.normal?.normalized ?? axis
-                guard (outerWall.centroid - step.center).dot(outward) > 0 else { return nil }
+                guard let outerWall = face(across: step, from: plane), isWall(outerWall),
+                    (outerWall.centroid - step.center).dot(outward) > 0
+                else { return (current, wall, plane) }
                 let stepDepth = depth(of: step.center, running: outward)
                 let others = rings(of: outerWall).filter { abs(depth(of: $0.center, running: outward) - stepDepth) > 1e-6 }
                 guard let far = others.max(by: { depth(of: $0.center, running: outward) < depth(of: $1.center, running: outward) })
-                else { return nil }
+                else { return (current, wall, plane) }
                 current = far
             }
             return nil
