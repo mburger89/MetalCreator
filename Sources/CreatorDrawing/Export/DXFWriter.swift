@@ -67,7 +67,8 @@ public enum DXFWriter {
         var extent = bounds
         if let (picture, mapping) = annotations {
             let (back, shift) = (1 / mapping.scale, mapping.offset * (-1 / mapping.scale))
-            for stroke in picture.strokes where stroke.view == view.id && stroke.annotation != nil {
+            // The view's automatic centre marks carry no annotation but sit alone on the centre layer among a view's own strokes.
+            for stroke in picture.strokes where stroke.view == view.id && (stroke.annotation != nil || stroke.layer == .center) {
                 var moved = stroke
                 moved.segments = stroke.segments.map { $0.transformed(scale: back, offset: shift) }
                 extent = extent.union(moved.bounds)
