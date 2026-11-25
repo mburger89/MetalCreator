@@ -36,6 +36,24 @@ public final class DrawingSession {
         var failure: String?
         var frame: ProjectionFrame
         var scale: Double
+        /// The solids themselves, kept alive so that an identity in `solids` can't be reused by a later solid at the same address
+        /// (the cache evicting one and an edit allocating the next there would otherwise look like no change). Not part of equality.
+        var retained: [Solid] = []
+
+        static func == (lhs: RequestKey, rhs: RequestKey) -> Bool {
+            lhs.state == rhs.state && lhs.solids == rhs.solids && lhs.curves == rhs.curves && lhs.meshCount == rhs.meshCount
+                && lhs.failure == rhs.failure && lhs.frame == rhs.frame && lhs.scale == rhs.scale
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(state)
+            hasher.combine(solids)
+            hasher.combine(curves)
+            hasher.combine(meshCount)
+            hasher.combine(failure)
+            hasher.combine(frame)
+            hasher.combine(scale)
+        }
     }
 
     struct Flight {
@@ -232,7 +250,7 @@ public final class DrawingSession {
         case .ready(let solids, let curves, let meshCount):
             RequestKey(
                 state: 3, solids: solids.map(ObjectIdentifier.init), curves: curves.map(ObjectIdentifier.init),
-                meshCount: meshCount, failure: nil, frame: frame, scale: scale)
+                meshCount: meshCount, failure: nil, frame: frame, scale: scale, retained: solids)
         }
     }
 }

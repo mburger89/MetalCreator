@@ -44,6 +44,9 @@ extension DrawingSession {
         let drawings = editor.document
         let format = NumberFormat(units: document.units, settings: drawings.settings)
         var pending: [RefreshJob] = []
+        // A deleted view's record would keep its solids alive for the whole session.
+        let live = Set(drawings.sheets.flatMap { $0.views.map(\.id) })
+        for id in refreshed.keys where !live.contains(id) { refreshed[id] = nil }
         for sheet in drawings.sheets {
             for view in sheet.views {
                 let annotations = sheet.annotations(of: view.id).filter { annotation in
