@@ -33,14 +33,23 @@ extension DrawingSession {
     }
 
     private func mass(of solids: [Solid], density: Double) async -> Double? {
+        // Read into a local first: another call may trim the cache while this one awaits the kernel.
+        var known: [ObjectIdentifier: Double?] = [:]
+        for solid in solids { known[ObjectIdentifier(solid)] = volumes[ObjectIdentifier(solid)]?.volume }
         let missing = solids.filter { volumes[ObjectIdentifier($0)] == nil }
         if !missing.isEmpty {
             let measured = await Self.measure(missing, with: kernel)
-            for (solid, volume) in measured { volumes[ObjectIdentifier(solid)] = (solid, volume) }
+            for (solid, volume) in measured {
+                volumes[ObjectIdentifier(solid)] = (solid, volume)
+                known[ObjectIdentifier(solid)] = volume
+            }
         }
+        // Keep only what is asked for now: an entry holds its solid alive, so an old one would pin a whole OCCT shape.
+        let asked = Set(solids.map(ObjectIdentifier.init))
+        volumes = volumes.filter { asked.contains($0.key) }
         var total = 0.0
         for solid in solids {
-            guard let entry = volumes[ObjectIdentifier(solid)], let volume = entry.volume else { return nil }
+            guard let entry = known[ObjectIdentifier(solid)], let volume = entry else { return nil }
             total += volume
         }
         return total * density / 1000

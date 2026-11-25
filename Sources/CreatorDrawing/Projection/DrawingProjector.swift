@@ -31,7 +31,9 @@ public struct DrawingProjector: Sendable {
         case .failed(let message):
             return ViewContent(projection: previous?.projection, problem: message, lastSize: previous?.lastSize)
         case .evaluating:
-            return ViewContent(projection: previous?.projection, lastSize: previous?.lastSize)
+            return ViewContent(
+                projection: previous?.projection, problem: previous?.problem, warnings: previous?.warnings ?? [],
+                lastSize: previous?.lastSize)
         case .ready(let solids, let curves, let meshCount):
             if solids.isEmpty, curves.isEmpty {
                 return ViewContent(

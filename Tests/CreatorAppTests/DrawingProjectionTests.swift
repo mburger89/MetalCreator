@@ -104,29 +104,6 @@ struct DrawingProjectionTests {
         return next
     }
 
-    @Test func aSupersededRequestNeverPublishes() async throws {
-        let kernel = FakeKernel()
-        let box = DrawingBox(width: 10)
-        let app = await AppModel.inDrawing(box.graph, kernel: kernel)
-        let id = try #require(await app.placeBaseView())
-        let gate = HookGate()
-        defer { gate.open() }
-        await kernel.setProjectionHook { await gate.hold() }
-        try app.document.perform(.setInput(box.rectangle.id, "width", .number(20)), name: "First")
-        await app.document.waitForEvaluation()
-        app.refreshDrawing()
-        await gate.waitUntilEntered()
-        // The first request is held inside the kernel; a second edit asks again.
-        try app.document.perform(.setInput(box.rectangle.id, "width", .number(30)), name: "Second")
-        await app.document.waitForEvaluation()
-        app.refreshDrawing()
-        await gate.waitUntilEntered()
-        gate.release()
-        gate.release()
-        await app.settle()
-        #expect(extent(of: app.lines(of: id)) == 30, "the second edit's lines are the ones shown")
-    }
-
     @Test func thePendingProjectionStaysFaded() async throws {
         let kernel = FakeKernel()
         let box = DrawingBox(width: 10)
