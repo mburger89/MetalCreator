@@ -118,3 +118,23 @@ struct DrawingStaleResultTests {
         #expect(app.drawing.editor.facts.massText != nil)
     }
 }
+
+/// Mass reads every value that holds a closed solid, also one that holds a sheet beside it (NS-5 R17).
+@MainActor
+struct DrawingMassSolidsTests {
+    func solid(openFaces: Int) async throws -> Solid {
+        let box = try await FakeKernel().extrude(
+            .rectangle(width: 1, height: 1, plane: .xy), distance: 1, mode: .oneSided, tag: NodeTag(node: NodeID(), item: 0))
+        var topology = box.topology
+        for index in topology.faces.indices { topology.faces[index].isOnOpenShell = index < openFaces }
+        return Solid(topology: topology, bounds: box.bounds, storage: box.storage)
+    }
+
+    @Test func aValueHoldingASolidAndASheetCounts() async throws {
+        let mixed = try await solid(openFaces: 1)
+        let sheet = try await solid(openFaces: 6)
+        let closed = try await solid(openFaces: 0)
+        #expect(DrawingSession.closedSolids(in: [mixed, sheet, closed])?.count == 2)
+        #expect(DrawingSession.closedSolids(in: [sheet]) == nil)
+    }
+}

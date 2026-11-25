@@ -48,6 +48,10 @@ struct TitleBlockTests {
         #expect(TitleBlockFacts.massText(grams: 8.4, inches: false) == "8.4 g")
         #expect(TitleBlockFacts.massText(grams: 84, inches: false) == "84 g")
         #expect(TitleBlockFacts.massText(grams: 1234, inches: false) == "1.234 kg")
+        #expect(TitleBlockFacts.massText(grams: 9.96, inches: false) == "10 g", "rounds up into the whole-gram form")
+        #expect(TitleBlockFacts.massText(grams: 9.94, inches: false) == "9.9 g")
+        #expect(TitleBlockFacts.massText(grams: 999.6, inches: false) == "1.000 kg", "rounds up into the kilogram form")
+        #expect(TitleBlockFacts.massText(grams: 999.4, inches: false) == "999 g")
         #expect(TitleBlockFacts.massText(grams: 1234.2, inches: true) == "2.721 lb")
     }
 

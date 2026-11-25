@@ -28,7 +28,13 @@ extension DrawingSession {
         let sources = Set(sheet.views.map(\.source))
         guard sources.count == 1, let source = sources.first,
               case .ready(let solids, _, _) = Self.content(of: source, in: document).state else { return nil }
-        let closed = solids.filter { !$0.hasOpenShell }
+        return Self.closedSolids(in: solids)
+    }
+
+    /// The values that hold a closed solid, or `nil`. A value that holds a sheet as well counts: the kernel's properties report only
+    /// its solids' volume (NS-5 R17).
+    static func closedSolids(in solids: [Solid]) -> [Solid]? {
+        let closed = solids.filter(\.holdsClosedSolid)
         return closed.isEmpty ? nil : closed
     }
 
