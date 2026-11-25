@@ -175,8 +175,9 @@ public final class DrawingSession {
         guard wanted[id] == key else { return }
         var shown = content
         // An Output still being rebuilt, or one that failed, hands back the previous lines: they stay faded (a failed one with its
-        // sentence under the frame) until a real projection lands.
-        shown.isPending = key.state == Self.evaluatingState || (key.state == Self.failedState && shown.projection != nil)
+        // sentence under the frame) until a real projection lands. So do the old lines of a ready Output whose projection failed.
+        shown.isPending = key.state == Self.evaluatingState
+            || ((key.state == Self.failedState || shown.problem != nil) && shown.projection != nil)
         editor.contents[id] = shown
         applied[id] = key
     }

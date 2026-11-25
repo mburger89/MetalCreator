@@ -61,6 +61,23 @@ struct DrawingStaleResultTests {
         #expect(app.drawing.editor.contents[id]?.isPending == false)
     }
 
+    @Test func aFailedProjectionKeepsItsOldLinesFaded() async throws {
+        let kernel = FakeKernel()
+        let box = DrawingBox(width: 10)
+        let app = await AppModel.inDrawing(box.graph, kernel: kernel)
+        let id = try #require(await app.placeBaseView())
+        #expect(app.drawing.editor.contents[id]?.isPending == false)
+        await kernel.setProjectionHook { throw KernelError.invalidInput("the hidden-line algorithm gave no result.") }
+        try app.document.perform(.setInput(box.rectangle.id, "width", .number(20)), name: "Edit")
+        await app.document.waitForEvaluation()
+        app.refreshDrawing()
+        await app.settle()
+        let content = try #require(app.drawing.editor.contents[id])
+        #expect(content.problem != nil, "the warning notice stays")
+        #expect(content.projection != nil, "the old lines stay")
+        #expect(content.isPending, "stale lines are drawn faded")
+    }
+
     @Test func staleLinesStayFadedWhileTheOutputEvaluates() async throws {
         let box = DrawingBox(width: 10)
         let app = await AppModel.inDrawing(box.graph)
