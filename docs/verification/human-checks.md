@@ -2530,3 +2530,19 @@ the Output selected so the part is shown.
 - [ ] **NS5-6 Split a box with a sheet and a cylinder.** Split Solid a box by a Planar Surface through its middle: two solids, in a stable order. Split it by a cylinder solid: the inside and the outside pieces. Use a sheet that crosses only half the box alone: "The tools don't cut the solid into pieces." is the refusal. Pair that dangling sheet with a second tool that does divide the box: the dangling sheet's unreached face is dropped with a warning. **Observed:**
 - [ ] **NS5-7 Boolean points to Split Solid.** Wire a sheet into a Boolean's tools: the sentence says to use Split Solid (or Thicken or Sew it first). **Observed:**
 - [ ] **NS5-8 A fold refusal after a control point drag.** Edit Control Points on a sheet and drag one point across the surface so it folds, then wire it to Thicken: it is refused for the fold, not built; a steep but smooth spike (one pole raised) is not called a fold. **Observed:**
+
+## Group DR-1 — Drawings: sheets, views and PDF
+
+- [ ] **DR1-1 Enter Drawing and place views.** Switch to Drawing (the top bar's switch, then ⌘⇧D back and forth), add a sheet, place a base view and drag out right, above and below views in first angle, then switch to ASME and see them mirror. **Observed:**
+- [ ] **DR1-2 A graph edit redraws the views.** Change a width in the graph with the drawing showing: the views redraw, faded while pending, alignment kept. **Observed:**
+- [ ] **DR1-3 Hidden lines and tangent edges.** Turn hidden lines and tangent edges on and off per view: dashed thin hidden lines, thin tangent lines. **Observed:**
+- [ ] **DR1-4 Sheet scale and an override.** Change the sheet's scale, then give one view a 2:1 override: it draws at 2:1 with its label. **Observed:**
+- [ ] **DR1-5 PDF.** Export a PDF, open it in Preview, a browser and Acrobat Reader, print a 1:1 view at 100 % and measure it with a ruler. **Observed:**
+- [ ] **DR1-6 DXF of the sheet.** Export DXF of the sheet and open it in LibreCAD or QCAD, and in AutoCAD or Autodesk's free DWG TrueView: layers, dashed hidden lines, true arcs and circles, and no repair or audit prompt in AutoCAD (R24: a prompt is a DR-1 bug). **Observed:**
+- [ ] **DR1-7 DXF of a view at 1:1.** Export DXF of a plate's Top view at 1:1 and open it in laser or CAM software: true size, model coordinates. **Observed:**
+- [ ] **DR1-8 Title block.** Fill the title block fields, check the date and the mass with a density, and give a title with "Ω": the export warns that it is written as "?". **Observed:**
+- [ ] **DR1-9 Tabs.** Add, rename, duplicate, delete, move left and move right: each is one undo step with its name. **Observed:**
+- [ ] **DR1-10 A deleted Output.** Delete the Output a view shows: the frame and sentence appear, then undo brings the view back; a mesh Output shows its warning. **Observed:**
+- [ ] **DR1-11 Linux and Windows.** Drawing mode and both exports work, and the PDF's SHA-256 equals the Mac's for the same document. **Observed:**
+- [ ] **DR1-12 Pan, zoom and F on a full A3 sheet.** Smooth, text crisp, line weights readable, and text sitting on the same baselines as in the exported PDF opened beside it (R13). **Observed:**
+- [ ] **DR1-13 The window in Drawing.** The field legend, mesh badge and the Section, Measure and Zebra panels are gone and the slow-evaluation chip still shows; back in Model they return as they were (R28). **Observed:**
