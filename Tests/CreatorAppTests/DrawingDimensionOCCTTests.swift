@@ -50,9 +50,11 @@ struct DrawingDimensionOCCTTests {
 
     @Test func aRibThatSplitsTheEdgeKeepsIt() async throws {
         var box = DrawingBox(width: 40)
-        // A block inside the box that shares its front and top: the union splits the top-front edge into three collinear pieces.
+        // A block in front of the box that touches only the bottom-front edge (z = 0, the one the Front view's dimension holds,
+        // made before the union) along x -5...5: OpenCascade keeps the edge as three collinear pieces. (A block that shares a
+        // face with the box is unified into it and splits nothing.)
         let block = box.builder.add(RectangleNode.self, ["width": .number(10), "height": .number(5),
-                                                         "plane": .plane(.through(Vector3(0, -2.5, 5))),
+                                                         "plane": .plane(.through(Vector3(0, -7.5, -5))),
         ])
         let blockSolid = box.builder.add(ExtrudeNode.self, ["distance": .number(5)])
         let union = box.builder.add(BooleanNode.self, ["operation": .integer(0)])
@@ -65,6 +67,16 @@ struct DrawingDimensionOCCTTests {
         let link = Link(from: Endpoint(node: union.id, socket: "solid"), to: Endpoint(node: box.output.id, socket: "solid"))
         try app.document.perform(.connect(link), name: "Union")
         await app.settle()
+        guard case .ready(let solids, _, _) = DrawingSession.content(of: box.output.id, in: app.document).state else {
+            Issue.record("the union didn't evaluate")
+            return
+        }
+        let frontBottom = try #require(solids.first).topology.edges.filter { edge in
+            guard case .line(let start, let end)? = edge.curve else { return false }
+            return abs(start.y + 5) < 1e-6 && abs(end.y + 5) < 1e-6 && abs(start.z) < 1e-6 && abs(end.z) < 1e-6
+        }
+        #expect(frontBottom.count == 3, "the union really splits the edge: \(frontBottom.count) pieces")
+        #expect(Topology.runCount(frontBottom) == 1, "and the pieces are one run")
         let report = try #require(app.report(of: id))
         #expect(report.status == .held, "\(report.status)")
         #expect(report.current?.values == before, "it measures the run: the value is unchanged")

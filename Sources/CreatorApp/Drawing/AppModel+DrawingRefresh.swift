@@ -14,6 +14,20 @@ extension DrawingSession {
         var frame: ProjectionFrame
         var format: NumberFormat
         var annotations: [DrawingAnnotation]
+        /// The solids themselves, kept alive so that an identity in `solids` can't be reused by a later solid at the same address.
+        /// Not part of the key's equality.
+        var retained: [Solid] = []
+
+        static func == (lhs: RefreshKey, rhs: RefreshKey) -> Bool {
+            lhs.solids == rhs.solids && lhs.frame == rhs.frame && lhs.format == rhs.format && lhs.annotations == rhs.annotations
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(solids)
+            hasher.combine(frame)
+            hasher.combine(format)
+            hasher.combine(annotations)
+        }
     }
 
     /// One view's refresh: what to read and against what.
@@ -39,7 +53,7 @@ extension DrawingSession {
                 guard !annotations.isEmpty, case .ready(let solids, _, _) = source.state, !solids.isEmpty else { continue }
                 let key = RefreshKey(
                     solids: solids.map(ObjectIdentifier.init), frame: view.orientation.frame, format: format,
-                    annotations: annotations)
+                    annotations: annotations, retained: solids)
                 if refreshed[view.id] != key {
                     pending.append(RefreshJob(view: view.id, output: source.output, solids: solids, key: key))
                 }

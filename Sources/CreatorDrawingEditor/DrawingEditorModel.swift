@@ -57,6 +57,10 @@ public final class DrawingEditorModel {
     /// Whether the pictures the editor builds feed `remembered`. The host turns it off while the editor isn't shown: its contents are
     /// then as old as the last projection, and the host reads the model itself (`remember(_:)`, plan R26).
     @ObservationIgnored public var feedsRemembered = true
+    /// The views whose contents the host has confirmed are current with the model; only their pictures feed `remembered`. `nil`
+    /// (a standalone editor) means every view is trusted. An old held projection, however many sheets or views are written in a row,
+    /// never overwrites what the host's refresh read from the model (plan R26).
+    @ObservationIgnored public var feedingViews: Set<ViewID>?
     /// The document's units: lengths in labels read in them. Changing them rebuilds the picture.
     public var units: DocumentUnits {
         didSet { if units != oldValue { rebuildPicture() } }
@@ -125,7 +129,10 @@ public final class DrawingEditorModel {
         // is remembered already, or older than what the host's refresh read from the model (plan R25, R26), so it feeds nothing.
         guard feedsRemembered else { return }
         for (id, report) in composed.annotationReports where report.status == .held {
-            if let view = sheet.annotation(id)?.view, contents[view]?.isPending == true { continue }
+            if let view = sheet.annotation(id)?.view {
+                if contents[view]?.isPending == true { continue }
+                if let trusted = feedingViews, !trusted.contains(view) { continue }
+            }
             if let current = report.current, remembered[id] != current { remembered[id] = current }
         }
     }

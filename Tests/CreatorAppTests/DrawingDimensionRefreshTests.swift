@@ -58,6 +58,44 @@ extension DrawingDimensionTests {
         #expect(saved.sheets[0].annotation(id)?.last?.values == [70])
     }
 
+    @Test func showingASheetNeverFeedsItsOldValueBack() async throws {
+        let (app, plate, view) = try await start()
+        _ = try #require(await app.dimensionBottomEdge(of: view))
+        let first = try #require(app.drawing.editor.currentSheet)
+        app.drawing.editor.addSheet()
+        await app.settle()
+        let second = try #require(app.drawing.editor.document.sheets.last?.id)
+        let other = try #require(await app.placeBaseView())
+        let onSecond = try #require(await app.dimensionBottomEdge(of: other))
+        app.drawing.editor.show(sheet: first)
+        await app.settle()
+        try app.document.perform(plate.setWidth(60), name: "Width")
+        await app.settle()
+        try await lose(app, plate)
+        app.drawing.editor.show(sheet: second)
+        await app.settle()
+        #expect(app.texts(of: onSecond).contains("60?"), "\(app.texts(of: onSecond))")
+        #expect(app.drawing.editor.remembered[onSecond]?.values == [60])
+        #expect(app.drawing.editor.documentForSaving().sheet(second)?.annotation(onSecond)?.last?.values == [60])
+    }
+
+    @Test func enteringDrawingWithTwoViewsNeverFeedsAnOldValueBack() async throws {
+        let (app, plate, view) = try await start()
+        let first = try #require(await app.dimensionBottomEdge(of: view))
+        let second = try #require(await app.placeBaseView(at: Vector2(150, 50)))
+        let onSecond = try #require(await app.dimensionBottomEdge(of: second))
+        app.setMode(.model)
+        try app.document.perform(plate.setWidth(60), name: "Width")
+        await app.settle()
+        try await lose(app, plate)
+        app.setMode(.drawing)
+        await app.settle()
+        for id in [first, onSecond] {
+            #expect(app.texts(of: id).contains("60?"), "\(app.texts(of: id))")
+            #expect(app.drawing.editor.remembered[id]?.values == [60])
+        }
+    }
+
     // MARK: Projection in flight (R25)
 
     @Test func anEditKeepsDimensionsHeldWhileReprojecting() async throws {

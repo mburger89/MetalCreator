@@ -207,6 +207,14 @@ struct DrawingDimensionTests {
         let xs = uprights.compactMap { $0.number(10) }
         #expect(xs.count >= 2, "two extension lines")
         #expect(((xs.max() ?? 0) - (xs.min() ?? 0)).isApproximately(40), "model millimetres: \(xs)")
+        // The annotations sit against the linework, not just 40 apart: the extension lines are at the outline's x extremes (±20).
+        let outline = reader.entities.filter { $0.type == "LINE" && $0.layer != "DIMENSION" }.flatMap {
+            [$0.number(10), $0.number(11)].compactMap { $0 }
+        }
+        #expect(!outline.isEmpty)
+        #expect((xs.min() ?? .nan).isApproximately(outline.min() ?? .infinity), "left: \(xs) against \(outline.min() ?? .nan)")
+        #expect((xs.max() ?? .nan).isApproximately(outline.max() ?? -.infinity), "right: \(xs) against \(outline.max() ?? .nan)")
+        #expect((outline.max() ?? 0).isApproximately(20) && (outline.min() ?? 0).isApproximately(-20), "\(outline.min() ?? .nan)")
         let text = try #require(reader.entities.first { $0.type == "TEXT" })
         #expect(try #require(text.number(40)).isApproximately(5), "2.5 mm lettering at 1:2 is 5 mm of the part")
         let plain = temporaryURL("plain.dxf")

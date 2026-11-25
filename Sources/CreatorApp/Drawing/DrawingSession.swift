@@ -105,6 +105,7 @@ public final class DrawingSession {
     /// Drawing mode begins: the sheet is fitted and its views are projected.
     func activate() {
         isActive = true
+        updateFeedingViews()
         editor.feedsRemembered = true
         editor.requestFit()
         update()
@@ -143,6 +144,7 @@ public final class DrawingSession {
         resync()
         if editor.units != document.units { editor.units = document.units }
         refreshLastGood()
+        updateFeedingViews()
         guard isActive else { return }
         let outputs = document.graph.nodes.values.filter(\.isOutput).map(\.id).sorted()
         let options = outputs.compactMap { id in options(for: id) }
@@ -150,6 +152,20 @@ public final class DrawingSession {
         guard let sheet = editor.document.sheet(editor.currentSheet ?? SheetID()) else { return }
         request(views: sheet.views, in: sheet)
         followFacts(of: sheet)
+    }
+
+    /// The views whose held projection is the one the model wants now: only these may feed the editor's remembered values.
+    func updateFeedingViews() {
+        var trusted = Set<ViewID>()
+        let scaleOf = { (sheet: DrawingSheet, view: DrawingView) in (view.scale ?? sheet.scale).value }
+        for sheet in editor.document.sheets {
+            for view in sheet.views {
+                let source = Self.content(of: view.source, in: document)
+                let key = Self.key(of: source, frame: view.orientation.frame, scale: scaleOf(sheet, view))
+                if applied[view.id] == key, editor.contents[view.id]?.isPending != true { trusted.insert(view.id) }
+            }
+        }
+        editor.feedingViews = trusted
     }
 
     private func options(for id: NodeID) -> DrawingSourceOption? {
@@ -174,6 +190,7 @@ public final class DrawingSession {
             flights[view.id]?.task.cancel()
             var pending = editor.contents[view.id] ?? ViewContent()
             pending.isPending = true
+            editor.feedingViews?.remove(view.id)
             editor.contents[view.id] = pending
             let id = view.id
             let previous = editor.contents[id]
@@ -194,6 +211,7 @@ public final class DrawingSession {
         // sentence under the frame) until a real projection lands. So do the old lines of a ready Output whose projection failed.
         shown.isPending = key.state == Self.evaluatingState
             || ((key.state == Self.failedState || shown.problem != nil) && shown.projection != nil)
+        if !shown.isPending { editor.feedingViews?.insert(id) } else { editor.feedingViews?.remove(id) }
         editor.contents[id] = shown
         applied[id] = key
     }
