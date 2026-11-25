@@ -91,7 +91,8 @@ public enum DXFWriter {
             begin("LWPOLYLINE", stroke: stroke, owner: owner, handles: &handles, into: &t)
             t.add(100, "AcDbPolyline")
             t.add(90, points.count)
-            t.add(70, 0)
+            // 128: the linetype pattern runs on through the vertices instead of restarting at each.
+            t.add(70, 128)
             for point in points {
                 t.add(10, point.x)
                 t.add(20, point.y)

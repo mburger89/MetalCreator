@@ -99,9 +99,11 @@ import Testing
                     center: Vector2(40, 10), majorAxis: Vector2(1, 0), majorRadius: 6, minorRadius: 6 * ratio, start: 0,
                     sweep: tau),
                 .polyline([Vector2(0, 0), Vector2(5, 0), Vector2(5, 5)]),
+                .ellipse(
+                    center: Vector2(1, 1), majorAxis: Vector2(1, 0), majorRadius: 3, minorRadius: 6, start: 0, sweep: .pi),
             ]))
         let types = reader.entities.map(\.type)
-        #expect(types == ["LINE", "CIRCLE", "ARC", "ARC", "ELLIPSE", "LWPOLYLINE"])
+        #expect(types == ["LINE", "CIRCLE", "ARC", "ARC", "ELLIPSE", "LWPOLYLINE", "ELLIPSE"])
         let e = reader.entities
         #expect(e[0].all(10) == ["1"] && e[0].all(20) == ["2"] && e[0].all(11) == ["4"] && e[0].all(21) == ["6"])
         #expect(e[1].number(40) == 5 && e[1].number(10) == 10)
@@ -114,7 +116,40 @@ import Testing
         #expect(ellipse.number(11) == 6 && ellipse.number(21) == 0)
         #expect(ellipse.number(41) == 0 && abs((ellipse.number(42) ?? 0) - tau) < 1e-8)
         #expect(e[5].number(90) == 3)
+        // Flag 128 keeps the linetype pattern running through the vertices.
+        #expect(e[5].first(70) == "128")
+        // A half ellipse whose minor radius is the longer: the axes turn a quarter and the parameter shifts.
+        let swapped = e[6]
+        #expect(swapped.number(11) == 0 && swapped.number(21) == 6)
+        #expect(abs((swapped.number(40) ?? 0) - 0.5) < 1e-8)
+        let from = try #require(swapped.number(41)), to = try #require(swapped.number(42))
+        #expect(abs(from - 3 * Double.pi / 2) < 1e-8 && abs(to - Double.pi / 2) < 1e-8)
+        let written = SheetSegment.point(
+            center: Vector2(1, 1), u: Vector2(0, 1), major: 6, minor: 3, at: from)
+        let original = SheetSegment.point(center: Vector2(1, 1), u: Vector2(1, 0), major: 3, minor: 6, at: 0)
+        #expect(abs(written.x - original.x) < 1e-8 && abs(written.y - original.y) < 1e-8)
         #expect(e[5].all(10) == ["0", "5", "5"] && e[5].all(20) == ["0", "0", "5"])
+    }
+
+    @Test func paperSpaceBlockCodesFollowTheEntityMarker() throws {
+        let blocks = try read(fixture()).records("BLOCKS")
+        let paper = blocks.filter { ($0.type == "BLOCK" || $0.type == "ENDBLK") && $0.first(67) != nil }
+        #expect(paper.count == 2)
+        for record in paper {
+            let marker = record.pairs.firstIndex { $0.code == 100 && $0.value == "AcDbEntity" }
+            let flag = record.pairs.firstIndex { $0.code == 67 }
+            #expect(marker != nil && flag != nil && marker! < flag!)
+        }
+    }
+
+    @Test func plotSettingsHoldNoR2004Codes() throws {
+        let plot = try read(fixture()).objects.filter { $0.type == "LAYOUT" }
+        #expect(!plot.isEmpty)
+        for record in plot {
+            // Only the AcDbPlotSettings part: AcDbLayout's own 76 is the UCS type.
+            let settings = record.pairs.prefix { !($0.code == 100 && $0.value == "AcDbLayout") }
+            #expect(settings.allSatisfy { ![76, 77, 78].contains($0.code) })
+        }
     }
 
     @Test func layersFollowTheLineClass() throws {

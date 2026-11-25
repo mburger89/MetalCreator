@@ -207,7 +207,7 @@ enum DXFTables {
     }
 
     private static func viewport(_ t: inout DXFText, _ s: DXFHandleSet, extent: Rect2D) {
-tableStart(&t, "VPORT", handle: s.vportTable, count: 1)
+        tableStart(&t, "VPORT", handle: s.vportTable, count: 1)
         record(&t, "VPORT", handle: s.activeViewport, owner: s.vportTable, marker: "AcDbViewportTableRecord")
         t.add(2, "*Active")
         t.add(70, 0)
@@ -230,7 +230,7 @@ tableStart(&t, "VPORT", handle: s.vportTable, count: 1)
     }
 
     private static func lineTypeTable(_ t: inout DXFText, _ s: DXFHandleSet, style: DrawingStyle) {
-let types = lineTypes(style: style)
+        let types = lineTypes(style: style)
         tableStart(&t, "LTYPE", handle: s.ltypeTable, count: types.count)
         for (index, type) in types.enumerated() {
             record(&t, "LTYPE", handle: s.lineTypes[index], owner: s.ltypeTable, marker: "AcDbLinetypeTableRecord")
@@ -249,7 +249,7 @@ let types = lineTypes(style: style)
     }
 
     private static func layerTable(_ t: inout DXFText, _ s: DXFHandleSet, style: DrawingStyle) {
-tableStart(&t, "LAYER", handle: s.layerTable, count: layerNames.count)
+        tableStart(&t, "LAYER", handle: s.layerTable, count: layerNames.count)
         for (index, name) in layerNames.enumerated() {
             record(&t, "LAYER", handle: s.layers[index], owner: s.layerTable, marker: "AcDbLayerTableRecord")
             t.add(2, name)
@@ -263,7 +263,7 @@ tableStart(&t, "LAYER", handle: s.layerTable, count: layerNames.count)
     }
 
     private static func styleTable(_ t: inout DXFText, _ s: DXFHandleSet) {
-tableStart(&t, "STYLE", handle: s.styleTable, count: 1)
+        tableStart(&t, "STYLE", handle: s.styleTable, count: 1)
         record(&t, "STYLE", handle: s.styleStandard, owner: s.styleTable, marker: "AcDbTextStyleTableRecord")
         t.add(2, "Standard")
         t.add(70, 0)
@@ -278,7 +278,7 @@ tableStart(&t, "STYLE", handle: s.styleTable, count: 1)
     }
 
     private static func smallTables(_ t: inout DXFText, _ s: DXFHandleSet) {
-tableStart(&t, "VIEW", handle: s.viewTable, count: 0)
+        tableStart(&t, "VIEW", handle: s.viewTable, count: 0)
         t.add(0, "ENDTAB")
         tableStart(&t, "UCS", handle: s.ucsTable, count: 0)
         t.add(0, "ENDTAB")
@@ -291,7 +291,7 @@ tableStart(&t, "VIEW", handle: s.viewTable, count: 0)
     }
 
     private static func dimStyleTable(_ t: inout DXFText, _ s: DXFHandleSet) {
-tableStart(&t, "DIMSTYLE", handle: s.dimstyleTable, count: 1)
+        tableStart(&t, "DIMSTYLE", handle: s.dimstyleTable, count: 1)
         t.add(100, "AcDbDimStyleTable")
         t.add(71, 1)
         t.add(0, "DIMSTYLE")
@@ -312,7 +312,7 @@ tableStart(&t, "DIMSTYLE", handle: s.dimstyleTable, count: 1)
     }
 
     private static func blockRecords(_ t: inout DXFText, _ s: DXFHandleSet) {
-tableStart(&t, "BLOCK_RECORD", handle: s.blockRecordTable, count: 2)
+        tableStart(&t, "BLOCK_RECORD", handle: s.blockRecordTable, count: 2)
         record(&t, "BLOCK_RECORD", handle: s.modelRecord, owner: s.blockRecordTable, marker: "AcDbBlockTableRecord")
         t.add(2, "*Model_Space")
         t.add(340, s.modelLayout)
@@ -335,8 +335,8 @@ tableStart(&t, "BLOCK_RECORD", handle: s.blockRecordTable, count: 2)
             t.add(0, "BLOCK")
             t.add(5, begin)
             t.add(330, record)
-            if paper { t.add(67, 1) }
             t.add(100, "AcDbEntity")
+            if paper { t.add(67, 1) }
             t.add(8, "0")
             t.add(100, "AcDbBlockBegin")
             t.add(2, name)
@@ -349,8 +349,8 @@ tableStart(&t, "BLOCK_RECORD", handle: s.blockRecordTable, count: 2)
             t.add(0, "ENDBLK")
             t.add(5, end)
             t.add(330, record)
-            if paper { t.add(67, 1) }
             t.add(100, "AcDbEntity")
+            if paper { t.add(67, 1) }
             t.add(8, "0")
             t.add(100, "AcDbBlockEnd")
         }
