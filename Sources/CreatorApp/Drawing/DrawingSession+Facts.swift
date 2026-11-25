@@ -39,6 +39,8 @@ extension DrawingSession {
         let missing = solids.filter { volumes[ObjectIdentifier($0)] == nil }
         if !missing.isEmpty {
             let measured = await Self.measure(missing, with: kernel)
+            // A cancelled task's measurements are failures of the cancellation, not of the solid: never remember them.
+            if Task.isCancelled { return nil }
             for (solid, volume) in measured {
                 volumes[ObjectIdentifier(solid)] = (solid, volume)
                 known[ObjectIdentifier(solid)] = volume

@@ -28,6 +28,7 @@ public enum AppCommands {
                 Button("Export STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
                     .keyboardShortcut("e", modifiers: [.primary, .shift])
                 Button("Export 3MF…") { model.withFilePicker { await model.exportDocument(.threeMF, using: $0) } }
+                drawingExportItems(model)
                 #if !os(macOS)
                 aiConnectionsItem(model)
                 #endif
@@ -71,6 +72,20 @@ public enum AppCommands {
         // ⌘⇧D toggles, so the item stays enabled in Drawing and takes the person back.
         Button("Drawing") { model.setMode(model.mode == .drawing ? .model : .drawing) }
             .keyboardShortcut("d", modifiers: [.primary, .shift])
+    }
+
+    /// The File menu's drawing exports, disabled outside Drawing (plan R25).
+    static let drawingExportTitles = ["Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…"]
+
+    @MainActor
+    @MenuContentBuilder
+    static func drawingExportItems(_ model: AppModel) -> MenuItems {
+        Button(drawingExportTitles[0]) { model.withFilePicker { await model.exportDrawing(.pdf, using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[1]) { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[2]) { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+            .disabled(model.mode != .drawing)
     }
 
     /// File ▸ Import Mesh… and Import KiCad Board….

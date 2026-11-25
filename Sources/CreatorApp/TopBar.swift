@@ -77,6 +77,11 @@ struct TopBar: Component {
                     Menu(content: {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
                         Button("STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
+                        if model.mode == .drawing {
+                            Button("PDF…") { model.withFilePicker { await model.exportDrawing(.pdf, using: $0) } }
+                            Button("DXF of Sheet…") { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
+                            Button("DXF of View at 1:1…") { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+                        }
                     }, label: { ToolbarIcon.image("square.and.arrow.up") })
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Export")

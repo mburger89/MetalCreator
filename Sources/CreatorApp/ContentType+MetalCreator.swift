@@ -24,6 +24,17 @@ extension ContentType {
     public static let kicadPCB = ContentType("org.kicad.pcb", conformingTo: [.data], filenameExtensions: ["kicad_pcb"],
                                              localizedDescription: "KiCad board")
 
+    /// A drawing as a PDF, one page per sheet.
+    public static let pdf = ContentType("com.adobe.pdf", conformingTo: [.data], filenameExtensions: ["pdf"],
+                                        localizedDescription: "PDF document")
+
+    /// A drawing as a DXF, for CAD and CAM programs.
+    public static let dxf = ContentType("com.autodesk.dxf", conformingTo: [.data], filenameExtensions: ["dxf"],
+                                        localizedDescription: "DXF drawing")
+
+    /// The file type a drawing export writes.
+    public static func exported(_ kind: DrawingExportKind) -> ContentType { kind == .pdf ? .pdf : .dxf }
+
     /// The file type an export format writes.
     public static func exported(_ kind: ExportKind) -> ContentType {
         switch kind {
