@@ -91,17 +91,28 @@ struct SelectionAndMoveTests {
     @Test func nudgeMovesOneMillimetreAndShiftTen() throws {
         let h = harness([a])
         h.click(100, 150)
-        #expect(h.model.keyPressed(.nudge(Vector2(1, 0))))
+        #expect(h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: false)))
         #expect(center(h, a.id) == Vector2(101, 150))
-        #expect(h.model.keyPressed(.nudge(Vector2(0, -10))))
+        #expect(h.model.keyPressed(.nudge(Vector2(0, -10), isRepeat: true)))
         #expect(center(h, a.id) == Vector2(101, 140))
         #expect(h.log.commits.map(\.name) == ["Move View", "Move View"])
-        #expect(Set(h.log.commits.map(\.coalescingKey)) == ["drawing-nudge"])
+        #expect(Set(h.log.commits.map(\.coalescingKey)).count == 1, "a held key's repeat joins the run's step")
+    }
+
+    @Test func separateKeyDownRunsAreSeparateSteps() throws {
+        let h = harness([a])
+        h.click(100, 150)
+        #expect(h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: false)))
+        #expect(h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: true)))
+        #expect(h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: false)))
+        let keys = h.log.commits.map(\.coalescingKey)
+        #expect(keys.count == 3)
+        #expect(keys[0] == keys[1] && keys[1] != keys[2])
     }
 
     @Test func nudgeWithNothingSelectedDoesNothing() throws {
         let h = harness([a])
-        #expect(!h.model.keyPressed(.nudge(Vector2(1, 0))))
+        #expect(!h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: false)))
         #expect(h.log.commits.isEmpty)
     }
 

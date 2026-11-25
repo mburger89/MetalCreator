@@ -69,7 +69,8 @@ public struct SheetCanvas: Component {
             .contentShape(Rectangle())
             .hoverKeyRegion()
             .onKeyPress(phases: [.down, .repeat]) { press in
-                guard let key = SheetCanvasInput.key(press.key, modifiers: press.modifiers) else { return .ignored }
+                guard let key = SheetCanvasInput.key(
+                    press.key, modifiers: press.modifiers, isRepeat: press.phase.contains(.repeat)) else { return .ignored }
                 return model.keyPressed(key) ? .handled : .ignored
             }
             .onContinuousHover { phase in

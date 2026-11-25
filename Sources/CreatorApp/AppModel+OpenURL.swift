@@ -13,7 +13,7 @@ extension AppModel {
     public func openRequested(_ url: URL) {
         guard url.isFileURL, closeRequest == .idle, alert == nil else { return }
         if let current = fileURL, current.standardizedFileURL == url.standardizedFileURL { return }
-        editor.commitPendingEntry()
+        commitPendingEntries()
         guard !isEdited else {
             pendingDiscard = .openURL(url)
             alert = .discardChanges

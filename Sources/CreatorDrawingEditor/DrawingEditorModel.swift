@@ -52,6 +52,10 @@ public final class DrawingEditorModel {
     // Gesture state; not observed.
     @ObservationIgnored var gesture: Gesture?
     @ObservationIgnored var dragSerial = 0
+    /// The coalescing key of the arrow-key run in progress: a press that isn't an auto-repeat starts a new one.
+    @ObservationIgnored var nudgeKey: String?
+    /// Text typed into an inspector field and not yet submitted (see `commitPendingEntry()`).
+    @ObservationIgnored var pendingDraft: PendingDraft?
     @ObservationIgnored var pinchStart: (zoom: Double, anchor: Vector2)?
     @ObservationIgnored var pointerIsDown = false
     @ObservationIgnored var middleLast: Vector2?

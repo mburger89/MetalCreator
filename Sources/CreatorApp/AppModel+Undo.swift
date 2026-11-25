@@ -14,7 +14,7 @@ extension AppModel {
     /// ⌘Z undoes that value rather than the step before it, and the value can't be committed later, after the
     /// undo, where it would clear the redo stack.
     public func undo() {
-        editor.commitPendingEntry()
+        commitPendingEntries()
         pendingValueBox = nil
         heldModelDimension = nil
         document.undo()
@@ -24,7 +24,7 @@ extension AppModel {
 
     /// Redo. A typed value is committed first, as for Undo; it is a new edit, so nothing is left to redo.
     public func redo() {
-        editor.commitPendingEntry()
+        commitPendingEntries()
         pendingValueBox = nil
         heldModelDimension = nil
         document.redo()

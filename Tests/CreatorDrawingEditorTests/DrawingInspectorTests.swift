@@ -1,4 +1,5 @@
 import CreatorGeometry
+import Foundation
 import MetalUI
 import MetalUITesting
 import Testing
@@ -57,10 +58,36 @@ struct DrawingInspectorTests {
         #expect(SheetCanvasInput.key(.delete, modifiers: []) == .delete)
         #expect(SheetCanvasInput.key(.deleteForward, modifiers: []) == .delete)
         #expect(SheetCanvasInput.key(.escape, modifiers: []) == .escape)
-        #expect(SheetCanvasInput.key(.leftArrow, modifiers: []) == .nudge(Vector2(-1, 0)))
-        #expect(SheetCanvasInput.key(.upArrow, modifiers: .shift) == .nudge(Vector2(0, 10)))
-        #expect(SheetCanvasInput.key(.downArrow, modifiers: []) == .nudge(Vector2(0, -1)))
+        #expect(SheetCanvasInput.key(.leftArrow, modifiers: []) == .nudge(Vector2(-1, 0), isRepeat: false))
+        #expect(SheetCanvasInput.key(.upArrow, modifiers: .shift) == .nudge(Vector2(0, 10), isRepeat: false))
+        #expect(SheetCanvasInput.key(.downArrow, modifiers: []) == .nudge(Vector2(0, -1), isRepeat: false))
         #expect(SheetCanvasInput.key("x", modifiers: []) == nil)
+    }
+
+    @Test func chordsWithCommandControlOrOptionFallThroughToTheMenus() {
+        for held in [EventModifiers.primary, .control, .option] {
+            #expect(SheetCanvasInput.key(.delete, modifiers: held) == nil)
+            #expect(SheetCanvasInput.key(.leftArrow, modifiers: held) == nil)
+            #expect(SheetCanvasInput.key("f", modifiers: held) == nil)
+        }
+    }
+
+    @Test func aTypedDraftIsCommittedByTheModelOnce() {
+        let (h, _) = harness()
+        var submitted: [String] = []
+        let owner = UUID()
+        h.model.notePendingDraft(owner: owner) { submitted.append("first") }
+        h.model.commitPendingEntry()
+        h.model.commitPendingEntry()
+        #expect(submitted == ["first"])
+        h.model.notePendingDraft(owner: owner) { submitted.append("dropped") }
+        h.model.discardPendingDraft(ownedBy: owner)
+        h.model.commitPendingEntry()
+        #expect(submitted == ["first"])
+        h.model.notePendingDraft(owner: UUID()) { submitted.append("a") }
+        h.model.notePendingDraft(owner: UUID()) { submitted.append("b") }
+        h.model.commitPendingEntry()
+        #expect(submitted == ["first", "a", "b"], "a second field commits the first's draft before taking its place")
     }
 
     @Test func theEmptyCanvasAddsASheetOnlyWhenAsked() async throws {
@@ -86,7 +113,8 @@ struct DrawingInspectorScaleDensityTests {
 
     @Test func customOnAViewUsingTheSheetsScaleShowsTheFields() {
         let custom = ScaleControl.selectedIndex(current: nil, isCustom: true, allowsSheetScale: true)
-        #expect(custom == ScaleControl(current: nil, allowsSheetScale: true, standard: .iso) { _ in }.options.count - 1)
+        let control = ScaleControl(model: harness().0.model, current: nil, allowsSheetScale: true, standard: .iso) { _ in }
+        #expect(custom == control.options.count - 1)
         #expect(ScaleControl.selectedIndex(current: nil, isCustom: false, allowsSheetScale: true) == 0)
     }
 
@@ -117,7 +145,7 @@ struct DrawingInspectorScaleDensityTests {
         h.model.setScale(DrawingScale(numerator: 1, denominator: 3), of: view.id)
         #expect(h.model.document.sheets[0].views[0].scale == DrawingScale(numerator: 1, denominator: 3))
         #expect(ScaleControl.selectedIndex(current: DrawingScale(numerator: 1, denominator: 3), isCustom: false, allowsSheetScale: true)
-            == ScaleControl(current: nil, allowsSheetScale: true, standard: .iso) { _ in }.options.count - 1)
+            == ScaleControl(model: harness().0.model, current: nil, allowsSheetScale: true, standard: .iso) { _ in }.options.count - 1)
     }
 
     @Test func aDensityThatIsNotAPositiveFiniteNumberIsRefused() {

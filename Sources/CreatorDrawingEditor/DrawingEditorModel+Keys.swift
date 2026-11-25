@@ -1,5 +1,6 @@
 import CreatorDrawing
 import CreatorGeometry
+import Foundation
 
 extension DrawingEditorModel {
     /// Answers a key; `true` when it did something.
@@ -13,8 +14,8 @@ extension DrawingEditorModel {
             guard !selection.isEmpty else { return false }
             deleteSelection()
             return true
-        case .nudge(let delta):
-            return nudge(by: delta)
+        case .nudge(let delta, let isRepeat):
+            return nudge(by: delta, isRepeat: isRepeat)
         case .escape:
             if gesture != nil {
                 gesture = nil
@@ -33,10 +34,11 @@ extension DrawingEditorModel {
         }
     }
 
-    private func nudge(by delta: Vector2) -> Bool {
+    private func nudge(by delta: Vector2, isRepeat: Bool) -> Bool {
         guard let id = currentSheet, !selection.isEmpty, delta.length > 0 else { return false }
         let chosen = selection
-        commitSheet(id, DrawingStepName.moveView, key: "drawing-nudge") { sheet in
+        if !isRepeat || nudgeKey == nil { nudgeKey = "drawing-nudge-\(UUID().uuidString)" }
+        commitSheet(id, DrawingStepName.moveView, key: nudgeKey) { sheet in
             sheet = Self.moved(chosen, by: delta, in: sheet)
         }
         return true

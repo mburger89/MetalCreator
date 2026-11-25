@@ -16,16 +16,18 @@ enum SheetCanvasInput {
     }
 
     /// The drawing key a press stands for: F, Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
-    static func key(_ key: KeyEquivalent, modifiers: EventModifiers) -> DrawingKey? {
+    static func key(_ key: KeyEquivalent, modifiers: EventModifiers, isRepeat: Bool = false) -> DrawingKey? {
+        // A chord with ⌘ (Ctrl elsewhere) or ⌥ belongs to the menus.
+        if modifiers.contains(.primary) || modifiers.contains(.control) || modifiers.contains(.option) { return nil }
         let step = modifiers.contains(.shift) ? 10.0 : 1.0
         switch key {
         case "f", "F": return .fit
         case .delete, .deleteForward: return .delete
         case .escape: return .escape
-        case .leftArrow: return .nudge(Vector2(-step, 0))
-        case .rightArrow: return .nudge(Vector2(step, 0))
-        case .upArrow: return .nudge(Vector2(0, step))
-        case .downArrow: return .nudge(Vector2(0, -step))
+        case .leftArrow: return .nudge(Vector2(-step, 0), isRepeat: isRepeat)
+        case .rightArrow: return .nudge(Vector2(step, 0), isRepeat: isRepeat)
+        case .upArrow: return .nudge(Vector2(0, step), isRepeat: isRepeat)
+        case .downArrow: return .nudge(Vector2(0, -step), isRepeat: isRepeat)
         default: return nil
         }
     }

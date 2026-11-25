@@ -43,7 +43,7 @@ struct SheetInspector: Component {
         VStack(alignment: .leading, spacing: Pixels(8)) {
             Text("Sheet").font(.headline).foregroundStyle(colors.primary.color)
             DrawingRow("Name", colors: colors) {
-                DrawingField(text: sheet.name, width: 150) { model.renameSheet(sheet.id, to: $0) }
+                DrawingField(model: model, text: sheet.name, width: 150) { model.renameSheet(sheet.id, to: $0) }
             }
             DrawingRow("Size", colors: colors) {
                 DrawingMenu(options: sizes.map(\.title), selected: sizes.firstIndex(of: sheet.size)) {
@@ -56,7 +56,7 @@ struct SheetInspector: Component {
                 }
             }
             DrawingRow("Scale", colors: colors) {
-                ScaleControl(current: sheet.scale, allowsSheetScale: false, standard: settings.standard) { scale in
+                ScaleControl(model: model, current: sheet.scale, allowsSheetScale: false, standard: settings.standard) { scale in
                     if let scale { model.setSheetScale(scale) }
                 }
             }
@@ -68,11 +68,11 @@ struct SheetInspector: Component {
             Text("TITLE BLOCK").font(.caption2).foregroundStyle(colors.secondary.color)
             ForEach(Self.fields, id: \.0) { field in
                 DrawingRow(field.1, colors: colors) {
-                    DrawingField(text: typed(field.0), width: 150) { model.setTitleField(field.0, to: $0) }
+                    DrawingField(model: model, text: typed(field.0), width: 150) { model.setTitleField(field.0, to: $0) }
                 }
             }
             DrawingRow("Density g/cm³", colors: colors) {
-                DrawingField(text: sheet.titleBlock.density.map { String($0) } ?? "", width: 150) { text in
+                DrawingField(model: model, text: sheet.titleBlock.density.map { String($0) } ?? "", width: 150) { text in
                     model.setDensity(text: text)
                 }
             }

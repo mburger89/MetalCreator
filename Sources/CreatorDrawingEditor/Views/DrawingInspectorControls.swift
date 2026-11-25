@@ -1,5 +1,6 @@
 import CreatorDrawing
 import CreatorStyle
+import Foundation
 import MetalUI
 
 /// The inspector's width in points, as the graph inspector's content.
@@ -8,19 +9,28 @@ let drawingInspectorWidth = 280.0
 /// A text field that keeps its draft while typing and submits it on Return or when it loses focus, one step each; the shown text
 /// comes back whenever the model's changes (a refused entry snaps back).
 struct DrawingField: Component {
+    let model: DrawingEditorModel
     let text: String
     var placeholder = ""
     var width: Double?
     let submit: @MainActor (String) -> Void
     @State var draft: String?
+    @State var owner = UUID()
     @FocusState var isFocused: Bool
 
     var content: some ElementGroup {
-        TextField(placeholder, text: draft ?? text, onChange: { draft = $0 })
+        TextField(placeholder, text: draft ?? text, onChange: { typed in
+            draft = typed
+            // The model holds the draft too, so Save, Undo, an export or the close request commits it first.
+            model.notePendingDraft(owner: owner) { if typed != text { submit(typed) } }
+        })
             .focused($isFocused)
             .onSubmit { commit() }
             .frame(width: width.map { $0.px })
-            .onChange(of: text) { draft = nil }
+            .onChange(of: text) {
+                draft = nil
+                model.discardPendingDraft(ownedBy: owner)
+            }
             .onChange(of: isFocused) { wasFocused, focused in
                 if wasFocused, !focused { commit() }
             }
@@ -29,6 +39,7 @@ struct DrawingField: Component {
     private func commit() {
         guard let typed = draft else { return }
         draft = nil
+        model.discardPendingDraft(ownedBy: owner)
         if typed != text { submit(typed) }
     }
 }
@@ -91,6 +102,7 @@ struct DrawingSegments: Component {
 /// A scale: the preferred list (ISO 5455) and "Custom…" with two whole-number fields. A view also offers "Sheet's", which
 /// is `nil`. `choose` takes the new value; the model refuses an invalid one in words.
 struct ScaleControl: Component {
+    let model: DrawingEditorModel
     let current: DrawingScale?
     let allowsSheetScale: Bool
     let standard: DrawingStandard
@@ -137,11 +149,11 @@ struct ScaleControl: Component {
             }
             if showsFields {
                 let value = current ?? sheetScale ?? DrawingScale(numerator: 1, denominator: 1)
-                DrawingField(text: String(value.numerator), width: 44) { typed in
+                DrawingField(model: model, text: String(value.numerator), width: 44) { typed in
                     if let n = Int(typed) { choose(DrawingScale(numerator: n, denominator: value.denominator)) }
                 }
                 Text(":")
-                DrawingField(text: String(value.denominator), width: 44) { typed in
+                DrawingField(model: model, text: String(value.denominator), width: 44) { typed in
                     if let d = Int(typed) { choose(DrawingScale(numerator: value.numerator, denominator: d)) }
                 }
             }

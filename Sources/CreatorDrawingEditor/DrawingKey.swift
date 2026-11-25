@@ -1,10 +1,10 @@
 import CreatorGeometry
 
-/// The keys the drawing canvas answers. `nudge` carries the move in sheet millimetres: the view sends 1 mm per arrow, 10 with Shift.
+/// The keys the drawing canvas answers. `nudge` carries the move in sheet millimetres: the view sends 1 mm per arrow, 10 with Shift; `isRepeat` is a held key's auto-repeat, which joins the run's undo step.
 public enum DrawingKey: Hashable, Sendable {
     case fit
     case delete
-    case nudge(Vector2)
+    case nudge(Vector2, isRepeat: Bool)
     case escape
 }
 

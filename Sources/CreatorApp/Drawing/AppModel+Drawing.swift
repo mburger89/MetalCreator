@@ -12,12 +12,19 @@ extension AppModel {
     /// The projections' cache, one per open document (a new one on New and Open).
     public var projectionCache: ProjectionCache { drawing.cache }
 
+    /// Commits what is typed and not yet entered, in the graph's inspector and in the drawing's: the one call every moment that would
+    /// lose it (Save, Undo, an export, a mode switch, the close request) makes.
+    func commitPendingEntries() {
+        editor.commitPendingEntry()
+        drawing.editor.commitPendingEntry()
+    }
+
     /// The top bar's "Model | Drawing", View ▸ Drawing (⌘⇧D) and View ▸ Model. Entering Drawing finishes the sketch, cancels a pick and
     /// ends Measure, the model dimension tool and the control-point mode (R21); the section's, zebra's and kept measurements' state is
     /// left as it was, so Model shows them again (R28).
     public func setMode(_ new: WorkspaceMode) {
         guard new != mode else { return }
-        editor.commitPendingEntry()
+        commitPendingEntries()
         editor.closePalette()
         if new == .drawing {
             if sketch != nil { finishSketch() }
