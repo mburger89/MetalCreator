@@ -53,7 +53,8 @@ extension AppModel {
         sketchRequest += 1
         let request = sketchRequest
         document.extraDemand = source
-        Task { [weak self] in
+        sketchOpenTask = Task { [weak self] in
+            await self?.sketchOpenHook?()
             await document.waitForEvaluation()
             guard let self, self.document === document, self.sketchRequest == request, self.sketch == nil, self.pick == nil,
                   let node = document.graph.nodes[id], node.typeID == SketchNode.typeID,
