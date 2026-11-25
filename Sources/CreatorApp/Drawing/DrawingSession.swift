@@ -65,7 +65,7 @@ public final class DrawingSession {
         let saved = document.drawingView?.sheet
         let sheet = saved.flatMap { drawings.sheet($0) != nil ? $0 : nil } ?? drawings.sheets.first?.id
         editor = DrawingEditorModel(
-            document: drawings, sheet: sheet, standardUnitsAreInches: document.units.length == .inches, today: today,
+            document: drawings, sheet: sheet, units: document.units, today: today,
             events: DrawingEditorEvents(
                 committed: { commit in relay.session?.commitHandler?(commit) },
                 sheetChanged: { id in relay.session?.editorShowed(sheet: id) }))

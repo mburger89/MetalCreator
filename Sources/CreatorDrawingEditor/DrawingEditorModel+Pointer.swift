@@ -14,26 +14,48 @@ extension DrawingEditorModel {
         let point = transform.sheetPoint(canvas)
         let order = sheet.views.map(\.id)
         let hit = picture.flatMap { SheetHitTest.view(at: point, in: $0, order: order) }
+        if addingLeader != nil || tool.isAnnotationTool {
+            lastPointer = point
+            gesture = .annotating(modifiers)
+            return
+        }
         switch tool {
         case .baseView:
             gesture = .placing
         case .projectedView:
             if let hit { gesture = .projecting(parent: hit, start: point) }
+        case .dimension, .baselineDimension, .chainDimension, .ordinateDimension, .chamferDimension, .holeCallout, .centreMark,
+            .centreLine, .note:
+            break
         case .select:
-            guard let hit else {
-                if !modifiers.contains(.shift) { selection = [] }
-                gesture = nil
-                return
-            }
-            if modifiers.contains(.shift) {
-                selection.insert(hit)
-            } else if !selection.contains(hit) {
-                selection = [hit]
-            }
-            dragSerial += 1
-            gesture = .movingViews(
-                base: sheet, start: point, key: "drawing-move-\(dragSerial)", roots: Self.roots(of: selection, in: sheet))
+            selectDown(at: point, hit: hit, modifiers: modifiers, sheet: sheet)
         }
+    }
+
+    /// A press with Select: a click that re-attaches or refuses stays out of the selection; else it selects the view under it and
+    /// begins moving the selected views.
+    private func selectDown(at point: Vector2, hit: ViewID?, modifiers: SheetModifiers, sheet: DrawingSheet) {
+        if reattachClick(at: point) {
+            gesture = nil
+            return
+        }
+        guard let hit else {
+            if !modifiers.contains(.shift) {
+                selection = []
+                selectedAnnotations = []
+            }
+            gesture = nil
+            return
+        }
+        if modifiers.contains(.shift) {
+            selection.insert(hit)
+        } else if !selection.contains(hit) {
+            selection = [hit]
+            selectedAnnotations = []
+        }
+        dragSerial += 1
+        gesture = .movingViews(
+            base: sheet, start: point, key: "drawing-move-\(dragSerial)", roots: Self.roots(of: selection, in: sheet))
     }
 
     public func pointerDragged(to canvas: Vector2) {
@@ -54,6 +76,7 @@ extension DrawingEditorModel {
         switch ended {
         case .placing: placeBaseView(at: point)
         case let .projecting(parent, _): placeProjectedView(of: parent, dropAt: point)
+        case .annotating(let modifiers): annotationClick(at: point, modifiers: modifiers)
         case .movingViews, nil: break
         }
     }
@@ -73,6 +96,9 @@ extension DrawingEditorModel {
             return
         }
         let point = transform.sheetPoint(canvas)
+        lastPointer = point
+        updateHover(at: point)
+        if !picks.isEmpty { updateDraft() }
         let tolerance = Self.hoverTolerancePoints / transform.zoom
         var found: Int?
         for view in sheet.views.reversed() {

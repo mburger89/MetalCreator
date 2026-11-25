@@ -8,6 +8,7 @@ extension DrawingEditorModel {
         self.tool = tool
         refusal = nil
         gesture = nil
+        cancelAnnotationInput()
     }
 
     public func setSource(_ source: NodeID, of id: ViewID) {

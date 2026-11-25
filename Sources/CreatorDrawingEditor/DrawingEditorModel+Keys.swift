@@ -16,9 +16,16 @@ extension DrawingEditorModel {
             return true
         case .nudge(let delta, let isRepeat):
             return nudge(by: delta, isRepeat: isRepeat)
+        case .tool(let tool):
+            press(tool)
+            return true
         case .escape:
             if gesture != nil {
                 gesture = nil
+                return true
+            }
+            if holdsAnnotationInput {
+                cancelAnnotationInput()
                 return true
             }
             if tool != .select {
@@ -26,8 +33,9 @@ extension DrawingEditorModel {
                 refusal = nil
                 return true
             }
-            if !selection.isEmpty {
+            if !selection.isEmpty || !selectedAnnotations.isEmpty {
                 selection = []
+                selectedAnnotations = []
                 return true
             }
             return false

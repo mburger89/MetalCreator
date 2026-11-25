@@ -13,9 +13,17 @@ public enum DrawingStepName {
     public static let deleteView = "Delete View"
     public static let changeScale = "Change Scale"
     public static let changeView = "Change View"
+    public static let addDimension = "Add Dimension"
+    public static let addHoleCallout = "Add Hole Callout"
+    public static let addCentreMark = "Add Centre Mark"
+    public static let addCentreLine = "Add Centre Line"
+    public static let addNote = "Add Note"
+    public static let addLeader = "Add Leader"
+    public static let reattachDimension = "Reattach Dimension"
 
     public static let all: [String] = [
         addSheet, renameSheet, duplicateSheet, deleteSheet, moveSheet, changeSheetSize, editTitleBlock, changeStandard,
-        addView, moveView, deleteView, changeScale, changeView,
+        addView, moveView, deleteView, changeScale, changeView, addDimension, addHoleCallout, addCentreMark, addCentreLine,
+        addNote, addLeader, reattachDimension,
     ]
 }

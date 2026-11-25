@@ -16,6 +16,8 @@ public final class DrawingEditorModel {
         didSet { rebuildPicture() }
     }
     public var selection: Set<ViewID> = []
+    /// The annotations chosen on the current sheet.
+    public var selectedAnnotations: Set<AnnotationID> = []
     public internal(set) var tool: DrawingTool = .select
     public var transform = SheetTransform() {
         // A pan or a zoom is the person's: the sheet is no longer waiting to be fitted to the canvas's first real size.
@@ -39,13 +41,30 @@ public final class DrawingEditorModel {
         didSet { rebuildPicture() }
     }
     public internal(set) var refusal: String?
+    /// What lies under the pointer for an annotation tool (plan R17): a centre, a corner or a line.
+    public internal(set) var hoverCandidate: PickCandidate?
+    /// The things picked so far for the annotation being made, in the order they were picked.
+    public internal(set) var picks: [PickedAnchor] = []
+    /// The view the picks were made in.
+    public internal(set) var pickView: ViewID?
+    /// The current picture with the annotation being made composed in under the pointer; `nil` without one. Never committed.
+    public internal(set) var draftPicture: SheetPicture?
+    /// The note whose next click is a leader end (plan R14).
+    public internal(set) var addingLeader: AnnotationID?
+    /// The newest held figures of every annotation seen, for drawing a lost one from its last good value (plan R15). View state:
+    /// never an edit, and never fed by a draft.
+    @ObservationIgnored public internal(set) var remembered: [AnnotationID: LastGood] = [:]
+    /// The document's units: lengths in labels read in them. Changing them rebuilds the picture.
+    public var units: DocumentUnits {
+        didSet { if units != oldValue { rebuildPicture() } }
+    }
     /// The tab being renamed in place; view state, committed as one "Rename Sheet" step.
     public internal(set) var renaming: SheetRename?
     public internal(set) var hoveredStroke: Int?
     /// The current sheet composed by `SheetComposer`.
     public private(set) var picture: SheetPicture?
 
-    let standardUnitsAreInches: Bool
+    var standardUnitsAreInches: Bool { units.length == .inches }
     let today: () -> String
     let events: DrawingEditorEvents
 
@@ -66,15 +85,22 @@ public final class DrawingEditorModel {
         case movingViews(base: DrawingSheet, start: Vector2, key: String, roots: [ViewID])
         case projecting(parent: ViewID, start: Vector2)
         case placing
+        /// A press with an annotation tool, or a leader end; the click acts on release, with the modifiers of the press.
+        case annotating(SheetModifiers)
     }
 
+    /// Where the pointer last was, in sheet millimetres: the draft follows it.
+    @ObservationIgnored var lastPointer: Vector2?
+    /// The draft's id, one per model: a draft is composed under it and never saved.
+    @ObservationIgnored let draftID = AnnotationID()
+
     public init(
-        document: DrawingDocument, sheet: SheetID?, standardUnitsAreInches: Bool, today: @escaping () -> String,
+        document: DrawingDocument, sheet: SheetID?, units: DocumentUnits = .millimetres, today: @escaping () -> String,
         events: DrawingEditorEvents
     ) {
         self.document = document
         self.currentSheet = document.sheet(sheet ?? SheetID()) != nil ? sheet : nil
-        self.standardUnitsAreInches = standardUnitsAreInches
+        self.units = units
         self.today = today
         self.events = events
         rebuildPicture()
@@ -87,7 +113,13 @@ public final class DrawingEditorModel {
             picture = nil
             return
         }
-        picture = SheetComposer.compose(sheet, in: document, contents: contents, facts: facts)
+        let composed = SheetComposer.compose(
+            sheet, in: document, contents: contents, facts: facts, units: units, remembered: remembered)
+        picture = composed
+        // The newest held figure of each annotation is what a lost one is drawn from (plan R15).
+        for (id, report) in composed.annotationReports where report.status == .held {
+            if let current = report.current, remembered[id] != current { remembered[id] = current }
+        }
     }
 
     /// Fits the sheet now, and again when the canvas reports its real size, unless the person pans or zooms first (entering Drawing,
@@ -107,6 +139,7 @@ public final class DrawingEditorModel {
         }
         let existing = Set(sheet?.views.map(\.id) ?? [])
         selection = selection.intersection(existing)
+        pruneAnnotationState()
         gesture = nil
     }
 
@@ -148,7 +181,9 @@ public final class DrawingEditorModel {
         guard id != currentSheet else { return }
         currentSheet = id
         selection = []
+        selectedAnnotations = []
         hoveredStroke = nil
+        dropPicks()
         events.sheetChanged(id)
     }
 }

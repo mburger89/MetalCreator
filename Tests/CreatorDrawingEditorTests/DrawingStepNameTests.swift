@@ -13,8 +13,10 @@ struct DrawingStepNameTests {
             Set(DrawingStepName.all) == [
                 "Add Sheet", "Rename Sheet", "Duplicate Sheet", "Delete Sheet", "Move Sheet", "Change Sheet Size",
                 "Edit Title Block", "Change Standard", "Add View", "Move View", "Delete View", "Change Scale", "Change View",
+                "Add Dimension", "Add Hole Callout", "Add Centre Mark", "Add Centre Line", "Add Note", "Add Leader",
+                "Reattach Dimension",
             ])
-        #expect(DrawingStepName.all.count == 13)
+        #expect(DrawingStepName.all.count == 20)
         for name in DrawingStepName.all { #expect(!name.contains { $0.isNumber }, "\(name)") }
     }
 
