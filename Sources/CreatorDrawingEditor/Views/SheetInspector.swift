@@ -73,7 +73,7 @@ struct SheetInspector: Component {
             }
             DrawingRow("Density g/cm³", colors: colors) {
                 DrawingField(text: sheet.titleBlock.density.map { String($0) } ?? "", width: 150) { text in
-                    model.setDensity(text.isEmpty ? nil : Double(text))
+                    model.setDensity(text: text)
                 }
             }
             if let refusal = model.refusal {

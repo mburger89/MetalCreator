@@ -38,7 +38,7 @@ struct ViewInspector: Component {
                 }
             }
             DrawingRow("Scale", colors: colors) {
-                ScaleControl(current: view.scale, allowsSheetScale: true, standard: standard) {
+                ScaleControl(current: view.scale, allowsSheetScale: true, standard: standard, sheetScale: sheet.scale) {
                     model.setScale($0, of: view.id)
                 }
             }

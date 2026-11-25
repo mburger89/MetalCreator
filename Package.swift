@@ -21,8 +21,13 @@ let metalUITesting: Target.Dependency = .product(name: "MetalUITesting", package
 
 /// MetalUI's snapshot of a headless `TestWindow` as pixels (ruling HT-AB; Metal and CoreGraphics, so macOS only). A dependency of
 /// the drawing editor's tests, whose paper and line weights are read from pixels.
-let metalUITestingSnapshot: Target.Dependency = .product(
-    name: "MetalUITestingSnapshot", package: "MetalUI", condition: .when(platforms: [.macOS]))
+/// MetalUI declares the product on macOS only, and SwiftPM looks a product up before it applies a platform condition, so the
+/// dependency is named under a host check, like the shader plugin.
+#if os(macOS)
+let metalUITestingSnapshots: [Target.Dependency] = [.product(name: "MetalUITestingSnapshot", package: "MetalUI")]
+#else
+let metalUITestingSnapshots: [Target.Dependency] = []
+#endif
 
 /// MetalUI's portable text, named on every platform and not only where it is used (MetalUI ruling `SG-D`: a conditional
 /// dependency drops its C modules' module maps from a test target on macOS). Tests measure text with it off macOS.
@@ -169,8 +174,8 @@ var targets: [Target] = [
         name: "CreatorDrawingEditorTests",
         dependencies: [
             "CreatorDrawingEditor", "CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUITesting,
-            metalUITestingSnapshot, metalUIPortableText, metalUISystemFonts,
-        ]),
+            metalUIPortableText, metalUISystemFonts,
+        ] + metalUITestingSnapshots),
     .testTarget(
         name: "CreatorImplicitTests",
         dependencies: [

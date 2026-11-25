@@ -94,6 +94,8 @@ struct ScaleControl: Component {
     let current: DrawingScale?
     let allowsSheetScale: Bool
     let standard: DrawingStandard
+    /// The scale the fields start from while a view still uses its sheet's.
+    var sheetScale: DrawingScale?
     let choose: @MainActor (DrawingScale?) -> Void
     @State var isCustom = false
 
@@ -105,11 +107,17 @@ struct ScaleControl: Component {
         (allowsSheetScale ? ["Sheet's"] : []) + preferred.map { $0.text(for: standard) } + ["Custom…"]
     }
 
-    var selected: Int {
+    var selected: Int { Self.selectedIndex(current: current, isCustom: isCustom, allowsSheetScale: allowsSheetScale) }
+
+    /// The menu's selection: "Custom…" once chosen (whatever the scale is now), else "Sheet's" for no scale, else the
+    /// preferred scale that matches, else "Custom…".
+    static func selectedIndex(current: DrawingScale?, isCustom: Bool, allowsSheetScale: Bool) -> Int {
+        let preferred = DrawingScale.preferred
+        let last = (allowsSheetScale ? 1 : 0) + preferred.count
+        if isCustom { return last }
         guard let current else { return 0 }
-        if isCustom { return options.count - 1 }
-        if let index = preferred.firstIndex(of: current) { return leading + index }
-        return options.count - 1
+        if let index = preferred.firstIndex(of: current) { return (allowsSheetScale ? 1 : 0) + index }
+        return last
     }
 
     var showsFields: Bool { selected == options.count - 1 }
@@ -128,7 +136,7 @@ struct ScaleControl: Component {
                 }
             }
             if showsFields {
-                let value = current ?? DrawingScale(numerator: 1, denominator: 1)
+                let value = current ?? sheetScale ?? DrawingScale(numerator: 1, denominator: 1)
                 DrawingField(text: String(value.numerator), width: 44) { typed in
                     if let n = Int(typed) { choose(DrawingScale(numerator: n, denominator: value.denominator)) }
                 }

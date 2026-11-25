@@ -45,6 +45,18 @@ extension DrawingEditorModel {
         }
     }
 
+    /// Sets the density from typed text: empty clears it; anything but a positive finite number is refused in words.
+    public func setDensity(text: String) {
+        let trimmed = String(text.drop { $0 == " " }.reversed().drop { $0 == " " }.reversed())
+        if trimmed.isEmpty {
+            setDensity(nil)
+        } else if let value = Double(trimmed), value.isFinite, value > 0 {
+            setDensity(value)
+        } else {
+            refuse("A density is a positive number in g/cm³, such as 7.85.")
+        }
+    }
+
     public func setDensity(_ density: Double?) {
         guard let id = currentSheet else { return }
         commit(DrawingStepName.editTitleBlock) { document in

@@ -73,3 +73,43 @@ struct DrawingInspectorTests {
         #expect(h.log.commits.map(\.name) == ["Add Sheet"])
     }
 }
+
+/// The scale menu's Custom… and the density field's refusals (task 11 fix round 1).
+@MainActor
+@Suite("Drawing inspector scale and density")
+struct DrawingInspectorScaleDensityTests {
+    private func harness() -> (EditorHarness, DrawingView) {
+        let view = EditorDocuments.view(at: Vector2(100, 100))
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        return (EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id), view)
+    }
+
+    @Test func customOnAViewUsingTheSheetsScaleShowsTheFields() {
+        let custom = ScaleControl.selectedIndex(current: nil, isCustom: true, allowsSheetScale: true)
+        #expect(custom == ScaleControl(current: nil, allowsSheetScale: true, standard: .iso) { _ in }.options.count - 1)
+        #expect(ScaleControl.selectedIndex(current: nil, isCustom: false, allowsSheetScale: true) == 0)
+    }
+
+    @Test func aTypedScaleOnAViewIsOneStep() {
+        let (h, view) = harness()
+        h.model.setScale(DrawingScale(numerator: 1, denominator: 3), of: view.id)
+        #expect(h.model.document.sheets[0].views[0].scale == DrawingScale(numerator: 1, denominator: 3))
+        #expect(ScaleControl.selectedIndex(current: DrawingScale(numerator: 1, denominator: 3), isCustom: false, allowsSheetScale: true)
+            == ScaleControl(current: nil, allowsSheetScale: true, standard: .iso) { _ in }.options.count - 1)
+    }
+
+    @Test func aDensityThatIsNotAPositiveFiniteNumberIsRefused() {
+        let (h, _) = harness()
+        h.model.setDensity(text: "7.85")
+        #expect(h.model.document.sheets[0].titleBlock.density == 7.85)
+        let steps = h.log.commits.count
+        for bad in ["7,85", "abc", "inf", "1e400", "-1", "0"] {
+            h.model.setDensity(text: bad)
+            #expect(h.model.refusal != nil, "\(bad)")
+            #expect(h.model.document.sheets[0].titleBlock.density == 7.85, "\(bad)")
+        }
+        #expect(h.log.commits.count == steps)
+        h.model.setDensity(text: "")
+        #expect(h.model.document.sheets[0].titleBlock.density == nil)
+    }
+}
