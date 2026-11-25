@@ -16,7 +16,7 @@ struct SheetFrameLayer: Component, Equatable {
         ZStack(alignment: .topLeading) {
             SheetStrokeGroups(strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style)
             SheetTexts(
-                texts: texts, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, warning: colors.warning, problem: nil)
+                texts: texts, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, warning: colors.warning)
         }
     }
 }

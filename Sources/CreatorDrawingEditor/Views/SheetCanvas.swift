@@ -35,8 +35,7 @@ public struct SheetCanvas: Component {
             texts: picture.texts.filter { $0.view == view.id },
             frame: picture.viewFrames[view.id] ?? Rect2D(min: .zero, max: .zero), zoom: zoom, paperHeight: picture.size.y,
             isPending: model.contents[view.id]?.isPending ?? false, isSelected: model.selection.contains(view.id),
-            hovered: hovered?.view == view.id ? hovered : nil, problem: model.contents[view.id]?.problem, colors: colors,
-            style: style)
+            hovered: hovered?.view == view.id ? hovered : nil, colors: colors, style: style)
     }
 
     private func surface(_ picture: SheetPicture, sheet: DrawingSheet, colors: DrawingColors) -> some ElementGroup {

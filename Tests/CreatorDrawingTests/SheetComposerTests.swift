@@ -43,6 +43,37 @@ struct SheetComposerTests {
         #expect(frame.min.y < text.origin.y && text.origin.y < frame.max.y)
     }
 
+    @Test func aKeptProjectionShowsItsProblemAndWarningsUnderTheFrame() throws {
+        let view = makeView(150)
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        let warning = DrawingProjector.meshesSentence(count: 2)
+        let content = ViewContent(projection: projection, problem: "The fillet failed.", warnings: [warning])
+        let picture = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [view.id: content], facts: TitleBlockFacts())
+        let frame = try #require(picture.viewFrames[view.id])
+        let problem = try #require(picture.texts.first { $0.original == "The fillet failed." })
+        let warned = try #require(picture.texts.first { $0.original == warning })
+        #expect(problem.isNotice && warned.isNotice)
+        #expect(problem.origin.y + problem.height < frame.min.y, "under the frame")
+        #expect(warned.origin.y < problem.origin.y, "the warning follows the problem")
+        let file = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [view.id: content], facts: TitleBlockFacts(), notices: false)
+        #expect(!file.texts.contains { $0.isNotice }, "a file carries no notices")
+        #expect(file.strokes == picture.strokes)
+    }
+
+    @Test func anEmptyViewsProblemIsANoticeAndLeavesTheFile() {
+        let view = makeView(150)
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        let content = ViewContent(problem: DrawingProjector.removedSentence)
+        let screen = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [view.id: content], facts: TitleBlockFacts())
+        #expect(screen.texts.filter(\.isNotice).map(\.original) == [DrawingProjector.removedSentence])
+        let file = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [view.id: content], facts: TitleBlockFacts(), notices: false)
+        #expect(!file.texts.contains { $0.original == DrawingProjector.removedSentence })
+    }
+
     @Test func aSmallLastSizeStillHoldsTheProblem() throws {
         let view = makeView(150)
         let sheet = DrawingSheet(name: "Sheet 1", views: [view])

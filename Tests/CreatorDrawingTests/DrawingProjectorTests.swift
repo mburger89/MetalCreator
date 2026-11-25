@@ -69,6 +69,11 @@ struct DrawingProjectorTests {
         #expect(content.projection == nil)
     }
 
+    @Test func anUnknownErrorGetsAFixedSentence() {
+        struct Odd: Error {}
+        #expect(DrawingProjector.message(for: Odd()) == "The view couldn't be projected.")
+    }
+
     @Test func nothingYet() async {
         let projector = DrawingProjector(cache: ProjectionCache(), kernel: FakeKernel())
         let content = await projector.content(

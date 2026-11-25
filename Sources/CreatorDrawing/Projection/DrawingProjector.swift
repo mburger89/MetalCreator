@@ -54,9 +54,11 @@ public struct DrawingProjector: Sendable {
         }
     }
 
-    private static func message(for error: any Error) -> String {
+    public static let unprojectableSentence = "The view couldn't be projected."
+
+    static func message(for error: any Error) -> String {
         if let error = error as? KernelError { return error.userMessage }
         if error is CancellationError { return "The view was cancelled." }
-        return String(describing: error)
+        return Self.unprojectableSentence
     }
 }

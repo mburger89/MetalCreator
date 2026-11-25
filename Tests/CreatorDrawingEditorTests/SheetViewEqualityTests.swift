@@ -17,12 +17,12 @@ struct SheetViewEqualityTests {
     private func viewLayer(
         id: ViewID? = nil, strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, frame: Rect2D? = nil, zoom: Double = 2,
         paperHeight: Double = 210, isPending: Bool = false, isSelected: Bool = false, hovered: SheetStroke? = nil,
-        problem: String? = nil, colors: DrawingColors? = nil, style: DrawingStyle = .iso
+        colors: DrawingColors? = nil, style: DrawingStyle = .iso
     ) -> SheetViewLayer {
         SheetViewLayer(
             id: id ?? fixedID, strokes: strokes ?? [stroke], texts: texts ?? [text],
             frame: frame ?? Rect2D(min: .zero, max: Vector2(10, 5)), zoom: zoom, paperHeight: paperHeight, isPending: isPending,
-            isSelected: isSelected, hovered: hovered, problem: problem, colors: colors ?? self.colors, style: style)
+            isSelected: isSelected, hovered: hovered, colors: colors ?? self.colors, style: style)
     }
 
     private let fixedID = ViewID()
@@ -44,7 +44,6 @@ struct SheetViewEqualityTests {
                 "isPending": viewLayer(isPending: true),
                 "isSelected": viewLayer(isSelected: true),
                 "hovered": viewLayer(hovered: stroke),
-                "problem": viewLayer(problem: "The Output was removed."),
                 "colors": viewLayer(colors: other),
                 "style": viewLayer(style: .asme),
             ])

@@ -39,11 +39,26 @@ extension AppModel {
         let shown = plan.view.map { [$0] } ?? plan.sheets.flatMap(\.views)
         for view in shown {
             let source = DrawingSession.content(of: view.source, in: document)
-            if case .failed(let message) = source.state {
-                throw AppProblem("“\(source.name)” can't be drawn", message)
+            switch source.state {
+            case .failed(let message): throw AppProblem("“\(source.name)” can't be drawn", message)
+            case .removed: throw AppProblem("A view can't be drawn", DrawingProjector.removedSentence)
+            case .ready(let solids, let curves, let meshCount) where solids.isEmpty && curves.isEmpty:
+                let reason = meshCount > 0 ? DrawingProjector.onlyMeshesSentence : DrawingProjector.nothingYetSentence
+                throw AppProblem("“\(source.name)” can't be drawn", reason)
+            default: break
             }
         }
         return plan
+    }
+
+    /// A view whose projection failed now would print its last good one: refuse it by name, as a failed Output is.
+    private func refuseProblemViews(in plan: DrawingExportPlan, _ snapshot: DrawingSnapshot) throws(AppProblem) {
+        for view in plan.view.map({ [$0] }) ?? plan.sheets.flatMap(\.views) {
+            if let problem = snapshot.contents[view.id]?.problem {
+                let name = DrawingSession.content(of: view.source, in: document).name
+                throw AppProblem("“\(name)” can't be drawn", problem)
+            }
+        }
     }
 
     /// The name offered: "<exportName>.pdf", "<exportName>.dxf" or "<exportName> <view title>.dxf".
@@ -60,7 +75,7 @@ extension AppModel {
     /// Export PDF…, DXF of Sheet… or DXF of View at 1:1…: says what's wrong before asking where, then the save panel, then the file.
     public func exportDrawing(_ kind: DrawingExportKind, using picker: any FilePicker) async {
         let picker = tracked(picker)
-        editor.commitPendingEntry()
+        commitPendingEntries()
         await document.waitForEvaluation()
         do {
             let plan = try drawingExportPlan(kind)
@@ -75,11 +90,12 @@ extension AppModel {
     /// Writes the drawing to `url` once the document has evaluated; the warnings come back instead of raising the summary alert
     /// (an AI client's export is not the person's).
     public func exportDrawingReturningWarnings(_ kind: DrawingExportKind, to url: URL) async throws(AppProblem) -> [String] {
-        editor.commitPendingEntry()
+        commitPendingEntries()
         await document.waitForEvaluation()
         let plan = try drawingExportPlan(kind)
         let snapshot = await drawing.projectAll()
         let drawings = drawing.editor.document
+        try refuseProblemViews(in: plan, snapshot)
         let style = DrawingStyle.of(drawings.settings.standard)
         let data: Data
         var replaced: [String]
@@ -87,14 +103,14 @@ extension AppModel {
         case .pdf:
             let pages = drawings.sheets.map { sheet in
                 SheetComposer.compose(sheet, in: drawings, contents: snapshot.contents,
-                                      facts: snapshot.facts[sheet.id] ?? TitleBlockFacts())
+                                      facts: snapshot.facts[sheet.id] ?? TitleBlockFacts(), notices: false)
             }
             let output = PDFWriter.write(pages, title: exportName)
             (data, replaced) = (output.data, output.replacedTexts)
         case .dxfSheet:
             guard let sheet = plan.openSheet else { throw AppProblem("Nothing to export", "Add a sheet with a view first.") }
             let picture = SheetComposer.compose(sheet, in: drawings, contents: snapshot.contents,
-                                                facts: snapshot.facts[sheet.id] ?? TitleBlockFacts())
+                                                facts: snapshot.facts[sheet.id] ?? TitleBlockFacts(), notices: false)
             let output = DXFWriter.sheet(picture, style: style)
             (data, replaced) = (output.data, output.replacedTexts)
         case .dxfView:

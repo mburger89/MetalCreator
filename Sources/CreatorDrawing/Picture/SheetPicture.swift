@@ -53,9 +53,12 @@ public struct SheetText: Hashable, Sendable {
     public var height: Double
     public var layer: DrawingLayer
     public var view: ViewID?
+    /// A sentence about the view (its problem or a warning), drawn on screen in the warning colour and never written to a file.
+    public var isNotice: Bool
 
     public init(
-        run: TextRun, original: String, origin: Vector2, height: Double, layer: DrawingLayer = .text, view: ViewID? = nil
+        run: TextRun, original: String, origin: Vector2, height: Double, layer: DrawingLayer = .text, view: ViewID? = nil,
+        isNotice: Bool = false
     ) {
         self.run = run
         self.original = original
@@ -63,6 +66,7 @@ public struct SheetText: Hashable, Sendable {
         self.height = height
         self.layer = layer
         self.view = view
+        self.isNotice = isNotice
     }
 }
 

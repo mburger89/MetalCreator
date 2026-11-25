@@ -18,27 +18,31 @@ struct SheetViewLayer: Component, Equatable {
     let isSelected: Bool
     /// The one stroke of this view the pointer is near, redrawn in the highlight colour.
     let hovered: SheetStroke?
-    /// The view's problem sentence, drawn in the warning colour.
-    let problem: String?
     let colors: DrawingColors
     let style: DrawingStyle
 
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            SheetStrokeGroups(strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style)
+            ZStack(alignment: .topLeading) {
+                SheetStrokeGroups(strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style)
+                SheetTexts(
+                    texts: texts.filter { !$0.isNotice }, zoom: zoom, paperHeight: paperHeight, ink: colors.ink,
+                    warning: colors.warning)
+                if let hovered {
+                    SheetStrokeGroups(
+                        strokes: [hovered], zoom: zoom, paperHeight: paperHeight, ink: colors.highlight, style: style)
+                }
+                if isSelected {
+                    let box = frame.insetBy(-1)
+                    Rectangle().strokeBorder(colors.highlight.color, lineWidth: Pixels(1))
+                        .frame(width: (box.width * zoom).px, height: (box.height * zoom).px)
+                        .offset(x: (box.min.x * zoom).px, y: ((paperHeight - box.max.y) * zoom).px)
+                }
+            }
+            .opacity(isPending ? 0.4 : 1)
+            // The view's problem and warnings stay at full strength over the faded lines.
             SheetTexts(
-                texts: texts, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, warning: colors.warning, problem: problem)
-            if let hovered {
-                SheetStrokeGroups(
-                    strokes: [hovered], zoom: zoom, paperHeight: paperHeight, ink: colors.highlight, style: style)
-            }
-            if isSelected {
-                let box = frame.insetBy(-1)
-                Rectangle().strokeBorder(colors.highlight.color, lineWidth: Pixels(1))
-                    .frame(width: (box.width * zoom).px, height: (box.height * zoom).px)
-                    .offset(x: (box.min.x * zoom).px, y: ((paperHeight - box.max.y) * zoom).px)
-            }
+                texts: texts.filter(\.isNotice), zoom: zoom, paperHeight: paperHeight, ink: colors.ink, warning: colors.warning)
         }
-        .opacity(isPending ? 0.4 : 1)
     }
 }

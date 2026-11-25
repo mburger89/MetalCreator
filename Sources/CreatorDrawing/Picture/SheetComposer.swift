@@ -5,8 +5,16 @@ public enum SheetComposer {
     static let defaultEmptySize = Vector2(40, 30)
     static let problemMargin = 4.0
 
+    /// A view with where it sits and what it shows.
+    private struct Placed {
+        let view: DrawingView
+        let center: Vector2
+        let content: ViewContent
+    }
+
     public static func compose(
-        _ sheet: DrawingSheet, in document: DrawingDocument, contents: [ViewID: ViewContent], facts: TitleBlockFacts
+        _ sheet: DrawingSheet, in document: DrawingDocument, contents: [ViewID: ViewContent], facts: TitleBlockFacts,
+        notices: Bool = true
     ) -> SheetPicture {
         let settings = document.settings
         let standard = settings.standard
@@ -30,7 +38,8 @@ public enum SheetComposer {
                     ?? Rect2D(min: center, max: center)
             } else {
                 frame = appendEmptyView(
-                    to: &picture, view: view, center: center, content: content, sheet: sheet, style: style)
+                    to: &picture, placed: Placed(view: view, center: center, content: content), sheet: sheet, style: style,
+                    notices: notices)
             }
             picture.viewFrames[view.id] = frame
             if view.showsLabel {
@@ -43,15 +52,42 @@ public enum SheetComposer {
                         origin: Vector2(center.x - run.width / 2, frame.min.y - 8 - height / 2), height: height,
                         layer: .text, view: view.id))
             }
+            if notices {
+                appendNotices(
+                    to: &picture, placed: Placed(view: view, center: center, content: content), frame: frame, sheet: sheet,
+                    style: style)
+            }
         }
         return picture
     }
 
+    /// A view's problem (when its last projection is still drawn) and its warnings, under the frame and its label, in the
+    /// warning colour. On screen only: `notices` is false for a file.
+    private static func appendNotices(
+        to picture: inout SheetPicture, placed: Placed, frame: Rect2D, sheet: DrawingSheet, style: DrawingStyle
+    ) {
+        let (view, center, content) = (placed.view, placed.center, placed.content)
+        var lines = content.warnings
+        if content.projection != nil, let problem = content.problem, !problem.isEmpty { lines.insert(problem, at: 0) }
+        guard !lines.isEmpty else { return }
+        let height = style.notesHeight(for: sheet.size)
+        var top = frame.min.y - 2
+        if view.showsLabel { top -= 6 + style.viewLabelHeight }
+        for (index, line) in lines.enumerated() {
+            let run = DrawingText.layout(line, height: height)
+            let baseline = top - Double(index + 1) * (height + 1)
+            picture.texts.append(
+                SheetText(
+                    run: run, original: line, origin: Vector2(center.x - run.width / 2, baseline), height: height,
+                    layer: .text, view: view.id, isNotice: true))
+        }
+    }
+
     /// A view with no projection: its frame (grown to hold the problem text) and the problem centred in it.
     private static func appendEmptyView(
-        to picture: inout SheetPicture, view: DrawingView, center: Vector2, content: ViewContent,
-        sheet: DrawingSheet, style: DrawingStyle
+        to picture: inout SheetPicture, placed: Placed, sheet: DrawingSheet, style: DrawingStyle, notices: Bool
     ) -> Rect2D {
+        let (view, center, content) = (placed.view, placed.center, placed.content)
         var size = content.lastSize ?? defaultEmptySize
         let height = style.notesHeight(for: sheet.size)
         var layout: (text: String, run: TextRun)?
@@ -66,12 +102,12 @@ public enum SheetComposer {
             SheetStroke(
                 segments: [.polyline(SheetFrame.closedPoints(of: frame))], width: style.thin, layer: .frame,
                 view: view.id))
-        if let (problem, run) = layout {
+        if notices, let (problem, run) = layout {
             picture.texts.append(
                 SheetText(
                     run: run, original: problem,
                     origin: Vector2(center.x - run.width / 2, center.y - height / 2), height: height,
-                    layer: .text, view: view.id))
+                    layer: .text, view: view.id, isNotice: true))
         }
         return frame
     }

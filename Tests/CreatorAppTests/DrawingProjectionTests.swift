@@ -153,6 +153,13 @@ struct DrawingProjectionTests {
         let content = try #require(app.drawing.editor.contents[id])
         #expect(content.problem != nil, "the failure shows")
         #expect(content.projection?.lines.count == 4, "and the last projection stays")
+        #expect(content.isPending, "faded, as an evaluating Output's is")
+        let problem = try #require(content.problem)
+        let picture = try #require(app.drawing.editor.picture)
+        let notice = try #require(picture.texts.first { $0.original == problem })
+        #expect(notice.isNotice && notice.view == id, "the sentence is on the sheet, under the view")
+        let frame = try #require(picture.viewFrames[id])
+        #expect(notice.origin.y < frame.min.y)
     }
 
     @Test func aMeshOutputWarns() async throws {

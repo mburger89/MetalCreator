@@ -64,15 +64,13 @@ struct SheetTexts: Component {
     let paperHeight: Double
     let ink: HexColor
     let warning: HexColor
-    /// A text that reads as this problem is drawn in the warning colour (plan R20).
-    let problem: String?
 
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
             ForEach(texts.indices, id: \.self) { index in
                 SheetTextView(
                     text: texts[index], zoom: zoom, paperHeight: paperHeight,
-                    color: texts[index].original == problem ? warning : ink)
+                    color: texts[index].isNotice ? warning : ink)
             }
         }
     }

@@ -174,21 +174,24 @@ public final class DrawingSession {
         if flights[id]?.key == key { flights[id] = nil }
         guard wanted[id] == key else { return }
         var shown = content
-        // An Output still being rebuilt hands back the previous lines: they stay faded until the real projection lands.
-        shown.isPending = key.state == Self.evaluatingState
+        // An Output still being rebuilt, or one that failed, hands back the previous lines: they stay faded (a failed one with its
+        // sentence under the frame) until a real projection lands.
+        shown.isPending = key.state == Self.evaluatingState || (key.state == Self.failedState && shown.projection != nil)
         editor.contents[id] = shown
         applied[id] = key
     }
 
     /// `RequestKey.state` of a source whose result is being made.
     static let evaluatingState = 2
+    /// `RequestKey.state` of a source whose evaluation failed.
+    static let failedState = 1
 
     static func key(of source: DrawingSourceContent, frame: ProjectionFrame, scale: Double) -> RequestKey {
         switch source.state {
         case .removed:
             RequestKey(state: 0, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale)
         case .failed(let message):
-            RequestKey(state: 1, solids: [], curves: [], meshCount: 0, failure: message, frame: frame, scale: scale)
+            RequestKey(state: failedState, solids: [], curves: [], meshCount: 0, failure: message, frame: frame, scale: scale)
         case .evaluating:
             RequestKey(state: evaluatingState, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale)
         case .ready(let solids, let curves, let meshCount):

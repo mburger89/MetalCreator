@@ -88,6 +88,64 @@ struct DrawingExportTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
+    @Test func aRemovedOrEmptyOutputRefusesTheExportInsteadOfPrintingItsProblem() async throws {
+        let (app, box) = try await app()
+        try app.document.perform(.removeNode(box.output.id), name: "Delete")
+        await app.settle()
+        let url = temporaryURL("removed.pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        for kind in [DrawingExportKind.pdf, .dxfSheet] {
+            do {
+                _ = try await app.exportDrawingReturningWarnings(kind, to: url)
+                Issue.record("the export should have been refused")
+            } catch {
+                #expect(error.message == DrawingProjector.removedSentence)
+            }
+        }
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func aMeshOnlyOutputRefusesTheExport() async throws {
+        var box = DrawingBox()
+        let sphere = box.builder.add(ImplicitSphereNode.self, ["radius": .number(6)])
+        let mesh = box.builder.add(MeshNode.self, ["preview resolution": .number(1)])
+        let meshOutput = box.builder.add(OutputNode.self)
+        box.builder.wire(sphere, "implicit", to: mesh, "implicit")
+        box.builder.wire(mesh, "mesh", to: meshOutput, "mesh")
+        let app = await AppModel.inDrawing(box.builder.graph)
+        let editor = app.drawing.editor
+        let view = DrawingView(kind: .base, source: meshOutput.id, orientation: .standard(.front), center: Vector2(100, 100))
+        var drawings = editor.document
+        drawings.sheets[0].setView(view)
+        try app.document.perform(.setDrawings(drawings), name: "Add View")
+        await app.settle()
+        let url = temporaryURL("mesh-only.pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        do {
+            _ = try await app.exportDrawingReturningWarnings(.pdf, to: url)
+            Issue.record("the export should have been refused")
+        } catch {
+            #expect(error.message == DrawingProjector.onlyMeshesSentence)
+        }
+    }
+
+    @Test func aViewsWarningsAreNotPrintedOnPaper() async throws {
+        var box = DrawingBox()
+        let mesh = box.builder.add(MeshNode.self)
+        let toImplicit = box.builder.add(ToImplicitNode.self)
+        box.builder.wire(box.extrude, "solid", to: toImplicit, "solid")
+        box.builder.wire(toImplicit, "implicit", to: mesh, "implicit")
+        box.builder.wire(mesh, "mesh", to: box.output, "mesh")
+        let app = await AppModel.inDrawing(box.builder.graph)
+        await app.placeBaseView()
+        let url = temporaryURL("no-notices.dxf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let warnings = try await app.exportDrawingReturningWarnings(.dxfSheet, to: url)
+        #expect(warnings.contains { $0.contains("leaves out") }, "the summary says it")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(!text.contains("leaves out"), "the sheet does not")
+    }
+
     @Test func noSheetRefuses() async throws {
         let app = await AppModel.inDrawing(DrawingBox().graph, sheet: false)
         let url = temporaryURL("none.pdf")
