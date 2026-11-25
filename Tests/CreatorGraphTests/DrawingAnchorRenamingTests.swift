@@ -24,8 +24,12 @@ struct DrawingAnchorRenamingTests {
                                          placement: DimensionPlacement(offset: 5, angle: 0))
         let note = DrawingNote(text: "N", position: Vector2(1, 1),
                                leaders: [LeaderEnd(target: .outline(facePick(node), side: Vector2(1, 0)), hint: Vector2(0, 0))])
+        let callout = HoleCallout(anchor: .edge(edgePick(node)), placement: DimensionPlacement(offset: 5, angle: 0))
         return [DrawingAnnotation(view: nil, kind: .dimension(dimension)),
-                DrawingAnnotation(view: nil, kind: .note(note)), ]
+                DrawingAnnotation(view: nil, kind: .note(note)),
+                DrawingAnnotation(view: nil, kind: .holeCallout(callout)),
+                DrawingAnnotation(view: nil, kind: .centreMark(CentreMark(anchor: .edge(edgePick(node))))),
+                DrawingAnnotation(view: nil, kind: .centreLine(CentreLine(anchor: .axis(facePick(node))))), ]
     }
 
     func document(drawingOn node: NodeID?) -> DocumentModel {
@@ -52,7 +56,9 @@ struct DrawingAnchorRenamingTests {
             switch annotation.kind {
             case .dimension(let d): d.anchors.forEach(take)
             case .note(let n): n.leaders.forEach { take($0.target) }
-            default: break
+            case .holeCallout(let c): take(c.anchor)
+            case .centreMark(let m): take(m.anchor)
+            case .centreLine(let l): take(l.anchor)
             }
         }
         return found

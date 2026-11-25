@@ -31,8 +31,12 @@ extension DrawingAnnotation {
         case .note(var note):
             note.leaders = note.leaders.map { LeaderEnd(target: $0.target.renamingTags(names), hint: $0.hint) }
             renamed.kind = .note(note)
-        case .centreMark, .centreLine:
-            break
+        case .centreMark(var mark):
+            mark.anchor = mark.anchor.renamingTags(names)
+            renamed.kind = .centreMark(mark)
+        case .centreLine(var line):
+            line.anchor = line.anchor.renamingTags(names)
+            renamed.kind = .centreLine(line)
         }
         return renamed
     }
