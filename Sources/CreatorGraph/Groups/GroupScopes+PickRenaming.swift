@@ -53,10 +53,12 @@ extension GroupScopes {
                               skipping: Set<NodeID> = [], _ rename: ([NodeID]) -> [NodeID]?) -> [GraphCommand] {
         guard let graph = content.graph(at: level) else { return [] }
         var commands: [GraphCommand] = []
+        var drawings = content.graph.drawings
         for (path, chain) in chains(to: level, in: content) {
             guard let host = content.graph(at: path) else { continue }
             let table = names(in: graph, definitions: content.definitions, through: chain, registry: registry, rename)
             guard !table.isEmpty else { continue }
+            if path == .root { drawings = drawings.renamingTags(table) }
             for node in host.nodes.values.sorted(by: { $0.id < $1.id }) where !(path == level && skipping.contains(node.id)) {
                 for (setting, value) in node.inputValues.sorted(by: { $0.key < $1.key }) {
                     let renamed = value.renamingTags(table)
@@ -64,6 +66,7 @@ extension GroupScopes {
                 }
             }
         }
+        if drawings != content.graph.drawings { commands.append(.setDrawings(drawings)) }
         return commands
     }
 }
