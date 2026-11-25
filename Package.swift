@@ -180,7 +180,7 @@ var targets: [Target] = [
 /// The OpenCascade toolkits the shim and the data exchange link, in the same order on every platform.
 let occtLibraries = [
     "TKernel", "TKMath", "TKG2d", "TKG3d", "TKGeomBase", "TKGeomAlgo", "TKBRep", "TKTopAlgo",
-    "TKPrim", "TKBO", "TKBool", "TKFillet", "TKOffset", "TKMesh", "TKShHealing",
+    "TKPrim", "TKBO", "TKBool", "TKFillet", "TKOffset", "TKHLR", "TKMesh", "TKShHealing",
     "TKXSBase", "TKDE", "TKDESTEP", "TKDEIGES", "TKDESTL",
 ]
 

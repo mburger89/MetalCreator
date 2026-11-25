@@ -36,7 +36,7 @@ RUN cmake -S /tmp/occt -B /tmp/occt/build -G Ninja -DCMAKE_BUILD_TYPE=Release -D
          -DBUILD_MODULE_FoundationClasses=OFF -DBUILD_MODULE_ModelingData=OFF -DBUILD_MODULE_ModelingAlgorithms=OFF \
          -DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF \
          -DBUILD_MODULE_Draw=OFF -DBUILD_DOC_Overview=OFF \
-         "-DBUILD_ADDITIONAL_TOOLKITS=TKernel;TKMath;TKG2d;TKG3d;TKGeomBase;TKGeomAlgo;TKBRep;TKTopAlgo;TKPrim;TKBO;TKBool;TKFillet;TKOffset;TKMesh;TKShHealing;TKXSBase;TKDE;TKDESTEP;TKDEIGES;TKDESTL" \
+         "-DBUILD_ADDITIONAL_TOOLKITS=TKernel;TKMath;TKG2d;TKG3d;TKGeomBase;TKGeomAlgo;TKBRep;TKTopAlgo;TKPrim;TKBO;TKBool;TKFillet;TKOffset;TKHLR;TKMesh;TKShHealing;TKXSBase;TKDE;TKDESTEP;TKDEIGES;TKDESTL" \
          -DUSE_FREETYPE=OFF -DUSE_TK=OFF -DUSE_OPENGL=OFF -DUSE_GLES2=OFF -DUSE_XLIB=OFF -DUSE_TBB=OFF -DUSE_FREEIMAGE=OFF \
          -DUSE_RAPIDJSON=OFF -DUSE_DRACO=OFF -DUSE_VTK=OFF -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF \
     && cmake --build /tmp/occt/build --parallel ${OCCT_JOBS} && cmake --install /tmp/occt/build \
