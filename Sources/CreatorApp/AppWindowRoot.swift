@@ -25,7 +25,10 @@ public struct AppWindowRoot: Component {
             .overlay(alignment: .topLeading) {
                 ZStack(alignment: .topLeading) {
                     AppRoot(model: model, input: input)
-                    SectionPanelDock(model: model, themeEditorOpen: themeEditor.isOpen)
+                    // The Section, Measure and Zebra panels act on the 3D view; Drawing hides them (plan R28).
+                    if model.mode == .model {
+                        SectionPanelDock(model: model, themeEditorOpen: themeEditor.isOpen)
+                    }
                     ThemeEditorDock(model: themeEditor,
                                     bottom: ThemeEditorLayout.bottom(dock: model.editor.dock, panelHeight: model.panelHeight))
                 }

@@ -83,3 +83,12 @@ struct KeyCommandTests {
         #expect(!editor.perform(.cancel))
     }
 }
+
+extension KeyCommandTests {
+    /// ⌘⇧D is the app's View ▸ Drawing (plan R21), so over the graph canvas it must not duplicate the selection.
+    @Test func commandDDuplicatesAndCommandShiftDIsNotAGraphKey() {
+        #expect(GraphKeyBindings.commandChord(for: "d", shifted: false) == .duplicate)
+        #expect(GraphKeyBindings.commandChord(for: "d", shifted: true) == nil)
+        #expect(GraphKeyBindings.command(for: key("D", [.primary, .shift]), paletteOpen: false) == nil)
+    }
+}

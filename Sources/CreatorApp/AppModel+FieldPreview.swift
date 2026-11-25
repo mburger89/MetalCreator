@@ -7,7 +7,8 @@ extension AppModel {
     /// picking or sketching, with no node or several selected, or when the node has no field to show
     /// (`FieldPreviewSelection`). The slice starts from the camera's view direction at the moment a new node is selected.
     func fieldPreviewRequest(for scene: [SceneItem]) -> FieldPreviewRequest? {
-        guard pick == nil, sketch == nil, editor.selection.count == 1, let id = editor.selection.first,
+        // In Drawing the viewport is not shown, so nothing is sampled for it (R28); returning to Model samples again.
+        guard mode == .model, pick == nil, sketch == nil, editor.selection.count == 1, let id = editor.selection.first,
               let node = editor.graph.nodes[id],
               let field = FieldPreviewSelection.field(of: node, graph: editor.graph, results: editor.levelResults,
                                                       registry: registry) else { return nil }

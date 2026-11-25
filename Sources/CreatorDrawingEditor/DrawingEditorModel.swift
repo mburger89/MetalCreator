@@ -17,10 +17,20 @@ public final class DrawingEditorModel {
     }
     public var selection: Set<ViewID> = []
     public internal(set) var tool: DrawingTool = .select
-    public var transform = SheetTransform()
+    public var transform = SheetTransform() {
+        // A pan or a zoom is the person's: the sheet is no longer waiting to be fitted to the canvas's first real size.
+        didSet { fitsOnNextSize = false }
+    }
     public var canvasSize = Vector2(1000, 700)
     /// The part of the canvas that shows, in canvas points; set by the host.
-    public var visibleRect = Rect2D(min: .zero, max: Vector2(1000, 700))
+    public var visibleRect = Rect2D(min: .zero, max: Vector2(1000, 700)) {
+        didSet {
+            if fitsOnNextSize, visibleRect != oldValue {
+                fit()
+                fitsOnNextSize = false
+            }
+        }
+    }
     public var sources: [DrawingSourceOption] = []
     public var contents: [ViewID: ViewContent] = [:] {
         didSet { rebuildPicture() }
@@ -45,6 +55,8 @@ public final class DrawingEditorModel {
     @ObservationIgnored var pinchStart: (zoom: Double, anchor: Vector2)?
     @ObservationIgnored var pointerIsDown = false
     @ObservationIgnored var middleLast: Vector2?
+    /// Set by `requestFit()`: the canvas has not reported its size since, so the next size fits the sheet again.
+    @ObservationIgnored var fitsOnNextSize = false
 
     enum Gesture {
         case movingViews(base: DrawingSheet, start: Vector2, key: String, roots: [ViewID])
@@ -72,6 +84,13 @@ public final class DrawingEditorModel {
             return
         }
         picture = SheetComposer.compose(sheet, in: document, contents: contents, facts: facts)
+    }
+
+    /// Fits the sheet now, and again when the canvas reports its real size, unless the person pans or zooms first (entering Drawing,
+    /// showing another sheet).
+    public func requestFit() {
+        fit()
+        fitsOnNextSize = true
     }
 
     /// Undo and redo: takes the drawings the host restored, keeping the sheet and the selection that still exist.

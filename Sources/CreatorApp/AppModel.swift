@@ -1,3 +1,4 @@
+import CreatorDrawingEditor
 import CreatorEditor
 import CreatorGraph
 import CreatorImplicit
@@ -25,6 +26,8 @@ public final class AppModel {
     public private(set) var editor: EditorModel
     public private(set) var graphInput: GraphPanelInput
     public private(set) var viewport: ViewportModel
+    /// The document's drawing editor and its projections (DR-1); replaced with the document.
+    public private(set) var drawing: DrawingSession
     /// The field preview of the selected node (fields spec §6): the tint on the shown parts and the slice through them. It
     /// belongs to the open document and is replaced with it; its toggles are view state, never saved.
     private(set) var fieldPreview: FieldPreviewModel
@@ -156,6 +159,7 @@ public final class AppModel {
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
+        drawing = parts.drawing
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
         measureBook = MeasureBook(kernel: kernel, document: parts.document)
         self.fileURL = fileURL
@@ -191,10 +195,12 @@ public final class AppModel {
         section.reset()
         sectionCaps.reset()
         fieldPreview.stop()
+        drawing.stop()
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
+        drawing = parts.drawing
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
         measureBook = MeasureBook(kernel: kernel, document: parts.document)
         fileURL = url
@@ -210,6 +216,9 @@ public final class AppModel {
         viewport.dimensionEditor = dimensionRouter
         connectViewportEvents()
         measureBook.changed = { [weak self] in self?.refreshDimensions() }
+        drawing.commitHandler = { [weak self] in self?.storeDrawing($0) }
+        drawing.sheetHandler = { [weak self] in self?.drawingSheetChanged($0) }
+        if mode == .drawing { drawing.activate() }
         sceneInputsChanged()
         followEvaluation()
     }
@@ -226,7 +235,8 @@ public final class AppModel {
             // The meshes landing shows the scene again, which measures the kept distances again: go round once more for that.
             await viewport.waitForMeshes()
             await controlNetRead?.value
+            await drawing.waitForProjections()
         } while document.isEvaluating || controlNetRead != nil || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
-            || measureBook.entries.contains(where: \.isMeasuring)
+            || measureBook.entries.contains(where: \.isMeasuring) || drawing.isProjecting
     }
 }

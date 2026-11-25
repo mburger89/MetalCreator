@@ -19,6 +19,7 @@ extension AppModel {
     /// be by any edit.
     public func beginSketch(for id: NodeID, plane known: Plane? = nil) {
         guard controlNet == nil else { return }
+        leaveDrawingForViewport()
         editor.commitPendingEntry()
         editor.closePalette()
         guard let node = document.graph.nodes[id], node.typeID == SketchNode.typeID,

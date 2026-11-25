@@ -42,6 +42,8 @@ public final class AppInput {
     /// A keymap action. Unclaimed (`false`), MetalUI passes the key on as if it were unbound.
     public func handleAction(_ action: any Action) -> Bool {
         if model.graphInput.handleAction(action) { return true }
+        // The viewport's keys (D, M, Z, F, + and −) do nothing in Drawing (plan R21); the sheet's keys belong to its canvas.
+        if model.mode == .drawing { return false }
         if action is ModelDimensionKeyAction {
             if model.editor.pointerLocation != nil { return false }
             return model.beginModelDimension()

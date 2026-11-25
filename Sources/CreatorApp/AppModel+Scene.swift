@@ -105,6 +105,7 @@ extension AppModel {
             + (section.shown?.handle.map { [$0] } ?? [])
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
         refreshDimensions()
+        refreshDrawing()
     }
 
     /// Applies the section to the scene. A pick session ghosts the scene, which must not change the section or its caps: its

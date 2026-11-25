@@ -56,6 +56,7 @@ extension AppModel {
         guard sketch == nil else { return }
         if controlNet?.node == id { return }
         guard let node = editor.graph.nodes[id], let kind = Self.controlNetKind(of: node) else { return }
+        leaveDrawingForViewport()
         editor.commitPendingEntry()
         editor.closePalette()
         guard !editor.isInsideGroup else {

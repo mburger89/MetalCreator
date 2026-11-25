@@ -19,6 +19,7 @@ extension AppModel {
         heldModelDimension = nil
         document.undo()
         editor.refreshLevel()
+        refreshDrawing()
     }
 
     /// Redo. A typed value is committed first, as for Undo; it is a new edit, so nothing is left to redo.
@@ -28,5 +29,6 @@ extension AppModel {
         heldModelDimension = nil
         document.redo()
         editor.refreshLevel()
+        refreshDrawing()
     }
 }

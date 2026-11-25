@@ -8,6 +8,11 @@ import CreatorViewport
 extension AppModel {
     /// An inspector button (spec §6.4), from `EditorModel.inspectorRequest`.
     public func handle(_ request: InspectorRequest) {
+        if Self.needsViewport(request.action) { leaveDrawingForViewport() }
+        carryOut(request)
+    }
+
+    private func carryOut(_ request: InspectorRequest) {
         switch request.action {
         case .pickEdgesInView, .pickFacesInView:
             handleSurfaceEditPick(request)
@@ -35,6 +40,19 @@ extension AppModel {
             handleSurfaceEditPick(request)
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries the group buttons out itself (`EditorModel.press`).
+        }
+    }
+
+    /// The inspector actions that work in the 3D view: in Drawing they switch to Model first (drawings plan R21).
+    static func needsViewport(_ action: InspectorAction) -> Bool {
+        switch action {
+        case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .editSketch, .editControlPoints,
+             .pickTrimRegions, .pickTargetEdgesInView, .pickOtherEdgesInView:
+            true
+        case .clearLoftStartFace, .clearLoftEndFace, .clearTrimRegions, .chooseImage, .linkImage, .relinkImage, .embedImage,
+             .chooseMeshFile, .relinkMeshFile, .embedMeshFile, .choosePCBFile, .relinkPCBFile, .chooseModelFile, .relinkModelFile,
+             .embedModelFile, .editGroup, .makeUnique, .ungroup:
+            false
         }
     }
 
@@ -76,6 +94,7 @@ extension AppModel {
     /// Blend Surface's `edges` and `other edges`. An Edges by Tag rule picks on its own solid whatever the socket.
     public func beginPick(for id: NodeID, socket: SocketName) {
         guard controlNet == nil else { return }
+        leaveDrawingForViewport()
         editor.commitPendingEntry()
         // The banner's Escape and Return are button shortcuts, which run before the palette's keys in `onInput`.
         editor.closePalette()
