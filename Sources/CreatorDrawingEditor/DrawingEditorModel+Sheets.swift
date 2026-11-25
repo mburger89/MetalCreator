@@ -43,12 +43,15 @@ extension DrawingEditorModel {
                 }
             }
         }
-        var copy = original
-        copy.id = SheetID()
-        copy.name = original.name + " Copy"
-        copy = DrawingSheet(
-            id: copy.id, name: copy.name, size: original.size, orientation: original.orientation, scale: original.scale,
-            titleBlock: original.titleBlock, views: views)
+        let annotations = original.annotations.map { annotation -> DrawingAnnotation in
+            var copied = annotation
+            copied.id = AnnotationID()
+            copied.view = annotation.view.flatMap { renamed[$0] }
+            return copied
+        }
+        let copy = DrawingSheet(
+            name: original.name + " Copy", size: original.size, orientation: original.orientation, scale: original.scale,
+            titleBlock: original.titleBlock, views: views, annotations: annotations)
         commit(DrawingStepName.duplicateSheet) { $0.sheets.insert(copy, at: index + 1) }
         show(sheet: copy.id)
     }

@@ -10,6 +10,7 @@ import Testing
 final class EditorLog {
     var commits: [DrawingCommit] = []
     var sheets: [SheetID?] = []
+    var discarded: [String] = []
 }
 
 /// A model over a document with a log of its events; sources and contents are fakes, no kernel.
@@ -46,7 +47,8 @@ struct EditorHarness {
         model = DrawingEditorModel(
             document: document, sheet: sheet, units: units, today: { today },
             events: DrawingEditorEvents(
-                committed: { log.commits.append($0) }, sheetChanged: { log.sheets.append($0) }))
+                committed: { log.commits.append($0) }, sheetChanged: { log.sheets.append($0) },
+                discarded: { log.discarded.append($0) }))
         model.sources = sources
         model.visibleRect = Rect2D(min: .zero, max: Vector2(1000, 600))
         model.canvasSize = Vector2(1000, 600)

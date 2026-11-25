@@ -11,7 +11,7 @@ extension DrawingEditorModel {
             fit()
             return true
         case .delete:
-            guard !selection.isEmpty else { return false }
+            guard !selection.isEmpty || !selectedAnnotations.isEmpty else { return false }
             deleteSelection()
             return true
         case .nudge(let delta, let isRepeat):
@@ -21,7 +21,7 @@ extension DrawingEditorModel {
             return true
         case .escape:
             if gesture != nil {
-                gesture = nil
+                pointerCancelled()
                 return true
             }
             if holdsAnnotationInput {
@@ -43,11 +43,14 @@ extension DrawingEditorModel {
     }
 
     private func nudge(by delta: Vector2, isRepeat: Bool) -> Bool {
-        guard let id = currentSheet, !selection.isEmpty, delta.length > 0 else { return false }
-        let chosen = selection
+        guard let id = currentSheet, let current = sheet, !selection.isEmpty || !selectedAnnotations.isEmpty, delta.length > 0
+        else { return false }
+        let roots = Self.roots(of: selection, in: current)
+        let seeds = seeds(for: selectedAnnotations, pressing: nil)
+        let name = moveName(roots: roots, seeds: seeds, in: current)
         if !isRepeat || nudgeKey == nil { nudgeKey = "drawing-nudge-\(UUID().uuidString)" }
-        commitSheet(id, DrawingStepName.moveView, key: nudgeKey) { sheet in
-            sheet = Self.moved(chosen, by: delta, in: sheet)
+        commitSheet(id, name, key: nudgeKey) { sheet in
+            sheet = Self.movedSheet(sheet, roots: roots, seeds: seeds, by: delta)
         }
         return true
     }

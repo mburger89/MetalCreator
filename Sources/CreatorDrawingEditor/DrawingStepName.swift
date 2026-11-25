@@ -20,10 +20,22 @@ public enum DrawingStepName {
     public static let addNote = "Add Note"
     public static let addLeader = "Add Leader"
     public static let reattachDimension = "Reattach Dimension"
+    public static let removeLeader = "Remove Leader"
+    public static let moveDimension = "Move Dimension"
+    public static let moveNote = "Move Note"
+    public static let moveAnnotations = "Move Annotations"
+    public static let deleteDimension = "Delete Dimension"
+    public static let deleteNote = "Delete Note"
+    public static let deleteAnnotations = "Delete Annotations"
+    public static let changeDimension = "Change Dimension"
+    public static let changeTolerance = "Change Tolerance"
+    public static let editNote = "Edit Note"
+    public static let changeNumberFormat = "Change Number Format"
 
     public static let all: [String] = [
         addSheet, renameSheet, duplicateSheet, deleteSheet, moveSheet, changeSheetSize, editTitleBlock, changeStandard,
         addView, moveView, deleteView, changeScale, changeView, addDimension, addHoleCallout, addCentreMark, addCentreLine,
-        addNote, addLeader, reattachDimension,
+        addNote, addLeader, reattachDimension, removeLeader, moveDimension, moveNote, moveAnnotations, deleteDimension, deleteNote,
+        deleteAnnotations, changeDimension, changeTolerance, editNote, changeNumberFormat,
     ]
 }

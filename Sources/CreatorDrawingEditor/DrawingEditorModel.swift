@@ -82,7 +82,7 @@ public final class DrawingEditorModel {
     @ObservationIgnored var fitsOnNextSize = false
 
     enum Gesture {
-        case movingViews(base: DrawingSheet, start: Vector2, key: String, roots: [ViewID])
+        case moving(MoveGesture)
         case projecting(parent: ViewID, start: Vector2)
         case placing
         /// A press with an annotation tool, or a leader end; the click acts on release, with the modifiers of the press.
@@ -137,6 +137,9 @@ public final class DrawingEditorModel {
         if kept != currentSheet {
             currentSheet = kept
             events.sheetChanged(kept)
+            // What was being made on another sheet is gone with it (plan R27).
+            dropPicks()
+            hoverCandidate = nil
         }
         let existing = Set(sheet?.views.map(\.id) ?? [])
         selection = selection.intersection(existing)
