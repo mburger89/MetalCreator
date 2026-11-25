@@ -26,6 +26,7 @@ extension DrawingEditorModel {
             guard direction != .aligned else { return refuse(Self.seriesDirectionSentence) }
             next = .chain(direction)
         case (.radius, .radius), (.radius, .diameter), (.diameter, .radius), (.diameter, .diameter):
+            if case .radius = kind, case .fit = current.tolerance { return refuse(Self.fitSentence) }
             next = kind
         default:
             return

@@ -109,6 +109,20 @@ struct AnnotationInspectorTests {
         #expect(s.h.log.commits.count == before + 1, "a linear size takes a fit")
     }
 
+    @Test func aRadiusIsRefusedOnADimensionHoldingAFit() {
+        let s = Scene.make([.diameter, .horizontal])
+        s.h.model.setTolerance(.fit(.hole(.H, grade: 7), showsDeviations: true), of: Scene.diameter)
+        let before = s.h.log.commits.count
+        s.h.model.setDimensionKind(.radius, of: Scene.diameter)
+        #expect(s.h.model.refusal == "Fits apply to sizes: a diameter or a distance between two faces.")
+        #expect(s.h.log.commits.count == before)
+        guard case .dimension(let value)? = s.h.model.sheet?.annotation(Scene.diameter)?.kind else {
+            Issue.record("the dimension is gone")
+            return
+        }
+        #expect(value.kind == .diameter)
+    }
+
     @Test func aBadToleranceNumberIsRefused() {
         let s = Scene.make([.horizontal])
         let m = s.h.model
