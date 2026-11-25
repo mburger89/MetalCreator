@@ -81,6 +81,9 @@ struct TopBar: Component {
                             Button("PDF…") { model.withFilePicker { await model.exportDrawing(.pdf, using: $0) } }
                             Button("DXF of Sheet…") { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
                             Button("DXF of View at 1:1…") { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+                            Button("DXF of View at 1:1 with Annotations…") {
+                                model.withFilePicker { await model.exportDrawing(.dxfViewWithAnnotations, using: $0) }
+                            }
                         }
                     }, label: { ToolbarIcon.image("square.and.arrow.up") })
                     .buttonStyle(.borderless)

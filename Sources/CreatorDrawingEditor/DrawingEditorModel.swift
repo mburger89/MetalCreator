@@ -54,6 +54,9 @@ public final class DrawingEditorModel {
     /// The newest held figures of every annotation seen, for drawing a lost one from its last good value (plan R15). View state:
     /// never an edit, and never fed by a draft.
     @ObservationIgnored public internal(set) var remembered: [AnnotationID: LastGood] = [:]
+    /// Whether the pictures the editor builds feed `remembered`. The host turns it off while the editor isn't shown: its contents are
+    /// then as old as the last projection, and the host reads the model itself (`remember(_:)`, plan R26).
+    @ObservationIgnored public var feedsRemembered = true
     /// The document's units: lengths in labels read in them. Changing them rebuilds the picture.
     public var units: DocumentUnits {
         didSet { if units != oldValue { rebuildPicture() } }
@@ -118,7 +121,11 @@ public final class DrawingEditorModel {
             sheet, in: document, contents: contents, facts: facts, units: units, remembered: remembered)
         picture = composed
         // The newest held figure of each annotation is what a lost one is drawn from (plan R15).
+        // A view still being projected, or one the host isn't showing, is held against the topology it had: what it reports is what
+        // is remembered already, or older than what the host's refresh read from the model (plan R25, R26), so it feeds nothing.
+        guard feedsRemembered else { return }
         for (id, report) in composed.annotationReports where report.status == .held {
+            if let view = sheet.annotation(id)?.view, contents[view]?.isPending == true { continue }
             if let current = report.current, remembered[id] != current { remembered[id] = current }
         }
     }

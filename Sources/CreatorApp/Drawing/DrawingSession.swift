@@ -23,6 +23,8 @@ public final class DrawingSession {
     @ObservationIgnored var commitHandler: (@MainActor (DrawingCommit) -> Void)?
     /// Records the sheet the editor shows; set by the app.
     @ObservationIgnored var sheetHandler: (@MainActor (SheetID?) -> Void)?
+    /// Takes back the undo steps a cancelled drag had made (plan R18); set by the app.
+    @ObservationIgnored var discardHandler: (@MainActor (String) -> Void)?
     /// Whether Drawing mode is up: projections are made only then.
     @ObservationIgnored public private(set) var isActive = false
 
@@ -49,6 +51,11 @@ public final class DrawingSession {
     /// Volumes by solid identity; the entry keeps its solid alive so an identity can't be reused.
     @ObservationIgnored var volumes: [ObjectIdentifier: (solid: Solid, volume: Double?)] = [:]
     @ObservationIgnored private let relay: Relay
+    /// The refresh of the last good values after an evaluation (plan R26): what is read, what is being read.
+    @ObservationIgnored var refreshed: [ViewID: RefreshKey] = [:]
+    @ObservationIgnored var refreshing: [ViewID: RefreshKey] = [:]
+    @ObservationIgnored var refreshTask: Task<Void, Never>?
+    @ObservationIgnored var refreshGeneration = 0
 
     /// Hands the editor's events to the session, which doesn't exist yet when the editor is made.
     final class Relay {
@@ -68,7 +75,10 @@ public final class DrawingSession {
             document: drawings, sheet: sheet, units: document.units, today: today,
             events: DrawingEditorEvents(
                 committed: { commit in relay.session?.commitHandler?(commit) },
-                sheetChanged: { id in relay.session?.editorShowed(sheet: id) }))
+                sheetChanged: { id in relay.session?.editorShowed(sheet: id) },
+                discarded: { key in relay.session?.discardHandler?(key) }))
+        // Not shown yet: its contents are only as new as the last projection, so its pictures feed nothing (`activate()` turns it on).
+        editor.feedsRemembered = false
         relay.session = self
     }
 
@@ -87,18 +97,22 @@ public final class DrawingSession {
         flights = [:]
         factsTask?.cancel()
         factsTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
         relay.session = nil
     }
 
     /// Drawing mode begins: the sheet is fitted and its views are projected.
     func activate() {
         isActive = true
+        editor.feedsRemembered = true
         editor.requestFit()
         update()
     }
 
     func deactivate() {
         isActive = false
+        editor.feedsRemembered = false
     }
 
     private func editorShowed(sheet id: SheetID?) {
@@ -108,12 +122,12 @@ public final class DrawingSession {
     }
 
     /// Whether any projection or fact is still being made.
-    public var isProjecting: Bool { !flights.isEmpty || factsTask != nil }
+    public var isProjecting: Bool { !flights.isEmpty || factsTask != nil || refreshTask != nil }
 
     /// Waits until every projection and fact requested so far has landed.
     public func waitForProjections() async {
         while isProjecting {
-            let tasks = flights.values.map(\.task) + (factsTask.map { [$0] } ?? [])
+            let tasks = flights.values.map(\.task) + (factsTask.map { [$0] } ?? []) + (refreshTask.map { [$0] } ?? [])
             for task in tasks { await task.value }
         }
     }
@@ -127,6 +141,8 @@ public final class DrawingSession {
     /// Follows the document: the editor's drawings, its sources, and (in Drawing mode) the projections and the facts.
     func update() {
         resync()
+        if editor.units != document.units { editor.units = document.units }
+        refreshLastGood()
         guard isActive else { return }
         let outputs = document.graph.nodes.values.filter(\.isOutput).map(\.id).sorted()
         let options = outputs.compactMap { id in options(for: id) }

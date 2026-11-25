@@ -95,13 +95,16 @@ extension AppModel {
     public func save(to url: URL) throws(AppProblem) {
         commitPendingEntries()
         if document.camera != nil { document.camera = viewport.pose }
+        // The drawings go out with the newest values their annotations held (drawings plan R15): no edit, no undo step.
+        let drawings = drawing.editor.documentForSaving()
         do {
-            try document.fileData(savingTo: url).write(to: url, options: .atomic)
+            try document.fileData(savingTo: url, drawings: drawings).write(to: url, options: .atomic)
         } catch {
             throw AppProblem("“\(url.lastPathComponent)” couldn't be saved", error.localizedDescription)
         }
         fileURL = url
-        document.didSave(to: url)
+        document.didSave(to: url, drawings: drawings)
+        drawing.resync()
         savedContent = document.content
     }
 

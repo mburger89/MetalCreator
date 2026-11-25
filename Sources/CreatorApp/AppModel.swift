@@ -222,6 +222,7 @@ public final class AppModel {
         measureBook.changed = { [weak self] in self?.refreshDimensions() }
         drawing.commitHandler = { [weak self] in self?.storeDrawing($0) }
         drawing.sheetHandler = { [weak self] in self?.drawingSheetChanged($0) }
+        drawing.discardHandler = { [weak self] in self?.discardDrawingStep($0) }
         if mode == .drawing { drawing.activate() }
         sceneInputsChanged()
         followEvaluation()

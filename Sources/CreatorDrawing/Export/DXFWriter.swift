@@ -51,13 +51,43 @@ public enum DXFWriter {
             extent: Rect2D(min: .zero, max: picture.size), style: style)
     }
 
-    /// One view at 1:1 in model millimetres, x and y as the view plane's (plan R24): no frame and no texts.
-    public static func view(_ projection: Projection2D, view: DrawingView, style: DrawingStyle) -> DXFOutput {
+    /// One view at 1:1 in model millimetres, x and y as the view plane's (plan R24): no frame and no texts. With `annotations` (plan
+    /// R22) the view's own dimensions, callouts, notes and leaders from the sheet's picture come too, mapped back by `mapping`
+    /// (sheet minus offset, over scale) with their text heights over the scale, so the geometry measures true and the lettering keeps
+    /// its size against the part.
+    public static func view(
+        _ projection: Projection2D, view: DrawingView, style: DrawingStyle,
+        annotations: (picture: SheetPicture, mapping: ViewMapping)? = nil
+    ) -> DXFOutput {
         guard let bounds = projection.bounds else {
             return write(strokes: [], texts: [], extent: Rect2D(min: .zero, max: .zero), style: style)
         }
-        let strokes = ViewLinework.strokes(for: projection, view: view, center: bounds.center, scale: 1, style: style)
-        return write(strokes: strokes, texts: [], extent: bounds, style: style)
+        var strokes = ViewLinework.strokes(for: projection, view: view, center: bounds.center, scale: 1, style: style)
+        var (texts, fills): ([SheetText], [SheetFill]) = ([], [])
+        var extent = bounds
+        if let (picture, mapping) = annotations {
+            let (back, shift) = (1 / mapping.scale, mapping.offset * (-1 / mapping.scale))
+            for stroke in picture.strokes where stroke.view == view.id && stroke.annotation != nil {
+                var moved = stroke
+                moved.segments = stroke.segments.map { $0.transformed(scale: back, offset: shift) }
+                extent = extent.union(moved.bounds)
+                strokes.append(moved)
+            }
+            for fill in picture.fills where fill.view == view.id && fill.annotation != nil {
+                var moved = fill
+                moved.points = fill.points.map { mapping.model($0) }
+                if let box = Rect2D(points: moved.points) { extent = extent.union(box) }
+                fills.append(moved)
+            }
+            for text in picture.texts where text.view == view.id && text.annotation != nil && !text.isNotice {
+                var moved = text
+                moved.origin = mapping.model(text.origin)
+                moved.height = text.height * back
+                extent = extent.union(Rect2D(min: moved.origin, max: moved.origin))
+                texts.append(moved)
+            }
+        }
+        return write(strokes: strokes, texts: texts, fills: fills, extent: extent, style: style)
     }
 
     // MARK: Entities

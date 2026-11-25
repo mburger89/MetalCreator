@@ -230,9 +230,12 @@ struct DrawingExportTests {
         try await window.window.runUntilIdle()
         try window.window.click(try window.window.element(label: "Export"))
         titles = try #require(window.window.presentedMenu).items.map(\.title)
-        #expect(titles == ["STEP…", "STL…", "PDF…", "DXF of Sheet…", "DXF of View at 1:1…"])
+        #expect(titles == ["STEP…", "STL…", "PDF…", "DXF of Sheet…", "DXF of View at 1:1…", "DXF of View at 1:1 with Annotations…"])
         try window.window.dismissMenu()
-        #expect(AppCommands.drawingExportTitles == ["Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…"])
+        #expect(
+            AppCommands.drawingExportTitles == [
+                "Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…", "Export DXF of View at 1:1 with Annotations…",
+            ])
     }
 
     @Test func theMassShowsOnPage2() async throws {

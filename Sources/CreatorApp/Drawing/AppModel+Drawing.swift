@@ -63,6 +63,13 @@ extension AppModel {
         refreshDrawing()
     }
 
+    /// A drag the editor cancelled had made undo steps under `key`: take them back as if they never happened, and show the drawings
+    /// the document holds again (plan R18).
+    func discardDrawingStep(_ key: String) {
+        document.discardCoalescedStep(key: key)
+        drawing.resync()
+    }
+
     /// The editor sheet changed: remember it in the view state.
     func drawingSheetChanged(_ sheet: SheetID?) {
         let isOn = document.drawingView?.isOn == true

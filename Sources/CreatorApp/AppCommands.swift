@@ -75,7 +75,10 @@ public enum AppCommands {
     }
 
     /// The File menu's drawing exports, disabled outside Drawing (plan R25).
-    static let drawingExportTitles = ["Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…"]
+    static let drawingExportTitles = [
+        "Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…",
+        "Export DXF of View at 1:1 with Annotations…",
+    ]
 
     @MainActor
     @MenuContentBuilder
@@ -85,6 +88,8 @@ public enum AppCommands {
         Button(drawingExportTitles[1]) { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
             .disabled(model.mode != .drawing)
         Button(drawingExportTitles[2]) { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[3]) { model.withFilePicker { await model.exportDrawing(.dxfViewWithAnnotations, using: $0) } }
             .disabled(model.mode != .drawing)
     }
 
