@@ -10,6 +10,7 @@ extension AppModel {
     /// New: an empty document. With unsaved changes it asks first (`alert`, then `discardChanges()`).
     public func newDocument() {
         guard closeRequest == .idle else { return }
+        commitPendingEntries()  // a typed value not yet entered is unsaved work too
         guard !isEdited else {
             pendingDiscard = .newDocument
             alert = .discardChanges
@@ -42,6 +43,7 @@ extension AppModel {
     public func openDocument(using picker: any FilePicker) async {
         let picker = tracked(picker)
         guard closeRequest == .idle else { return }
+        commitPendingEntries()
         guard !isEdited else {
             pendingDiscard = .openDocument(picker)
             alert = .discardChanges
