@@ -222,8 +222,11 @@ struct ProjectionTests {
     @Test func cancellationStops() async throws {
         let solid = try await cornerBox()
         let kernel = self.kernel
-        let task = Task { try await kernel.projection(of: solid, curves: [], frame: Self.front, options: ProjectionOptions()) }
-        task.cancel()
+        // The task cancels itself before the call, so the outcome never depends on how fast the projection runs.
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await kernel.projection(of: solid, curves: [], frame: Self.front, options: ProjectionOptions())
+        }
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 
