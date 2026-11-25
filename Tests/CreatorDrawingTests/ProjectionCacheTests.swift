@@ -43,8 +43,9 @@ struct ProjectionCacheTests {
         let cache = ProjectionCache()
         let solid = try await Self.box(kernel)
         let a = Task { try await Self.project(cache, [solid], kernel) }
-        let b = Task { try await Self.project(cache, [solid], kernel) }
         await gate.waitForEntries(1)
+        let b = Task { try await Self.project(cache, [solid], kernel) }
+        await Self.waitForWaiters(2, in: cache)
         await gate.open()
         let (first, second) = try await (a.value, b.value)
         #expect(first == second)
@@ -77,15 +78,21 @@ struct ProjectionCacheTests {
         let cache = ProjectionCache(limit: 1024)
         var solids: [Solid] = []
         for _ in 0..<6 { solids.append(try await Self.box(kernel)) }
-        for solid in solids { _ = try await Self.project(cache, [solid], kernel) }
+        _ = try await Self.project(cache, [solids[0]], kernel)
+        _ = try await Self.project(cache, [solids[1]], kernel)
+        // Reading the first again makes the second the least recently used.
+        _ = try await Self.project(cache, [solids[0]], kernel)
+        for solid in solids[2...] { _ = try await Self.project(cache, [solid], kernel) }
         #expect(await cache.bytesUsed <= 1024)
         #expect(await cache.count < 6)
-        // The newest is a hit; the first was evicted and misses.
         let calls = await cache.kernelCalls
         _ = try await Self.project(cache, [solids[5]], kernel)
         #expect(await cache.kernelCalls == calls)
+        // Whichever the limit left, the touched first outlives the untouched second.
         _ = try await Self.project(cache, [solids[0]], kernel)
-        #expect(await cache.kernelCalls == calls + 1)
+        let afterFirst = await cache.kernelCalls
+        _ = try await Self.project(cache, [solids[1]], kernel)
+        #expect(await cache.kernelCalls == afterFirst + 1)
     }
 
     @Test func theNewestIsKeptEvenAloneOverTheLimit() async throws {
@@ -133,14 +140,49 @@ struct ProjectionCacheTests {
         let cache = ProjectionCache()
         let solid = try await Self.box(kernel)
         let a = Task { try await Self.project(cache, [solid], kernel) }
-        let b = Task { try await Self.project(cache, [solid], kernel) }
         await gate.waitForEntries(1)
+        let b = Task { try await Self.project(cache, [solid], kernel) }
+        await Self.waitForWaiters(2, in: cache)
         a.cancel()
+        // The cancelled waiter leaves at once, while the build still holds.
+        await #expect(throws: CancellationError.self) { try await a.value }
         await gate.open()
         let result = try await b.value
         #expect(!result.lines.isEmpty)
-        await #expect(throws: CancellationError.self) { try await a.value }
         #expect(await cache.count == 1)
+    }
+
+    @Test func cancellingEveryWaiterCancelsTheBuild() async throws {
+        let kernel = FakeKernel()
+        let gate = SuspendingGate()
+        let seen = CancellationFlag()
+        await kernel.setProjectionHook {
+            await gate.hold()
+            if Task.isCancelled { await seen.set() }
+        }
+        let cache = ProjectionCache()
+        let solid = try await Self.box(kernel)
+        let a = Task { try await Self.project(cache, [solid], kernel) }
+        await gate.waitForEntries(1)
+        let b = Task { try await Self.project(cache, [solid], kernel) }
+        await Self.waitForWaiters(2, in: cache)
+        a.cancel()
+        b.cancel()
+        await #expect(throws: CancellationError.self) { try await a.value }
+        await #expect(throws: CancellationError.self) { try await b.value }
+        #expect(await cache.waitingCount == 0)
+        await gate.open()
+        await seen.waitUntilSet()
+        #expect(await cache.count == 0)
+        // The next request builds again.
+        await kernel.setProjectionHook(nil)
+        _ = try await Self.project(cache, [solid], kernel)
+        #expect(await cache.count == 1)
+        #expect(await cache.kernelCalls == 2)  // the cancelled build counted 1; the rebuild is the 2nd
+    }
+
+    static func waitForWaiters(_ count: Int, in cache: ProjectionCache) async {
+        while await cache.waitingCount < count { await Task.yield() }
     }
 
     @Test func twoConcurrentMultiSolidRequestsCompoundOnce() async throws {
@@ -152,11 +194,28 @@ struct ProjectionCacheTests {
         let cache = ProjectionCache()
         let solids = [try await Self.box(kernel), try await Self.box(kernel)]
         let a = Task { try await Self.project(cache, solids, kernel) }
-        let b = Task { try await Self.project(cache, solids, kernel) }
         await gate.waitForEntries(1)
+        let b = Task { try await Self.project(cache, solids, kernel) }
+        await Self.waitForWaiters(2, in: cache)
         await gate.open()
         _ = try await (a.value, b.value)
         #expect(await cache.compoundCalls == 1)
         #expect(await cache.kernelCalls == 1)
+    }
+}
+
+actor CancellationFlag {
+    private var isSet = false
+    private var watchers: [CheckedContinuation<Void, Never>] = []
+
+    func set() {
+        isSet = true
+        for watcher in watchers { watcher.resume() }
+        watchers.removeAll()
+    }
+
+    func waitUntilSet() async {
+        if isSet { return }
+        await withCheckedContinuation { watchers.append($0) }
     }
 }

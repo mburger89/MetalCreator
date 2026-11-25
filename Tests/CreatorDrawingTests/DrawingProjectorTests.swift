@@ -106,7 +106,9 @@ struct DrawingProjectorTests {
         let projector = DrawingProjector(cache: cache, kernel: kernel)
         let solid = try await ProjectionCacheTests.box(kernel)
         let ready = source(.ready(solids: [solid], curves: [], meshCount: 0))
-        _ = await projector.content(for: view(), scale: 2, source: ready, previous: nil)
+        let content = await projector.content(for: view(), scale: 2, source: ready, previous: nil)
+        // The size is the sheet's millimetres: the model's 10 mm at scale 2.
+        #expect(content.lastSize == Vector2(20, 20))
         // The same request through the cache with tolerance 0.005 is a hit.
         _ = try await cache.projection(
             of: [solid], curves: [], compoundTag: NodeTag(node: output, item: 0), frame: view().orientation.frame,

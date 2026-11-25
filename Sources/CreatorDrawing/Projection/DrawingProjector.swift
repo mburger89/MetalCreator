@@ -17,9 +17,10 @@ public struct DrawingProjector: Sendable {
         "Drawings show solids, sheets and curves; this Output holds a mesh. Mesh to Solid makes a solid of a small mesh."
 
     public static func meshesSentence(count: Int) -> String {
-        count == 1
+        let shown = count.formatted(.number.locale(.messages))
+        return count == 1
             ? "This view leaves out the Output's mesh; drawings show solids, sheets and curves."
-            : "This view leaves out the Output's \(count) meshes; drawings show solids, sheets and curves."
+            : "This view leaves out the Output's \(shown) meshes; drawings show solids, sheets and curves."
     }
 
     public func content(for view: DrawingView, scale: Double, source: DrawingSourceContent, previous: ViewContent?)
