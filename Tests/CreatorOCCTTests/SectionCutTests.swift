@@ -112,6 +112,19 @@ struct SectionCutTests {
         #expect(!onLine.isEmpty)
     }
 
+    @Test func aDiskSheetTheLineMissesIsKeptOrRemoved() async throws {
+        let ring = CurvePiece.arc(center: .zero, normal: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: 2 * .pi)
+        let sheet = try await kernel.planarSurface([try await kernel.makeCurve([ring], tag: source)], tag: source)
+        let points = [(-20.0, 34.5), (20.0, -5.5)]
+        let h = 0.5.squareRoot()
+        let line = points.map { Vector2($0.0, $0.1) }
+        let keptSide = SectionCutter(frame: top, points: line, viewing: Vector2(-h, -h))
+        let removedSide = SectionCutter(frame: top, points: line, viewing: Vector2(h, h))
+        let kept = try #require(try await kernel.cutAway(sheet, by: keptSide, tag: tag))
+        #expect(kept.topology.faces.count == sheet.topology.faces.count)
+        #expect(try await kernel.cutAway(sheet, by: removedSide, tag: tag) == nil)
+    }
+
     @Test func cancelledBeforeTheBoolean() async throws {
         let part = try await box()
         let line = cutter([(-5, 5), (45, 5)])

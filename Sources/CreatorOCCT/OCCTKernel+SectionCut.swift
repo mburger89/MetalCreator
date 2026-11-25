@@ -29,7 +29,9 @@ extension OCCTKernel {
                           xAxis: frame.right)
         let segments = polygon.indices.map { Segment2D.line(polygon[$0], polygon[($0 + 1) % polygon.count]) }
         let tool = try await extrude(Profile2D(plane: plane, segments: segments), distance: far - near + 2, mode: .symmetric, tag: tag)
-        if solid.hasOpenShell && !solid.holdsClosedSolid { return try await cutSheet(solid, by: tool, tag: tag) }
+        if solid.hasOpenShell && !solid.holdsClosedSolid {
+            return try await cutSheet(solid, by: tool, frame: frame, removed: polygon, tag: tag)
+        }
         return try await subtract(tool, from: solid, tag: tag)
     }
 
@@ -69,8 +71,20 @@ extension OCCTKernel {
 
     /// A value of sheets only: `occt_boolean` needs a solid, so the sheet is split by the prism (NS-4's body cutter) and the faces
     /// outside it kept.
-    private func cutSheet(_ sheet: Solid, by tool: Solid, tag: NodeTag) async throws -> Solid? {
-        let split = try await self.split(sheet, by: .body(tool), tag: tag)
+    private func cutSheet(_ sheet: Solid, by tool: Solid, frame: ProjectionFrame, removed: [Vector2],
+                          tag: NodeTag) async throws -> Solid? {
+        let split: SheetSplit
+        do {
+            split = try await self.split(sheet, by: .body(tool), tag: tag)
+        } catch let error as KernelError {
+            // The splitter refuses when the prism divides nothing (the line misses a sheet that only its bounding rectangle
+            // meets): then the whole sheet lies on one side, which one point of it tells.
+            guard case .invalidInput(let message) = error, message == Self.noCutMessage,
+                  let face = sheet.topology.faces.first else { throw Self.cutFailure }
+            return Self.contains(removed, frame.place(face.centroid)) ? nil : sheet
+        } catch is OCCTError {
+            throw Self.cutFailure
+        }
         try Task.checkCancellation()
         guard let inside = split.inside else { throw Self.cutFailure }
         let kept = split.whole.topology.faces.indices.map { FaceID($0) }.filter { !inside.contains($0) }
@@ -78,6 +92,8 @@ extension OCCTKernel {
         if inside.isEmpty { return sheet }
         return try subSheet(kept, of: split.whole)
     }
+
+    private static let noCutMessage = "The cutter doesn't cut the surface."
 
     private static var cutFailure: KernelError {
         .operationFailed(operation: "section", reason: "the section couldn't be cut through this part.")
