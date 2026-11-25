@@ -44,4 +44,17 @@ struct DrawingToolbarTests {
         let middle = try await labels(width: 200, model: model)
         #expect(middle == ["Base View", "More ✓"])
     }
+
+    @Test func everyToolHasAButtonOrMore() async throws {
+        let model = model()
+        let titles = DrawingTool.allCases.compactMap(\.title)
+        #expect(titles == Self.everyTool, "all eleven, in R17's order")
+        for width in [1000.0, 700, 400, 200, 100] {
+            let shown = try await labels(width: Float(width), model: model)
+            let more = shown.contains { $0.hasPrefix("More") }
+            let buttons = shown.filter { !$0.hasPrefix("More") }
+            #expect(buttons == Array(Self.everyTool.prefix(buttons.count)), "the buttons are the first tools: \(shown)")
+            #expect(more == (buttons.count < Self.everyTool.count), "the rest are in More at \(width): \(shown)")
+        }
+    }
 }

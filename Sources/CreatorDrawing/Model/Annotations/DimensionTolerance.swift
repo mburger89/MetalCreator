@@ -28,7 +28,7 @@ public enum FitDesignation: Hashable, Sendable {
         }
     }
 
-    static let grades = 5...11
+    public static let grades = 5...11
 }
 
 extension FitDesignation: Codable {

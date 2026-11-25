@@ -39,6 +39,8 @@ struct SheetTextView: Component, Equatable {
             }
         }
         .frame(width: (text.run.width * zoom).px, height: lift.px, alignment: .topLeading)
+        // The baseline's left end is the frame's bottom left, and a positive angle turns counter-clockwise on a y-up sheet (R16).
+        .rotationEffect(.radians(-text.angle), anchor: .bottomLeading)
         .offset(x: (text.origin.x * zoom).px, y: ((paperHeight - text.origin.y) * zoom - lift).px)
     }
 }

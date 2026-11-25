@@ -2,11 +2,13 @@ import CreatorDrawing
 import CreatorStyle
 import MetalUI
 
-/// The sheet's border, zones and title block: everything of the picture that belongs to no view. `.equatable()`, `==` over every
+/// The sheet's border, zones and title block, and the annotations that belong to no view: everything of the picture that
+/// belongs to no view. `.equatable()`, `==` over every
 /// stored property.
 struct SheetFrameLayer: Component, Equatable {
     let strokes: [SheetStroke]
     let texts: [SheetText]
+    let fills: [SheetFill]
     let zoom: Double
     let paperHeight: Double
     let colors: DrawingColors
@@ -14,7 +16,9 @@ struct SheetFrameLayer: Component, Equatable {
 
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            SheetStrokeGroups(strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style)
+            SheetStrokeGroups(
+                strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style, fills: fills,
+                warning: colors.warning)
             SheetTexts(
                 texts: texts, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, warning: colors.warning)
         }

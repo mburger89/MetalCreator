@@ -45,6 +45,9 @@ struct ViewInspector: Component {
             Toggle("Hidden lines", isOn: Binding(get: { view.showsHidden }, set: { model.setShowsHidden($0, of: view.id) }))
             Toggle("Tangent edges", isOn: Binding(get: { view.showsTangent }, set: { model.setShowsTangent($0, of: view.id) }))
             Toggle("Label", isOn: Binding(get: { view.showsLabel }, set: { model.setShowsLabel($0, of: view.id) }))
+            Toggle(
+                "Centre marks",
+                isOn: Binding(get: { view.showsCentreMarks }, set: { model.setShowsCentreMarks($0, of: view.id) }))
             if let refusal = model.refusal {
                 Text(refusal).font(.caption).foregroundStyle(colors.warning.color)
             }
