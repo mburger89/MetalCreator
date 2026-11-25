@@ -75,7 +75,7 @@ var targets: [Target] = [
     .target(name: "CreatorDrawing", dependencies: ["CreatorKernel", "CreatorGeometry"]),
     .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
     // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
-    .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+    .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch", "CreatorDrawing"]),
     // Implicit solids and meshes (implicit spec §2 to §4): the value types, the CPU evaluator, the Metal compiler, the sparse
     // octree and the mesher. Depends on CreatorGraph for `Field`; CreatorGraph holds them only as `ImplicitPayload` and
     // `MeshPayload`. Portable: the Metal compiler is gated with `#if canImport(Metal)`, the SDL_GPU backend, `Sources/CreatorImplicit/SDL`
@@ -163,7 +163,9 @@ var targets: [Target] = [
         ]
     ),
     .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
-    .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+    .testTarget(
+        name: "CreatorGraphTests",
+        dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch", "CreatorDrawing"]),
     .testTarget(
         name: "CreatorNodesTests",
         dependencies: [

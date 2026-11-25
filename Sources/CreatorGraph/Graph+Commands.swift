@@ -144,6 +144,11 @@ extension Graph {
             units = new
             return .setUnits(old)
 
+        case .setDrawings(let new):
+            let old = drawings
+            drawings = new
+            return .setDrawings(old)
+
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
             throw .invalidValue("A group edit applies to the whole document, not to one graph.")
         }

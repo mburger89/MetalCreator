@@ -32,7 +32,7 @@ struct ImageFileTests {
     // MARK: Format 7
 
     @Test func filesAreWrittenAsTheCurrentFormatAndAnImageFreeFileHasNoImagesKey() throws {
-        #expect(GraphFile.currentFormatVersion == 16)
+        #expect(GraphFile.currentFormatVersion == 17)
         let object = try json(try document([]).fileData())
         #expect(object["formatVersion"] as? Int == GraphFile.currentFormatVersion)
         #expect(object["images"] == nil, "written only when there are images")
@@ -214,9 +214,9 @@ struct ImageFileTests {
     }
 
     @Test func aNewerFormatIsRefusedWithTheExistingMessage() throws {
-        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 17")
-        #expect(throws: GraphFileError.newerFormat(17)) { try reopened(Data(text.utf8)) }
-        #expect(GraphFileError.newerFormat(17).message
-            .hasPrefix("This file was saved by a newer version of MetalCreator (file format 17)."))
+        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 18")
+        #expect(throws: GraphFileError.newerFormat(18)) { try reopened(Data(text.utf8)) }
+        #expect(GraphFileError.newerFormat(18).message
+            .hasPrefix("This file was saved by a newer version of MetalCreator (file format 18)."))
     }
 }
