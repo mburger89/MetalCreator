@@ -1542,3 +1542,22 @@ BENCH mesh-import-5 binary STL soup, 10,000,000 triangles: 4406.1 ms to the firs
 BENCH mesh-import-7 units edit after the first read, 1000000 triangles: median 64.9 ms (n 5)
 BENCH mesh-import-8 units edit after the first read, 10000000 triangles: median 663.5 ms (n 5)
 ```
+
+## Drawings
+
+Plan `docs/superpowers/plans/2026-11-24-dr-1-sheets-views-pdf.md`, Task 14; `Tests/CreatorAppTests/Bench/DrawingBench.swift` (`scripts/bench.sh DrawingBench`, release, OpenCascade). The sheet is the §7.2 bracket on an A3 sheet with its Front, Right, Top and Isometric views at the scale R8 picks. The Mac was loaded (load average 6.5 over one minute, 12 cores), so the numbers are recorded as saturated, never as a verdict.
+
+| Row | Time | Budget |
+|---|---|---|
+| `drawing-1` four projections, from the edit that adds the views to the last one landing (projection cache emptied, 10 runs) | median 8.27 ms, p95 8.87 ms, max 8.87 ms | under 1 s: met |
+| `drawing-2-warm` 60 pan steps and 60 zoom steps of the sheet canvas, warm window CPU time per frame (115 frames after warm-up) | median 11.70 ms, p95 16.36 ms, max 18.72 ms | 16.67 ms: median and p95 met, max over |
+
+```text
+BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
+BENCH load before: 6.53 11.22 14.11
+BENCH drawing-1 bracket, four views projected (cache emptied): median 8.27 ms, p95 8.87 ms, max 8.87 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-2-warm window-cpu (warm frame): median 11.70 ms, p95 16.36 ms, max 18.72 ms (n 115); budget 16.67 ms: met
+BENCH load after: 4.78 9.50 13.17
+```
+
+Each `drawing-1` round gives the views new IDs: the session remembers what it applied per view, so the same IDs would see an unchanged view and project nothing (a first run without this printed 0.12 ms). The benchmark checks that the cache's kernel calls grew by at least four per round.
