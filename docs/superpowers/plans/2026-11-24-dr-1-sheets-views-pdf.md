@@ -124,14 +124,29 @@ sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools ar
   Everything is computed every time (visible and hidden; sharp, smooth, outline, sheet boundary and curve), so the display flags never
   re-project; `options` is only the polyline `tolerance` in model mm (`0.01 / scale`). Seams (an edge closed on its face) are dropped;
   a regular-N edge that is not a seam is smooth; iso lines are never drawn. An Output with several solids is projected as one
-  `Kernel.compound` of them (tag: the Output node, item 0), so they hide each other. Cost: a compound on every projection of a
-  multi-solid Output (cached).
-- **R10. The shim reads `HLRBRep_Data` per edge** (spec's spike). HLR data edge i is edge i of `TopExp::MapShapes(outlined shape,
-  TopAbs_EDGE)` as `HLRBRep_ShapeToHLR` builds it; an edge `IsSame` as an edge of the input's own edge map is that edge's source; any
-  other is an outline, whose face is found through `HLRTopoBRep_Data::OutLines(face)` over the input's faces. Each visible and hidden
-  interval (`HLRAlgo_EdgeIterator` over `EdgeData::Status()`) becomes one line; its 2D geometry is exact when `HLRBRep_Curve::GetType`
+  `Kernel.compound` of them (tag: the Output node, item 0), so they hide each other. The compound is made **by the cache, on a miss**
+  (R19): the cache is keyed on the source solids' own identities, never on the compound's (`Kernel.compound` returns a new `Solid`
+  every call, so a key on it would miss every time and re-project an unchanged multi-solid Output after any edit). Cost: one compound
+  per cache entry, kept alive by it.
+- **R10. The shim reads `HLRBRep_Data` per edge** (spec's spike). HLR data edge i is the shape at index i of the data's own edge map
+  (`HLRBRep_Data::EdgeMap()`, which `HLRBRep_ShapeToHLR` builds from the outlined shape by its own exploration); the shim never assumes
+  that order equals `TopExp::MapShapes` of anything and matches shapes **by `IsSame` only** (the input's `TopTools_IndexedMapOfShape`
+  of edges and of faces, `FindIndex`). The full source rule, in this order, for the shape S of HLR edge i:
+  1. S is a **split piece**: the outliner inserts vertices where an outline meets an edge (a cylinder's circles seen side on are cut
+     at the outlines), and its `HLRTopoBRep_Data` lists the pieces of an original edge E (`EdgeHasSplE(E)`, `EdgeSplE(E)`). Before
+     reading, the shim walks every input edge E that has split pieces and records piece → E (by `IsSame`; `NewSOldS(S)` is the
+     cross-check where the outliner recorded one); S resolves to its E, which is then classified by step 2. Several pieces, and so
+     several lines, share one source.
+  2. S (or its E) `IsSame` an input edge: that edge is the source.
+  3. S is in `HLRTopoBRep_Data::FaceOutL(F)` of an input face F (`FaceHasOutL`; looked up through a map built once from every input
+     face's outline list, split outlines resolved as in step 1): an `.outline` sourced `.face(F)`.
+  4. S is in `FaceIntL(F)` or `FaceIsoL(F)` (internal and iso lines): dropped, never drawn.
+  5. Anything else: `source_kind` −1 (none). The tests assert no such line on a box, a cylinder, a filleted box or the bracket; under
+     the primary path a sourceless line is a bug, not a fallback.
+  Each visible and hidden interval (`HLRAlgo_EdgeIterator` over `EdgeData::Status()`) becomes one line; its 2D geometry is exact when `HLRBRep_Curve::GetType`
   is a line, circle or ellipse, else a polyline by `GCPnts_QuasiUniformDeflection` at the tolerance. Free curve edges go into the same
-  run, so solids hide them. **Fallback** (taken only if Task 2's first step shows the mapping can't be made): `HLRBRep_HLRToShape`'s six
+  run, so solids hide them; step 2 matches them against each input curve's edges (`.curve(index:piece:)`, the piece its place in its
+  wire), split pieces resolved by step 1 likewise. **Fallback** (taken only if Task 2's first step shows the mapping can't be made): `HLRBRep_HLRToShape`'s six
   compounds (visible and hidden sharp, smooth, outline), each result edge matched to a model edge by projecting that edge's points with
   the same `HLRAlgo_Projector` (midpoint and both ends within 1e-6 mm); unmatched edges get `source == nil`, and curves are drawn
   unhidden. The outcome is appended to the ledger and becomes an erratum under this ruling. Cancellation: OCCT 7.9's `Update` and
@@ -156,9 +171,23 @@ sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools ar
 - **R13. Lettering.** A text's height h is its cap height (ISO 3098); Helvetica's cap height is 718/1000 em, so the em size is h / 0.718.
   Widths are Adobe's Core 14 `Helvetica.afm` advances (WinAnsi), no kerning. Each character is mapped to WinAnsi first; one outside it
   is laid out, drawn and written as "?" everywhere (screen, PDF and DXF agree), the text keeps its typed original, and an export warns
-  once per text: "“<original>” has characters the PDF font can't show, so they're written as “?”.". The screen places each glyph at its
-  Helvetica advance in the app's sans-serif (`.system`), so a line is as wide on screen as on paper. A value wider than its title-block
-  field is shrunk to fit, never below 1.8 mm, then cut with "…".
+  once per **distinct original text** across everything it writes (the same title on three sheets is one warning; deduplicated by the
+  original string, in first-seen order of page then drawing order, by one shared `ReplacedTexts.collect(_ texts: [SheetText]) ->
+  [String]`): "“<original>” has characters the PDF font can't show, so they're written as “?”.". The PDF and both DXF exports report
+  their replacements the same way (`PDFOutput.replacedTexts`, `DXFOutput.replacedTexts`; the sentence says "the PDF font" for every
+  format, since the DXF text is the same shown string). A value wider than its title-block field is shrunk to fit, never below 1.8 mm,
+  then cut with "…".
+  **On screen** each glyph of a run is its own MetalUI `Text` in the app's sans-serif (`.system`) at em size h / 0.718 × zoom points:
+  - x: the glyph's left edge is the run's origin x plus its Helvetica offset (`TextRun.offsets`), × zoom, so a line is as wide on screen
+    as on paper.
+  - y: MetalUI has no public way to read a laid-out text's baseline, but an `HStack(alignment: .firstTextBaseline, spacing: 0)` aligns
+    each child's first baseline, and a child with no text (a `Color.clear.frame(width: 0, height: B)`) aligns its bottom. So each glyph
+    is `HStack(alignment: .firstTextBaseline, spacing: 0) { Color.clear.frame(width: 0, height: B); Text(glyph) }` with B = 2 × the em
+    size (above any face's ascent, so the clear child is always the tallest above the baseline), `.fixedSize()`, its top-left placed at
+    (glyph x, screen baseline y − B): the glyph's baseline then lies exactly on `SheetText.origin.y` mapped by the transform, whatever the
+    face's ascent or leading. One `SheetTextView` builds the whole run this way; nothing reads the screen font's metrics. If a render test
+    shows MetalUI does not honour this (a baseline off by more than 0.5 pt), it is logged as gap `DR-1-a` (a public first-baseline
+    reading) and reported, not patched here.
 - **R14. Sheets** (ISO 5457 sizes in mm, portrait width × height: A4 210 × 297, A3 297 × 420, A2 420 × 594, A1 594 × 841, A0 841 × 1189; ANSI
   A 215.9 × 279.4, B 279.4 × 431.8, C 431.8 × 558.8, D 558.8 × 863.6, E 863.6 × 1117.6). Frame margins: ISO 20 mm left, 10 mm elsewhere;
   ASME 12.7 mm all round. Zones per frame side: `2 × max(1, round(side / 100 mm))` equal fields (this reproduces ISO 5457's table, A0's 24 × 16
@@ -194,17 +223,24 @@ sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools ar
 - **R16. Mass.** The sheet's views all show one Output and the sheet's title block has a density (g/cm³): mass = the volume of that
   Output's closed solids (`Kernel.properties(of:)`, mm³) × density / 1000 grams; else the field is empty. Shown "8.4 g" under 10 g, "84 g"
   under 1000 g, "1.234 kg" above, or pounds ("2.721 lb") when the document's length unit is inches.
-- **R17. The projection symbol** (ISO 5456-2), thin lines, h = 3.5 mm: a truncated cone seen side on (a trapezoid, its big end 2h tall,
-  its small end h tall, 2h long) and end on (circles of diameters 2h and h), 1.5h apart, with a thin horizontal centre line through both.
+- **R17. The projection symbol** (ISO 5456-2), thin lines, h = **2.5 mm** in the title block: a truncated cone seen side on (a trapezoid,
+  its big end 2h tall, its small end h tall, 2h long) and end on (circles of diameters 2h and h), 1.5h apart, with a thin horizontal centre
+  line through both that runs 0.25h past each end. Its box is therefore 6h × 2h (`DrawingSymbols.projectionSymbolSize(h:)`), 15 × 5 mm,
+  centred in R15's 18 × 10 mm field with 1.5 mm to spare on each side. Why 2.5: ISO 5456-2 sizes the symbol by the lettering height, 2.5 mm
+  is the notes height of the sheets DR-1 makes by default, and the field is the same size on every sheet; h = 3.5 would make the box 21 mm,
+  wider than the 18 mm field. The symbol takes no width parameter; a caller with a box chooses h so 6h × 2h fits it.
   First angle: trapezoid left with its big end at the left, circles right; third angle: circles left, trapezoid right with its big end
   toward the circles. Drawn by `DrawingSymbols`, never a glyph.
 - **R18. View labels.** Off by default. When shown: the orientation's title ("Front", "Isometric"; a projected view whose frame equals a
   standard orientation within 1e-9 takes its title, any other "View"), plus " (1 : 2)" when its scale differs from the sheet's,
   upper case for ASME, 5 mm (6 mm ASME), centred 8 mm below the view's frame.
-- **R19. The cache.** One `ProjectionCache` per `AppModel` (emptied on New and Open), keyed by the solid's and curves' identities (the entry
-  keeps them alive, so an identity can't be reused), the frame and the options; 512 MB by `Projection2D.estimatedBytes`, least recently
-  used first, always keeping the newest; two identical requests in flight share one kernel call. An edit re-projects only views whose
-  Output's solids or curves changed identity (a hit otherwise); while a projection is pending the old one stays drawn at 40 % opacity.
+- **R19. The cache.** One `ProjectionCache` per `AppModel` (emptied on New and Open), keyed by the **ordered identities of the source's
+  solids** (each one the Output holds, never a compound of them), the curves' identities, the compound's tag, the frame and the options;
+  the entry keeps the solids and curves alive, so an identity can't be reused. On a miss with two or more solids the cache makes the
+  compound itself (`kernel.compound(solids, tag:)`) and projects it, so a multi-solid Output costs one compound and one projection per
+  entry and an unchanged one is a hit. 512 MB by `Projection2D.estimatedBytes`, least recently used first, always keeping the newest; two
+  identical requests in flight share one kernel call (and one compound). An edit re-projects only views whose Output's solids or curves
+  changed identity (a hit otherwise); while a projection is pending the old one stays drawn at 40 % opacity.
 - **R20. A view's source.**
   - Removed Output: an empty frame (its last drawn size, else 40 × 30 mm) saying "The Output this view showed was removed.";
     undo brings the node back and the view draws again (the view itself never changed).
@@ -214,7 +250,11 @@ sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools ar
   - Only meshes: "Drawings show solids, sheets and curves; this Output holds a mesh. Mesh to Solid makes a solid of a small mesh.".
   - Nothing yet: "This Output holds nothing to draw yet.".
 - **R21. Mode switching.** `AppModel.mode` (`.model` / `.drawing`): the top bar's segmented "Model | Drawing", View ▸ Drawing
-  (⌘⇧D, `.primary + .shift`) and View ▸ Model. Entering Drawing finishes the sketch (`finishSketch()`), cancels a pick (`cancelPick()`),
+  (⌘⇧D, `.primary + .shift`) and View ▸ Model. ⌘⇧D must reach the menu wherever the pointer is: today
+  `GraphKeyBindings.commandChord` maps "d" to `.duplicate` with or without ⇧ (`Sources/CreatorEditor/GraphKeyBindings.swift`), so over the
+  graph canvas its `hoverKeyRegion` would duplicate the selected nodes instead. DR-1 makes a shifted "d" return `nil` there (⌘D alone
+  still duplicates), so the chord falls through to the menu's shortcut.
+  Entering Drawing finishes the sketch (`finishSketch()`), cancels a pick (`cancelPick()`),
   ends Measure, the model dimension tool and the control-point mode. In Drawing the viewport's keys (D, M, Z, F, +, −) do nothing and an
   inspector action that needs the viewport ("Edit sketch", a "Pick … in View…" button, "Edit Control Points") switches to Model first,
   then runs. With no sheet the canvas shows "Add Sheet" (nothing is added until it is pressed, so entering never dirties a document).
@@ -228,21 +268,36 @@ sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools ar
   annotations).
 - **R23. PDF.** PDF 1.7, objects in a fixed order: 1 catalog, 2 pages, 3 font (`/Type1 /Helvetica /WinAnsiEncoding`, not embedded), 4
   info (`/Producer (MetalCreator)` and `/Title`), then per page its page object and its content stream; no dates and no `/ID`, LF line
-  ends, uncompressed streams, a binary comment line after the header, a classic xref of 20-byte entries. Each page's `MediaBox` is the
+  ends, uncompressed streams, a binary comment line after the header, a classic xref of 20-byte entries. With LF line ends an xref entry
+  is `nnnnnnnnnn ggggg n` followed by a space and an LF (PDF 32000-1 §7.5.4's two-byte end of line), so every entry is exactly 20 bytes and
+  ends " \n"; the free entry 0 is `0000000000 65535 f \n`. Each page's `MediaBox` is the
   sheet in points (mm × 72 / 25.4) and its content starts with `2.834645669 0 0 2.834645669 0 0 cm`, so every other number is sheet mm.
   Numbers are written by `PDFNumber` from integers (4 decimals in mm, trailing zeros dropped, "-0" written "0"), never by a platform
   formatter. Caps butt (`0 J`), joins round (`1 j`), black ink only (`0 G`, `0 g`). Text: `BT /F1 <em mm> Tf <x> <y> Td (<bytes>) Tj ET`,
   with `\`, `(` and `)` escaped and bytes above 126 written `\ddd`. Highlights, hover and selection never reach the PDF. Cost: arc control
   points use `tan`, which could differ in a last bit across libms; at 4 decimals that only shows on a rounding tie, and the digest test
   on all three platforms would catch it.
-- **R24. DXF.** ASCII R2000 (`AC1015`), `$INSUNITS` 4, `$DWGCODEPAGE ANSI_1252`, `$LTSCALE` 1; sections HEADER, CLASSES (empty),
+- **R24. DXF.** ASCII R2000 (`AC1015`), `$INSUNITS` 4, `$DWGCODEPAGE ANSI_1252`, `$LTSCALE` 1, `$HANDSEED` (one past the largest handle
+  written); sections HEADER, CLASSES (empty),
   TABLES (VPORT `*Active`, LTYPE `ByBlock` `ByLayer` `Continuous` `DASHED` [3, −1.5] `CENTER` [6, −0.75, 0, −0.75], LAYER `0` and VISIBLE,
   HIDDEN (DASHED), TANGENT, CENTER (CENTER), DIMENSION, TEXT, HATCH, FRAME, all colour 7, lineweights 50, 25, 25, 25, 25, 25, 25, 70
   (×0.01 mm; ASME 60 and 30), STYLE `Standard`, VIEW, UCS, APPID `ACAD`, DIMSTYLE `Standard`, BLOCK_RECORD `*Model_Space` and
-  `*Paper_Space`), BLOCKS (the two space blocks), ENTITIES, OBJECTS (the root dictionary with `ACAD_GROUP`); every object has a handle
-  (code 5, hex, sequential from 0x20) and its owner (330) and subclass markers (100). Entities: LINE, ARC (degrees, counter-clockwise),
+  `*Paper_Space`, each with a 340 naming its LAYOUT), BLOCKS (the two space blocks, each BLOCK and ENDBLK owned by its BLOCK_RECORD),
+  ENTITIES (owned by `*Model_Space`'s BLOCK_RECORD), OBJECTS; every object has a handle (code 5, hex, sequential from 0x20) and its owner
+  (330) and subclass markers (100). **OBJECTS is what AutoCAD needs beyond what LibreCAD and QCAD accept** (the spec's anti-goal names
+  AutoCAD, so the minimum those two read is not enough): the root DICTIONARY (owner 0) names `ACAD_GROUP` (an empty DICTIONARY),
+  `ACAD_LAYOUT` (a DICTIONARY naming `Model` and `Layout1`), `ACAD_MLINESTYLE` (a DICTIONARY naming `Standard`, one MLINESTYLE),
+  `ACAD_PLOTSETTINGS` (an empty DICTIONARY) and `ACAD_PLOTSTYLENAME` (an ACDBDICTIONARYWDFLT naming `Normal`, an ACDBPLACEHOLDER, which is
+  also its default, 340); each LAYOUT carries `AcDbPlotSettings` then `AcDbLayout` (name, tab order 0 for Model and 1 for Layout1, limits
+  and extents of the sheet or the view, its BLOCK_RECORD as 330) and is the target of that BLOCK_RECORD's 340, so the two link both ways;
+  dictionaries and the objects they own carry their `{ACAD_REACTORS` (102, 330 owner, 102 `}`). The group codes follow Autodesk's *DXF
+  Reference* for AutoCAD 2000 and the minimal R2000 file ezdxf documents ("DXF internals: DXF file structure"); the implementer copies
+  them from there, not from memory. `DXFReader` (tests) checks these links. Human check DR1-6 opens the file in AutoCAD or Autodesk's free
+  DWG TrueView with no repair or audit prompt; a prompt there is a DR-1 bug, not a narrowing of the anti-goal. Cost if wrong: one
+  object section to amend. Entities: LINE, ARC (degrees, counter-clockwise),
   CIRCLE (a full arc), ELLIPSE (centre, major axis end, ratio, start and end parameters), LWPOLYLINE, TEXT (height = cap height,
-  `Ø` as `%%c`, `±` `%%p`, `°` `%%d`, other non-ASCII `\U+XXXX`). Each stroke carries its layer and its own lineweight (370).
+  `Ø` as `%%c`, `±` `%%p`, `°` `%%d`, other non-ASCII `\U+XXXX`; the string written is the run's `shown`, so a character outside WinAnsi
+  is already "?", R13). Each stroke carries its layer and its own lineweight (370).
   Sheet mode: the open sheet, sheet mm, border, zones and title block on FRAME (title-block text on TEXT). View at 1:1: one view in
   model mm, x and y as R5's view-plane coordinates (a Top view of a plate keeps its model x and y), no frame. A reader's font widths
   differ from Helvetica's in DXF text; that's accepted (the DXF is for geometry).
@@ -252,12 +307,58 @@ sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools ar
   ("Nothing to export", "Add a sheet with a view first."), projects every view it writes (PDF: every sheet; DXF of Sheet: the open sheet;
   DXF of View: the one selected view, else "Select one view to export it at 1:1."), then writes in one go (no progress sheet) and lists the
   warnings (meshes left out, replaced characters) in the existing summary.
+  **How the spec's "the export sheet (the existing one) gains PDF and DXF" is read.** In this codebase "the export sheet" is
+  `ExportSheetView` (`ExportSheetDock`): the progress card of the streamed mesh export, with a meshing bar and Cancel. A drawing export
+  has nothing for it to show: its projections are the cache's (already drawn on screen, or a few hundred milliseconds cold, row
+  `drawing-1`) and the writers take milliseconds, so the card would flash. The spec's intent, that PDF and DXF join the existing export
+  path while drawing mode is up, is met by the existing export entry points: the File menu's Export items and the top bar's Export menu,
+  with the existing file panel (`withFilePicker`, `tracked(_:)`), the same evaluate-first rule and the same warnings summary. STEP and STL
+  stay in that menu in Drawing and still use the export sheet when they stream. Cost if wrong: a huge sheet exported cold shows no
+  progress while its views project (the slow-evaluation chip shows while the graph evaluates); a progress card for drawings is parked.
 - **R26. Undo names** (`DrawingStepName`): "Add Sheet", "Rename Sheet", "Duplicate Sheet", "Delete Sheet", "Move Sheet", "Change Sheet Size",
   "Edit Title Block", "Change Standard", "Add View", "Move View", "Delete View", "Change Scale", "Change View" (source, orientation and display
-  flags). `UndoName.drawing(_:)` falls back to "Edit Drawing".
+  flags). `UndoName.drawing(_:)` falls back to "Edit Drawing". Every editor method that commits has exactly one name:
+
+  | `DrawingEditorModel` method | Step |
+  |---|---|
+  | `addSheet()` | Add Sheet |
+  | `renameSheet(_:to:)` | Rename Sheet |
+  | `duplicateSheet(_:)` | Duplicate Sheet |
+  | `deleteSheet(_:)` | Delete Sheet |
+  | `moveSheet(_:by:)` | Move Sheet |
+  | `setSheetSize(_:)`, `setSheetOrientation(_:)` (landscape / portrait) | Change Sheet Size |
+  | `setSheetScale(_:)` | Change Scale |
+  | `setTitleField(_:to:)` for any typed key, `.tolerance` included (which writes `DrawingSettings.generalTolerance`); `setDensity(_:)` | Edit Title Block |
+  | `setStandard(_:)` | Change Standard |
+  | a Base View click, a Projected View drop | Add View |
+  | a drag of views, a nudge run | Move View |
+  | `deleteSelection()` | Delete View |
+  | `setScale(_:of:)` (a view's override, or nil for the sheet's) | Change Scale |
+  | `setSource(_:of:)`, `setOrientation(_:of:)`, `setShowsHidden(_:of:)`, `setShowsTangent(_:of:)`, `setShowsLabel(_:of:)` | Change View |
+
+  `selectSheet(_:)`, the tool, the selection, hover and the canvas transform never commit. `setTitleField` with an automatic key (mass, scale,
+  projection, size, sheet) does nothing and commits nothing. A setter whose value equals the current one commits nothing.
 - **R27. Performance.** The canvas builds only views whose frames meet the visible rect grown by 20 %, each view an `.equatable()` component
   over its own strokes, texts and state; the frame and title block one more. Rows `drawing-1` (the bracket's four views projected from cold,
   target under 1 s) and `drawing-2` (a pan and a zoom of that sheet, warm, target 60 fps) are recorded in `docs/verification/performance.md`.
+- **R28. The window in Drawing mode** (the spec does not say what happens to the viewport's chrome). The sheet canvas fills the model area
+  in place of `ViewportPane`; whatever is about the 3D view goes with it, and whatever is about the document or the graph stays:
+
+  | In Drawing | What |
+  |---|---|
+  | Hidden | `FieldLegendDock` (the field preview pauses: no sampling is requested), `MeshBadgeDock`, `SectionPanelDock` (the Section, Measure and Zebra panels), the model-dimension and pick banners and `PointerReadoutView` (none can be up: R21 ends them), the control-net views (ended), the face menu (no viewport to open it) |
+  | Kept | `SlowEvaluationDock` (the views wait on evaluation, so the chip still says what is building; its insets are the same), `AIConnectedDock`, `ExportSheetDock` (a STEP or STL export started from Drawing still streams), `PaletteDock` and `LibraryDragOverlay` (the graph panel stays), the theme editor |
+  | Top bar | the document's name with its drag handle, the segmented "Model \| Drawing", `DrawingToolbar`, Undo, Redo and the Export menu (STEP…, STL…, a divider, PDF…, DXF of Sheet…, DXF of View at 1:1…); the Preview picker and the Analysis menu are hidden (both act on the viewport) |
+  | View menu | Show/Hide Section, Flip Section, Measure and Show/Hide Zebra Stripes are disabled |
+
+  The section's, zebra's and measurements' view state is left exactly as it was (`document.section`, `document.zebra`, kept measurements),
+  so returning to Model shows them again; hiding them is neither an edit nor an undo step. Cost if wrong: one table.
+
+**Amended after the plan review (2026-11-24).** R9 and R19 (the cache keys on the source solids and compounds on a miss; a key on the
+compound missed every time), R10 (the full source rule with split pieces, matched by `IsSame` over the data's own edge map), R13 (warnings
+deduplicated by original text, for PDF and DXF alike; the on-screen baseline rule), R17 (h = 2.5 so the symbol fits its field), R21 (⌘⇧D
+is no longer the graph's Duplicate), R23 (xref entries end " \n"), R24 (the OBJECTS AutoCAD expects and `$HANDSEED`), R25 (what "the
+export sheet" is read as), R26 (every editor method mapped to its step, `setSheetScale` added) and R28 (new: the window in Drawing).
 
 **Backlog.** There was no drawings backlog. Pulled in: a `CIPinTests` pin that `Package.swift`'s OCCT toolkit list and the Linux
 Dockerfile's `BUILD_ADDITIONAL_TOOLKITS` agree (TKHLR is the first toolkit added since that list was written twice). Nothing from the
@@ -276,8 +377,9 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
    and 100 mm in the DXF of the view at 1:1; a 2:1 override on one view of a 1:1 sheet draws that view twice as large and labels it. Tasks 7
    (`aHalfScaleViewMeasuresHalfOnPaper`), 8 (`sheetAndViewModesMeasureTrue`), 6 (`aViewOverrideScalesOnlyThatView`).
 3. **Typed text outside WinAnsi** (a title "Ω-Bracket →"): "?" in its place on screen, in the PDF and in the DXF, the inspector keeps the
-   typed text, and one warning names it. Tasks 5 (`aCharacterOutsideWinAnsiLaysOutAsAQuestionMark`), 7 (`replacedTextsAreReported`), 13
-   (`theExportWarnsAboutReplacedCharactersOnce`).
+   typed text, and one warning names it, however many sheets carry it (R13: deduplicated by the original text), in the PDF and in both
+   DXF exports. Tasks 5 (`aCharacterOutsideWinAnsiLaysOutAsAQuestionMark`), 7 (`replacedTextsAreReported`), 8
+   (`replacedTextsAreReported`), 13 (`theExportWarnsAboutReplacedCharactersOnce`).
 4. **Switching the standard after projected views exist.** Every child mirrors across its parent, grandchildren with them, frames and
    alignments unchanged, one "Change Standard" step that undo reverses. Task 6 (`switchingTheStandardMirrorsChildren`), Task 10
    (`changeStandardIsOneStep`).
@@ -294,8 +396,8 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   `Sources/CreatorKernel/Projection/Projection2D.swift` (with `ProjectedLine`, `ProjectedCurve`, `LineVisibility`, `LineClass`,
   `ProjectionSource`, `ProjectionOptions`), `Sources/CreatorKernel/Projection/ProjectedCurve+Bounds.swift`,
   `Sources/CreatorKernel/FakeKernel+Projection.swift`
-- Modify: `Sources/CreatorKernel/Kernel.swift` (requirement and refusing default), `Sources/CreatorKernel/FakeKernel.swift` (the hook's
-  storage and the override)
+- Modify: `Sources/CreatorKernel/Kernel.swift` (requirement and refusing default), `Sources/CreatorKernel/FakeKernel.swift` (the two hooks'
+  storage, the projection override and a `compound` override that keeps today's refusal without a hook)
 - Test: `Tests/CreatorGeometryTests/Rect2DTests.swift`, `Tests/CreatorKernelTests/ProjectionTypesTests.swift`,
   `Tests/CreatorKernelTests/FakeKernelProjectionTests.swift`
 
@@ -323,6 +425,9 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
     Int` (64 per line + 16 per polyline point).
   - `Kernel.projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) async throws -> Projection2D`;
     the extension's synchronous default throws `KernelError.unsupported("projecting views")`.
+  - `FakeKernel`: `setCompoundHook(_ hook: (@Sendable ([Solid]) throws -> Solid)?)`: with a hook, `FakeKernel.compound` returns what it
+    returns (tests count calls through it); without one it throws `KernelError.unsupported("compounds")` exactly as today, so no
+    existing test changes.
   - `FakeKernel`: `setProjectionHook(_ hook: (@Sendable () async throws -> Void)?)` (runs first, as `setSectionHook` does); a solid's
     bounding box seen along one of the six axis directions gives four visible `.sharp` lines (its silhouette rectangle), each sourced from the
     box edge on that side nearest the viewer; curve i's `polyline` projects as one visible `.curve` polyline sourced `.curve(index: i, piece: 0)`
@@ -337,7 +442,8 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   - `FakeKernelProjectionTests`: `aBoxSeenFromTheFrontIsItsRectangle` (a 10 × 20 × 30 box at the origin → 4 visible sharp lines spanning x 0…10,
     y 0…30, sources four distinct edges); `aCurveProjectsAsACurveLine`; `aTiltedDirectionIsUnsupported`; `theDefaultRefuses` (a minimal
     `Kernel` conformer without the method throws "projecting views"); `theHookCanHoldACall` (a hook suspending on a continuation; the call
-    returns after it is resumed).
+    returns after it is resumed); `compoundRefusesWithoutAHook` (the old sentence) and `aCompoundHookAnswers` (its solid comes back, called
+    once).
 - [ ] **Step 2: Run** `swift test --filter 'Rect2DTests|ProjectionTypesTests|FakeKernelProjectionTests'`; compile failure.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter, then `swift test --filter CreatorKernelTests` and `--filter CreatorGeometryTests`; pass.
@@ -366,18 +472,25 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
     that a point on +right lands at +x and one on +up at +y, so the 2D coordinates are R5's.
   - Swift: lines with `source_kind` 0 whose edge `isBoundary` become `.sheetBoundary`; zero-length lines (an edge seen end on) are dropped.
 
-- [ ] **Step 1: The spike.** Before the full shim, write the reading loop over `HLRBRep_Data` for a box and a cylinder and the test
-  `spikeSourcesMapToTheInputsEdges` (below); time the bracket's four views. If the edge map cannot be made to agree with the input's (R10),
+- [ ] **Step 1: The spike.** Before the full shim, write the reading loop over `HLRBRep_Data` for a box and a cylinder and the tests
+  `spikeSourcesMapToTheInputsEdges` and `aCylinderSideOnHasTwoOutlines` (below), with R10's five-step source rule (split pieces, input
+  edges, outlines, dropped internal and iso lines, by `IsSame` over `EdgeMap()`; never by index order); time the bracket's four views. If
+  the data's edges cannot be resolved to the input's this way (R10),
   stop, implement R10's fallback instead, and record which path was taken, the timing and why in the report and in one ledger line;
   the controller adds the erratum to R10.
 - [ ] **Step 2: Tests** (all OCCT-gated; a box is 10 × 20 × 30 at the origin, a cylinder radius 5, height 20, axis +Z from the origin):
-  - `spikeSourcesMapToTheInputsEdges`: the box from the front → 4 visible sharp lines whose sources are exactly the 4 edges of the face
-    with normal (0, −1, 0); every hidden line's source is an edge of the face with normal (0, 1, 0).
+  - `spikeSourcesMapToTheInputsEdges`: the box from the front → visible sharp lines whose **set** of sources is exactly the 4 edges of the
+    face with normal (0, −1, 0) (several lines may share a source, if HLR split an edge; together they cover each edge's projected length
+    within 1e-9); every hidden line's source is an edge of the face with normal (0, 1, 0) or an edge running front to back seen end on
+    (dropped as zero length); no line has no source. The test never compares HLR's edge order with `TopExp::MapShapes`.
   - `aBoxFromTheFrontIsTrueSize`: the visible lines' bounds are x 0…10, y 0…30 within 1e-9.
-  - `anIsometricBoxShowsNineVisibleEdges` (front right): 9 visible, 3 hidden, all sharp, all line geometry.
-  - `aCylinderSideOnHasTwoOutlines` (front): 2 visible `.outline` lines at x = ±5 sourced `.face(the cylindrical face)`, the two circle edges
-    as visible sharp lines of length 10; no line sourced from the seam.
-  - `aCylinderEndOnIsACircle` (top): one visible arc, radius 5 within 1e-9, sweep 2π, sourced from the top circle edge.
+  - `anIsometricBoxShowsNineVisibleEdges` (front right): visible lines from 9 distinct edges, hidden lines from the other 3, all sharp, all
+    line geometry.
+  - `aCylinderSideOnHasTwoOutlines` (front): the visible `.outline` lines lie at x = −5 and x = +5 (one or more pieces at each, all sourced
+    `.face(the cylindrical face)`, each side's pieces covering y 0…20); each circle edge's visible lines (split pieces where the outlines meet
+    it resolve to that circle edge, R10 step 1) together span x −5…5 at its height; no line is sourced from the seam and none has no source.
+  - `aCylinderEndOnIsACircle` (top): visible arcs of radius 5 within 1e-9, all sourced from the top circle edge, whose sweeps add up to 2π
+    (one arc unless HLR split the edge).
   - `aTiltedCircleIsAnExactEllipse` (isometric front right): the top circle edge is `.ellipse` with radii 5 and 5/√3 within 1e-9.
   - `aSplineEdgeIsAPolylineWithinTolerance`: a smooth Loft of three circles seen from the front → its side's outlines are polylines; every
     point lies within 0.01 mm of the outline found at tolerance 1e-4.
@@ -414,39 +527,47 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 
 **Interfaces:**
 - Consumes: `ProjectionFrame` (Task 1), `NodeID`.
-- Produces:
-  - `SheetID`, `ViewID`: UUID wrappers shaped exactly like `CommentID` (Codable as a bare UUID, `Comparable` by `uuidString`).
-  - `public enum DrawingStandard: String, Codable, CaseIterable { case iso, asme }`, `isFirstAngle` (iso true).
-  - `public enum SheetSize: String, Codable, CaseIterable { case a4, a3, a2, a1, a0, ansiA, ansiB, ansiC, ansiD, ansiE }`, `portrait:
-    Vector2` (R14's table), `title` ("A3", "B"), `isLarge` (A0 to A2, ANSI C to E: the 3.5 mm notes); `public enum SheetOrientation:
-    String, Codable { case landscape, portrait }`.
-  - `public struct DrawingScale: Hashable, Codable { public var numerator: Int; public var denominator: Int }`, `value: Double`,
+- Produces (**every public type below is declared `Sendable`**: Swift does not infer `Sendable` for a public type across modules, and
+  `DrawingDocument` and `DrawingView` are `Sendable` and hold them, so under Swift 6 each must say it; `ProjectionFrame` and `NodeID` already
+  are):
+  - `SheetID`, `ViewID`: UUID wrappers shaped exactly like `CommentID` (`Hashable, Sendable, Comparable, Codable`, Codable as a bare UUID,
+    `Comparable` by `uuidString`).
+  - `public enum DrawingStandard: String, Sendable, Codable, CaseIterable { case iso, asme }`, `isFirstAngle` (iso true).
+  - `public enum SheetSize: String, Sendable, Codable, CaseIterable { case a4, a3, a2, a1, a0, ansiA, ansiB, ansiC, ansiD, ansiE }`,
+    `portrait: Vector2` (R14's table), `title` ("A3", "B"), `isLarge` (A0 to A2, ANSI C to E: the 3.5 mm notes); `public enum
+    SheetOrientation: String, Sendable, Codable { case landscape, portrait }`.
+  - `public struct DrawingScale: Hashable, Sendable, Codable { public var numerator: Int; public var denominator: Int }`, `value: Double`,
     `static let preferred: [DrawingScale]` (R8, largest first), `text(for: DrawingStandard) -> String`, `isValid` (1 to 1000 each).
-  - `public enum StandardOrientation: String, Codable, CaseIterable { case front, back, left, right, top, bottom, isometricFrontRight,
-    isometricFrontLeft }`, `frame: ProjectionFrame` (R5), `title` ("Front", …, "Isometric"), `isIsometric`.
-  - `public enum ViewOrientation: Hashable, Codable { case standard(StandardOrientation); case custom(ProjectionFrame) }`, `frame`,
-    `isIsometric` (custom: direction not along an axis within 1e-9).
-  - `public enum ViewKind: String, Codable { case base, projected }`; `public enum AlignmentAxis: String, Codable { case horizontal,
-    vertical }`; `public struct ViewAlignment: Hashable, Codable { public var parent: ViewID; public var axis: AlignmentAxis }`.
+  - `public enum StandardOrientation: String, Sendable, Codable, CaseIterable { case front, back, left, right, top, bottom,
+    isometricFrontRight, isometricFrontLeft }`, `frame: ProjectionFrame` (R5), `title` ("Front", …, "Isometric"), `isIsometric`.
+  - `public enum ViewOrientation: Hashable, Sendable, Codable { case standard(StandardOrientation); case custom(ProjectionFrame) }`,
+    `frame`, `isIsometric` (custom: direction not along an axis within 1e-9).
+  - `public enum ViewKind: String, Sendable, Codable { case base, projected }`; `public enum AlignmentAxis: String, Sendable, Codable {
+    case horizontal, vertical }`; `public struct ViewAlignment: Hashable, Sendable, Codable { public var parent: ViewID; public var axis:
+    AlignmentAxis }`.
   - `public struct DrawingView: Hashable, Sendable, Codable, Identifiable { id: ViewID; kind: ViewKind; source: NodeID; orientation:
     ViewOrientation; scale: DrawingScale?; center: Vector2; alignment: ViewAlignment?; showsHidden = false; showsTangent = true;
     showsLabel = false }`.
-  - `public struct TitleBlock: Hashable, Codable { owner, title, drawingNumber, revision, material, drawnBy, date: String; density:
+  - `public struct TitleBlock: Hashable, Sendable, Codable { owner, title, drawingNumber, revision, material, drawnBy, date: String; density:
     Double? }` (empty strings by default; keys written only when non-empty or non-nil).
-  - `public struct DrawingSheet: Hashable, Codable, Identifiable { id: SheetID; name: String; size: SheetSize; orientation:
+  - `public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable { id: SheetID; name: String; size: SheetSize; orientation:
     SheetOrientation; scale: DrawingScale; titleBlock: TitleBlock; views: [DrawingView] }`, `paperSize: Vector2` (landscape swaps), views
     kept sorted by id (`setView(_:)` inserts sorted, `removeView(_:)`), `view(_ id:)`.
-  - `public struct DrawingSettings: Hashable, Codable { standard = .iso; generalTolerance: String; titleBlockDefaults: TitleBlock }`,
+  - `public struct DrawingSettings: Hashable, Sendable, Codable { standard = .iso; generalTolerance: String; titleBlockDefaults: TitleBlock }`,
     `static func defaultTolerance(for: DrawingStandard, inches: Bool) -> String` (R15's three strings).
   - `public struct DrawingDocument: Hashable, Sendable, Codable { settings: DrawingSettings; sheets: [DrawingSheet] }`, `isEmpty` (no sheet),
-    `sheet(_ id:)`; sheets encoded in order (R3); decoding drops a view whose alignment names a view not on its sheet's list (it becomes free).
+    `sheet(_ id:)`; sheets encoded in order (R3); a view whose alignment names a view not on its sheet's list is **kept** on decoding and
+    only its alignment is dropped (`alignment = nil`: the view becomes free at its stored centre); the same for an alignment that would
+    make a cycle.
   - `public struct DrawingStyle: Hashable, Sendable` with `thick`, `thin`, `frame` (0.7), `zone` (0.35), `hiddenDash` (3), `hiddenGap` (1.5),
     `notesHeight(for: SheetSize)`, `titleHeight`, `viewLabelHeight`, `fieldLabelHeight` (1.8), `zoneLabelHeight` (3.5); `static let iso`,
     `static let asme` (R11), `static func of(_ standard: DrawingStandard) -> DrawingStyle`.
 
 - [ ] **Step 1: Tests.** `aDocumentRoundTrips` (two sheets, three views with a custom frame and an alignment, a title block with a density: encode
   then decode equal); `sheetsKeepTheirOrder` (sheet ids out of order stay in tab order); `viewsAreSortedById` (inserted in reverse, encoded
-  sorted); `emptyTitleFieldsAreNotWritten` (the JSON has no `owner` key); `aDanglingAlignmentIsDropped`; `landscapeSwapsTheSize` (A3 landscape
+  sorted); `emptyTitleFieldsAreNotWritten` (the JSON has no `owner` key); `aDanglingAlignmentIsDropped` (the view is still on the sheet, at its
+  centre, with `alignment == nil`); `everyModelTypeIsSendable` (a generic `requireSendable<T: Sendable>(_: T.Type)` called with each public type;
+  it compiles only if they are); `landscapeSwapsTheSize` (A3 landscape
   420 × 297); `preferredScalesAreISO5455` (the fifteen of R8, in order); `scaleText` ("1 : 2", "2 : 1", "1:2" for ASME); `orientationFrames`
   (R5's table, each frame orthonormal); `isometricFramesAreIsometric`; `styleConstants` (ISO thick 0.5, thin 0.25, dashes 3 and 1.5, notes 2.5 on
   A3 and 3.5 on A1, titles 7, labels 5; ASME thick 0.6, thin 0.3, notes 3, titles 6); `defaultTolerances` (R15's strings).
@@ -491,9 +612,10 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   `Sources/CreatorDrawing/Picture/SheetPicture.swift` (`SheetPicture`, `SheetStroke`, `SheetSegment`, `SheetText`, `StrokePattern`, `DrawingLayer`),
   `Sources/CreatorDrawing/Picture/SheetSegment+Cubics.swift`, `Sources/CreatorDrawing/Sheet/SheetFrame.swift`,
   `Sources/CreatorDrawing/Sheet/TitleBlockLayout.swift`, `Sources/CreatorDrawing/Sheet/TitleBlockFacts.swift`,
-  `Sources/CreatorDrawing/Sheet/DrawingArea.swift`, `Sources/CreatorDrawing/Symbols/DrawingSymbols.swift`
+  `Sources/CreatorDrawing/Sheet/DrawingArea.swift`, `Sources/CreatorDrawing/Symbols/DrawingSymbols.swift`,
+  `Sources/CreatorDrawing/Text/ReplacedTexts.swift`
 - Test: `Tests/CreatorDrawingTests/HelveticaMetricsTests.swift`, `DrawingTextTests.swift`, `SheetFrameTests.swift`, `TitleBlockTests.swift`,
-  `DrawingSymbolsTests.swift`, `CubicsTests.swift`
+  `DrawingSymbolsTests.swift`, `CubicsTests.swift`, `ReplacedTextsTests.swift`
 
 **Interfaces:**
 - Consumes: Task 3.
@@ -520,12 +642,16 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
     revision, size, sheet, tolerance }` (R15's rows in order; `isTyped` for owner, drawnBy, date, title, material, drawingNumber, revision and tolerance,
     whose value is `TitleBlock`'s field, or `DrawingSettings.generalTolerance` for tolerance).
   - `TitleBlockLayout.fields(for: DrawingStandard) -> [TitleBlockField]` (`TitleBlockField { key: TitleBlockKey; rect: Rect2D; valueHeight: Double;
-    label: String }`, R15's table in order), `TitleBlockLayout.picture(sheet: DrawingSheet, settings: DrawingSettings, facts: TitleBlockFacts, sheetIndex: Int,
+    label: String }`, `Hashable, Sendable`, R15's table in order), `TitleBlockLayout.picture(sheet: DrawingSheet, settings: DrawingSettings, facts: TitleBlockFacts, sheetIndex: Int,
     sheetCount: Int) -> SheetPicture` (placed by R15; the projection symbol from `DrawingSymbols`).
   - `public struct TitleBlockFacts: Hashable, Sendable { massText: String? }` and `TitleBlockFacts.massText(grams: Double, inches: Bool) -> String`
     (R16); `TitleBlockLayout` writes size, sheet ("1 / 3") and scale itself from the sheet and its place.
   - `DrawingArea.rect(for sheet: DrawingSheet, standard: DrawingStandard) -> Rect2D` (R8's area).
-  - `DrawingSymbols.projectionSymbol(firstAngle: Bool, center: Vector2, h: Double, width: Double) -> [SheetStroke]` (R17).
+  - `DrawingSymbols.projectionSymbol(firstAngle: Bool, center: Vector2, h: Double) -> [SheetStroke]` and
+    `DrawingSymbols.projectionSymbolSize(h: Double) -> Vector2` (6h × 2h, the centre line's overrun included; R17). `TitleBlockLayout`
+    passes h = 2.5 and the projection field's centre.
+  - `ReplacedTexts.collect(_ texts: [SheetText]) -> [String]` (R13: the distinct `original`s of the texts whose `run.hasReplacements`,
+    first-seen order; `Sources/CreatorDrawing/Text/ReplacedTexts.swift`), shared by both writers.
 
 - [ ] **Step 1: Tests.**
   - `HelveticaMetricsTests`: `pinnedAdvances` (space 278, "A" 667, "H" 722, "W" 944, "a" 556, "i" 222, "m" 833, "0" to "9" 556, "." 278, "°" 400,
@@ -541,7 +667,11 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
     (0, 10)–(110, 30) offset by the origin); `automaticValues` ("A3", "2 / 3", "1 : 2"; ASME "B", "2 OF 3", "1:2"); `massText` (8.4 g, 84 g, 1.234 kg,
     2.721 lb); `anEmptyMassLeavesTheFieldEmpty`; `labelsPerStandard`.
   - `DrawingSymbolsTests`: `firstAngleHasTheCirclesOnTheRight`; `thirdAngleHasTheCirclesOnTheLeft`; `proportionsFollowH` (circle radii h and h/2,
-    trapezoid ends 2h and h, all strokes thin).
+    trapezoid ends 2h and h, all strokes thin, the strokes' bounds exactly `projectionSymbolSize(h:)` about the centre);
+    `theSymbolLiesInsideItsField` (ISO and ASME, A3 and A0: the title block's symbol strokes' bounds lie inside the projection field's rect
+    (162–180 × 10–20 from the block's corner) inset by 1 mm).
+  - `ReplacedTextsTests`: `eachOriginalOnce` (the same original on two texts is listed once; two different ones in first-seen order; a text
+    without replacements is not listed).
   - `CubicsTests`: `aQuarterArcIsOnePiece` (control points within 1e-12 of the 4/3 tan(π/8) construction); `aFullCircleIsFourPieces`;
     `piecesStayOnTheCircle` (the midpoint of each cubic within 3e-4 × radius); `anEllipseIsAnAffineCircle`.
 - [ ] **Step 2: Run** `swift test --filter 'HelveticaMetricsTests|DrawingTextTests|SheetFrameTests|TitleBlockTests|DrawingSymbolsTests|CubicsTests'`; fail.
@@ -611,16 +741,18 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 **Interfaces:**
 - Consumes: Tasks 5 and 6 (`SheetPicture`, `SheetSegment.cubics()`).
 - Produces: `PDFWriter.write(_ pages: [SheetPicture], title: String) -> PDFOutput`; `public struct PDFOutput: Sendable { data: Data; replacedTexts:
-  [String] }` (each `SheetText.original` with `run.hasReplacements`, once each, in page and drawing order); `PDFNumber.format(_ value: Double, decimals:
-  Int) -> String` (R23).
+  [String] }` (`ReplacedTexts.collect` over every page's texts in page then drawing order: each distinct original once, R13); `PDFNumber.format(_
+  value: Double, decimals: Int) -> String` (R23).
 - Test reader (tests only): `PDFStructureReader(data:)` checks the header, finds `startxref`, reads the xref table, checks that each entry's offset starts
-  `N 0 obj`, reads the trailer's `/Size` and `/Root`, and returns each page's `MediaBox` and decoded content operators.
+  `N 0 obj`, checks every xref entry is exactly 20 bytes ending " \n" (R23), reads the trailer's `/Size` and `/Root`, and returns each page's
+  `MediaBox` and decoded content operators.
 
-- [ ] **Step 1: Tests.** `theStructureIsValid` (reader: objects 1 to 4 then two per page, xref entries 20 bytes each, `/Size` right); `pagesAreTrueSize`
+- [ ] **Step 1: Tests.** `theStructureIsValid` (reader: objects 1 to 4 then two per page, xref entries 20 bytes each and each ending with a space and an
+  LF, the free entry `0000000000 65535 f \n`, no CR anywhere in the xref, `/Size` right); `pagesAreTrueSize`
   (A4 portrait `MediaBox` [0 0 595.2756 841.8898]; A3 landscape [0 0 1190.5512 841.8898]); `aHalfScaleViewMeasuresHalfOnPaper` (a 100 mm box line at 1:2: the
   two points of its stroke, through the `cm` matrix, are 141.7323 pt apart); `lineWidthsAndDashesAreISO` (`0.5 w` for thick, `0.25 w` and `[3 1.5] 0 d`
   for hidden); `arcsAreCubics` (a circle is four `c` operators); `textUsesHelveticaWinAnsi` (the font object; "Ø20" written `(\33020)`); `escapes` (`(`, `)`,
-  `\`); `replacedTextsAreReported` ("Ω-Bracket →" written `(?-Bracket ?)` and listed once); `noDatesNoID`; `numbersAreLocaleFree` (`PDFNumber.format(-0.00001,
+  `\`); `replacedTextsAreReported` ("Ω-Bracket →" written `(?-Bracket ?)` and listed once, also when it is the title on both pages of a two-page PDF); `noDatesNoID`; `numbersAreLocaleFree` (`PDFNumber.format(-0.00001,
   decimals: 4) == "0"`, `1.5`, `-2.25`, `1190.5512`); `theFixturesDigestIsPinned` (SHA-256 of the fixture's bytes equals a pinned hex string, the same on
   macOS, Linux and Windows).
 - [ ] **Step 2: Run** `swift test --filter PDFWriterTests`; fail.
@@ -636,13 +768,19 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 
 **Interfaces:**
 - Consumes: Tasks 5 and 6, Task 7's fixtures.
-- Produces: `DXFWriter.write(strokes: [SheetStroke], texts: [SheetText], style: DrawingStyle) -> Data` (R24); `DXFWriter.sheet(_ picture: SheetPicture, style:)
-  -> Data`; `DXFWriter.view(_ projection: Projection2D, view: DrawingView, style:) -> Data` (R24's 1:1: `ViewLinework.strokes` with `scale` 1 and `center` the
-  projection's bounds centre, then translated back so coordinates are R5's view-plane coordinates).
-- Test reader (tests only): `DXFReader(data:)` reads code/value pairs, sections, the LAYER and LTYPE tables, and the ENTITIES list as `(type, layer, values by
-  code)`; checks every handle is unique and every owner names an existing handle.
+- Produces: `public struct DXFOutput: Sendable { data: Data; replacedTexts: [String] }` (`ReplacedTexts.collect` over the texts written, R13);
+  `DXFWriter.write(strokes: [SheetStroke], texts: [SheetText], extent: Rect2D, style: DrawingStyle) -> DXFOutput` (R24; `extent` gives the LAYOUTs'
+  limits and extents); `DXFWriter.sheet(_ picture: SheetPicture, style:) -> DXFOutput`; `DXFWriter.view(_ projection: Projection2D, view: DrawingView,
+  style:) -> DXFOutput` (R24's 1:1: `ViewLinework.strokes` with `scale` 1 and `center` the projection's bounds centre, then translated back so
+  coordinates are R5's view-plane coordinates; a 1:1 view has no texts in DR-1, so its list is empty).
+- Test reader (tests only): `DXFReader(data:)` reads code/value pairs, sections, the header variables, the LAYER, LTYPE and BLOCK_RECORD tables, the OBJECTS
+  section and the ENTITIES list as `(type, layer, values by code)`; checks every handle is unique, every owner names an existing handle, `$HANDSEED` is greater
+  than every handle, and R24's AutoCAD links: the root dictionary names `ACAD_GROUP`, `ACAD_LAYOUT`, `ACAD_MLINESTYLE`, `ACAD_PLOTSETTINGS` and
+  `ACAD_PLOTSTYLENAME`; `ACAD_LAYOUT` names `Model` and `Layout1`; each space BLOCK_RECORD's 340 names a LAYOUT whose block-record pointer (330 after
+  `AcDbLayout`) names that BLOCK_RECORD back; every entity's owner is `*Model_Space`'s BLOCK_RECORD.
 
-- [ ] **Step 1: Tests.** `theHeaderIsR2000InMillimetres` (`$ACADVER` AC1015, `$INSUNITS` 4); `theEightLayersExist` (with HIDDEN on DASHED and CENTER on CENTER, the
+- [ ] **Step 1: Tests.** `theHeaderIsR2000InMillimetres` (`$ACADVER` AC1015, `$INSUNITS` 4, `$HANDSEED` past every handle); `theObjectsAreWhatAutoCADExpects`
+  (the reader's link checks above, in Sheet and View mode); `replacedTextsAreReported` (a title "Ω-Bracket →" written `?-Bracket ?` and listed once); `theEightLayersExist` (with HIDDEN on DASHED and CENTER on CENTER, the
   lineweights of R24); `linesArcsCirclesEllipsesAreTrue` (a full circle is one CIRCLE, a half arc one ARC with angles 0 and 180, the iso ellipse one ELLIPSE with
   ratio 1/√3, a polyline one LWPOLYLINE); `layersFollowTheLineClass` (hidden on HIDDEN, tangent on TANGENT, frame and zones on FRAME, title-block text on TEXT);
   `symbolsUseDXFCodes` ("Ø20 ±0.1 90°" → `%%c20 %%p0.1 90%%d`); `sheetAndViewModesMeasureTrue` (the 1:2 view's 100 mm line is 50 units in Sheet mode and 100 in
@@ -663,23 +801,32 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 **Interfaces:**
 - Consumes: Task 1 (`Kernel.projection`, `FakeKernel.setProjectionHook`), Task 6 (`ViewContent`).
 - Produces:
-  - `public actor ProjectionCache { init(limit: Int = 512 * 1024 * 1024); func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options:
-    ProjectionOptions, kernel: any Kernel) async throws -> Projection2D; func removeAll(); var bytesUsed: Int; var count: Int; var kernelCalls: Int }` (R19).
+  - `public actor ProjectionCache { init(limit: Int = 512 * 1024 * 1024); func projection(of solids: [Solid], curves: [Curve], compoundTag: NodeTag, frame:
+    ProjectionFrame, options: ProjectionOptions, kernel: any Kernel) async throws -> Projection2D; func removeAll(); var bytesUsed: Int; var count: Int; var
+    kernelCalls: Int; var compoundCalls: Int }` (R19). The key is the solids' and curves' `ObjectIdentifier`s in order (both are final classes), `compoundTag`,
+    the frame and the options. On a miss: no solid passes
+    nil to `Kernel.projection`, one solid passes it, two or more call `kernel.compound(solids, tag: compoundTag)` once and project the compound (R9); the
+    entry keeps the input solids and curves (and the compound) alive.
   - `public struct DrawingSourceContent: Sendable { output: NodeID; name: String; state: State }` with `enum State { case removed; case failed(String);
     case evaluating; case ready(solids: [Solid], curves: [Curve], meshCount: Int) }` (the app builds it from results).
   - `public struct DrawingProjector: Sendable { cache: ProjectionCache; kernel: any Kernel }` and `func content(for view: DrawingView, scale: Double,
-    source: DrawingSourceContent, previous: ViewContent?) async -> ViewContent` (R9: compounds several solids; R20's sentences; a kernel refusal becomes the
+    source: DrawingSourceContent, previous: ViewContent?) async -> ViewContent` (R9: hands the source's solids to the cache, which compounds several, with
+    `compoundTag` the Output node's tag, item 0; R20's sentences; a kernel or compound refusal becomes the
     `problem` in `Evaluator`'s words; `isPending` is false on return; `previous.projection` is kept for removed, failed and evaluating sources).
   - The projector is stateless; superseding requests is the caller's (Task 12).
 
 - [ ] **Step 1: Tests** (`FakeKernel`, boxes from the front; holds by the projection hook suspending on a continuation, never a semaphore).
   - `ProjectionCacheTests`: `aRepeatIsAHit` (one kernel call); `identicalRequestsShareOneKernelCall` (two concurrent requests held by the hook, then released:
     one call, equal results); `aDifferentFrameOrToleranceMisses`; `aNewSolidIdentityMisses`; `theLimitEvictsLeastRecentlyUsed` (a 1 KB limit; the newest kept even
-    when alone over the limit); `removeAllEmpties`; `aFailureIsNotCached`; `cancellingOneWaiterLeavesTheOther`.
-  - `DrawingProjectorTests`: `aReadySourceProjects`; `severalSolidsAreCompounded` (FakeKernel's `compound` refuses → the problem is its sentence; the OCCT variant
+    when alone over the limit); `removeAllEmpties`; `aFailureIsNotCached` (a projection or a compound that throws); `cancellingOneWaiterLeavesTheOther`;
+    `twoConcurrentMultiSolidRequestsCompoundOnce` (held by the projection hook: one compound, one projection).
+  - `DrawingProjectorTests`: `aReadySourceProjects`; `severalSolidsAreCompounded` (without a compound hook FakeKernel's `compound` refuses → the problem is its sentence and nothing is
+    cached; with one, the compound is what is projected; the OCCT variant
     lives in Task 2); `meshesAreLeftOutWithAWarning` (3 meshes beside a solid → the warning of R20; 1 mesh → the singular sentence); `onlyMeshesIsRefused`;
     `nothingYet`; `aRemovedOutputKeepsNoProjection` (problem "The Output this view showed was removed.", `projection == nil`, `lastSize` kept from
     `previous`); `aFailedOutputKeepsTheLastProjection`; `theToleranceFollowsTheScale` (scale 2 → `options.tolerance == 0.005`, seen through the cache key);
+    `twoSolidsRequestedTwiceAreOneCompoundAndOneProjection` (`setCompoundHook` returning a box; the same two-solid source projected twice, then a second
+    view of it with the same frame: `compoundCalls == 1`, `kernelCalls == 1`; a new identity for either solid misses and compounds again);
     (`aSupersededRequestNeverPublishes` is Task 12's: the ordering of requests is the app's.)
 - [ ] **Step 2: Run** `swift test --filter 'ProjectionCacheTests|DrawingProjectorTests'`; fail.
 - [ ] **Step 3: Implement.**
@@ -704,8 +851,8 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   - `public struct DrawingEditorEvents { committed: @MainActor (DrawingCommit) -> Void; sheetChanged: @MainActor (SheetID?) -> Void }`.
   - `public enum DrawingStepName` with R26's constants and `all`.
   - `public struct DrawingSourceOption: Hashable, Sendable { id: NodeID; name: String; bounds: BoundingBox? }`.
-  - `public enum DrawingTool: Hashable, Sendable { case select, baseView, projectedView }`; `public enum DrawingKey { case fit, delete, nudge(Vector2),
-    escape }`; `public struct SheetTransform: Hashable, Sendable { offset: Vector2; zoom: Double }` (canvas point = sheet mm × zoom + offset, y flipped:
+  - `public enum DrawingTool: Hashable, Sendable { case select, baseView, projectedView }`; `public enum DrawingKey: Hashable, Sendable { case fit, delete,
+    nudge(Vector2), escape }`; `public struct SheetTransform: Hashable, Sendable { offset: Vector2; zoom: Double }` (canvas point = sheet mm × zoom + offset, y flipped:
     `screenPoint(_:)`, `sheetPoint(_:)`, zoom clamped 0.25…40).
   - `@MainActor @Observable public final class DrawingEditorModel` with: `init(document: DrawingDocument, sheet: SheetID?, standardUnitsAreInches: Bool,
     today: @escaping () -> String, events: DrawingEditorEvents)`; `document` (read only outside), `currentSheet: SheetID?`, `selection: Set<ViewID>`, `tool`,
@@ -713,10 +860,15 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
     ViewContent]`, `facts: TitleBlockFacts`, `refusal: String?`, `hoveredStroke: Int?`, `picture: SheetPicture?` (the current sheet composed by
     `SheetComposer`, rebuilt when the document, sheet, contents or facts change); `replaceDocument(_:)` (undo and redo: keeps the sheet and the selection
     that still exist).
-  - Sheets: `addSheet()`, `renameSheet(_:to:)`, `duplicateSheet(_:)`, `deleteSheet(_:)`, `moveSheet(_:by offset: Int)`, `selectSheet(_:)`, `setSize(_:)`,
-    `setOrientation(_:)`, `setTitleField(_ key: TitleBlockKey, to: String)`, `setDensity(_:)`, `setStandard(_:)` (R6's mirroring on every sheet).
-  - Views: `press(_ tool: DrawingTool)`, `setSource(_:of:)`, `setOrientation(_:of:)` (base views only), `setScale(_ scale: DrawingScale?, of:)`,
-    `setShowsHidden(_:of:)`, `setShowsTangent(_:of:)`, `setShowsLabel(_:of:)`, `deleteSelection()`.
+  - Sheets (the current sheet): `addSheet()`, `renameSheet(_:to:)`, `duplicateSheet(_:)`, `deleteSheet(_:)`, `moveSheet(_:by offset: Int)`,
+    `selectSheet(_:)`, `setSheetSize(_ size: SheetSize)`, `setSheetOrientation(_ orientation: SheetOrientation)`, `setSheetScale(_ scale: DrawingScale)`
+    (the sheet's own scale, which every view without an override uses; refused with "A scale is two whole numbers from 1 to 1000." when not `isValid`),
+    `setTitleField(_ key: TitleBlockKey, to: String)` (`.tolerance` writes `DrawingSettings.generalTolerance`; an automatic key does nothing),
+    `setDensity(_ density: Double?)`, `setStandard(_:)` (R6's mirroring on every sheet).
+  - Views: `press(_ tool: DrawingTool)`, `setSource(_ source: NodeID, of: ViewID)`, `setOrientation(_ orientation: StandardOrientation, of: ViewID)` (base
+    views only), `setScale(_ scale: DrawingScale?, of: ViewID)` (nil: the sheet's), `setShowsHidden(_:of:)`, `setShowsTangent(_:of:)`,
+    `setShowsLabel(_:of:)`, `deleteSelection()`.
+  - Every committing method's step name is R26's table; `DrawingStepNameTests` holds each one.
   - `public struct SheetModifiers: OptionSet, Sendable { shift, primary }` (graph-free, as `CanvasModifiers` is for the graph; the views map MetalUI's
     modifiers into it).
   - Pointer and keys: `pointerDown(at: Vector2, modifiers: SheetModifiers)`, `pointerDragged(to:)`, `pointerUp(at:)`, `pointerCancelled()`, `pointerMoved(to:)`,
@@ -736,10 +888,16 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
     horizontal alignment, the parent's y); `thirdAngleDropAbove` (Top); `anIsometricParentRefuses`; `escapeCancelsTheTool`.
   - `SelectionAndMoveTests`: `clickSelectsAndShiftAdds`; `aDragIsOneCoalescedStep` (several `pointerDragged` → commits sharing one key); `aProjectedViewSlides`;
     `movingAParentCarriesChildren`; `deleteFreesChildren` ("Delete View"); `nudgeMovesOneMillimetreAndShiftTen`; `hoverFindsTheNearestLine` (within 4 pt at the
-    current zoom); `changeScaleIsOneStep`; `toggleHiddenIsChangeView`; `replaceDocumentKeepsWhatStillExists`.
+    current zoom); `changeScaleIsOneStep`; `theSheetScaleScalesViewsWithoutAnOverride` (`setSheetScale(1:2)`: a view with no override halves, one with a 2:1
+    override keeps its size, and its label now shows "(2 : 1)"); `anInvalidSheetScaleIsRefused`; `toggleHiddenIsChangeView`;
+    `replaceDocumentKeepsWhatStillExists`.
   - `CanvasTransformTests`: `fitCentresTheSheetInTheVisibleRect` (A3 in a 1000 × 600 rect: zoom 600 × 0.9 / 297 within 1e-9, centred); `scrollPans`;
     `zoomScrollKeepsThePointUnderThePointer`; `pinchZoomsAboutItsCentre`; `zoomIsClamped`; `middleDragPans`.
-  - `DrawingStepNameTests`: every name is R26's, none has digits.
+  - `DrawingStepNameTests`: every name is R26's, none has digits; `everyMethodCommitsItsStep` (table-driven over R26's table: each method, called on the
+    fixture with a value that differs from the current one, makes exactly one commit with its step name: `setSheetSize` and `setSheetOrientation` "Change
+    Sheet Size", `setSheetScale` and `setScale(_:of:)` "Change Scale", `setTitleField(.title, …)`, `setTitleField(.tolerance, …)` and `setDensity`
+    "Edit Title Block", `setSource`, `setOrientation(_:of:)`, `setShowsHidden`, `setShowsTangent` and `setShowsLabel` "Change View", and the sheet and
+    view operations theirs); `noChangeNoCommit` (each setter with the current value, and `setTitleField(.mass, …)`, commit nothing).
 - [ ] **Step 2: Run** `swift test --filter CreatorDrawingEditorTests`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter; pass.
@@ -756,7 +914,7 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   `ColorTheme+Alucard.swift`, `ColorTheme+Nord.swift`
 - Test: `Tests/CreatorStyleTests/ThemeRoleTests.swift` (52 roles), `Tests/CreatorStyleTests/DrawingRoleTests.swift`,
   `Tests/CreatorDrawingEditorTests/SheetCanvasRenderTests.swift`, `SheetTextViewTests.swift`, `DrawingToolbarTests.swift`, `SheetCanvasSkipTests.swift`,
-  `Support/TestTextSystem.swift` (copied from `CreatorSketchEditorTests`), `Support/EqualityCoverage.swift` (`expectEqualityCovers`, copied from
+  `SheetTabsTests.swift`, `Support/PDFStructureReader.swift` (copied from Task 7's), `Support/TestTextSystem.swift` (copied from `CreatorSketchEditorTests`), `Support/EqualityCoverage.swift` (`expectEqualityCovers`, copied from
   `CreatorEditorTests`), `SheetViewEqualityTests.swift`
 
 **Interfaces:**
@@ -764,13 +922,14 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 - Produces: `ThemeColors.drawingPaper`, `.drawingInk`, `.drawingHighlight` (roles "drawingPaper" "Paper", "drawingInk" "Ink", "drawingHighlight" "Highlight", group
   `.drawing`; #FFFFFF, #000000, #1F6FEB in all three built-ins; a `.mctheme` without them reads Dracula's); `public struct SheetCanvas: Component` (`model:
   DrawingEditorModel`), `SheetTabs`, `DrawingToolbar`, `DrawingInspector` (each `Component`, `public init(model:)`).
-- Behaviour: R12 (widths, dashes, pan as an offset of the content, zoom rebuilds), R13 (each glyph a `Text` at its offset, font size em = h / 0.718 × zoom), R19's
+- Behaviour: R12 (widths, dashes, pan as an offset of the content, zoom rebuilds), R13 (each glyph a `Text` at em size h / 0.718 × zoom, its left edge at its Helvetica offset and its baseline on the
+  text's baseline by R13's first-baseline `HStack`, so `SheetTextView` never measures the screen font), R19's
   40 % opacity for a pending view, R20's warning colour for problems, R27 (culling, `.equatable()` per view: `==` covers every stored property, held by
   `expectEqualityCovers`-style variants), selection as a thin highlight rectangle around the view's frame, hover as the hovered stroke redrawn in
   `drawingHighlight` (`SheetViewEqualityTests` changes each stored property of `SheetViewLayer` and `SheetFrameLayer` alone). `SheetCanvas` is a `hoverKeyRegion` whose `onKeyPress` maps F, Delete, ⌫, arrows (⇧ for 10 mm) and Esc to `DrawingKey`; one
   `DragGesture(minimumDistance: 0)` (with `onCancelled`), a middle `DragGesture`, `.onScrollWheel` (⌘ zooms) and `MagnifyGesture`, as `GraphPanelInput` wires
   the graph canvas; `onGeometryChange` sets `canvasSize`. The toolbar: "Base View", "Projected View" (a check when chosen), the drag gap, nothing else (DR-2 adds
-  its tools). The inspector: no selection → the sheet's name, size, orientation, scale, standard (segmented ISO / ASME), title fields, density and general tolerance;
+  its tools). The inspector: no selection → the sheet's name, size, orientation, scale (`setSheetScale`: the preferred list and Custom…), standard (segmented ISO / ASME), title fields, density and general tolerance;
   one view → source (a menu of `sources` by name), orientation (base views), scale (Sheet's, the preferred list, Custom… with two integer fields), Hidden lines,
   Tangent edges, Label; several → "N views selected" and Delete. `EmptyDrawingView`: "No sheets yet" and an "Add Sheet" button. Text fields commit on Return and
   on focus loss, one step each.
@@ -779,7 +938,17 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   `aThemeFileWithoutThemReadsTheDefaults`. Render tests through MetalUITesting with `testTextSystem()`: `thePaperIsWhiteAndInkBlack` (pixels inside and outside the
   paper at an A4 sheet's fit); `aThickLineIsThickerThanAThin` (stroke widths in points at zoom 2); `aHiddenLineIsDashed`; `aPendingViewIsFaded`;
   `theSelectionIsHighlighted`. `SheetTextViewTests`: `glyphsSitAtHelveticaAdvances` (the frames of "H1"'s two glyph texts at x 0 and 722/1000 em).
-  `DrawingToolbarTests`: `theRowsMoveToolsIntoMoreFromTheEnd` (`ViewThatFits` at three widths). `SheetCanvasSkipTests` (MetalUI's content-skip counters,
+  `aCapitalHSitsOnTheBaseline` (pixels: a SheetText "H" 10 mm high at sheet origin (20, 30) mm, drawn at zoom 1 and at zoom 3; the lowest row of ink of the
+  "H" is within 1 pt of the transform's screen y of the origin, which is also where the PDF's `Td` y for the same picture lands through the same transform:
+  the test writes the PDF of that picture, reads the text's `Td` y with `PDFStructureReader` (copied into `Tests/CreatorDrawingEditorTests/Support`, as Task 13 copies it) and maps it; an "H" has no descender, so its ink ends on the
+  baseline; if this fails because MetalUI's first-baseline alignment is not what R13 relies on, the gap is logged as `DR-1-a` and the test stays,
+  `withKnownIssue` naming the gap, never deleted).
+  `DrawingToolbarTests`: `theRowsMoveToolsIntoMoreFromTheEnd` (`ViewThatFits` at three widths).
+  `SheetTabsTests` (MetalUITesting interaction over a model with sheets "Sheet 1" and "Sheet 2", the way the graph panel's window tests click):
+  `aClickSelectsATab` (the second tab clicked → `currentSheet` is it, no commit); `plusAddsASheet` ("Add Sheet", the new tab current);
+  `aDoubleClickRenamesInPlace` (a field opens with the name all selected; typing and Return commit one "Rename Sheet"; Esc commits nothing);
+  `theMenuHasItsFiveItems` (Rename, Duplicate, Delete, Move Left, Move Right, in that order; Move Left disabled on the first tab, Move Right on the last;
+  Duplicate and Move Right each make one commit with their name). Human check DR1-9 covers the look and feel on screen. `SheetCanvasSkipTests` (MetalUI's content-skip counters,
   as `CanvasContentSkipWindowTests` reads them): `aPanSkipsEveryView`; `aSelectionChangeRebuildsTwoViews`; `offscreenViewsAreNotBuilt`.
 - [ ] **Step 2: Run** `swift test --filter 'ThemeRoleTests|DrawingRoleTests'` and `--filter CreatorDrawingEditorTests`; fail.
 - [ ] **Step 3: Implement.** A MetalUI limit met here (a stroke too slow to rebuild per zoom step, a missing text placement) is logged as a `DR-1-x` gap in
@@ -795,9 +964,14 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   `DrawingDock.swift` (the canvas and the tabs in the model area))
 - Modify: `Package.swift` (`CreatorApp` and `CreatorAppTests` gain `"CreatorDrawing"`, `"CreatorDrawingEditor"`), `Sources/CreatorApp/AppModel.swift` (the session
   replaced with the document, the cache), `AppRoot.swift` (the canvas in place of `ViewportPane` in Drawing), `TopBar.swift` (the segmented "Model | Drawing"
-  in both modes, `DrawingToolbar` in Drawing), `InspectorDock.swift` (`DrawingInspector` in `SketchChrome(.inspector)`), `AppCommands.swift` (View ▸ Drawing ⌘⇧D
-  and View ▸ Model), `AppInput.swift` (viewport keys declined in Drawing), `AppModel+Picking.swift` (R21's switch back to Model), `DocumentParts.swift`
-- Test: `Tests/CreatorAppTests/DrawingModeTests.swift`, `Tests/CreatorAppTests/DrawingProjectionTests.swift`, `Tests/CreatorAppTests/DrawingUndoTests.swift`
+  in both modes, `DrawingToolbar` in Drawing; R28's top bar: the Preview picker and the Analysis menu hidden in Drawing, the Export menu's drawing items are
+  Task 13's), `InspectorDock.swift` (`DrawingInspector` in `SketchChrome(.inspector)`), `AppCommands.swift` (View ▸ Drawing ⌘⇧D and View ▸ Model; R28's
+  disabled View items), `AppInput.swift` (viewport keys declined in Drawing), `AppModel+Picking.swift` (R21's switch back to Model), `DocumentParts.swift`,
+  R28's docks: `AppRoot.swift` (`FieldLegendDock` and `MeshBadgeDock` only in Model), `AppWindowRoot.swift` (`SectionPanelDock` only in Model),
+  `AppModel+FieldPreview.swift` (`fieldPreviewRequest(for:)` answers nil in Drawing), `Sources/CreatorEditor/GraphKeyBindings.swift` (R21: `case
+  "d": shifted ? nil : .duplicate`)
+- Test: `Tests/CreatorAppTests/DrawingModeTests.swift`, `Tests/CreatorAppTests/DrawingProjectionTests.swift`, `Tests/CreatorAppTests/DrawingUndoTests.swift`,
+  `Tests/CreatorEditorTests/KeyCommandTests.swift`
 
 **Interfaces:**
 - Consumes: Tasks 4, 9, 10, 11; `AppModel.outputNodes`, `finishSketch()`, `cancelPick()`, `endMeasure()`, `endModelDimension()`, `endControlPoints()`,
@@ -805,8 +979,11 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 - Produces: `public enum WorkspaceMode: String, CaseIterable { case model, drawing }`, `AppModel.mode`, `AppModel.setMode(_:)`, `AppModel.drawing: DrawingSession`,
   `AppModel.storeDrawing(_ commit: DrawingCommit)` (`perform(.setDrawings(commit.document), coalescingKey: commit.coalescingKey, name: UndoName.drawing(commit.name))`,
   refused while an alert or a held result blocks edits as other edits are), `DrawingSession.waitForProjections()` (joined into `AppModel.settle()`),
-  `DrawingSession.projectAll() async -> [ViewID: ViewContent]` (for export).
-- Behaviour: R4 (mode and sheet through `document.drawingView`, restored on open), R19 (one request generation per sheet: a newer request's results replace, an older
+  `DrawingSession.projectAll() async -> DrawingSnapshot` (for export: `public struct DrawingSnapshot: Sendable { contents: [ViewID: ViewContent]; facts:
+  [SheetID: TitleBlockFacts] }`, every view of every sheet projected and every sheet's facts computed, read by lookup only), and
+  `DrawingSession.facts(for sheet: DrawingSheet) async -> TitleBlockFacts` (R16 for any sheet, not only the current one; the editor's `facts` is this for
+  the current sheet).
+- Behaviour: R28 (the window in Drawing), R4 (mode and sheet through `document.drawingView`, restored on open), R19 (one request generation per sheet: a newer request's results replace, an older
   one's are dropped; pending views keep the old projection faded), R20, R21, the editor's `visibleRect` from `modelArea`, `sources` from the Output nodes in order, the
   undo, redo and New/Open paths calling `replaceDocument` or replacing the session, facts from R16 (volumes through the kernel, off the main actor, cached by solid
   identity).
@@ -815,9 +992,18 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
   - `DrawingModeTests`: `theSwitchShowsTheSheet` (mode drawing; the root shows the canvas, not the viewport); `commandShiftDTogglesTheMode`; `enteringEndsModelTools`
     (an open sketch is finished, a pick cancelled, Measure, the dimension tool and the control-point mode ended); `aPickButtonSwitchesBackToModel`;
     `viewportKeysDoNothingInDrawing` (M, Z, D return unclaimed); `noSheetShowsAddSheet` and `isNotAnEdit`; `theModeAndSheetAreSavedAsViewState` (save, reopen: Drawing
-    on the same sheet, the document not edited); `theInspectorShowsTheDrawingInspector`.
+    on the same sheet, the document not edited); `theInspectorShowsTheDrawingInspector`;
+    `commandShiftDOverTheCanvasTogglesTheModeAndDuplicatesNothing` (a selected node, the pointer over the graph canvas, ⌘⇧D through the window: the mode is
+    Drawing, the graph's node count unchanged, no undo step; ⌘⇧D again returns to Model; ⌘D alone over the canvas still duplicates);
+    `drawingModeHidesTheModelOverlays` (section and zebra on, a Fields node selected so the legend shows, a mesh badge up: in Drawing the window has no
+    Section, Measure or Zebra panel, no field legend and no mesh badge, the top bar has no Preview picker or Analysis menu, and the slow-evaluation chip still
+    shows while an evaluation is held; back in Model all of them show again, `document.section` and `document.zebra` are still on and the document is not
+    edited; found the way the existing window tests find panels).
+  - `KeyCommandTests`: `commandDDuplicatesAndCommandShiftDIsNotAGraphKey` (`commandChord(for: "d", shifted: false) == .duplicate`, `shifted: true` is
+    nil).
   - `DrawingProjectionTests`: `aBaseViewDrawsItsOutput`; `anEditReprojects` (a box width 10 → 20: the view's line spans 20 × scale); `onlyViewsOfAChangedOutputReproject`
-    (two Outputs, one edited: `kernelCalls` grows by the edited view's count only); `aSupersededRequestNeverPublishes` (the projection hook holds the first request; a
+    (two Outputs, one edited: `kernelCalls` grows by the edited view's count only; again with the unedited Output holding two solids, compounded through
+    `setCompoundHook`: its views stay hits, `compoundCalls` unchanged by the edit); `aSupersededRequestNeverPublishes` (the projection hook holds the first request; a
     second edit's request lands; releasing the first leaves the second's lines); `thePendingProjectionStaysFaded` (`isPending` while held, old lines kept);
     `aRemovedOutputLeavesAFrameAndUndoRestoresIt`; `aFailedOutputFadesTheLastProjection` (a refused upstream node: the view keeps its lines and shows the failure);
     `aMeshOutputWarns` (a Mesh node into the Output: R20's sentence); `alignmentSurvivesAnEdit` (a right view stays on its parent's y after the part grows);
@@ -839,7 +1025,7 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 - Test: `Tests/CreatorAppTests/DrawingExportTests.swift`
 
 **Interfaces:**
-- Consumes: Tasks 7, 8, 12 (`DrawingSession.projectAll()`), `summarize(_:)`, `withFilePicker`, `tracked(_:)`, `FilePicker.chooseDestination`.
+- Consumes: Tasks 7, 8, 12 (`DrawingSession.projectAll()`'s `DrawingSnapshot`: each sheet composed with its own `facts[sheet.id]`), `summarize(_:)`, `withFilePicker`, `tracked(_:)`, `FilePicker.chooseDestination`.
 - Produces: `public enum DrawingExportKind: String, CaseIterable { case pdf, dxfSheet, dxfView }`; `AppModel.exportDrawing(_ kind: DrawingExportKind, using:
   any FilePicker) async`; `AppModel.exportDrawingReturningWarnings(_ kind:, to url: URL) async throws(AppProblem) -> [String]` (R25; default names "<exportName>.pdf",
   "<exportName>.dxf", "<exportName> <view title>.dxf").
@@ -847,8 +1033,10 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 - [ ] **Step 1: Tests** (a fake picker returning a scratch URL; files read back with Task 7's and Task 8's test readers, copied into `Tests/CreatorAppTests/Support`).
   `aPDFHasAPagePerSheet`; `theDXFOfTheSheetHoldsTheOpenSheet`; `theDXFOfAViewNeedsOneSelectedView` (the sentence; with one selected, model-mm coordinates);
   `aFailedOutputRefusesTheExport` ("“Output” can't be drawn" with the reason; no file); `noSheetRefuses`; `theExportWaitsForEvaluation` (an edit just before export:
-  the file shows the new size); `theExportWarnsAboutReplacedCharactersOnce` (title "Ω-Bracket →" on two sheets → one warning per sheet's text, each naming it);
-  `meshesLeftOutAreListed`; `theMenusShowTheDrawingExportsOnlyInDrawing`.
+  the file shows the new size); `theExportWarnsAboutReplacedCharactersOnce` (title "Ω-Bracket →" on two sheets → exactly one warning, naming it, for the PDF; the same
+  one warning for the DXF of a sheet carrying it); `meshesLeftOutAreListed`; `theMenusShowTheDrawingExportsOnlyInDrawing`;
+  `theMassShowsOnPage2` (a two-sheet document whose second sheet, not the open one, has a density of 2.7 and a view of a 10 mm FakeKernel box: page 2's
+  content holds "2.7 g" in the mass field and page 1's mass field is empty).
 - [ ] **Step 2: Run** `swift test --filter DrawingExportTests`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the filter and `swift test --filter CreatorAppTests`; pass.
@@ -876,7 +1064,7 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 
 **Files:**
 - Modify: `CLAUDE.md` (a DR-1 paragraph after NS-5's in "Project state": the two modules, the kernel call and `cocct_projection.cpp`, TKHLR, format 17 and
-  `Graph.drawings` / `.setDrawings`, `ViewState.drawing`, the theme roles, R1 to R27 in short, which path R10 took, the parked items; the module list gains
+  `Graph.drawings` / `.setDrawings`, `ViewState.drawing`, the theme roles, R1 to R28 in short, which path R10 took, the parked items; the module list gains
   `CreatorDrawing` and `CreatorDrawingEditor` entries; the file-format sentence becomes "File format is version 17 (… 17 added the top-level graph's optional
   `drawings` key …); files of format 1 to 16 open unchanged and are written as 17"; the pass rules and the `swift test` comment say 16 "Test run with" lines;
   the Commands block gains `swift test --filter CreatorDrawingTests` and `--filter CreatorDrawingEditorTests`), `Tests/CreatorAppTests/CIPinTests.swift`
@@ -886,11 +1074,14 @@ DR-2's anchors: DR-1's views name only top-level Output nodes, which no group ed
 - Group DR-1 checks: DR1-1 enter Drawing (switch and ⌘⇧D), add a sheet, place a base view and drag out right, above and below views in first angle, then switch
   to ASME and see them mirror; DR1-2 change a width in the graph with the drawing showing: views redraw, faded while pending, alignment kept; DR1-3 hidden lines
   and tangent edges per view; DR1-4 the sheet scale and a 2:1 override with its label; DR1-5 export a PDF, open it in Preview, a browser and Acrobat Reader, print a
-  1:1 view at 100 % and measure it with a ruler; DR1-6 export DXF of the sheet and open it in LibreCAD or QCAD: layers, dashed hidden lines, true arcs and circles;
+  1:1 view at 100 % and measure it with a ruler; DR1-6 export DXF of the sheet and open it in LibreCAD or QCAD, and in AutoCAD or Autodesk's free DWG TrueView: layers, dashed
+  hidden lines, true arcs and circles, and no repair or audit prompt in AutoCAD (R24: a prompt is a DR-1 bug);
   DR1-7 DXF of a plate's Top view at 1:1 in laser or CAM software: true size, model coordinates; DR1-8 title block fields, the date, mass with a density, a title
   with "Ω" warned at export; DR1-9 tabs: add, rename, duplicate, delete, move left and right, each one undo step with its name; DR1-10 delete the Output a view
   shows: the frame and sentence, then undo; a mesh Output's warning; DR1-11 Linux and Windows: drawing mode, both exports, the PDF's SHA-256 equal to the
-  Mac's for the same document; DR1-12 pan, zoom and F on a full A3 sheet: smooth, text crisp, line weights readable.
+  Mac's for the same document; DR1-12 pan, zoom and F on a full A3 sheet: smooth, text crisp, line weights readable, and text sitting on the same baselines as in the
+  exported PDF opened beside it (R13); DR1-13 in Drawing, the field legend, mesh badge and Section, Measure and Zebra panels are gone and the
+  slow-evaluation chip still shows; back in Model they return as they were (R28).
 - [ ] **Step 1:** docs and counts.
 - [ ] **Step 2:** `swift test` on macOS (16 "Test run with" lines, no "recorded an issue" or "failed after"); `XP_TRACK=dr-1 IMAGE=metalcreator-linux:dr-1
   scripts/linux-test.sh test` (16 lines; afterwards remove only this run's Docker volume and image); `swiftlint lint --strict` 0.
