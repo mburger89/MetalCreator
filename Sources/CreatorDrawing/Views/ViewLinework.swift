@@ -6,14 +6,13 @@ public enum ViewLinework {
     public static func strokes(
         for projection: Projection2D, view: DrawingView, center: Vector2, scale: Double, style: DrawingStyle
     ) -> [SheetStroke] {
-        guard let bounds = projection.bounds else { return [] }
-        let offset = center - bounds.center * scale
+        guard let mapping = ViewMapping.of(projection: projection, center: center, scale: scale) else { return [] }
         var result: [SheetStroke] = []
         for line in projection.lines {
             guard let look = look(of: line, view: view, style: style) else { continue }
             result.append(
                 SheetStroke(
-                    segments: [segment(of: line.curve).transformed(scale: scale, offset: offset)], width: look.width,
+                    segments: [segment(of: line.curve).transformed(scale: mapping.scale, offset: mapping.offset)], width: look.width,
                     pattern: look.pattern, layer: look.layer, view: view.id, source: line.source))
         }
         return result
