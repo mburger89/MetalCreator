@@ -19,13 +19,15 @@ struct ReattachTests {
     }
 
     /// A horizontal dimension between the edges `anchors` of the full part, shown against `content`.
-    private func open(_ content: ViewContent, orientation: StandardOrientation = .top, anchors: [Int]) -> Opened {
+    private func open(
+        _ content: ViewContent, orientation: StandardOrientation = .top, anchors: [Int], kind: DrawingDimensionKind = .linear(.horizontal)
+    ) -> Opened {
         let full = Fixtures.topology()
         let annotation = DrawingAnnotation(
             view: nil,
             kind: .dimension(
                 DrawingDimension(
-                    kind: .linear(.horizontal), anchors: anchors.map { Fixtures.pick(full, $0) },
+                    kind: kind, anchors: anchors.map { Fixtures.pick(full, $0) },
                     placement: DimensionPlacement(offset: 10, angle: 0))))
         let view = EditorDocuments.view(at: Fixtures.centre, orientation: orientation)
         var placed = annotation
@@ -72,6 +74,15 @@ struct ReattachTests {
             o.h.model.refusal == "Pick the same kind of thing the annotation lost: a line, a circle, a corner or a centre.",
             "\(o.h.model.refusal ?? "")")
         #expect(o.h.log.commits.isEmpty)
+    }
+
+    @Test func aPickTheAnnotationCannotMeasureIsRefused() throws {
+        // A radius whose circle is gone, pointed at a straight edge: same case, but it would stay lost "not a line or circle".
+        let o = open(Fixtures.top(Fixtures.topology(removing: [0])), anchors: [0], kind: .radius)
+        #expect(o.h.model.picture?.annotationReports[o.id]?.firstLostAnchor == 0)
+        click(o, 10, 0)
+        #expect(o.h.model.refusal != nil && o.h.model.refusal != DrawingEditorModel.sameKindSentence, "\(o.h.model.refusal ?? "")")
+        #expect(o.h.log.commits.isEmpty, "nothing is stored that would stay lost")
     }
 
     @Test func onlyWithOneLostSelected() throws {

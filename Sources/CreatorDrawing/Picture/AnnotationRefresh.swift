@@ -15,4 +15,17 @@ public enum AnnotationRefresh {
         else { return nil }
         return held.current
     }
+
+    /// Why `annotation` would be lost against `topology`, or nil when it would be held (and for a note, which is never judged here).
+    public static func lostReason(
+        of annotation: DrawingAnnotation, topology: Topology, frame: ProjectionFrame, format: NumberFormat,
+        standard: DrawingStandard
+    ) -> LostReason? {
+        var format = format
+        format.standard = standard
+        guard let evaluated = AnnotationEvaluator.evaluate(annotation, topology: topology, frame: frame, format: format),
+            case .failure(let reason) = evaluated.outcome
+        else { return nil }
+        return reason
+    }
 }

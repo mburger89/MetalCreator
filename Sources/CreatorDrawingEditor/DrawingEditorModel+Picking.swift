@@ -251,6 +251,19 @@ extension DrawingEditorModel {
             }
             var updated = annotation
             updated.kind = Self.replacing(index, in: annotation.kind, with: anchor.target, hint: context.mapping.model(point))
+            // Once the last lost anchor is replaced the annotation must hold; one that would stay lost (a radius on a straight
+            // edge) is refused here, since every later click would only say "still there".
+            let othersHeld = picture?.annotationReports[annotation.id]?.anchors.enumerated().allSatisfy { other, status in
+                if other == index { return true }
+                if case .lost = status { return false } else { return true }
+            } ?? false
+            if othersHeld,
+               let reason = AnnotationRefresh.lostReason(
+                   of: updated, topology: context.topology, frame: context.frame,
+                   format: NumberFormat(units: units, settings: document.settings), standard: document.settings.standard) {
+                refuse(reason.sentence)
+                return
+            }
             commitSheet(DrawingStepName.reattachDimension) { $0.setAnnotation(updated) }
         }
     }
