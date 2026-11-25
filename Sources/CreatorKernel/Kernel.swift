@@ -187,9 +187,17 @@ public protocol Kernel: Actor {
     /// The view of `solid` (optional: an Output may hold only curves) and `curves` seen through `frame`, every line visible and hidden,
     /// classified (drawings, R9). Like `section` it is `async` for the Fake's hooks; the default below stays synchronous and refuses.
     func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) async throws -> Projection2D
+    /// `solid` with the material on the removed side of `cutter`'s line taken away (drawings, DR-3 R1), named by `tag` (the cut
+    /// tool's tag: its side faces become the cut faces). `nil` when nothing is left; the solid itself when the line misses it.
+    /// The default refuses.
+    func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid?
 }
 
 extension Kernel {
+    public func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
+        throw KernelError.unsupported("cutting sections")
+    }
+
     public func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) throws
         -> Projection2D {
         throw KernelError.unsupported("projecting views")

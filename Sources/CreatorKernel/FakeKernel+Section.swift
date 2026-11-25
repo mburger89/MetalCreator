@@ -7,6 +7,19 @@ extension FakeKernel {
         sectionHook = hook
     }
 
+    /// A test knob: `cutAway` validates the cutter, then returns what the hook returns; the hook may suspend (never block a pool
+    /// thread). With none, `cutAway` refuses as the default does.
+    public func setSectionCutHook(_ hook: (@Sendable (Solid, SectionCutter, NodeTag) async throws -> Solid?)?) {
+        sectionCutHook = hook
+    }
+
+    public func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
+        try Task.checkCancellation()
+        try cutter.validate()
+        guard let sectionCutHook else { throw KernelError.unsupported("cutting sections") }
+        return try await sectionCutHook(solid, cutter, tag)
+    }
+
     /// Sections the solid's bounding box by an axis-aligned plane; any other plane is refused.
     static func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
         guard tolerance.isFinite, tolerance > 0 else {
