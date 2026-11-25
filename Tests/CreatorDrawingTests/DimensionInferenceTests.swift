@@ -143,6 +143,14 @@ struct DimensionInferenceTests {
         // The same picks measured the other way: the line crosses it.
         #expect(make(.baseline, picks, placing: Vector2(30, 2))?.kind == .baseline(.vertical))
         #expect(refusal(.ordinate, [point(1, .zero), along], placing: Vector2(5, 20)) != nil)
+        // A slanted line crosses neither way: its end would depend on the side the dimension is placed.
+        let slanted = line(5, Vector2(0, 0), Vector2(10, 4))
+        let slantedPicks = [point(1, Vector2(0, 0)), point(2, Vector2(10, 5)), slanted]
+        for placing in [Vector2(5, 20), Vector2(30, 2)] {
+            #expect(
+                refusal(.baseline, slantedPicks, placing: placing)
+                    == "A line in a baseline, chain or ordinate dimension must cross the direction it measures.")
+        }
     }
 
     @Test func ordinateTakesTheOriginFirst() {

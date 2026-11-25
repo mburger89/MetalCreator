@@ -46,7 +46,7 @@ public enum DrawingPick {
         Dimension it in a view that looks along its axis.
         """
     public static let cylinderSentence = "This cylinder isn't seen side on, so its size here would be foreshortened."
-    public static let holeSentence = "This circle isn't the edge of a plain, counterbored or countersunk hole."
+    public static let holeSentence = "This circle isn't the mouth of a plain, counterbored or countersunk hole."
     public static let holeCircleSentence = "A hole callout goes on a circle."
     public static let centreMarkSentence = "A centre mark goes on a circle."
     public static let centreLineSentence = "A centre line goes along a cylinder seen side on."

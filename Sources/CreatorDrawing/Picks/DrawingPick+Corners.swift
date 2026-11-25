@@ -12,6 +12,7 @@ extension DrawingPick.Picker {
         case .success(let named): first = named
         }
         guard let curve = clicked.curve, let end = end(of: curve, nearest: mapping.model(point)),
+              (mapping.sheet(frame.place(end.point)) - point).length <= Self.endTolerance,
               isExtremeEnd(end.point, of: first) else { return .failure(refusal(DrawingPick.cornerSentence)) }
         guard let second = neighbour(of: clicked, at: end, run: first) else { return .failure(refusal(DrawingPick.cornerSentence)) }
         let target = AnchorTarget.corner(first, second)
@@ -20,6 +21,10 @@ extension DrawingPick.Picker {
         case .failure: return .failure(refusal(DrawingPick.cornerSentence))
         }
     }
+
+    /// How far (sheet units) the stroke's end may lie from the edge's own end: a stroke that stops where the edge goes behind
+    /// something ends at no vertex.
+    private static let endTolerance = 1e-3
 
     private struct End {
         var point: Vector3

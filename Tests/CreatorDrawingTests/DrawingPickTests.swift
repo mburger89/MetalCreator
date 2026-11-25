@@ -88,6 +88,19 @@ struct DrawingPickTests {
         #expect(result.shape == .point(Vector2(0, 0)))
     }
 
+    @Test func theEndOfAStrokeThatStopsShortOfTheEdgeIsNoCorner() throws {
+        // Edge 0 runs (0,0)-(10,0) but its visible stroke stops at x = 6 where it goes behind something.
+        let topology = Fixture.plate(edges: [
+            Fixture.line(0, v(0, 0, 0), v(10, 0, 0), between: 0, 1),
+            Fixture.line(1, v(10, 0, 0), v(10, 0, 10), between: 0, 2),
+        ])
+        let drawn = picture([sheetLine(Vector2(0, 0), Vector2(6, 0), .edge(EdgeID(0)))])
+        let stop = mapping.sheet(Vector2(6, 0))
+        let found = try #require(DrawingPick.candidate(at: stop, in: drawn, view: view, tolerance: 1))
+        guard case .corner = found else { Issue.record("not a corner"); return }
+        #expect(refused(anchor(found, topology)) == DrawingPick.cornerSentence)
+    }
+
     @Test func nearACircleCentreIsACentre() throws {
         let topology = Fixture.plate(edges: [Fixture.circle(3, center: v(5, 0, 5), axis: v(0, 1, 0), radius: 2, between: 0, 2)])
         let centre = mapping.sheet(Vector2(5, 5))

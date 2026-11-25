@@ -122,7 +122,7 @@ struct DrawingPickRulesTests {
             ])
         #expect(
             refused(anchor(.edge(EdgeID(0), stroke: 0), boss, purpose: .holeCallout, frame: top))
-                == "This circle isn't the edge of a plain, counterbored or countersunk hole.")
+                == "This circle isn't the mouth of a plain, counterbored or countersunk hole.")
         let through = holePart(
             faces: [holeFace(2, .cylinder, normal: up, z: -10, radius: 3)],
             rings: [

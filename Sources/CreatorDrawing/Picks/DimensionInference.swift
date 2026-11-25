@@ -171,11 +171,12 @@ public enum DimensionInference {
         return .success((.ordinate(direction == .vertical ? .vertical : .horizontal), picks.map(target)))
     }
 
-    /// A line must not run along the direction it measures.
+    /// A line must run square to the direction it measures: along it, or slanted, it has no one end to measure to.
     private static func crossing(_ picks: [PickedAnchor], _ direction: LinearDirection) -> DrawingRefusal? {
         for pick in picks {
-            guard case .line(let a, let b) = feature(pick), let axis = axis(of: a, b) else { continue }
-            if axis == direction { return DrawingRefusal(sentence: crossSentence) }
+            guard case .line(let a, let b) = feature(pick) else { continue }
+            let across: LinearDirection = direction == .horizontal ? .vertical : .horizontal
+            if axis(of: a, b) != across { return DrawingRefusal(sentence: crossSentence) }
         }
         return nil
     }
