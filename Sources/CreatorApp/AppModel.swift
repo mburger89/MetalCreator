@@ -250,6 +250,7 @@ public final class AppModel {
             await drawing.waitForProjections()
             await sketch?.settle()
         } while sketchWasOpening || sketchOpenTask != nil || document.isEvaluating || controlNetRead != nil || sceneTask != nil
-            || fieldPreview.isSampling || sectionCaps.isComputing || measureBook.entries.contains(where: \.isMeasuring) || drawing.isProjecting
+            || fieldPreview.isSampling || sectionCaps.isComputing
+            || measureBook.entries.contains(where: \.isMeasuring) || drawing.isProjecting
     }
 }
