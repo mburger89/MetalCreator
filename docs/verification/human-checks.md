@@ -2546,3 +2546,20 @@ the Output selected so the part is shown.
 - [ ] **DR1-11 Linux and Windows.** Drawing mode and both exports work, and the PDF's SHA-256 equals the Mac's for the same document. **Observed:**
 - [ ] **DR1-12 Pan, zoom and F on a full A3 sheet.** Smooth, text crisp, line weights readable, and text sitting on the same baselines as in the exported PDF opened beside it (R13). **Observed:**
 - [ ] **DR1-13 The window in Drawing.** The field legend, mesh badge and the Section, Measure and Zebra panels are gone and the slow-evaluation chip still shows; back in Model they return as they were (R28). **Observed:**
+
+## Group DR-2 — Drawings: dimensions and notes
+
+- [ ] **DR2-1 Dimension a plate.** In Front and Top with the Dimension tool: a length, two corners horizontal and vertical by where you place, ⇧ aligned, a hole's diameter, a fillet's radius, an angle. ISO text is above and parallel to the line; switch to ASME and the text is unidirectional, in breaks. **Observed:**
+- [ ] **DR2-2 Moving dimensions.** Drag a dimension line and its text, nudge it with the arrows, see a short dimension's arrows go outside and a small hole's diameter on a leader. **Observed:**
+- [ ] **DR2-3 Baseline, chain and ordinate.** On a row of holes. **Observed:**
+- [ ] **DR2-4 Hole callouts.** On a through, a blind, a counterbored and a countersunk hole. **Observed:**
+- [ ] **DR2-5 Tolerances.** ±, deviations, limits, reference, basic, and "Ø20 H7 (+0.021/0)", "Ø20 g6"; the general ISO 2768 class and the ASME table in the title block. **Observed:**
+- [ ] **DR2-6 Units and decimal sign.** An inch document in ASME (".250") and a comma decimal sign in ISO. **Observed:**
+- [ ] **DR2-7 Model edits.** Change a width: dimensions follow. Add a chamfer on a dimensioned edge: it turns warning-coloured with "?" and is listed with its reason; select it and click another edge to re-attach. **Observed:**
+- [ ] **DR2-8 Save with a lost dimension.** Reopen: its last value shows with "?"; the save did not mark the document edited. **Observed:**
+- [ ] **DR2-9 Refusals.** An isometric view refuses dimensions with its sentence and takes a note with a leader; a slanted edge refuses with decision 4's sentence. **Observed:**
+- [ ] **DR2-10 Centre marks and lines.** Centre marks on face-on holes (and the view's toggle), a Centre Line on a side-on pin. **Observed:**
+- [ ] **DR2-11 PDF and DXF.** Export both of the sheet and open them in Preview, Acrobat, LibreCAD and AutoCAD or TrueView: filled arrows, rotated ISO text, centre dashes, the DIMENSION and TEXT layers, no audit prompt. The DXF of a view at 1:1 with annotations opens true size in laser or CAM software. **Observed:**
+- [ ] **DR2-12 Grouping.** Group the feature under a dimension: it stays held. **Observed:**
+- [ ] **DR2-13 Linux and Windows.** The PDF's SHA-256 equals the Mac's for the same annotated document. **Observed:**
+- [ ] **DR2-14 Tool keys.** D, H, M, L and N over the sheet pick their tools. **Observed:**
