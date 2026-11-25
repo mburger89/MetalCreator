@@ -208,6 +208,11 @@ targets += [
             .unsafeFlags(["-isystem", "\(occtPrefix)/include/opencascade"]),
             // OCCT's headers include <windows.h>, whose min and max macros break std::min and std::max.
             .define("NOMINMAX", .when(platforms: [.windows])),
+            // The Windows runner image's newest MSVC STL (14.52) refuses any Clang older than 22 (static assertion STL1000), and the
+            // Clang in Swift 6.4's toolchain is older; swift-build picks that newest toolset whatever INCLUDE, LIB or vcvars say, so a
+            // side-by-side 14.44 could not be selected (run 45572434543). The macro is Microsoft's escape hatch for this and is
+            // unsupported by it; remove it when the Swift toolchain's Clang reaches 22.
+            .define("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH", .when(platforms: [.windows])),
         ],
         linkerSettings: occtLinkerFlags + occtLibraries.map { .linkedLibrary($0) }
     ),
