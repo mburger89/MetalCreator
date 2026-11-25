@@ -62,7 +62,8 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         kind = try c.decode(ViewKind.self, forKey: .kind)
         source = try c.decode(NodeID.self, forKey: .source)
         orientation = try c.decode(ViewOrientation.self, forKey: .orientation)
-        scale = try c.decodeIfPresent(DrawingScale.self, forKey: .scale)
+        // A damaged override is dropped, so the view follows its sheet's scale.
+        scale = try c.decodeIfPresent(DrawingScale.self, forKey: .scale).flatMap { $0.isValid ? $0 : nil }
         center = try c.decode(Vector2.self, forKey: .center)
         alignment = try c.decodeIfPresent(ViewAlignment.self, forKey: .alignment)
         showsHidden = try c.decodeIfPresent(Bool.self, forKey: .showsHidden) ?? false

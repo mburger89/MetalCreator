@@ -19,6 +19,25 @@ private func makeView(_ id: ViewID = ViewID(), alignment: ViewAlignment? = nil, 
         center: center, alignment: alignment)
 }
 
+@Suite("Damaged scales")
+struct DamagedScaleTests {
+    @Test func aDamagedSheetScaleReadsOneToOneAndAViewOverrideIsDropped() throws {
+        let sheet = DrawingSheet(name: "S", scale: DrawingScale(numerator: 1, denominator: 2), views: [
+            DrawingView(
+                kind: .base, source: NodeID(), orientation: .standard(.front),
+                scale: DrawingScale(numerator: 1, denominator: 4), center: .zero),
+        ])
+        let text = try #require(String(bytes: JSONEncoder().encode(sheet), encoding: .utf8))
+        let encoded = text
+            .replacingOccurrences(of: "\"denominator\":2", with: "\"denominator\":0")
+            .replacingOccurrences(of: "\"denominator\":4", with: "\"denominator\":0")
+        let back = try JSONDecoder().decode(DrawingSheet.self, from: Data(encoded.utf8))
+        #expect(back.scale == DrawingScale(numerator: 1, denominator: 1))
+        #expect(back.views[0].scale == nil)
+        #expect((back.views[0].scale ?? back.scale).value == 1)
+    }
+}
+
 @Suite("Drawing model")
 struct DrawingModelTests {
     @Test func aDocumentRoundTrips() throws {

@@ -376,18 +376,18 @@ int occt_projection(const occt_shape *solid, const occt_shape *const *curves, in
     return guarded(status, [&]() -> int {
         *out = occt_projection_result{};
         if (!finite3(direction) || !finite3(up) || !std::isfinite(tolerance) || tolerance <= 0) {
-            throw user_error("the projection direction and tolerance must be finite and positive");
+            throw user_error("The projection direction and tolerance must be finite and positive.");
         }
         const gp_Vec view(direction[0], direction[1], direction[2]);
         const gp_Vec upward(up[0], up[1], up[2]);
         if (view.Magnitude() < 1e-12 || upward.Magnitude() < 1e-12) {
-            throw user_error("the projection direction can't be zero");
+            throw user_error("The projection direction can't be zero.");
         }
         const gp_Dir d(view);
         const gp_Dir u(upward);
         const gp_Vec right = gp_Vec(d).Crossed(gp_Vec(u));
         if (right.Magnitude() < 1e-9) {
-            throw user_error("the view direction and its up direction can't be parallel");
+            throw user_error("The view direction and its up direction can't be parallel.");
         }
         // The main direction of the system points at the viewer, so it is minus the way the viewer looks.
         const HLRAlgo_Projector projector(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(-d.X(), -d.Y(), -d.Z()), gp_Dir(right)));
@@ -397,7 +397,7 @@ int occt_projection(const occt_shape *solid, const occt_shape *const *curves, in
             gp_Pnt2d q;
             projector.Project(gp_Pnt(u.X(), u.Y(), u.Z()), q);
             if (p.X() < 0.99 || std::abs(p.Y()) > 1e-6 || q.Y() < 0.99 || std::abs(q.X()) > 1e-6) {
-                throw user_error("the projector's axes disagree with the requested frame");
+                throw user_error("The projector's axes disagree with the requested frame.");
             }
         }
 
@@ -446,7 +446,7 @@ int occt_projection(const occt_shape *solid, const occt_shape *const *curves, in
 
         Handle(HLRBRep_Data) data = algo->DataStructure();
         if (data.IsNull() || algo->NbShapes() != static_cast<int>(inputs.size())) {
-            throw user_error("the hidden-line algorithm gave no result");
+            throw user_error("The hidden-line algorithm gave no result.");
         }
         Builder builder;
         builder.tolerance = tolerance;

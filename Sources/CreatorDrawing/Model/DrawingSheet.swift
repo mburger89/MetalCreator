@@ -56,7 +56,9 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         name = try c.decode(String.self, forKey: .name)
         size = try c.decode(SheetSize.self, forKey: .size)
         orientation = try c.decode(SheetOrientation.self, forKey: .orientation)
-        scale = try c.decode(DrawingScale.self, forKey: .scale)
+        // A damaged scale (a zero or a huge side) would put infinities on screen: it reads 1 : 1.
+        let decodedScale = try c.decode(DrawingScale.self, forKey: .scale)
+        scale = decodedScale.isValid ? decodedScale : DrawingScale(numerator: 1, denominator: 1)
         titleBlock = try c.decodeIfPresent(TitleBlock.self, forKey: .titleBlock) ?? TitleBlock()
         let decoded = try c.decodeIfPresent([DrawingView].self, forKey: .views) ?? []
         views = Self.repairingAlignments(decoded.sorted { $0.id < $1.id })
