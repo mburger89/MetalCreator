@@ -108,15 +108,17 @@ public enum HoleReader {
                     .filter { $0.radius > current.radius + HoleReader.sameRadius && $0.edge.id != current.edge.id }
                     .sorted { $0.radius < $1.radius }
                 guard let step = larger.first else { return (current, wall, plane) }
-                // A larger circle whose wall doesn't rise out of this plane is the plane's own outer rim, not a step: stop here.
+                // A larger circle whose far face goes into the material is the plane's own outer rim: stop here.
                 let outward = plane.normal?.normalized ?? axis
-                guard let outerWall = face(across: step, from: plane), isWall(outerWall),
-                    (outerWall.centroid - step.center).dot(outward) > 0
+                guard let outerFace = face(across: step, from: plane),
+                    (outerFace.centroid - step.center).dot(outward) > 0
                 else { return (current, wall, plane) }
+                // A face that rises is a step: it must be a wall with a far coaxial circle, else the stack is unknown.
+                guard isWall(outerFace) else { return nil }
                 let stepDepth = depth(of: step.center, running: outward)
-                let others = rings(of: outerWall).filter { abs(depth(of: $0.center, running: outward) - stepDepth) > 1e-6 }
+                let others = rings(of: outerFace).filter { abs(depth(of: $0.center, running: outward) - stepDepth) > 1e-6 }
                 guard let far = others.max(by: { depth(of: $0.center, running: outward) < depth(of: $1.center, running: outward) })
-                else { return (current, wall, plane) }
+                else { return nil }
                 current = far
             }
             return nil

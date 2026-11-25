@@ -213,6 +213,31 @@ struct HoleReaderTests {
         #expect(read(topology, edge: 0) == .notAHole)
     }
 
+    @Test func aFilletedCounterboreFloorIsNotReadAsAPlainHole() {
+        // The floor's outer circle borders a torus that rises: a step that is no wall, so the stack is unknown.
+        let topology = part(
+            faces: [
+                face(2, .torus, normal: up, z: -3), face(3, .plane, normal: up, z: -6),
+                face(4, .cylinder, normal: up, z: -13, radius: 3),
+            ],
+            edges: [
+                ring(0, z: 0, radius: 5.5, 2, 0), ring(1, z: -6, radius: 5.5, 2, 3), ring(2, z: -6, radius: 3, 3, 4),
+                ring(3, z: -20, radius: 3, 4, 1),
+            ])
+        #expect(read(topology, edge: 2) == .notAHole)
+    }
+
+    @Test func aRisingWallWithNoFarCircleIsNotAHole() {
+        // A counterbore that breaks out through a side face: its top edge is no circle.
+        let topology = part(
+            faces: [
+                face(2, .cylinder, normal: up, z: -3, radius: 5.5), face(3, .plane, normal: up, z: -6),
+                face(4, .cylinder, normal: up, z: -13, radius: 3),
+            ],
+            edges: [ring(1, z: -6, radius: 5.5, 2, 3), ring(2, z: -6, radius: 3, 3, 4), ring(3, z: -20, radius: 3, 4, 1)])
+        #expect(read(topology, edge: 2) == .notAHole)
+    }
+
     @Test func aLostEdgeIsItsReason() {
         let topology = through
         let pick = Fixture.pick(topology, [0])
