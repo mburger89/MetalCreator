@@ -8,6 +8,8 @@ import Testing
 @testable import CreatorSketchEditor
 @testable import CreatorViewport
 
+private typealias ProjectedCurve = CreatorSketch.ProjectedCurve
+
 /// Project in the app (sketcher spec §8): a click on the model's edge or face, taken by the Project tool, lands in the
 /// Sketch node as projected curves with their picks and a wire from the solid's producer, as one undo step; what can't be
 /// projected, or wired, is said in words and stores nothing.

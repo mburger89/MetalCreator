@@ -5,6 +5,8 @@ import CreatorKernel
 import CreatorSketch
 import Testing
 
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
+
 /// Sketcher spec §7, the Sketch node: solve, regions, exposed dimensions, measurements and states.
 struct SketchNodeTests {
     func near(_ a: Vector2, _ b: Vector2) -> Bool { (a - b).length <= 1e-6 }

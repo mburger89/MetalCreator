@@ -5,6 +5,8 @@ import CreatorViewport
 import Testing
 @testable import CreatorSketchEditor
 
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
+
 /// The Project tool (sketcher spec §8): a click on the model's edge or face becomes fixed projected curves in the sketch,
 /// each with a fresh reference, handed to the host with the picks to store. One undo step.
 @MainActor
@@ -25,7 +27,7 @@ struct ProjectToolTests {
         return (model, RecordingHost(model))
     }
 
-    func projected(_ sketch: Sketch) -> [ProjectionSource] {
+    fileprivate func projected(_ sketch: Sketch) -> [ProjectionSource] {
         sketch.entityIDs.compactMap { id in
             if case .projected(let source)? = sketch.entities[id]?.kind { source } else { nil }
         }

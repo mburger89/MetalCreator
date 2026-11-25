@@ -6,6 +6,8 @@ import CreatorSketch
 import Testing
 @testable import CreatorApp
 
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
+
 /// The app reads exposed dimensions the way the Sketch node partitions them (sketcher spec §7), so a wire or a
 /// constant reaches the one dimension the node applies it to.
 struct SketchStoreTests {

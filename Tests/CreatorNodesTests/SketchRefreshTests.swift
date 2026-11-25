@@ -5,6 +5,8 @@ import CreatorSketch
 import Testing
 @testable import CreatorNodes
 
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
+
 /// A sketch's projected edges re-resolved the way the node does on every evaluation, for the editor to draw.
 struct SketchRefreshTests {
     func box() async throws -> Solid {
@@ -18,7 +20,7 @@ struct SketchRefreshTests {
         return sketch
     }
 
-    func source(_ sketch: Sketch) -> ProjectionSource? {
+    fileprivate func source(_ sketch: Sketch) -> ProjectionSource? {
         for id in sketch.entityIDs {
             if case .projected(let source)? = sketch.entities[id]?.kind { return source }
         }

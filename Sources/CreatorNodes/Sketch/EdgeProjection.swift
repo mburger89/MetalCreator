@@ -8,7 +8,7 @@ import Foundation
 /// arc. Anything else is refused, with the reason for the node's warning.
 public enum EdgeProjection {
     public enum Outcome: Equatable {
-        case curve(ProjectedCurve)
+        case curve(CreatorSketch.ProjectedCurve)
         case refused(String)
     }
 

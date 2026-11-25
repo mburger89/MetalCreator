@@ -2,6 +2,8 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
 #if canImport(CreatorOCCT)
 import CreatorOCCT
 #endif
