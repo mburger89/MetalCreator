@@ -41,9 +41,9 @@ extension DrawingSheet {
     }
 
     private static func lowestInACycle(_ views: [DrawingView]) -> ViewID? {
-        let parents = Dictionary(uniqueKeysWithValues: views.compactMap { view in
-            view.derivation.map { (view.id, $0.parent) }
-        })
+        let parents = Dictionary(
+            views.compactMap { view in view.derivation.map { (view.id, $0.parent) } },
+            uniquingKeysWith: { first, _ in first })
         for view in views {
             var path = [view.id]
             var seen: Set<ViewID> = [view.id]

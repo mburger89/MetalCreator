@@ -21,11 +21,14 @@ struct ViewDerivationTests {
         DrawingView(id: id(n), kind: .base, source: node, orientation: orientation, center: .zero)
     }
 
-    private func section(_ n: Int, parent: ViewID, orientation: ViewOrientation? = nil) -> DrawingView {
-        DrawingView(
+    private func section(
+        _ n: Int, parent: ViewID, orientation: ViewOrientation? = nil, cutter given: SectionCutter? = nil
+    ) -> DrawingView {
+        let used = given ?? cutter
+        return DrawingView(
             id: id(n), kind: .section, source: node,
-            orientation: orientation ?? .custom(SectionFrame.frame(for: cutter)), center: .zero,
-            derivation: .section(SectionLine(parent: parent, cutter: cutter)), letter: "A")
+            orientation: orientation ?? .custom(SectionFrame.frame(for: used)), center: .zero,
+            derivation: .section(SectionLine(parent: parent, cutter: used)), letter: "A")
     }
 
     private func detail(_ n: Int, parent: ViewID, orientation: ViewOrientation = .standard(.front)) -> DrawingView {
@@ -92,7 +95,8 @@ struct ViewDerivationTests {
             derivation: .auxiliary(AuxiliaryArrow(parent: id(3), parentFrame: frame, at: .zero, viewing: Vector2(0, 1))),
             letter: "C")
         let auxDetail = detail(6, parent: id(5), orientation: .custom(slant))
-        let slantedSection = section(7, parent: id(3))
+        let slantedCutter = SectionCutter(frame: frame, points: [Vector2(0, 0), Vector2(10, 5)], viewing: Vector2(-5, 10))
+        let slantedSection = section(7, parent: id(3), cutter: slantedCutter)
         let slantedDetail = detail(8, parent: id(7), orientation: .custom(slant))
         let detailOfDetail = detail(9, parent: id(8), orientation: .custom(slant))
         let orphanSlanted = detail(10, parent: id(99), orientation: .custom(slant))
@@ -109,6 +113,7 @@ struct ViewDerivationTests {
         #expect(!sheet.isPictorial(sect))
         #expect(!sheet.isPictorial(aux))
         #expect(!sheet.isPictorial(auxDetail))
+        #expect(!sheet.isPictorial(slantedSection))
         #expect(!sheet.isPictorial(slantedDetail))
         #expect(!sheet.isPictorial(detailOfDetail))
         #expect(sheet.isPictorial(orphanSlanted))
@@ -129,5 +134,14 @@ struct ViewDerivationTests {
         #expect(back.views.map(\.id) == [id(3), id(4), id(5), id(6)])
         #expect(back.view(id(3))?.derivation?.parent == id(2))
         #expect(back.annotations.isEmpty)
+    }
+
+    @Test func twoDerivedViewsSharingAnIdDoNotCrashTheDecoder() throws {
+        let first = detail(2, parent: id(1))
+        var second = detail(2, parent: id(1))
+        second.letter = "C"
+        let back = try roundTrip(DrawingSheet(name: "S", views: [base(1), first, second]))
+        #expect(back.views.contains { $0.id == id(1) })
+        #expect(back.view(id(2)) != nil)
     }
 }
