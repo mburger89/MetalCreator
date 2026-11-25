@@ -106,4 +106,23 @@ struct SheetComposerTests {
         #expect(picture.texts.contains { $0.original == "84 g" })
         #expect(picture.texts.contains { $0.original == "1 : 2" })
     }
+
+    @Test func aSheetWithoutAnnotationsReportsNone() throws {
+        let view = makeView(150)
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        let picture = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [view.id: ViewContent(projection: projection)],
+            facts: TitleBlockFacts())
+        #expect(picture.annotationReports.isEmpty && picture.lostAnnotations.isEmpty)
+        #expect(picture.viewExtents[view.id] == picture.viewFrames[view.id])
+    }
+
+    @Test func aViewWithoutCentreMarksOrAnnotationsAddsNoStrokes() {
+        let view = makeView(150)
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        let picture = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [view.id: ViewContent(projection: projection)],
+            facts: TitleBlockFacts())
+        #expect(!picture.strokes.contains { $0.layer == .dimension || $0.layer == .center })
+    }
 }

@@ -15,7 +15,8 @@ public enum SheetHitTest {
     /// The index into `picture.strokes` of the view's stroke nearest the point within `tolerance`.
     public static func line(near point: Vector2, in picture: SheetPicture, view: ViewID, tolerance: Double) -> Int? {
         var best: (index: Int, distance: Double)?
-        for (index, stroke) in picture.strokes.enumerated() where stroke.view == view {
+        for (index, stroke) in picture.strokes.enumerated()
+            where stroke.view == view && stroke.annotation == nil && stroke.layer != .center {
             let distance = stroke.segments.map { distance(from: point, to: $0) }.min() ?? .infinity
             if distance <= tolerance, distance < (best?.distance ?? .infinity) { best = (index, distance) }
         }

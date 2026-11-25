@@ -99,11 +99,21 @@ public struct SheetPicture: Hashable, Sendable {
     public var fills: [SheetFill]
     /// The page's standard, so the writers dash by its style.
     public var standard: DrawingStandard
+    /// What each annotation of the sheet turned out to be (plan R15). Read by lookup only, never iterated into output.
+    public var annotationReports: [AnnotationID: AnnotationReport]
+    /// The annotations that lost what they were attached to, in the sheet's order.
+    public var lostAnnotations: [AnnotationID]
+    /// Each view's frame grown to hold its annotations and centre marks. Read by lookup only.
+    public var viewExtents: [ViewID: Rect2D]
 
     public init(
         size: Vector2, strokes: [SheetStroke] = [], texts: [SheetText] = [], viewFrames: [ViewID: Rect2D] = [:],
-        fills: [SheetFill] = [], standard: DrawingStandard = .iso
+        fills: [SheetFill] = [], standard: DrawingStandard = .iso, annotationReports: [AnnotationID: AnnotationReport] = [:],
+        lostAnnotations: [AnnotationID] = [], viewExtents: [ViewID: Rect2D] = [:]
     ) {
+        self.annotationReports = annotationReports
+        self.lostAnnotations = lostAnnotations
+        self.viewExtents = viewExtents
         self.fills = fills
         self.standard = standard
         self.size = size
