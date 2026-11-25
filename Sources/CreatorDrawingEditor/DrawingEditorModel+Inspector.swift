@@ -24,10 +24,6 @@ extension DrawingEditorModel {
         guard key.isTyped, let id = currentSheet else { return }
         commit(DrawingStepName.editTitleBlock) { document in
             guard let index = document.sheets.firstIndex(where: { $0.id == id }) else { return }
-            if key == .tolerance {
-                document.settings.generalTolerance = value
-                return
-            }
             func write(_ block: inout TitleBlock) {
                 switch key {
                 case .owner: block.owner = value
@@ -72,8 +68,8 @@ extension DrawingEditorModel {
         commit(DrawingStepName.changeStandard) { document in
             let old = document.settings
             document.settings.standard = standard
-            if old.generalTolerance == DrawingSettings.defaultTolerance(for: old.standard, inches: self.standardUnitsAreInches) {
-                document.settings.generalTolerance = DrawingSettings.defaultTolerance(
+            if old.generalTolerance == GeneralTolerance.standardDefault(for: old.standard, inches: self.standardUnitsAreInches) {
+                document.settings.generalTolerance = GeneralTolerance.standardDefault(
                     for: standard, inches: self.standardUnitsAreInches)
             }
             document.sheets = document.sheets.map(ViewPlacement.mirroredForStandardChange)

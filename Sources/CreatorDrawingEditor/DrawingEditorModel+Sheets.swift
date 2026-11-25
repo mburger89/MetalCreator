@@ -17,7 +17,7 @@ extension DrawingEditorModel {
         commit(DrawingStepName.addSheet) { document in
             document.sheets.append(sheet)
             if document.settings.generalTolerance.isEmpty {
-                document.settings.generalTolerance = DrawingSettings.defaultTolerance(
+                document.settings.generalTolerance = GeneralTolerance.standardDefault(
                     for: document.settings.standard, inches: self.standardUnitsAreInches)
             }
         }

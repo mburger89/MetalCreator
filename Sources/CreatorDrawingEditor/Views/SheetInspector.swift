@@ -27,15 +27,14 @@ struct SheetInspector: Component {
         case .material: sheet.titleBlock.material
         case .drawingNumber: sheet.titleBlock.drawingNumber
         case .revision: sheet.titleBlock.revision
-        case .tolerance: model.document.settings.generalTolerance
-        case .mass, .scale, .projection, .size, .sheet: ""
+        case .mass, .scale, .projection, .size, .sheet, .tolerance: ""
         }
     }
 
     /// The typed title-block fields in the block's reading order, with the inspector's labels.
     static let fields: [(TitleBlockKey, String)] = [
         (.title, "Title"), (.drawingNumber, "Drawing number"), (.revision, "Revision"), (.owner, "Owner"),
-        (.drawnBy, "Drawn by"), (.date, "Date"), (.material, "Material"), (.tolerance, "Tolerances"),
+        (.drawnBy, "Drawn by"), (.date, "Date"), (.material, "Material"),
     ]
 
     var content: some ElementGroup {

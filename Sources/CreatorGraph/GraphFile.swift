@@ -31,8 +31,9 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// 16: Trim Surface's `regionPicks` setting (`ConstantValue.regionPicks`) and the `cutSide` face role and `cut` boundary role in saved
     /// picks (NS-4); a version-15 reader cannot decode them. Files 1 to 15 open unchanged and are written as 16.
     /// 17: the top-level graph's optional `drawings` key (DR-1: sheets in tab order, views sorted by ID, settings); a version-16 reader cannot open it.
-    /// Files 1 to 16 open unchanged and are written as 17.
-    public static let currentFormatVersion = 17
+    /// 18: DR-2's annotations on a sheet, `DrawingView.showsCentreMarks`, a structured general tolerance and the decimal sign; a version-17 reader would drop the annotations on its next save.
+    /// Files 1 to 17 open unchanged and are written as 18.
+    public static let currentFormatVersion = 18
 
     public var formatVersion: Int
     public var graph: Graph

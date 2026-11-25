@@ -38,9 +38,6 @@ struct DrawingStepNameTests {
             h.model.setSheetScale(DrawingScale(numerator: 1, denominator: 2))
         },
         Case(name: "setTitleField title", expected: "Edit Title Block") { h, _, _, _ in h.model.setTitleField(.title, to: "X") },
-        Case(name: "setTitleField tolerance", expected: "Edit Title Block") { h, _, _, _ in
-            h.model.setTitleField(.tolerance, to: "Y")
-        },
         Case(name: "setDensity", expected: "Edit Title Block") { h, _, _, _ in h.model.setDensity(7.8) },
         Case(name: "setStandard", expected: "Change Standard") { h, _, _, _ in h.model.setStandard(.asme) },
         Case(name: "setScale", expected: "Change Scale") { h, _, v, _ in
@@ -85,7 +82,7 @@ struct DrawingStepNameTests {
         m.setSheetOrientation(sheet.orientation)
         m.setSheetScale(sheet.scale)
         m.setTitleField(.title, to: sheet.titleBlock.title)
-        m.setTitleField(.tolerance, to: m.document.settings.generalTolerance)
+        m.setTitleField(.tolerance, to: "Y")
         m.setTitleField(.mass, to: "9 g")
         m.setTitleField(.scale, to: "1 : 7")
         m.setDensity(sheet.titleBlock.density)
