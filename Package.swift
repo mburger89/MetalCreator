@@ -108,6 +108,10 @@ var targets: [Target] = [
     // the app shell turns its commits into graph commands. CreatorStyle for the theme's colours.
     .target(name: "CreatorSketchEditor",
             dependencies: ["CreatorSketch", "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
+    // The drawing editor (DR-1): `DrawingEditorModel` and its views. Graph-free: the app shell turns its commits into graph commands.
+    .target(
+        name: "CreatorDrawingEditor",
+        dependencies: ["CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
     // The app shell (M6): the one target that joins the graph, the nodes, the viewport and the editors. A library,
     // so its model is tested; the executable below only opens the window.
     .target(
@@ -156,6 +160,12 @@ var targets: [Target] = [
     .testTarget(
         name: "CreatorDrawingTests",
         dependencies: ["CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorGraph"]),
+    .testTarget(
+        name: "CreatorDrawingEditorTests",
+        dependencies: [
+            "CreatorDrawingEditor", "CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUITesting,
+            metalUIPortableText, metalUISystemFonts,
+        ]),
     .testTarget(
         name: "CreatorImplicitTests",
         dependencies: [
