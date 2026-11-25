@@ -80,6 +80,29 @@ struct SheetEditingTests {
         #expect(h.model.currentSheet == copy.id)
     }
 
+    @Test func duplicatingRemapsParents() throws {
+        let base = EditorDocuments.view(at: Vector2(100, 150))
+        let cutter = SectionCutter(
+            frame: base.orientation.frame, points: [Vector2(0, 0), Vector2(20, 0)], viewing: Vector2(0, 1))
+        let section = DrawingView(
+            kind: .section, source: base.source, orientation: .custom(SectionFrame.frame(for: cutter)),
+            center: Vector2(100, 250), derivation: .section(SectionLine(parent: base.id, cutter: cutter)), letter: "A")
+        let detail = DrawingView(
+            kind: .detail, source: base.source, orientation: base.orientation, center: Vector2(200, 150),
+            derivation: .detail(DetailCircle(parent: base.id, center: .zero, radius: 5)), letter: "B")
+        let sheet = DrawingSheet(name: "Sheet 1", views: [base, section, detail])
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.duplicateSheet(sheet.id)
+        let copy = h.model.document.sheets[1]
+        let copiedBase = try #require(copy.views.first { $0.kind == .base })
+        let copiedSection = try #require(copy.views.first { $0.kind == .section })
+        let copiedDetail = try #require(copy.views.first { $0.kind == .detail })
+        #expect(copiedSection.derivation?.parent == copiedBase.id)
+        #expect(copiedDetail.derivation?.parent == copiedBase.id)
+        #expect(copiedSection.letter == "A")
+        #expect(copiedDetail.letter == "B")
+    }
+
     @Test func deleteSelectsTheNeighbour() throws {
         let sheets = ["a", "b", "c"].map { DrawingSheet(name: $0) }
         let h = EditorHarness(document: EditorDocuments.document(sheets), sheet: sheets[1].id)

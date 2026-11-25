@@ -84,7 +84,7 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         scale = decodedScale.isValid ? decodedScale : DrawingScale(numerator: 1, denominator: 1)
         titleBlock = try c.decodeIfPresent(TitleBlock.self, forKey: .titleBlock) ?? TitleBlock()
         let decoded = try c.decodeIfPresent([DrawingView].self, forKey: .views) ?? []
-        views = Self.repairingAlignments(decoded.sorted { $0.id < $1.id })
+        views = Self.repairingDerivations(Self.repairingAlignments(Self.droppingBrokenDerivations(decoded.sorted { $0.id < $1.id })))
         // An annotation of a view that is not on the sheet is dropped.
         let present = Set(views.map(\.id))
         let decodedAnnotations = try c.decodeIfPresent([DrawingAnnotation].self, forKey: .annotations) ?? []

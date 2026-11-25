@@ -42,6 +42,9 @@ extension DrawingEditorModel {
                     ViewAlignment(parent: $0, axis: alignment.axis)
                 }
             }
+            if let derivation = views[position].derivation, let parent = renamed[derivation.parent] {
+                views[position].derivation = derivation.withParent(parent)
+            }
         }
         let annotations = original.annotations.map { annotation -> DrawingAnnotation in
             var copied = annotation

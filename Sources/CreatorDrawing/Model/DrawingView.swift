@@ -4,6 +4,9 @@ import CreatorKernel
 public enum ViewKind: String, Sendable, Codable {
     case base
     case projected
+    case section
+    case detail
+    case auxiliary
 }
 
 public enum AlignmentAxis: String, Sendable, Codable {
@@ -36,11 +39,16 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
     public var showsLabel: Bool
     /// Whether the view draws its automatic centre marks (missing in an older file reads true).
     public var showsCentreMarks: Bool
+    /// What a section, detail or auxiliary view was made from; set exactly for those kinds (DR-3 R10).
+    public var derivation: ViewDerivation?
+    /// A derived view's letter (R7).
+    public var letter: String?
 
     public init(
         id: ViewID = ViewID(), kind: ViewKind, source: NodeID, orientation: ViewOrientation, scale: DrawingScale? = nil,
         center: Vector2, alignment: ViewAlignment? = nil, showsHidden: Bool = false, showsTangent: Bool = true,
-        showsLabel: Bool = false, showsCentreMarks: Bool = true
+        showsLabel: Bool = false, showsCentreMarks: Bool = true,
+        derivation: ViewDerivation? = nil, letter: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -53,10 +61,13 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         self.showsTangent = showsTangent
         self.showsLabel = showsLabel
         self.showsCentreMarks = showsCentreMarks
+        self.derivation = derivation
+        self.letter = letter
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, source, orientation, scale, center, alignment, showsHidden, showsTangent, showsLabel, showsCentreMarks
+        case derivation, letter
     }
 
     public init(from decoder: any Decoder) throws {
@@ -73,5 +84,8 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         showsTangent = try c.decodeIfPresent(Bool.self, forKey: .showsTangent) ?? true
         showsLabel = try c.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? false
         showsCentreMarks = try c.decodeIfPresent(Bool.self, forKey: .showsCentreMarks) ?? true
+        // A derivation of an unknown shape reads as missing; the sheet then drops a derived view that lacks one.
+        derivation = (try? c.decodeIfPresent(ViewDerivation.self, forKey: .derivation)) ?? nil
+        letter = try c.decodeIfPresent(String.self, forKey: .letter)
     }
 }
