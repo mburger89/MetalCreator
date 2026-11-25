@@ -17,7 +17,7 @@ public struct DXFOutput: Sendable {
 /// input: handles are sequential, numbers go through `PDFNumber`, nothing iterates a dictionary.
 public enum DXFWriter {
     public static func write(
-        strokes: [SheetStroke], texts: [SheetText], extent: Rect2D, style: DrawingStyle
+        strokes: [SheetStroke], texts: [SheetText], fills: [SheetFill] = [], extent: Rect2D, style: DrawingStyle
     ) -> DXFOutput {
         var handles = DXFHandles()
         let set = DXFHandleSet(&handles)
@@ -27,6 +27,7 @@ public enum DXFWriter {
         for stroke in strokes {
             for segment in stroke.segments { entity(segment, of: stroke, owner: set.modelRecord, handles: &handles, into: &entities) }
         }
+        for fill in fills { solids(fill, owner: set.modelRecord, handles: &handles, into: &entities) }
         for text in texts where !text.run.shown.isEmpty {
             textEntity(text, owner: set.modelRecord, handles: &handles, into: &entities)
         }
@@ -46,7 +47,8 @@ public enum DXFWriter {
     /// The open sheet, in sheet millimetres.
     public static func sheet(_ picture: SheetPicture, style: DrawingStyle) -> DXFOutput {
         write(
-            strokes: picture.strokes, texts: picture.texts, extent: Rect2D(min: .zero, max: picture.size), style: style)
+            strokes: picture.strokes, texts: picture.texts, fills: picture.fills,
+            extent: Rect2D(min: .zero, max: picture.size), style: style)
     }
 
     /// One view at 1:1 in model millimetres, x and y as the view plane's (plan R24): no frame and no texts.
@@ -69,6 +71,7 @@ public enum DXFWriter {
         t.add(100, "AcDbEntity")
         t.add(8, stroke.layer.rawValue)
         if stroke.pattern == .hidden && stroke.layer != .hidden { t.add(6, "DASHED") }
+        if stroke.pattern == .centre && stroke.layer != .center { t.add(6, "CENTER") }
         t.add(370, DXFTables.lineweight(stroke.width))
     }
 
@@ -196,8 +199,28 @@ public enum DXFWriter {
         t.add(30, 0.0)
         t.add(40, text.height)
         t.add(1, escaped(text.run.shown))
+        if text.angle != 0 { t.add(50, degrees(text.angle)) }
         t.add(7, "Standard")
         t.add(100, "AcDbText")
+    }
+
+    /// A filled polygon as a fan of `SOLID`s from its first point; each triangle's fourth vertex repeats its third.
+    private static func solids(_ fill: SheetFill, owner: String, handles: inout DXFHandles, into t: inout DXFText) {
+        guard fill.points.count >= 3 else { return }
+        for index in 1..<(fill.points.count - 1) {
+            let corners = [fill.points[0], fill.points[index], fill.points[index + 1]]
+            t.add(0, "SOLID")
+            t.add(5, handles.make())
+            t.add(330, owner)
+            t.add(100, "AcDbEntity")
+            t.add(8, fill.layer.rawValue)
+            t.add(100, "AcDbTrace")
+            for (slot, point) in (corners + [corners[2]]).enumerated() {
+                t.add(10 + slot, point.x)
+                t.add(20 + slot, point.y)
+                t.add(30 + slot, 0.0)
+            }
+        }
     }
 
     /// DXF's text codes: `%%c` for Ø, `%%p` for ±, `%%d` for °, `%%%` for a percent sign, `\U+XXXX` for anything else

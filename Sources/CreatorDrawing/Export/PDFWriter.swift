@@ -19,7 +19,6 @@ public enum PDFWriter {
     private static let contentScale = "2.834645669"
 
     public static func write(_ pages: [SheetPicture], title: String) -> PDFOutput {
-        let style = DrawingStyle.iso
         var objects: [[UInt8]] = []
         let kids = (0..<pages.count).map { "\(5 + 2 * $0) 0 R" }.joined(separator: " ")
         objects.append(Array("<< /Type /Catalog /Pages 2 0 R >>".utf8))
@@ -33,7 +32,7 @@ public enum PDFWriter {
                 Array(
                     ("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 \(width) \(height)] "
                         + "/Resources << /Font << /F1 3 0 R >> >> /Contents \(6 + 2 * index) 0 R >>").utf8))
-            let content = Array(contentStream(for: page, style: style).utf8)
+            let content = Array(contentStream(for: page, style: DrawingStyle.of(page.standard)).utf8)
             var stream = Array("<< /Length \(content.count) >>\nstream\n".utf8)
             stream += content
             stream += Array("\nendstream".utf8)
@@ -70,13 +69,24 @@ public enum PDFWriter {
             switch stroke.pattern {
             case .solid: out += "[] 0 d\n"
             case .hidden: out += "[\(n(style.hiddenDash)) \(n(style.hiddenGap))] 0 d\n"
+            case .centre: out += "[\(style.centreDash.map(n).joined(separator: " "))] 0 d\n"
             }
             out += path(of: stroke.segments)
             out += "S\n"
         }
+        for fill in page.fills where fill.points.count >= 3 {
+            for (index, point) in fill.points.enumerated() { out += "\(n(point.x)) \(n(point.y)) \(index == 0 ? "m" : "l")\n" }
+            out += "h f\n"
+        }
         for text in page.texts where !text.run.bytes.isEmpty {
             let em = text.height / Double(HelveticaMetrics.capHeight) * 1000
-            out += "BT /F1 \(n(em)) Tf \(n(text.origin.x)) \(n(text.origin.y)) Td (\(escaped(text.run.bytes))) Tj ET\n"
+            let position = "\(n(text.origin.x)) \(n(text.origin.y))"
+            if text.angle == 0 {
+                out += "BT /F1 \(n(em)) Tf \(position) Td (\(escaped(text.run.bytes))) Tj ET\n"
+            } else {
+                let (c, s) = (cos(text.angle), sin(text.angle))
+                out += "BT /F1 \(n(em)) Tf \(n(c)) \(n(s)) \(n(-s)) \(n(c)) \(position) Tm (\(escaped(text.run.bytes))) Tj ET\n"
+            }
         }
         return out
     }

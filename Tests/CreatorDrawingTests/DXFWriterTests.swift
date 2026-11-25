@@ -234,4 +234,51 @@ import Testing
             .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
         #expect(digest == "334a00adde9aa63c8f186ea0c9f32e5f133143059080cca750d58afca301e6d2")
     }
+
+    // MARK: Annotations (DR-2 Task 6)
+
+    private func annotated(style: DrawingStyle = .iso) -> DXFOutput {
+        var picture = SheetPicture(size: Vector2(210, 297), standard: style.standard)
+        picture.fills = [SheetFill(points: [Vector2(10, 10), Vector2(14, 11), Vector2(10, 12)])]
+        picture.strokes = [
+            SheetStroke(segments: [.line(Vector2(20, 20), Vector2(60, 20))], width: 0.25, pattern: .centre, layer: .dimension),
+            SheetStroke(segments: [.line(Vector2(20, 30), Vector2(60, 30))], width: 0.25, pattern: .centre, layer: .center),
+        ]
+        picture.texts = [
+            SheetText(
+                run: DrawingText.layout("25", height: 3.5), original: "25", origin: Vector2(30, 40), height: 3.5, angle: .pi / 2),
+        ]
+        return DXFWriter.sheet(picture, style: style)
+    }
+
+    @Test func fillsAreSolids() throws {
+        let solid = try #require(try read(annotated()).entities.first { $0.type == "SOLID" })
+        #expect(solid.number(12) == solid.number(13) && solid.number(22) == solid.number(23))
+        #expect(solid.number(10) == 10 && solid.number(11) == 14 && solid.number(12) == 10)
+    }
+
+    @Test func textAngleIsCode50() throws {
+        let text = try #require(try read(annotated()).entities.first { $0.type == "TEXT" })
+        #expect(text.number(50) == 90)
+    }
+
+    @Test func centreStrokesOffTheCenterLayerCarryTheLinetype() throws {
+        let lines = try read(annotated()).entities.filter { $0.type == "LINE" }
+        #expect(lines[0].first(6) == "CENTER")
+        #expect(lines[1].first(6) == nil)
+    }
+
+    @Test func asmeCenterLinetype() throws {
+        let reader = try read(annotated(style: .asme))
+        let center = try #require(reader.lineTypes.first { $0.first(2) == "CENTER" })
+        #expect(center.all(49).compactMap(Double.init) == [19, -1.5, 3, -1.5])
+        let iso = try #require(try read(annotated()).lineTypes.first { $0.first(2) == "CENTER" })
+        #expect(iso.all(49).compactMap(Double.init) == [6, -0.75, 0, -0.75])
+    }
+
+    @Test func annotatedSheetIsDeterministic() throws {
+        #expect(annotated().data == annotated().data)
+        let reader = try read(annotated())
+        #expect(reader.duplicateHandles == [] && reader.danglingReferences == [])
+    }
 }

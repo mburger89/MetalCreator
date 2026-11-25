@@ -20,6 +20,7 @@ public enum SheetComposer {
         let standard = settings.standard
         let style = DrawingStyle.of(standard)
         var picture = SheetFrame.picture(for: sheet, standard: standard)
+        picture.standard = standard
         let index = document.sheets.firstIndex { $0.id == sheet.id } ?? 0
         picture.append(
             TitleBlockLayout.picture(

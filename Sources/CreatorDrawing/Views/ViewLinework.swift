@@ -14,7 +14,7 @@ public enum ViewLinework {
             result.append(
                 SheetStroke(
                     segments: [segment(of: line.curve).transformed(scale: scale, offset: offset)], width: look.width,
-                    pattern: look.pattern, layer: look.layer, view: view.id))
+                    pattern: look.pattern, layer: look.layer, view: view.id, source: line.source))
         }
         return result
     }

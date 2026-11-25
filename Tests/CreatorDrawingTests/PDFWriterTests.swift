@@ -120,4 +120,68 @@ import Testing
             .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
         #expect(digest == "abeb0954616adb795e7fe4749772aeac4853bb48ba4e9d2b0948ea1cab65228a")
     }
+
+    // MARK: Annotations (DR-2 Task 6)
+
+    private func annotatedPage(standard: DrawingStandard = .iso) -> SheetPicture {
+        let style = DrawingStyle.of(standard)
+        var picture = SheetPicture(size: Vector2(210, 297), standard: standard)
+        picture.fills = [SheetFill(points: [Vector2(10, 10), Vector2(14, 11), Vector2(10, 12)])]
+        picture.strokes = [
+            SheetStroke(segments: [.line(Vector2(20, 20), Vector2(60, 20))], width: style.thin, pattern: .centre, layer: .center)
+        ]
+        picture.texts = [
+            SheetText(
+                run: DrawingText.layout("25 ±0.1", height: 3.5), original: "25 ±0.1", origin: Vector2(30, 40), height: 3.5,
+                angle: .pi / 6),
+            DrawingFixtures.text("-0.2", at: Vector2(30, 50), height: 3.5),
+        ]
+        return picture
+    }
+
+    @Test func fillsAreClosedAndFilled() throws {
+        let reader = try PDFStructureReader(data: write([annotatedPage()]).data)
+        let names = reader.pages[0].operators.map(\.name)
+        let fillIndex = try #require(names.firstIndex(of: "f"))
+        #expect(names[fillIndex - 1] == "h")
+        #expect(Array(names[(fillIndex - 4)..<(fillIndex - 1)]) == ["m", "l", "l"])
+    }
+
+    @Test func rotatedTextUsesTm() throws {
+        var picture = SheetPicture(size: Vector2(210, 297))
+        picture.texts = [
+            SheetText(run: DrawingText.layout("A", height: 3.5), original: "A", origin: Vector2(30, 40), height: 3.5, angle: .pi / 2)
+        ]
+        let reader = try PDFStructureReader(data: write([picture]).data)
+        let tm = try #require(reader.pages[0].operators.first { $0.name == "Tm" })
+        #expect(tm.operands == ["0", "1", "-1", "0", "30", "40"])
+    }
+
+    @Test func unrotatedTextKeepsTd() throws {
+        let reader = try PDFStructureReader(data: write([DrawingFixtures.a4Sheet()]).data)
+        #expect(reader.pages[0].operators.contains { $0.name == "Td" })
+        #expect(!reader.pages[0].operators.contains { $0.name == "Tm" })
+    }
+
+    @Test func dashesFollowThePageStandard() throws {
+        let asme = try PDFStructureReader(data: write([annotatedPage(standard: .asme)]).data)
+        #expect(asme.pages[0].operators.contains(PDFOperator(name: "d", operands: ["[19", "1.5", "3", "1.5]", "0"])))
+        let iso = try PDFStructureReader(data: write([annotatedPage(standard: .iso)]).data)
+        #expect(iso.pages[0].operators.contains(PDFOperator(name: "d", operands: ["[6", "0.75", "0.25", "0.75]", "0"])))
+    }
+
+    @Test func theDR1DigestIsUnchanged() {
+        theFixturesDigestIsPinned()
+    }
+
+    @Test func annotatedPageDigest() {
+        let data = write([annotatedPage()], title: "Annotated").data
+        let text = pdfText(data)
+        #expect(text.contains("(-0.2)"))
+        #expect(!text.contains("\\342\\210\\222"))
+        #expect(data == write([annotatedPage()], title: "Annotated").data)
+        let digest = SHA256.hash(data)
+            .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
+        #expect(digest == "507244790ae669f26399498b99046bbbf361714154dbd7bab0d8ae76f2dda2ee")
+    }
 }

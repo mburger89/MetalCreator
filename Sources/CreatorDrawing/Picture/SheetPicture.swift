@@ -1,9 +1,12 @@
 import CreatorGeometry
+import CreatorKernel
 
 /// How a stroke is dashed.
 public enum StrokePattern: Hashable, Sendable {
     case solid
     case hidden
+    /// Chain line: long dash, gap, short dash, gap (plan R13), by the page's standard.
+    case centre
 }
 
 /// The layers a drawing's strokes and texts are written on (the DXF's layer names).
@@ -25,10 +28,18 @@ public struct SheetStroke: Hashable, Sendable {
     public var pattern: StrokePattern
     public var layer: DrawingLayer
     public var view: ViewID?
+    public var annotation: AnnotationID?
+    public var isLost: Bool
+    /// The projected line this stroke draws, when it draws one.
+    public var source: ProjectionSource?
 
     public init(
-        segments: [SheetSegment], width: Double, pattern: StrokePattern = .solid, layer: DrawingLayer, view: ViewID? = nil
+        segments: [SheetSegment], width: Double, pattern: StrokePattern = .solid, layer: DrawingLayer, view: ViewID? = nil,
+        annotation: AnnotationID? = nil, isLost: Bool = false, source: ProjectionSource? = nil
     ) {
+        self.annotation = annotation
+        self.isLost = isLost
+        self.source = source
         self.segments = segments
         self.width = width
         self.pattern = pattern
@@ -55,11 +66,18 @@ public struct SheetText: Hashable, Sendable {
     public var view: ViewID?
     /// A sentence about the view (its problem or a warning), drawn on screen in the warning colour and never written to a file.
     public var isNotice: Bool
+    /// Radians about `origin`, counter-clockwise.
+    public var angle: Double
+    public var annotation: AnnotationID?
+    public var isLost: Bool
 
     public init(
         run: TextRun, original: String, origin: Vector2, height: Double, layer: DrawingLayer = .text, view: ViewID? = nil,
-        isNotice: Bool = false
+        isNotice: Bool = false, angle: Double = 0, annotation: AnnotationID? = nil, isLost: Bool = false
     ) {
+        self.angle = angle
+        self.annotation = annotation
+        self.isLost = isLost
         self.run = run
         self.original = original
         self.origin = origin
@@ -77,8 +95,17 @@ public struct SheetPicture: Hashable, Sendable {
     public var texts: [SheetText]
     /// Each view's frame on the sheet. Read by lookup only, never iterated into output.
     public var viewFrames: [ViewID: Rect2D]
+    /// Closed filled polygons: arrowheads.
+    public var fills: [SheetFill]
+    /// The page's standard, so the writers dash by its style.
+    public var standard: DrawingStandard
 
-    public init(size: Vector2, strokes: [SheetStroke] = [], texts: [SheetText] = [], viewFrames: [ViewID: Rect2D] = [:]) {
+    public init(
+        size: Vector2, strokes: [SheetStroke] = [], texts: [SheetText] = [], viewFrames: [ViewID: Rect2D] = [:],
+        fills: [SheetFill] = [], standard: DrawingStandard = .iso
+    ) {
+        self.fills = fills
+        self.standard = standard
         self.size = size
         self.strokes = strokes
         self.texts = texts
@@ -89,6 +116,7 @@ public struct SheetPicture: Hashable, Sendable {
     public mutating func append(_ other: SheetPicture) {
         strokes += other.strokes
         texts += other.texts
+        fills += other.fills
         for (id, frame) in other.viewFrames.sorted(by: { $0.key < $1.key }) { viewFrames[id] = frame }
     }
 }
