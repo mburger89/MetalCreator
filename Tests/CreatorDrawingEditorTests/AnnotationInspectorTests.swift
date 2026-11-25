@@ -173,7 +173,7 @@ struct AnnotationInspectorTests {
     @Test func anEmptyNoteIsRefused() {
         let s = Scene.make([.note])
         s.h.model.setNoteText("   ", of: Scene.note)
-        #expect(s.h.model.refusal == "A note can't be empty.")
+        #expect(s.h.model.refusal == "A note needs some text; delete it instead.")
         #expect(s.h.log.commits.isEmpty)
         s.h.model.setNoteText("Plate", of: Scene.note)
         #expect(s.h.log.commits.isEmpty, "the same text")

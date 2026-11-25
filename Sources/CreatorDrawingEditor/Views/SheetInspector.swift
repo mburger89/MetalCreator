@@ -117,7 +117,7 @@ extension SheetInspector {
         case .asme(let table):
             Text("GENERAL TOLERANCE (\(table.unit.symbol))").font(.caption2).foregroundStyle(colors.secondary.color)
             ForEach(table.rows, id: \.places) { row in
-                DrawingRow("\(row.places) decimals", colors: colors) {
+                DrawingRow(row.places == 1 ? "1 decimal" : "\(row.places) decimals", colors: colors) {
                     DrawingField(model: model, text: row.text, width: 90) { model.setASMEToleranceRow(places: row.places, text: $0) }
                 }
             }

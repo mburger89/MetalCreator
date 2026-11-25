@@ -254,7 +254,7 @@ struct DrawingInspectorAnnotationTests {
         let scene = SelectionScene.make([])
         scene.h.model.setStandard(.asme)
         let shown = try texts(try await open(scene))
-        for row in ["0 decimals", "1 decimals", "2 decimals"] { #expect(shown.contains(row), "\(row) in \(shown)") }
+        for row in ["0 decimals", "1 decimal", "2 decimals"] { #expect(shown.contains(row), "\(row) in \(shown)") }
         #expect(!shown.contains("Geometric"))
         let iso = SelectionScene.make([])
         let isoShown = try texts(try await open(iso))

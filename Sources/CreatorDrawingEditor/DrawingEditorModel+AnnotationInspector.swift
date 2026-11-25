@@ -7,7 +7,7 @@ extension DrawingEditorModel {
     static let fitSentence = "Fits apply to sizes: a diameter or a distance between two faces."
     static let toleranceNumberSentence = "A tolerance is a number, such as 0.1."
     static let generalToleranceSentence = "A general tolerance is a number, such as 0.1."
-    static let emptyNoteSentence = "A note can't be empty."
+    static let emptyNoteSentence = "A note needs some text; delete it instead."
     static let precisionSentence = "Precision is 0 to 4 decimals."
 
     // MARK: Dimensions

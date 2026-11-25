@@ -1,6 +1,6 @@
 import CreatorGeometry
 
-/// A leader's far end: what it points at, and where it pointed last (sheet mm, relative to the view's centre).
+/// A leader's far end: what it points at, and where it pointed last (a point on the view's model plane, mm).
 public struct LeaderEnd: Hashable, Codable, Sendable {
     public var target: AnchorTarget
     public var hint: Vector2

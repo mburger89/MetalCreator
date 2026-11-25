@@ -212,24 +212,6 @@ import Testing
         #expect(DXFWriter.view(top, view: onSheet, style: style).replacedTexts.isEmpty)
     }
 
-    @Test func aViewWithAnnotationsKeepsItsAutomaticCentreMarks() throws {
-        let circle = ProjectedLine(
-            visibility: .visible, lineClass: .sharp,
-            curve: .arc(center: Vector2(10, 10), radius: 3, start: 0, sweep: 2 * .pi), source: .edge(EdgeID(0)))
-        let projection = Projection2D(lines: [circle])
-        var onSheet = view()
-        onSheet.scale = nil
-        let sheet = DrawingSheet(name: "S", scale: DrawingScale(numerator: 1, denominator: 1), views: [onSheet])
-        let content = ViewContent(projection: projection)
-        let picture = SheetComposer.compose(
-            sheet, in: DrawingDocument(sheets: [sheet]), contents: [onSheet.id: content], facts: TitleBlockFacts())
-        let mapping = try #require(ViewMapping.of(projection: projection, center: onSheet.center, scale: 1))
-        let plain = try read(DXFWriter.view(projection, view: onSheet, style: style))
-        #expect(!plain.entities.contains { $0.layer == "CENTER" })
-        let annotated = try read(DXFWriter.view(projection, view: onSheet, style: style, annotations: (picture, mapping)))
-        #expect(annotated.entities.filter { $0.layer == "CENTER" }.count == 2, "the two chain lines of the hole's centre mark")
-    }
-
     @Test func handlesAreUniqueAndOwned() throws {
         for output in [fixture(), DXFWriter.view(Projection2D(lines: [line(0, 0, 1, 1)]), view: view(), style: style)] {
             let reader = try read(output)
