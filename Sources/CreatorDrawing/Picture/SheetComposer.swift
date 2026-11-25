@@ -3,6 +3,7 @@ import CreatorGeometry
 /// Builds a sheet's whole picture: frame, title block and each view (plan R7, R11, R18).
 public enum SheetComposer {
     static let defaultEmptySize = Vector2(40, 30)
+    static let problemMargin = 4.0
 
     public static func compose(
         _ sheet: DrawingSheet, in document: DrawingDocument, contents: [ViewID: ViewContent], facts: TitleBlockFacts
@@ -28,22 +29,8 @@ public enum SheetComposer {
                 frame = ViewLinework.frame(for: projection, center: center, scale: scale)
                     ?? Rect2D(min: center, max: center)
             } else {
-                let size = content.lastSize ?? defaultEmptySize
-                frame = Rect2D(
-                    min: center - Vector2(size.x / 2, size.y / 2), max: center + Vector2(size.x / 2, size.y / 2))
-                picture.strokes.append(
-                    SheetStroke(
-                        segments: [.polyline(SheetFrame.closedPoints(of: frame))], width: style.thin, layer: .frame,
-                        view: view.id))
-                if let problem = content.problem, !problem.isEmpty {
-                    let height = style.notesHeight(for: sheet.size)
-                    let run = DrawingText.layout(problem, height: height)
-                    picture.texts.append(
-                        SheetText(
-                            run: run, original: problem,
-                            origin: Vector2(center.x - run.width / 2, center.y - height / 2), height: height,
-                            layer: .text, view: view.id))
-                }
+                frame = appendEmptyView(
+                    to: &picture, view: view, center: center, content: content, sheet: sheet, style: style)
             }
             picture.viewFrames[view.id] = frame
             if view.showsLabel {
@@ -58,5 +45,34 @@ public enum SheetComposer {
             }
         }
         return picture
+    }
+
+    /// A view with no projection: its frame (grown to hold the problem text) and the problem centred in it.
+    private static func appendEmptyView(
+        to picture: inout SheetPicture, view: DrawingView, center: Vector2, content: ViewContent,
+        sheet: DrawingSheet, style: DrawingStyle
+    ) -> Rect2D {
+        var size = content.lastSize ?? defaultEmptySize
+        let height = style.notesHeight(for: sheet.size)
+        var layout: (text: String, run: TextRun)?
+        if let problem = content.problem, !problem.isEmpty {
+            let run = DrawingText.layout(problem, height: height)
+            layout = (problem, run)
+            size = Vector2(max(size.x, run.width + 2 * problemMargin), max(size.y, height + 2 * problemMargin))
+        }
+        let frame = Rect2D(
+            min: center - Vector2(size.x / 2, size.y / 2), max: center + Vector2(size.x / 2, size.y / 2))
+        picture.strokes.append(
+            SheetStroke(
+                segments: [.polyline(SheetFrame.closedPoints(of: frame))], width: style.thin, layer: .frame,
+                view: view.id))
+        if let (problem, run) = layout {
+            picture.texts.append(
+                SheetText(
+                    run: run, original: problem,
+                    origin: Vector2(center.x - run.width / 2, center.y - height / 2), height: height,
+                    layer: .text, view: view.id))
+        }
+        return frame
     }
 }

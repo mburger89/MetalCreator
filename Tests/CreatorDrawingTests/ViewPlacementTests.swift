@@ -59,6 +59,7 @@ struct ViewPlacementTests {
         #expect(centers[parent.id] == Vector2(100, 100))
         #expect(centers[side.id] == Vector2(20, 100))
         #expect(centers[grand.id]?.x == 20)
+        #expect(centers[grand.id] == Vector2(20, 50))
         #expect(mirrored.view(side.id)?.orientation == side.orientation)
         #expect(mirrored.view(grand.id)?.alignment == grand.alignment)
     }

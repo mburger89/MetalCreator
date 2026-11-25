@@ -34,11 +34,26 @@ struct SheetComposerTests {
             sheet, in: DrawingDocument(sheets: [sheet]),
             contents: [view.id: ViewContent(problem: problem)], facts: TitleBlockFacts())
         let frame = try #require(picture.viewFrames[view.id])
-        #expect(frame == Rect2D(min: Vector2(130, 135), max: Vector2(170, 165)))
         let text = try #require(picture.texts.first { $0.original == problem })
+        #expect(frame.min.x <= text.origin.x && text.origin.x + text.run.width <= frame.max.x)
+        #expect(abs((frame.min.x + frame.max.x) / 2 - 150) < 1e-9)
+        #expect(abs((frame.min.y + frame.max.y) / 2 - 150) < 1e-9)
         #expect(text.height == DrawingStyle.iso.notesHeight(for: .a3))
         #expect(abs((text.origin.x + text.run.width / 2) - 150) < 1e-9)
         #expect(frame.min.y < text.origin.y && text.origin.y < frame.max.y)
+    }
+
+    @Test func aSmallLastSizeStillHoldsTheProblem() throws {
+        let view = makeView(150)
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        let problem = "The Output this view showed was removed."
+        let picture = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]),
+            contents: [view.id: ViewContent(problem: problem, lastSize: Vector2(10, 10))], facts: TitleBlockFacts())
+        let frame = try #require(picture.viewFrames[view.id])
+        let text = try #require(picture.texts.first { $0.original == problem })
+        #expect(frame.min.x <= text.origin.x && text.origin.x + text.run.width <= frame.max.x)
+        #expect(frame.min.y <= text.origin.y && text.origin.y + text.height <= frame.max.y)
     }
 
     @Test func composingIsDeterministic() {
