@@ -56,6 +56,21 @@ struct AnnotationKindsTests {
         #expect(abs((b - a).length - 24) < 1e-9)
     }
 
+    @Test func aCentreLineOnACylinderWithNoCircularEdgesHoldsItsAnchor() throws {
+        let view = Fixtures.makeView(orientation: .front)
+        let face = try #require(topology.facePick(for: FaceID(2)))
+        let line = DrawingAnnotation(view: view.id, kind: .centreLine(CentreLine(anchor: .axis(face))))
+        let bare = Fixtures.topology(removing: [0, 1])
+        let picture = Fixtures.compose(view, [line], content: Fixtures.content(bare))
+        let report = try #require(picture.annotationReports[line.id])
+        #expect(report.anchors == [.held])
+        guard case .lost(let reason) = report.status else {
+            Issue.record("expected lost")
+            return
+        }
+        #expect(reason != .missing)
+    }
+
     @Test func aCentreMarkAnnotationMarksACircle() {
         let view = Fixtures.makeView()
         let mark = DrawingAnnotation(view: view.id, kind: .centreMark(CentreMark(anchor: Fixtures.pick(topology, 0))))

@@ -73,7 +73,8 @@ enum AnnotationComposer {
         case .unlisted(let reason):
             let last = remembered ?? annotation.last
             let label = lostLabel(annotation, last: last)
-            return (AnnotationReport(status: .lost(reason), label: label.first?.plainText ?? "?"), AnnotationPieces())
+            return (
+                AnnotationReport(status: .lost(reason), label: reportText(annotation, label) ?? "?"), AnnotationPieces())
         case .failed(let reason):
             return lostDrawn(annotation, reason: reason, anchors: [], context: context, last: remembered ?? annotation.last)
         case .annotated(let topology, let frame):
@@ -106,7 +107,7 @@ enum AnnotationComposer {
             let made = pieces(of: annotation, figure: last.figure, labels: labels, context: context, isLost: true)
             if made.value.frame != nil { drawn = made }
         }
-        let text = labels.first?.plainText.split(separator: "\n", omittingEmptySubsequences: false).first.map(String.init)
+        let text = reportText(annotation, labels)?.split(separator: "\n", omittingEmptySubsequences: false).first.map(String.init)
         var report = AnnotationReport(status: .lost(reason), anchors: anchors, label: text ?? "?")
         if let drawn {
             report.frame = drawn.value.frame ?? report.frame
@@ -126,6 +127,12 @@ enum AnnotationComposer {
         out.frame = Rect2D(min: origin, max: origin + Vector2(run.width, context.height))
         report.frame = out.frame ?? report.frame
         return (report, out)
+    }
+
+    /// The text a lost annotation's report names: the label `shownLabel` picks, so an ordinate's origin "0" is skipped.
+    private static func reportText(_ annotation: DrawingAnnotation, _ labels: [DimensionLabel]) -> String? {
+        if case .dimension(let dimension) = annotation.kind { return AnnotationEvaluator.shownLabel(of: dimension, labels)?.plainText }
+        return labels.first?.plainText
     }
 
     /// The labels of a lost annotation: its remembered lines, the first of each marked "?".

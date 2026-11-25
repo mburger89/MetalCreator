@@ -82,7 +82,7 @@ enum AnnotationEvaluator {
     }
 
     /// The label a report names: an ordinate's origin "0" is no value.
-    private static func shownLabel(of dimension: DrawingDimension, _ labels: [DimensionLabel]) -> DimensionLabel? {
+    static func shownLabel(of dimension: DrawingDimension, _ labels: [DimensionLabel]) -> DimensionLabel? {
         if case .ordinate = dimension.kind, labels.count > 1 { return labels[1] }
         return labels.first
     }
@@ -160,7 +160,7 @@ enum AnnotationEvaluator {
             guard abs(axis.dot(frame.direction)) <= 1e-9 else { return lost(.foreshortened, anchors: [.held]) }
             guard let face = topology.faces(matching: pick).first,
                 let span = axialSpan(of: face, axisPoint: axisPoint, axis: axis, in: topology)
-            else { return lost(.missing, anchors: [.lost(.missing)]) }
+            else { return lost(.refused("The cylinder has no circular edges to give its length."), anchors: [.held]) }
             let start = frame.place(axisPoint + axis * span.lowerBound)
             let end = frame.place(axisPoint + axis * span.upperBound)
             return held(

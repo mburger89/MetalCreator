@@ -98,6 +98,18 @@ struct AnnotationComposerTests {
         #expect(picture.lostAnnotations == [dimension.id])
     }
 
+    @Test func aLostOrdinateNamesItsValueNotItsOrigin() throws {
+        let view = Fixtures.makeView()
+        let dimension = Fixtures.dimension(view.id, .ordinate(.horizontal), [Fixtures.pick(topology, 102)])
+        let last = LastGood(values: [25], lines: ["0", "25"], figure: figure)
+        let drawn = Fixtures.compose(
+            view, [dimension], content: Fixtures.content(Fixtures.topology(removing: [102])), remembered: [dimension.id: last])
+        #expect(drawn.annotationReports[dimension.id]?.label == "25?")
+        let unlisted = Fixtures.compose(
+            view, [dimension], content: ViewContent(problem: DrawingProjector.removedSentence), remembered: [dimension.id: last])
+        #expect(unlisted.annotationReports[dimension.id]?.label == "25?")
+    }
+
     @Test func aRemovedSourceListsButDrawsNothing() {
         let view = Fixtures.makeView()
         let dimension = horizontal(view)
