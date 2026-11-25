@@ -16,11 +16,19 @@ struct SlowEvaluationAppTests {
     @Test func anEditMarksTheNodeAndTheChipFollowsIt() async throws {
         var builder = GraphBuilder()
         let (_, extrude, _) = builder.box()
-        let app = try await AppWindow.open(builder.graph)
+        let registry = NodeRegistry(BuiltInNodes.all + [GatedNode.self])
+        let app = try await AppWindow.open(builder.graph, registry: registry)
         let gate = WaitGate()
         app.model.slowEvaluation.wait = { try await gate.wait($0) }
+        // The edit's evaluation also runs a gated node, so it cannot end before the test lets it.
+        let held = GatedNodeGates.gate(101)
+        defer { held.open() }
+        var gated = registry.makeNode(GatedNode.typeID)
+        gated.isOutput = true
+        gated.inputValues["key"] = .number(101)
         #expect(app.model.slowEvaluation.running.isEmpty)
 
+        try app.model.document.perform(.addNode(gated), name: "Test")
         try app.model.document.perform(.setInput(extrude.id, "distance", .number(12)), name: "Test")
         app.model.followEvaluation()  // the nodes are marked now; observation would deliver this on the next turn
         #expect(app.model.slowEvaluation.running.contains("Extrude"))
@@ -29,6 +37,7 @@ struct SlowEvaluationAppTests {
         await app.model.slowEvaluation.waitForTimer()
         #expect(app.model.slowEvaluation.text != nil)
 
+        held.open()
         await app.model.settle()
         await yield()
         #expect(app.model.slowEvaluation.running.isEmpty && app.model.slowEvaluation.text == nil, "gone when the evaluation ends")
@@ -79,7 +88,15 @@ struct SlowEvaluationAppTests {
     @Test func openingADocumentDrivesTheChip() async throws {
         var builder = GraphBuilder()
         _ = builder.box()
-        let app = AppModel(kernel: FakeKernel())
+        let registry = NodeRegistry(BuiltInNodes.all + [GatedNode.self])
+        // The file's evaluation runs a gated node, so it cannot end before the test lets it.
+        let held = GatedNodeGates.gate(102)
+        defer { held.open() }
+        var gated = registry.makeNode(GatedNode.typeID)
+        gated.isOutput = true
+        gated.inputValues["key"] = .number(102)
+        builder.graph.nodes[gated.id] = gated
+        let app = AppModel(kernel: FakeKernel(), registry: registry)
         let gate = WaitGate()
         app.slowEvaluation.wait = { try await gate.wait($0) }
         let url = temporaryURL("slow.mcgraph")
@@ -93,6 +110,7 @@ struct SlowEvaluationAppTests {
         gate.open()
         await app.slowEvaluation.waitForTimer()
         #expect(app.slowEvaluation.text == "Building…")
+        held.open()
         await app.settle()
         await yield()
         #expect(app.slowEvaluation.text == nil && !app.slowEvaluation.isRunning)
