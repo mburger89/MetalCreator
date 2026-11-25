@@ -109,6 +109,7 @@ public final class DrawingEditorModel {
     var sheet: DrawingSheet? { currentSheet.flatMap { document.sheet($0) } }
 
     func rebuildPicture() {
+        defer { updateDraft() }
         guard let sheet else {
             picture = nil
             return
