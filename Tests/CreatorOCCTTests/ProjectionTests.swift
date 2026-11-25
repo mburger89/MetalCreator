@@ -134,8 +134,8 @@ struct ProjectionTests {
             let t = max(0, min(1, ab.length < 1e-12 ? 0 : ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / (ab.x * ab.x + ab.y * ab.y)))
             return (p - (a + ab * t)).length
         }
-        for point in coarseLines.joined() {
-            let best = fineLines.map { line in
+        for point in fineLines.joined() {
+            let best = coarseLines.map { line in
                 zip(line, line.dropFirst()).map { distance(point, $0.0, $0.1) }.min() ?? .infinity
             }.min() ?? .infinity
             #expect(best < 0.01 + 1e-6)

@@ -340,7 +340,9 @@ void emit_interval(Builder &builder, const HLRBRep_Curve &curve, double a, doubl
         if (minor > 1e-9 * std::max(1.0, major)) {
             const gp_Pnt2d c = ellipse.Location();
             const gp_Dir2d x = ellipse.XAxis().Direction();
-            const gp_Dir2d y = ellipse.YAxis().Direction();
+            // The minor axis is the major turned a quarter counter-clockwise, as the Swift side reads it: OCCT's own YAxis
+            // is reversed when the circle's axis points away from the viewer.
+            const gp_Dir2d y(-x.Y(), x.X());
             auto angle_of = [&](const gp_Pnt2d &p) {
                 const gp_Vec2d d(c, p);
                 return std::atan2(d.Dot(gp_Vec2d(y)) / minor, d.Dot(gp_Vec2d(x)) / major);
