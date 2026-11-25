@@ -90,6 +90,28 @@ struct DrawingInspectorScaleDensityTests {
         #expect(ScaleControl.selectedIndex(current: nil, isCustom: false, allowsSheetScale: true) == 0)
     }
 
+    @Test func customChosenOnOneViewDoesNotCarryToTheNext() async throws {
+        let views = [EditorDocuments.view(at: Vector2(100, 100)), EditorDocuments.view(at: Vector2(200, 100))]
+        let sheet = DrawingSheet(name: "Sheet 1", views: views)
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.selection = [views[0].id]
+        let window = try await DrawingWindow.open(size: Size(width: Pixels(400), height: Pixels(600)), scaleFactor: 1) {
+            DrawingInspector(model: h.model)
+        }
+        func fields() throws -> Int { try window.window.elements(role: .textField).count }
+        let before = try fields()
+        let menus = try window.window.elements(role: .popUpButton)
+        let scaleMenu = try #require(menus.first { $0.value == "Sheet's" })
+        window.window.click(at: Point(x: scaleMenu.frame.origin.x + 4, y: scaleMenu.frame.origin.y + 4))
+        try await window.window.runUntilIdle()
+        try window.window.chooseMenuItem("Custom…")
+        try await window.window.runUntilIdle()
+        #expect(try fields() == before + 2, "Custom… shows the two fields")
+        h.model.selection = [views[1].id]
+        try await window.window.runUntilIdle()
+        #expect(try fields() == before, "the other view follows the sheet's scale")
+    }
+
     @Test func aTypedScaleOnAViewIsOneStep() {
         let (h, view) = harness()
         h.model.setScale(DrawingScale(numerator: 1, denominator: 3), of: view.id)

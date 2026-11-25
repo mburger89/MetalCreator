@@ -17,6 +17,7 @@ public struct DrawingInspector: Component {
             let chosen = sheet.views.filter { model.selection.contains($0.id) }
             if chosen.count == 1, let view = chosen.first {
                 ViewInspector(model: model, sheet: sheet, view: view, colors: colors)
+                    .id(view.id.rawValue.uuidString)
             } else if chosen.count > 1 {
                 VStack(alignment: .leading, spacing: Pixels(8)) {
                     Text("\(chosen.count) views selected").font(.headline).foregroundStyle(colors.primary.color)
