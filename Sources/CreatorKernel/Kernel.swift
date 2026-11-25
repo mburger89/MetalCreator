@@ -184,9 +184,17 @@ public protocol Kernel: Actor {
     func cappingPlanarHoles(_ sheet: Solid, tag: NodeTag) async throws -> CapResult
     /// `solid` divided by `tools` (NS-5, R13). The default refuses.
     func splitSolid(_ solid: Solid, by tools: [Solid], tag: NodeTag) async throws -> SolidSplit
+    /// The view of `solid` (optional: an Output may hold only curves) and `curves` seen through `frame`, every line visible and hidden,
+    /// classified (drawings, R9). Like `section` it is `async` for the Fake's hooks; the default below stays synchronous and refuses.
+    func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) async throws -> Projection2D
 }
 
 extension Kernel {
+    public func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) throws
+        -> Projection2D {
+        throw KernelError.unsupported("projecting views")
+    }
+
     public func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("mesh to solid")
     }

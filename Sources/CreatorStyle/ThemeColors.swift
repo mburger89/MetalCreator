@@ -102,4 +102,12 @@ public struct ThemeColors: Hashable, Sendable {
     public var sectionFill: HexColor
     public var sectionHatch: HexColor
     public var sectionEdge: HexColor
+
+    // The drawing sheet (drawings spec): paper and ink are the same in every built-in theme, since a drawing is printed.
+    /// The sheet's paper.
+    public var drawingPaper: HexColor
+    /// The lines and lettering drawn on the paper.
+    public var drawingInk: HexColor
+    /// A hovered line and a selected view's outline on the paper.
+    public var drawingHighlight: HexColor
 }

@@ -15,7 +15,7 @@ extension AppModel {
             }
             return .later
         }
-        editor.commitPendingEntry()
+        commitPendingEntries()
         let reply = CloseDecision.reply(isEdited: isEdited)
         guard reply == .later else { return reply }
         closeRequest = .asking

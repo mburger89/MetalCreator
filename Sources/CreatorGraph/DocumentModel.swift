@@ -1,3 +1,4 @@
+import CreatorDrawing
 import CreatorGeometry
 import CreatorKernel
 import Foundation
@@ -55,6 +56,8 @@ public final class DocumentModel {
     }
     /// The measurements the person kept; view state, so changing them is no edit.
     public var measurements: [KeptMeasurement] = []
+    /// Whether the document is in Drawing mode and which sheet it shows (DR-1); view state, so changing it is no edit and no undo step.
+    public var drawingView: DrawingViewState?
     /// The zebra stripes view's settings; view state, so changing them is no edit. A lock frame with a non-finite component is refused.
     public var zebra: ZebraSettings? {
         didSet { if let lock = zebra?.lock, !lock.isFinite { self.zebra = oldValue } }
@@ -133,6 +136,7 @@ public final class DocumentModel {
         section = file.viewState.section
         measurements = file.viewState.measurements
         zebra = file.viewState.zebra
+        drawingView = file.viewState.drawing
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
                                   implicitEngine: implicitEngine)
@@ -147,6 +151,8 @@ public final class DocumentModel {
     public var graph: Graph { content.graph }
     /// The document's display units.
     public var units: DocumentUnits { content.graph.units }
+    /// The document's drawings (DR-1): `content.graph.drawings`. Edit them with `GraphCommand.setDrawings`.
+    public var drawings: DrawingDocument { content.graph.drawings }
     /// The document's group definitions.
     public var definitions: [GroupID: GroupDefinition] { content.definitions }
     /// The registry carrying this document's definitions, so group nodes have their sockets.
@@ -355,29 +361,6 @@ public final class DocumentModel {
             }
         }
         isEvaluating = false
-    }
-}
-
-extension DocumentModel {
-    /// All of the editor state as the file's `ViewState`. Reading it reads every piece; to observe one, read the piece.
-    /// Writing it sets only the pieces that differ, so a write that changes one field invalidates only that field's readers.
-    public var viewState: ViewState {
-        get {
-            ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
-                      showsLibrary: showsLibrary, librarySort: librarySort, section: section, measurements: measurements, zebra: zebra)
-        }
-        set {
-            if dock != newValue.dock { dock = newValue.dock }
-            if canvasOffset != newValue.canvasOffset { canvasOffset = newValue.canvasOffset }
-            if canvasZoom != newValue.canvasZoom { canvasZoom = newValue.canvasZoom }
-            if camera != newValue.camera { camera = newValue.camera }
-            if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
-            if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
-            if librarySort != newValue.librarySort { librarySort = newValue.librarySort }
-            if section != newValue.section { section = newValue.section }
-            if measurements != newValue.measurements { measurements = newValue.measurements }
-            if zebra != newValue.zebra { zebra = newValue.zebra }
-        }
     }
 }
 

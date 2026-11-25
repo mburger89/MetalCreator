@@ -6,6 +6,8 @@ import CreatorSketch
 import CreatorViewport
 import Testing
 @testable import CreatorApp
+
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
 #if canImport(CreatorOCCT)
 @testable import CreatorOCCT
 #endif

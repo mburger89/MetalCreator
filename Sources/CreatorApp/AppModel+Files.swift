@@ -10,6 +10,7 @@ extension AppModel {
     /// New: an empty document. With unsaved changes it asks first (`alert`, then `discardChanges()`).
     public func newDocument() {
         guard closeRequest == .idle else { return }
+        commitPendingEntries()  // a typed value not yet entered is unsaved work too
         guard !isEdited else {
             pendingDiscard = .newDocument
             alert = .discardChanges
@@ -42,6 +43,7 @@ extension AppModel {
     public func openDocument(using picker: any FilePicker) async {
         let picker = tracked(picker)
         guard closeRequest == .idle else { return }
+        commitPendingEntries()
         guard !isEdited else {
             pendingDiscard = .openDocument(picker)
             alert = .discardChanges
@@ -91,7 +93,7 @@ extension AppModel {
     /// Writes the document to `url` and makes it the document's file. A typed but uncommitted inspector value is
     /// committed first, and once the camera has settled its current pose is saved with it.
     public func save(to url: URL) throws(AppProblem) {
-        editor.commitPendingEntry()
+        commitPendingEntries()
         if document.camera != nil { document.camera = viewport.pose }
         do {
             try document.fileData(savingTo: url).write(to: url, options: .atomic)

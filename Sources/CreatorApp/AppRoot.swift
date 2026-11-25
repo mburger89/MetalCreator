@@ -24,7 +24,11 @@ public struct AppRoot: Component {
 
     public var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            ViewportPane(model: model.viewport)
+            if model.mode == .drawing {
+                DrawingDock(model: model)
+            } else {
+                ViewportPane(model: model.viewport)
+            }
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
                 ZStack {
                     TopBar(model: model,
@@ -63,8 +67,11 @@ public struct AppRoot: Component {
                 ControlNetKeys(model: model, session: session)
                 ControlNetBoxView(session: session)
             }
-            FieldLegendDock(model: model)
-            MeshBadgeDock(model: model)
+            // The legend and the mesh badge belong to the 3D view; Drawing shows neither (plan R28).
+            if model.mode == .model {
+                FieldLegendDock(model: model)
+                MeshBadgeDock(model: model)
+            }
             SlowEvaluationDock(model: model)
             AIConnectedDock(model: model)
             ExportSheetDock(model: model)

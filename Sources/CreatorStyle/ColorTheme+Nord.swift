@@ -24,6 +24,7 @@ extension ColorTheme {
         sketchProjected: HexColor(0x5e81ac),
         fieldLow: HexColor(0x88c0d0), fieldMid: HexColor(0xebcb8b), fieldHigh: HexColor(0xbf616a),
         dimensionDriving: HexColor(0x88c0d0), dimensionReference: HexColor(0x81a1c1),
-        sectionFill: HexColor(0x81a1c1), sectionHatch: HexColor(0x2e3440), sectionEdge: HexColor(0xeceff4)
+        sectionFill: HexColor(0x81a1c1), sectionHatch: HexColor(0x2e3440), sectionEdge: HexColor(0xeceff4),
+        drawingPaper: HexColor(0xffffff), drawingInk: HexColor(0x000000), drawingHighlight: HexColor(0x1f6feb)
     ))
 }

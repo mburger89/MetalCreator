@@ -676,6 +676,35 @@ typedef struct occt_cancel occt_cancel;
 occt_cancel *occt_cancel_new(void);
 void occt_cancel_set(occt_cancel *cancel);
 void occt_cancel_free(occt_cancel *cancel);
+/// Hidden-line projection (drawings, DR-1 R9, R10): a solid (may be NULL) and free curves seen along `direction` (the way the viewer
+/// looks) with `up` pointing up the page, through HLRBRep_Algo. Every line comes out, visible and hidden. `visibility` 0 visible, 1
+/// hidden; `line_class` 0 sharp, 1 smooth, 2 outline, 4 curve (3 is never written); `source_kind` 0 edge, 1 face (an outline's face),
+/// 2 curve, -1 none, `source_index` the 0-based edge or face of the solid (or the curve's index) and `source_piece` a curve edge's place
+/// in its wire; `geometry` 0 line, 1 arc, 2 ellipse, 3 polyline. `numbers`: line x0 y0 x1 y1; arc cx cy r start sweep; ellipse cx cy
+/// ax ay R r start sweep (a unit major axis, parametric angles). A polyline's x, y pairs are `points[2 * point_offset ...]` for
+/// `point_count` points. The 2D coordinates are x along direction x up, y along up. Polylines are within `tolerance`. Polls `cancel`
+/// (may be NULL) and fails with "The operation was cancelled." Free with occt_projection_free.
+typedef struct {
+    int visibility;
+    int line_class;
+    int source_kind;
+    int source_index;
+    int source_piece;
+    int geometry;
+    double numbers[9];
+    int point_offset;
+    int point_count;
+} occt_projected_line;
+typedef struct {
+    occt_projected_line *lines;
+    int line_count;
+    double *points;
+    int point_count;
+} occt_projection_result;
+int occt_projection(const occt_shape *solid, const occt_shape *const *curves, int curve_count, const double direction[3],
+                    const double up[3], double tolerance, const occt_cancel *cancel, occt_projection_result *out,
+                    occt_status *status);
+void occt_projection_free(occt_projection_result *result);
 
 /// The Gordon surface through a grid of curves (wires): `u_count` curves one way and `v_count` the other, in any order and
 /// direction (they are sorted and turned here, the first u and the first v curve fixing the orientation; each pair must cross within

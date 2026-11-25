@@ -1,3 +1,4 @@
+import CreatorDrawingEditor
 import CreatorEditor
 import CreatorSketchEditor
 import CreatorStyle
@@ -15,6 +16,8 @@ struct InspectorDock: Component {
                 SketchChrome(.inspector) { ControlNetInspector(model: model, session: session) }
             } else if let sketch = model.sketch {
                 SketchChrome(.inspector) { SketchInspector(model: sketch.editor) }
+            } else if model.mode == .drawing {
+                SketchChrome(.inspector) { DrawingInspector(model: model.drawing.editor) }
             } else {
                 InspectorPanel(model: model.editor, reservedHeight: AppLayout.inspectorReservedHeight).equatable()
             }

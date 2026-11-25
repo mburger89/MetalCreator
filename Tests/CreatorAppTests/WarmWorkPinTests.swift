@@ -67,7 +67,9 @@ struct WarmWorkPinTests {
     /// affine change of the render effect above an `.equatable()` occurrence). The bound is the median plus 15%.
     /// Raised from 220 to 235 (2026-11-08): the top bar's Undo, Redo and Measure carry a pointer backdrop (`absorbsPointer`), about
     /// 3 requests each, which took the median from 217 to 226.
-    static let zoomElementRequestBound = 235
+    /// Raised from 235 to 250 (2026-11-25): the top bar's segmented Model | Drawing switch (drawings plan R21) is about 11 requests,
+    /// which took the median from 226 to 237.
+    static let zoomElementRequestBound = 250
 
     @Test func aSteadyWarmZoomOfFiftyNodesGraftsAndNeverRedoes() async throws {
         let app = await makeApp(FiftyNodeGraph.make())

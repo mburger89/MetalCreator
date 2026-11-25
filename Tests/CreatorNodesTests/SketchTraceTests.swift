@@ -5,6 +5,8 @@ import CreatorKernel
 import CreatorSketch
 import Testing
 
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
+
 /// DIM-4: the Sketch node's trace of which entity made each profile segment.
 struct SketchTraceTests {
     @Test func aSolvedSketchCarriesItsTrace() async throws {

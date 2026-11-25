@@ -28,6 +28,7 @@ public enum AppCommands {
                 Button("Export STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
                     .keyboardShortcut("e", modifiers: [.primary, .shift])
                 Button("Export 3MF…") { model.withFilePicker { await model.exportDocument(.threeMF, using: $0) } }
+                drawingExportItems(model)
                 #if !os(macOS)
                 aiConnectionsItem(model)
                 #endif
@@ -41,23 +42,50 @@ public enum AppCommands {
                     .disabled(!model.document.canRedo)
             }
             // MetalUI puts a command menu before Window (it builds no View menu of its own).
-            CommandMenu("View") {
-                Menu("Theme") { ThemeMenu.items(themeEditor) }
-                Menu("Units") { UnitsMenu.unitItems(model) }
-                Menu("Precision") { UnitsMenu.precisionItems(model) }
-                Button(model.document.section?.isOn == true ? "Hide Section" : "Show Section") {
-                    model.setSection(model.document.section?.isOn != true)
-                }
-                Button("Flip Section") { model.flipSection() }
-                    .disabled(model.document.section?.isOn != true)
-                Button(model.measure == nil ? "Measure" : "Stop Measuring") { model.setMeasure(model.measure == nil) }
-                    .disabled(model.sketch != nil || model.pick != nil)
-                Button(model.document.zebra?.isOn == true ? "Hide Zebra Stripes" : "Show Zebra Stripes") {
-                    model.setZebra(model.document.zebra?.isOn != true)
-                }
-                .disabled(model.sketch != nil)
-            }
+            CommandMenu("View") { viewItems(model, themeEditor: themeEditor) }
         }
+    }
+
+    /// The View menu: Theme, Units and Precision, the viewport's items (disabled in Drawing, plan R28) and the mode switch.
+    @MainActor
+    @MenuContentBuilder
+    static func viewItems(_ model: AppModel, themeEditor: ThemeEditorModel) -> MenuItems {
+        Menu("Theme") { ThemeMenu.items(themeEditor) }
+        Menu("Units") { UnitsMenu.unitItems(model) }
+        Menu("Precision") { UnitsMenu.precisionItems(model) }
+        // The sheet is not the 3D view: its items are disabled in Drawing (plan R28).
+        Button(model.document.section?.isOn == true ? "Hide Section" : "Show Section") {
+            model.setSection(model.document.section?.isOn != true)
+        }
+        .disabled(model.mode == .drawing)
+        Button("Flip Section") { model.flipSection() }
+            .disabled(model.document.section?.isOn != true || model.mode == .drawing)
+        Button(model.measure == nil ? "Measure" : "Stop Measuring") { model.setMeasure(model.measure == nil) }
+            .disabled(model.sketch != nil || model.pick != nil || model.mode == .drawing)
+        Button(model.document.zebra?.isOn == true ? "Hide Zebra Stripes" : "Show Zebra Stripes") {
+            model.setZebra(model.document.zebra?.isOn != true)
+        }
+        .disabled(model.sketch != nil || model.mode == .drawing)
+        Divider()
+        Button("Model") { model.setMode(.model) }
+            .disabled(model.mode == .model)
+        // ⌘⇧D toggles, so the item stays enabled in Drawing and takes the person back.
+        Button("Drawing") { model.setMode(model.mode == .drawing ? .model : .drawing) }
+            .keyboardShortcut("d", modifiers: [.primary, .shift])
+    }
+
+    /// The File menu's drawing exports, disabled outside Drawing (plan R25).
+    static let drawingExportTitles = ["Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…"]
+
+    @MainActor
+    @MenuContentBuilder
+    static func drawingExportItems(_ model: AppModel) -> MenuItems {
+        Button(drawingExportTitles[0]) { model.withFilePicker { await model.exportDrawing(.pdf, using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[1]) { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[2]) { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+            .disabled(model.mode != .drawing)
     }
 
     /// File ▸ Import Mesh… and Import KiCad Board….

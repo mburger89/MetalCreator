@@ -125,7 +125,7 @@ final class AppDocumentSession: DocumentSession {
 
     func newDocument(discardUnsaved: Bool) -> SessionOutcome {
         if let refusal = askRefusal() { return .refused(refusal) }
-        model.editor.commitPendingEntry()  // a typed value not yet committed is unsaved work too
+        model.commitPendingEntries()  // a typed value not yet committed is unsaved work too
         if model.isEdited, !discardUnsaved { return .refused(Self.unsaved) }
         model.startNewDocument()
         return .done(nil)
@@ -133,7 +133,7 @@ final class AppDocumentSession: DocumentSession {
 
     func open(_ url: URL, discardUnsaved: Bool) -> SessionOutcome {
         if let refusal = askRefusal() { return .refused(refusal) }
-        model.editor.commitPendingEntry()  // a typed value not yet committed is unsaved work too
+        model.commitPendingEntries()  // a typed value not yet committed is unsaved work too
         if model.isEdited, !discardUnsaved { return .refused(Self.unsaved) }
         do {
             try model.open(url)

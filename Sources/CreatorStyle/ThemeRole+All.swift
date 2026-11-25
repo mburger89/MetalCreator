@@ -50,5 +50,8 @@ extension ThemeRole {
         ThemeRole("sectionFill", "Section fill", .section, \.sectionFill),
         ThemeRole("sectionHatch", "Section hatch", .section, \.sectionHatch),
         ThemeRole("sectionEdge", "Section edge", .section, \.sectionEdge),
+        ThemeRole("drawingPaper", "Paper", .drawing, \.drawingPaper),
+        ThemeRole("drawingInk", "Ink", .drawing, \.drawingInk),
+        ThemeRole("drawingHighlight", "Highlight", .drawing, \.drawingHighlight),
     ]
 }

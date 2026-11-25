@@ -1,3 +1,4 @@
+import CreatorDrawing
 import CreatorGeometry
 import CreatorKernel
 
@@ -29,11 +30,13 @@ public struct ViewState: Sendable, Codable, Equatable {
     public var measurements: [KeptMeasurement]
     /// The zebra stripes view's settings. `nil` in older files and while never used; a damaged entry reads as `nil`.
     public var zebra: ZebraSettings?
+    /// Whether Drawing mode is on and the sheet it shows (DR-1, plan R4). `nil` in older files; a damaged entry reads as `nil`.
+    public var drawing: DrawingViewState?
 
     public init(dock: DockSide = .left, canvasOffset: Vector2 = .zero, canvasZoom: Double = 1,
                 camera: CameraPose? = nil, homeCamera: CameraPose? = nil, showsLibrary: Bool = true,
                 librarySort: LibrarySort = .grouped, section: SectionSettings? = nil, measurements: [KeptMeasurement] = [],
-                zebra: ZebraSettings? = nil) {
+                zebra: ZebraSettings? = nil, drawing: DrawingViewState? = nil) {
         self.dock = dock
         self.canvasOffset = canvasOffset
         self.canvasZoom = canvasZoom
@@ -44,10 +47,11 @@ public struct ViewState: Sendable, Codable, Equatable {
         self.section = section
         self.measurements = measurements
         self.zebra = zebra
+        self.drawing = drawing
     }
 
     private enum CodingKeys: String, CodingKey {
-        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, librarySort, section, measurements, zebra
+        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, librarySort, section, measurements, zebra, drawing
     }
 
     public init(from decoder: any Decoder) throws {
@@ -63,6 +67,7 @@ public struct ViewState: Sendable, Codable, Equatable {
         measurements = ((try? container.decodeIfPresent([LossyElement<KeptMeasurement>].self, forKey: .measurements)) ?? nil)?
             .compactMap(\.value) ?? []
         zebra = (try? container.decodeIfPresent(ZebraSettings.self, forKey: .zebra)) ?? nil
+        drawing = (try? container.decodeIfPresent(DrawingViewState.self, forKey: .drawing)) ?? nil
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -77,5 +82,6 @@ public struct ViewState: Sendable, Codable, Equatable {
         try container.encodeIfPresent(section, forKey: .section)
         if !measurements.isEmpty { try container.encode(measurements, forKey: .measurements) }
         try container.encodeIfPresent(zebra, forKey: .zebra)
+        try container.encodeIfPresent(drawing, forKey: .drawing)
     }
 }

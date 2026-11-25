@@ -1,3 +1,4 @@
+import CreatorDrawingEditor
 import CreatorEditor
 import CreatorKernel
 import CreatorSketchEditor
@@ -31,18 +32,31 @@ struct TopBar: Component {
                         .lineLimit(1)
                         .background { WindowDragHandle() }
                     WindowDragHandle()
-                    Picker("Preview", selection: Binding(get: { model.previewMode }, set: { model.previewMode = $0 })) {
-                        ForEach(PreviewMode.allCases, id: \.self) { mode in
+                    // The mode switch is in both modes (plan R21); the sketch's own bar has none.
+                    Picker("Workspace", selection: Binding(get: { model.mode }, set: { model.setMode($0) })) {
+                        ForEach(WorkspaceMode.allCases, id: \.self) { mode in
                             Text(mode.title).tag(mode)
                         }
                     }
-                    .pickerStyle(.menu)
-                    .layoutPriority(2)
-                    Menu("Analysis") {
-                        Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
-                        Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
-                            .disabled(model.pick != nil)
-                        Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    if model.mode == .drawing {
+                        // The Preview picker and the Analysis menu act on the viewport, so Drawing has neither (plan R28).
+                        DrawingToolbar(model: model.drawing.editor)
+                    } else {
+                        Picker("Preview", selection: Binding(get: { model.previewMode }, set: { model.previewMode = $0 })) {
+                            ForEach(PreviewMode.allCases, id: \.self) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .layoutPriority(2)
+                        Menu("Analysis") {
+                            Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
+                            Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
+                                .disabled(model.pick != nil)
+                            Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
+                        }
                     }
                     // Only a control that can be disabled needs the backdrop: an enabled one registers its own hitbox, a disabled
                     // one none, so a press on it would orbit the viewport under the bar's padding.
@@ -63,6 +77,11 @@ struct TopBar: Component {
                     Menu(content: {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
                         Button("STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
+                        if model.mode == .drawing {
+                            Button("PDF…") { model.withFilePicker { await model.exportDrawing(.pdf, using: $0) } }
+                            Button("DXF of Sheet…") { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
+                            Button("DXF of View at 1:1…") { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+                        }
                     }, label: { ToolbarIcon.image("square.and.arrow.up") })
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Export")

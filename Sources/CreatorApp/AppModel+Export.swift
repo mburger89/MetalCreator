@@ -92,7 +92,7 @@ extension AppModel {
     /// `export`, but the warnings come back instead of raising the summary alert: an AI client's export is not the person's, and
     /// a modal alert would block the window (and every later call) until someone answered it. A cancelled export has none.
     public func exportReturningWarnings(_ kind: ExportKind, to url: URL) async throws(AppProblem) -> [String] {
-        editor.commitPendingEntry()
+        commitPendingEntries()
         await document.waitForEvaluation()
         let plan = try exportPlan()
         try Self.requireSolids(for: kind, plan)
@@ -112,7 +112,7 @@ extension AppModel {
     /// Export STEP…, STL… or 3MF…: says what's wrong before asking where, then the save panel, then the file.
     public func exportDocument(_ kind: ExportKind, using picker: any FilePicker) async {
         let picker = tracked(picker)
-        editor.commitPendingEntry()
+        commitPendingEntries()
         await document.waitForEvaluation()
         do {
             try Self.requireSolids(for: kind, try exportPlan())

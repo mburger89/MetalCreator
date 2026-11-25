@@ -3,6 +3,7 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import CreatorSketch
+import Synchronization
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -112,5 +113,36 @@ struct SketchUnevaluatedPlaneTests {
         #expect(app.alert == nil)
         let open = try #require(app.sketch)
         #expect(open.editor.plane == .xy.offset(by: 5))
+    }
+
+    /// `settle()` waits for the task that opens the sketch once its plane has evaluated. The task is held, and the main actor given
+    /// ample turns: a settle that doesn't wait for it returns while it is still held.
+    @Test func settleWaitsForTheTaskThatOpensTheSketch() async throws {
+        var sketch = rectangleSketch()
+        sketch.plane = .wired
+        var builder = GraphBuilder()
+        let plane = builder.add(PlaneNode.self, ["offset": .number(5)])
+        let sketchNode = builder.add(SketchNode.self, [NodeSetting.sketch: .sketch(sketch)])
+        builder.wire(plane, "plane", to: sketchNode, "plane")
+        let app = await makeApp(builder.graph)
+        app.previewMode = .final
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        await app.settle()
+        let gate = HookGate()
+        defer { gate.open() }
+        app.sketchOpenHook = { await gate.hold() }
+        app.beginSketch(for: sketchNode.id)
+        await gate.waitUntilEntered()
+        let finished = Mutex(false)
+        let settling = Task { @MainActor in
+            await app.settle()
+            finished.withLock { $0 = true }
+        }
+        for _ in 0..<20_000 where !finished.withLock({ $0 }) { await Task.yield() }
+        #expect(!finished.withLock { $0 }, "settle returned while the sketch was still waiting to open")
+        #expect(app.sketch == nil)
+        gate.open()
+        await settling.value
+        #expect(app.sketch != nil, "settle returned only once the sketch was open")
     }
 }

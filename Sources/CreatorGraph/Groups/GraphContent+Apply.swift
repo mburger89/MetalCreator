@@ -109,6 +109,8 @@ extension GraphContent {
             for command in commands { try check(command, in: path, registry: registry) }
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
             throw GroupRefusal.nested
+        case .setDrawings where path != .root:
+            throw .invalidValue("Drawings belong to the document, not to a group.")
         case .addNode(let node), .restoreNode(let node, _):
             try checkPlacing(node, in: path, registry: registry)
         case .removeNode(let id):

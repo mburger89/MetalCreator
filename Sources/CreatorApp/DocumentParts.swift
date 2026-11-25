@@ -1,3 +1,4 @@
+import CreatorDrawingEditor
 import CreatorEditor
 import CreatorGraph
 import CreatorKernel
@@ -11,6 +12,7 @@ struct DocumentParts {
     let editor: EditorModel
     let input: GraphPanelInput
     let viewport: ViewportModel
+    let drawing: DrawingSession
 
     /// The viewport starts at the file's saved camera and home view; without one it frames the first scene.
     init(_ file: GraphFile, registry: NodeRegistry, kernel: any Kernel, documentURL: URL? = nil,
@@ -21,5 +23,6 @@ struct DocumentParts {
         viewport = ViewportModel(kernel: kernel, pose: file.viewState.camera)
         viewport.homePose = file.viewState.homeCamera
         viewport.fieldKeyContext = AppKeyContext.panel
+        drawing = DrawingSession(document: document, kernel: kernel)
     }
 }

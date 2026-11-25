@@ -110,6 +110,9 @@ public enum UndoName {
     public static let pickTrimRegions = "Pick Trim Regions"
     public static let clearTrimRegions = "Clear Trim Regions"
     public static let editSketch = "Edit Sketch"
+    public static let editDrawing = "Edit Drawing"
+    /// A drawing editor step: its fixed name (`DrawingStepName`, "Add Sheet"), or "Edit Drawing" when it has none.
+    public static func drawing(_ name: String) -> String { cleaned(name) ?? editDrawing }
     /// A sketch editor commit: its fixed step name (`SketchCommit.name`, "Add Line"), or "Edit Sketch" when it has none.
     public static func sketch(_ name: String) -> String { cleaned(name) ?? editSketch }
 

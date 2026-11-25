@@ -5,11 +5,11 @@ import Testing
 /// The section cap's three theme roles (section spec part B): the cap's fill, its hatch lines and the outline.
 struct SectionRoleTests {
     @Test func theSectionRolesAreLastInTheirOwnGroup() {
-        #expect(ThemeRole.all.suffix(3).map(\.name) == ["sectionFill", "sectionHatch", "sectionEdge"])
-        #expect(ThemeRole.all.suffix(3).allSatisfy { $0.group == .section })
+        #expect(ThemeRole.all.dropLast(3).suffix(3).map(\.name) == ["sectionFill", "sectionHatch", "sectionEdge"])
+        #expect(ThemeRole.all.dropLast(3).suffix(3).allSatisfy { $0.group == .section })
         #expect(ThemeRoleGroup.section.title == "Section")
-        #expect(ThemeRoleGroup.allCases.last == .section)
-        #expect(ThemeRole.all.suffix(3).map(\.title) == ["Section fill", "Section hatch", "Section edge"])
+        #expect(ThemeRoleGroup.allCases.dropLast().last == .section)
+        #expect(ThemeRole.all.dropLast(3).suffix(3).map(\.title) == ["Section fill", "Section hatch", "Section edge"])
     }
 
     @Test func aThemeFileWithoutTheSectionRolesReadsDraculas() throws {

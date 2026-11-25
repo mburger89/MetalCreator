@@ -6,7 +6,7 @@ import Testing
 struct CIPinTests {
     /// The "Test run with" lines a full `swift test` prints on every platform since xp-2 put `CreatorOCCTTests` on Linux and
     /// Windows. A new test target raises it everywhere below.
-    static let testRuns = 14
+    static let testRuns = 16
 
     @Test func theWindowsJobExpectsTheCount() throws {
         let workflow = try Self.text(".github/workflows/xp.yml")
@@ -68,6 +68,21 @@ struct CIPinTests {
     @Test func theLinuxImageBuildsOpenCascadeFromAFullCommit() throws {
         let dockerfile = try Self.text("scripts/linux/Dockerfile")
         #expect(dockerfile.firstMatch(of: /ARG OCCT_COMMIT=[0-9a-f]{40}\n/) != nil)
+    }
+
+    /// The OpenCascade toolkits Package.swift links and the Linux image builds are one list, in one order, and both hold TKHLR (the
+    /// hidden-line projection of the drawings, DR-1; the Windows port builds it with ModelingAlgorithms).
+    @Test func theOCCTToolkitsAgreeEverywhere() throws {
+        let package = try Self.text("Package.swift")
+        let block = try #require(package.firstMatch(of: /let occtLibraries = \[([^\]]*)\]/)?.1)
+        let linked = block.matches(of: /"(TK[A-Za-z0-9]+)"/).map { String($0.1) }
+        let dockerfile = try Self.text("scripts/linux/Dockerfile")
+        let list = try #require(dockerfile.firstMatch(of: /-DBUILD_ADDITIONAL_TOOLKITS=([A-Za-z0-9;]+)/)?.1)
+        let built = list.split(separator: ";").map(String.init)
+        #expect(!linked.isEmpty)
+        #expect(linked == built)
+        #expect(linked.contains("TKHLR"))
+        #expect(built.contains("TKHLR"))
     }
 
     /// A file of the repository as text, "\r\n" read as "\n" (Swift counts "\r\n" as one Character, so a CRLF checkout would

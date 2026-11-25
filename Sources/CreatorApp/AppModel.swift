@@ -1,3 +1,4 @@
+import CreatorDrawingEditor
 import CreatorEditor
 import CreatorGraph
 import CreatorImplicit
@@ -25,6 +26,8 @@ public final class AppModel {
     public private(set) var editor: EditorModel
     public private(set) var graphInput: GraphPanelInput
     public private(set) var viewport: ViewportModel
+    /// The document's drawing editor and its projections (DR-1); replaced with the document.
+    public private(set) var drawing: DrawingSession
     /// The field preview of the selected node (fields spec §6): the tint on the shown parts and the slice through them. It
     /// belongs to the open document and is replaced with it; its toggles are view state, never saved.
     private(set) var fieldPreview: FieldPreviewModel
@@ -86,6 +89,10 @@ public final class AppModel {
     @ObservationIgnored var controlNetDemand: NodeID?
     /// Counts requests to open a sketch, so one that waited for its plane's evaluation can tell it was superseded.
     var sketchRequest = 0
+    /// The task of `openSketchOnceEvaluated`, which `settle()` waits for: it opens the sketch after the evaluation it waits for.
+    @ObservationIgnored var sketchOpenTask: Task<Void, Never>?
+    /// A test knob: runs first in that task, so a test can hold the sketch's opening (never block a pool thread).
+    @ObservationIgnored var sketchOpenHook: (@MainActor () async -> Void)?
     public var alert: AppAlert?
     /// The export in progress, shown in the export sheet, or `nil` (implicit spec §5.3).
     public internal(set) var exportRun: ExportRun?
@@ -156,6 +163,7 @@ public final class AppModel {
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
+        drawing = parts.drawing
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
         measureBook = MeasureBook(kernel: kernel, document: parts.document)
         self.fileURL = fileURL
@@ -191,10 +199,12 @@ public final class AppModel {
         section.reset()
         sectionCaps.reset()
         fieldPreview.stop()
+        drawing.stop()
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
+        drawing = parts.drawing
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
         measureBook = MeasureBook(kernel: kernel, document: parts.document)
         fileURL = url
@@ -210,13 +220,24 @@ public final class AppModel {
         viewport.dimensionEditor = dimensionRouter
         connectViewportEvents()
         measureBook.changed = { [weak self] in self?.refreshDimensions() }
+        drawing.commitHandler = { [weak self] in self?.storeDrawing($0) }
+        drawing.sheetHandler = { [weak self] in self?.drawingSheetChanged($0) }
+        if mode == .drawing { drawing.activate() }
         sceneInputsChanged()
         followEvaluation()
     }
 
     /// Waits until the document has evaluated and the viewport shows the result.
     public func settle() async {
+        var sketchWasOpening = false
         repeat {
+            sketchWasOpening = false
+            // The sketch that opens once its plane's evaluation is in: it then shows the scene and the overlay again, so go round once more.
+            if let opening = sketchOpenTask {
+                sketchOpenTask = nil
+                await opening.value
+                sketchWasOpening = true
+            }
             await document.waitForEvaluation()
             if let sceneTask { await sceneTask.value }
             await fieldPreview.waitForSampling()
@@ -226,7 +247,10 @@ public final class AppModel {
             // The meshes landing shows the scene again, which measures the kept distances again: go round once more for that.
             await viewport.waitForMeshes()
             await controlNetRead?.value
-        } while document.isEvaluating || controlNetRead != nil || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
-            || measureBook.entries.contains(where: \.isMeasuring)
+            await drawing.waitForProjections()
+            await sketch?.settle()
+        } while sketchWasOpening || sketchOpenTask != nil || document.isEvaluating || controlNetRead != nil || sceneTask != nil
+            || fieldPreview.isSampling || sectionCaps.isComputing
+            || measureBook.entries.contains(where: \.isMeasuring) || drawing.isProjecting
     }
 }

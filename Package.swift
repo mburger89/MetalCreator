@@ -19,6 +19,16 @@ let metalUI: Target.Dependency = .product(name: "MetalUI", package: "MetalUI")
 /// MetalUI's headless test harness (`docs/testing.md` in MetalUI): a dependency of test targets only, never of a product.
 let metalUITesting: Target.Dependency = .product(name: "MetalUITesting", package: "MetalUI")
 
+/// MetalUI's snapshot of a headless `TestWindow` as pixels (ruling HT-AB; Metal and CoreGraphics, so macOS only). A dependency of
+/// the drawing editor's tests, whose paper and line weights are read from pixels.
+/// MetalUI declares the product on macOS only, and SwiftPM looks a product up before it applies a platform condition, so the
+/// dependency is named under a host check, like the shader plugin.
+#if os(macOS)
+let metalUITestingSnapshots: [Target.Dependency] = [.product(name: "MetalUITestingSnapshot", package: "MetalUI")]
+#else
+let metalUITestingSnapshots: [Target.Dependency] = []
+#endif
+
 /// MetalUI's portable text, named on every platform and not only where it is used (MetalUI ruling `SG-D`: a conditional
 /// dependency drops its C modules' module maps from a test target on macOS). Tests measure text with it off macOS.
 let metalUIPortableText: Target.Dependency = .product(name: "MetalUIPortableText", package: "MetalUI")
@@ -71,9 +81,11 @@ var targets: [Target] = [
     .target(name: "CreatorSketch", dependencies: ["CreatorGeometry"]),
     // CreatorPCB: KiCad board import (KI-1); portable, geometry only.
     .target(name: "CreatorPCB", dependencies: ["CreatorGeometry"]),
+    // CreatorDrawing: the 2D drawing model, sheets, views and their styles (DR-1); portable, no OCCT.
+    .target(name: "CreatorDrawing", dependencies: ["CreatorKernel", "CreatorGeometry"]),
     .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
     // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
-    .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+    .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch", "CreatorDrawing"]),
     // Implicit solids and meshes (implicit spec §2 to §4): the value types, the CPU evaluator, the Metal compiler, the sparse
     // octree and the mesher. Depends on CreatorGraph for `Field`; CreatorGraph holds them only as `ImplicitPayload` and
     // `MeshPayload`. Portable: the Metal compiler is gated with `#if canImport(Metal)`, the SDL_GPU backend, `Sources/CreatorImplicit/SDL`
@@ -106,13 +118,18 @@ var targets: [Target] = [
     // the app shell turns its commits into graph commands. CreatorStyle for the theme's colours.
     .target(name: "CreatorSketchEditor",
             dependencies: ["CreatorSketch", "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
+    // The drawing editor (DR-1): `DrawingEditorModel` and its views. Graph-free: the app shell turns its commits into graph commands.
+    .target(
+        name: "CreatorDrawingEditor",
+        dependencies: ["CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
     // The app shell (M6): the one target that joins the graph, the nodes, the viewport and the editors. A library,
     // so its model is tested; the executable below only opens the window.
     .target(
         name: "CreatorApp",
         dependencies: [
             "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry",
-            "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", "CreatorMCP", metalUI, metalUISDL,
+            "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", "CreatorMCP", "CreatorDrawing", "CreatorDrawingEditor", metalUI,
+            metalUISDL,
         ],
         // The window icon (`AppIcon`); packaging/linux/install.sh and the Linux package ship the same file for the desktop entry.
         resources: [.copy("Icon")]
@@ -126,8 +143,8 @@ var targets: [Target] = [
         name: "CreatorAppTests",
         dependencies: [
             "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel",
-            "CreatorGeometry", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", "CreatorMCP", metalUI, metalUITesting,
-            metalUIPortableText, metalUISystemFonts,
+            "CreatorGeometry", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", "CreatorMCP", "CreatorDrawing",
+            "CreatorDrawingEditor", metalUI, metalUITesting, metalUIPortableText, metalUISystemFonts,
         ] + occt
     ),
     // CreatorNodes is a test-only dependency: BuiltInNodesInspectorTests runs the real M3
@@ -152,13 +169,24 @@ var targets: [Target] = [
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
     .testTarget(name: "CreatorPCBTests", dependencies: ["CreatorPCB", "CreatorGeometry", "CreatorKernel"]),
     .testTarget(
+        name: "CreatorDrawingTests",
+        dependencies: ["CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorGraph"]),
+    .testTarget(
+        name: "CreatorDrawingEditorTests",
+        dependencies: [
+            "CreatorDrawingEditor", "CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUITesting,
+            metalUIPortableText, metalUISystemFonts,
+        ] + metalUITestingSnapshots),
+    .testTarget(
         name: "CreatorImplicitTests",
         dependencies: [
             "CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU, metalUIShaderRuntime,
         ]
     ),
     .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
-    .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+    .testTarget(
+        name: "CreatorGraphTests",
+        dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch", "CreatorDrawing"]),
     .testTarget(
         name: "CreatorNodesTests",
         dependencies: [
@@ -180,7 +208,7 @@ var targets: [Target] = [
 /// The OpenCascade toolkits the shim and the data exchange link, in the same order on every platform.
 let occtLibraries = [
     "TKernel", "TKMath", "TKG2d", "TKG3d", "TKGeomBase", "TKGeomAlgo", "TKBRep", "TKTopAlgo",
-    "TKPrim", "TKBO", "TKBool", "TKFillet", "TKOffset", "TKMesh", "TKShHealing",
+    "TKPrim", "TKBO", "TKBool", "TKFillet", "TKOffset", "TKHLR", "TKMesh", "TKShHealing",
     "TKXSBase", "TKDE", "TKDESTEP", "TKDEIGES", "TKDESTL",
 ]
 

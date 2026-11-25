@@ -22,6 +22,8 @@ public actor FakeKernel: Kernel {
     var sectionHook: (@Sendable () async throws -> Void)?
     var measureHook: (@Sendable () async throws -> Void)?
     var continuityHook: (@Sendable () async throws -> Void)?
+    var projectionHook: (@Sendable () async throws -> Void)?
+    var compoundHook: (@Sendable ([Solid]) throws -> Solid)?
 
     public init() {}
 

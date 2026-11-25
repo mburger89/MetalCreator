@@ -5,6 +5,8 @@ import CreatorKernel
 import CreatorSketch
 import Testing
 
+private typealias ProjectionSource = CreatorSketch.ProjectionSource
+
 /// A Sketch node declares each of its sketch's dimensions in 3D (DIM-3 Task 9).
 struct SketchNodeDimensionTests {
     func rectangle() throws -> RectangleSketch {
