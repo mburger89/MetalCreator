@@ -86,7 +86,7 @@ public enum DrawingAnchorResolver {
     }
 
     /// The ends of a run that no other piece of the run meets (a run's two extreme ends; none for a closed run or a full circle).
-    private static func runEnds(of edges: [EdgeInfo]) -> [Vector3] {
+    static func runEnds(of edges: [EdgeInfo]) -> [Vector3] {
         var all: [(piece: Int, point: Vector3)] = []
         for (index, edge) in edges.enumerated() {
             for point in edge.curve?.ends ?? [] { all.append((index, point)) }

@@ -22,7 +22,8 @@ struct ProjectionCacheTests {
         options: ProjectionOptions = options
     ) async throws -> Projection2D {
         try await cache.projection(
-            of: solids, curves: [], compoundTag: tag, frame: frame, options: options, kernel: kernel)
+            of: solids, curves: [], compoundTag: tag, frame: frame, options: options, kernel: kernel
+        ).projection
     }
 
     @Test func aRepeatIsAHit() async throws {
@@ -179,6 +180,70 @@ struct ProjectionCacheTests {
         _ = try await Self.project(cache, [solid], kernel)
         #expect(await cache.count == 1)
         #expect(await cache.kernelCalls == 2)  // the cancelled build counted 1; the rebuild is the 2nd
+    }
+
+    // MARK: Topology (plan R26)
+
+    @Test func aSingleSolidGivesItsTopology() async throws {
+        let kernel = FakeKernel()
+        let cache = ProjectionCache()
+        let solid = try await Self.box(kernel)
+        let cached = try await cache.projection(
+            of: [solid], curves: [], compoundTag: Self.tag, frame: Self.front, options: Self.options, kernel: kernel)
+        #expect(cached.topology == solid.topology)
+        #expect(!cached.projection.lines.isEmpty)
+        let again = try await cache.projection(
+            of: [solid], curves: [], compoundTag: Self.tag, frame: Self.front, options: Self.options, kernel: kernel)
+        #expect(again.topology == solid.topology)
+        #expect(await cache.kernelCalls == 1)
+    }
+
+    @Test func aCompoundGivesItsOwn() async throws {
+        let kernel = FakeKernel()
+        let cache = ProjectionCache()
+        let merged = try await Self.box(kernel, 20)
+        await kernel.setCompoundHook { _ in merged }
+        let solids = [try await Self.box(kernel), try await Self.box(kernel)]
+        let cached = try await cache.projection(
+            of: solids, curves: [], compoundTag: Self.tag, frame: Self.front, options: Self.options, kernel: kernel)
+        #expect(cached.topology == merged.topology)
+    }
+
+    @Test func curvesOnlyGiveNone() async throws {
+        let kernel = FakeKernel()
+        let cache = ProjectionCache()
+        let curve = try await kernel.makeCurve([.line(Vector3(0, 0, 0), Vector3(5, 0, 0))], tag: Self.tag)
+        let cached = try await cache.projection(
+            of: [], curves: [curve], compoundTag: Self.tag, frame: Self.front, options: Self.options, kernel: kernel)
+        #expect(cached.topology == nil)
+        #expect(try await cache.topology(of: [], compoundTag: Self.tag, kernel: kernel) == nil)
+    }
+
+    @Test func aSingleSolidsTopologyNeedsNoKernel() async throws {
+        let kernel = FakeKernel()
+        let cache = ProjectionCache()
+        let solid = try await Self.box(kernel)
+        let topology = try await cache.topology(of: [solid], compoundTag: Self.tag, kernel: kernel)
+        #expect(topology == solid.topology)
+        #expect(await cache.compoundCalls == 0)
+        #expect(await cache.kernelCalls == 0)
+    }
+
+    @Test func aTopologyRequestThenAProjectionCompoundOnce() async throws {
+        let kernel = FakeKernel()
+        let cache = ProjectionCache()
+        let merged = try await Self.box(kernel, 20)
+        await kernel.setCompoundHook { _ in merged }
+        let solids = [try await Self.box(kernel), try await Self.box(kernel)]
+        let topology = try await cache.topology(of: solids, compoundTag: Self.tag, kernel: kernel)
+        #expect(topology == merged.topology)
+        let cached = try await cache.projection(
+            of: solids, curves: [], compoundTag: Self.tag, frame: Self.front, options: Self.options, kernel: kernel)
+        #expect(cached.topology == merged.topology)
+        #expect(await cache.compoundCalls == 1)
+        // A repeat of the topology request is the table's too.
+        _ = try await cache.topology(of: solids, compoundTag: Self.tag, kernel: kernel)
+        #expect(await cache.compoundCalls == 1)
     }
 
     static func waitForWaiters(_ count: Int, in cache: ProjectionCache) async {

@@ -37,4 +37,40 @@ struct SheetHitTestTests {
         #expect(SheetHitTest.line(near: Vector2(5, 20), in: picture, view: a, tolerance: 2) == nil)
         #expect(SheetHitTest.view(at: Vector2(300, 200), in: picture, order: [a, b]) == nil)
     }
+
+    @Test func lineHitsSkipAnnotationAndCentreStrokes() {
+        let annotated = AnnotationID()
+        let drawn = SheetPicture(
+            size: Vector2(100, 100),
+            strokes: [
+                SheetStroke(
+                    segments: [.line(Vector2(0, 0), Vector2(10, 0))], width: 0.5, layer: .dimension, view: a,
+                    annotation: annotated),
+                SheetStroke(segments: [.line(Vector2(0, 1), Vector2(10, 1))], width: 0.25, layer: .center, view: a),
+                SheetStroke(segments: [.line(Vector2(0, 4), Vector2(10, 4))], width: 0.5, layer: .visible, view: a),
+            ])
+        #expect(SheetHitTest.line(near: Vector2(5, 0.5), in: drawn, view: a, tolerance: 5) == 2)
+        #expect(SheetHitTest.line(near: Vector2(5, 0.5), in: drawn, view: a, tolerance: 2) == nil)
+    }
+
+    @Test func theTopmostAnnotationWins() {
+        let first = AnnotationID()
+        let second = AnnotationID()
+        let missing = AnnotationID()
+        func report(_ rect: Rect2D) -> AnnotationReport { AnnotationReport(status: .held, frame: rect) }
+        let drawn = SheetPicture(
+            size: Vector2(100, 100),
+            annotationReports: [
+                first: report(Rect2D(min: Vector2(10, 10), max: Vector2(30, 20))),
+                second: report(Rect2D(min: Vector2(20, 10), max: Vector2(40, 20))),
+            ])
+        let order = [first, second, missing]
+        #expect(SheetHitTest.annotation(at: Vector2(25, 15), in: drawn, order: order) == second)
+        #expect(SheetHitTest.annotation(at: Vector2(15, 15), in: drawn, order: order) == first)
+        #expect(SheetHitTest.annotation(at: Vector2(25, 15), in: drawn, order: [second, first]) == first)
+        // Grown by 1 mm on every side.
+        #expect(SheetHitTest.annotation(at: Vector2(41, 15), in: drawn, order: order) == second)
+        #expect(SheetHitTest.annotation(at: Vector2(41.5, 15), in: drawn, order: order) == nil)
+        #expect(SheetHitTest.annotation(at: Vector2(0, 0), in: drawn, order: order) == nil)
+    }
 }

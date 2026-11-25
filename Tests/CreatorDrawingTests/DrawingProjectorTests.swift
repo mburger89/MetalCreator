@@ -105,6 +105,46 @@ struct DrawingProjectorTests {
         #expect(!evaluating.isPending)
     }
 
+    @Test func contentCarriesTheTopology() async throws {
+        let kernel = FakeKernel()
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        let solid = try await ProjectionCacheTests.box(kernel)
+        let content = await projector.content(
+            for: view(), scale: 1, source: source(.ready(solids: [solid], curves: [], meshCount: 0)), previous: nil)
+        #expect(content.topology == solid.topology)
+    }
+
+    @Test func anEvaluatingSourceCarriesThePreviousTopology() async throws {
+        let kernel = FakeKernel()
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        let solid = try await ProjectionCacheTests.box(kernel)
+        let first = await projector.content(
+            for: view(), scale: 1, source: source(.ready(solids: [solid], curves: [], meshCount: 0)), previous: nil)
+        let evaluating = await projector.content(for: view(), scale: 1, source: source(.evaluating), previous: first)
+        #expect(evaluating.projection == first.projection)
+        #expect(evaluating.topology == first.topology)
+        #expect(first.topology != nil)
+    }
+
+    @Test func aFailedSourceCarriesThePreviousTopology() async throws {
+        let kernel = FakeKernel()
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        let solid = try await ProjectionCacheTests.box(kernel)
+        let first = await projector.content(
+            for: view(), scale: 1, source: source(.ready(solids: [solid], curves: [], meshCount: 0)), previous: nil)
+        let failed = await projector.content(for: view(), scale: 1, source: source(.failed("Boom.")), previous: first)
+        #expect(failed.topology == first.topology)
+        #expect(failed.projection == first.projection)
+        // The catch branch: a hook that throws keeps the previous projection and topology with its problem.
+        await kernel.setProjectionHook { throw KernelError.invalidInput("No.") }
+        let other = try await ProjectionCacheTests.box(kernel)
+        let thrown = await projector.content(
+            for: view(), scale: 1, source: source(.ready(solids: [other], curves: [], meshCount: 0)), previous: first)
+        #expect(thrown.problem != nil)
+        #expect(thrown.projection == first.projection)
+        #expect(thrown.topology == first.topology)
+    }
+
     @Test func theToleranceFollowsTheScale() async throws {
         let kernel = FakeKernel()
         let cache = ProjectionCache()

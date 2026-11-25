@@ -29,11 +29,12 @@ public struct DrawingProjector: Sendable {
         case .removed:
             return ViewContent(problem: Self.removedSentence, lastSize: previous?.lastSize)
         case .failed(let message):
-            return ViewContent(projection: previous?.projection, problem: message, lastSize: previous?.lastSize)
+            return ViewContent(
+                projection: previous?.projection, topology: previous?.topology, problem: message, lastSize: previous?.lastSize)
         case .evaluating:
             return ViewContent(
-                projection: previous?.projection, problem: previous?.problem, warnings: previous?.warnings ?? [],
-                lastSize: previous?.lastSize)
+                projection: previous?.projection, topology: previous?.topology, problem: previous?.problem,
+                warnings: previous?.warnings ?? [], lastSize: previous?.lastSize)
         case .ready(let solids, let curves, let meshCount):
             if solids.isEmpty, curves.isEmpty {
                 return ViewContent(
@@ -41,15 +42,17 @@ public struct DrawingProjector: Sendable {
             }
             let warnings = meshCount > 0 ? [Self.meshesSentence(count: meshCount)] : []
             do {
-                let projection = try await cache.projection(
+                let cached = try await cache.projection(
                     of: solids, curves: curves, compoundTag: NodeTag(node: source.output, item: 0),
                     frame: view.orientation.frame, options: ProjectionOptions(tolerance: 0.01 / scale), kernel: kernel)
+                let projection = cached.projection
                 let size = ViewLinework.frame(for: projection, center: .zero, scale: scale).map { Vector2($0.width, $0.height) }
-                return ViewContent(projection: projection, warnings: warnings, lastSize: size ?? previous?.lastSize)
+                return ViewContent(
+                    projection: projection, topology: cached.topology, warnings: warnings, lastSize: size ?? previous?.lastSize)
             } catch {
                 return ViewContent(
-                    projection: previous?.projection, problem: Self.message(for: error), warnings: warnings,
-                    lastSize: previous?.lastSize)
+                    projection: previous?.projection, topology: previous?.topology, problem: Self.message(for: error),
+                    warnings: warnings, lastSize: previous?.lastSize)
             }
         }
     }
