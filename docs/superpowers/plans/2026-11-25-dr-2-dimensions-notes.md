@@ -13,7 +13,8 @@ circles, `FaceInfo`'s cylinder axis and radius) and DR-1's `Projection2D`, whose
 and no shim change. `CreatorDrawing` gains the saved annotation model, the tolerance tables, the anchor resolver, the measurer, the hole
 reader, the label and number formatting and a sheet-millimetre layout; `SheetComposer` appends each annotation to the one `SheetPicture`
 DR-1 already draws on screen and writes to PDF and DXF, so the three cannot disagree. A lost annotation is drawn from its last good
-figure with "?" and listed; the last good figure is written into the file only when it is saved. `CreatorDrawingEditor` gains the tools,
+figure with "?" and listed; the last good figure is refreshed after every evaluation, in any mode and for every sheet (R26), and is
+written into the file only when it is saved. `CreatorDrawingEditor` gains the tools,
 selection, dragging and inspector pages; the app wires units, saving, group renaming and export warnings.
 
 **Tech Stack:** Swift 6.4, Swift Testing, MetalUI (`Path` fills, `rotationEffect`, `TextEditor`, `Picker`, `Toggle`, C7 gestures, C9 key
@@ -33,6 +34,9 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
 - **No kernel or shim change.** Dimensions measure `EdgeInfo.curve` (`EdgeCurve.line`, `.circle`) and `FaceInfo` (`radius`, `axisPoint`,
   `normal`, `kind`) projected by `ProjectionFrame.place`, never a projected polyline and never a `ProjectedCurve` (decision: "from the model's
   exact geometry"). The projected lines are used only to find what was clicked, to place leaders and to draw automatic centre marks.
+  No visibility change in CreatorKernel either: `Topology.runJoinTolerance` (1e-4 mm) and `runJoinAngle` (0.01 rad) stay internal, and
+  `CreatorDrawing` keeps its own equal constants (`DrawingAnchorResolver.joinTolerance`, `.joinAngle`), held equal to the kernel's by a
+  behaviour test through the public `Topology.runCount` (R4).
 - **Module rules** (DR-1's, unchanged): `CreatorDrawing` depends on `CreatorGeometry` and `CreatorKernel` only; `CreatorDrawingEditor` on
   `CreatorDrawing`, `CreatorKernel`, `CreatorGeometry`, `CreatorStyle` and MetalUI only. No CoreGraphics, CoreText, ImageIO or Metal in either.
   Nothing iterates a dictionary where order reaches output (pictures, PDF and DXF bytes, lists, warnings, saved order). A file that imports
@@ -68,15 +72,24 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
   views. An annotation has an `id`, a `view: ViewID?` (nil: free on the sheet; every anchor of an annotation is in its one view, so the view
   is on the annotation, not on each anchor as §Model sketches it), a `kind` and `last: LastGood?` (R15). Kinds: `dimension`, `holeCallout`,
   `centreMark`, `centreLine`, `note`. Deleting a view deletes its annotations in the same step; duplicating a sheet copies them with new IDs
-  pointing at the copied views. A note made inside a view's frame belongs to that view, elsewhere to the sheet. Cost: none.
+  pointing at the copied views. A note made inside a view's frame belongs to that view, elsewhere to the sheet, until its first leader onto
+  a view's line joins it to that view (R14). Cost: none.
 - **R3. Anchors** (`AnchorTarget`, saved): `edge(EdgePick)` (a line or circle edge, or a run of pieces), `corner(EdgePick, EdgePick)` (the one
   point where two named edges meet: "a vertex as an edge end", named by its neighbour so an edge whose direction flips after a rebuild
   can't swap its ends), `centre(EdgePick)` (a circular edge's centre), `outline(FacePick, side: Vector2)` (a cylinder's silhouette on the side
   the unit sheet vector `side` points to), `axis(FacePick)` (a cylinder's axis, for centre lines and the diameter of a cylinder seen side on)
-  and `point(Vector2)` (a leader's free end, sheet mm relative to the view's centre, or absolute for a sheet note). At pick time an edge is
-  accepted only when its key (`Topology.key(of:)`) names edges forming exactly one run (`Topology.runCount == 1`), recorded as
-  `EdgePick(key:, matchCount:, runCount: matches > 1 ? 1 : nil)`, and not `touchesUnnamedFace`; a face pick (`Topology.facePick(for:)`) is
-  accepted only when `faces(matching:)` gives exactly that face. Refusals in R5.
+  and `point(Vector2)` (a leader's free end, sheet mm relative to the view's centre, or absolute for a sheet note). A tag set is **lasting**
+  (`AnchorNaming.isLasting(_: Set<TopoTag>)`) when it is non-empty and none of its tags has the role `.unnamed` (an OCCT face number, which a
+  rebuild renumbers). At pick time an edge is accepted only when its key (`Topology.key(of:)`) exists, both its sides are lasting, and it names
+  edges forming exactly one run (`Topology.runCount == 1`), recorded as `EdgePick(key:, matchCount:, runCount: matches > 1 ? 1 : nil)`; a face
+  pick (`Topology.facePick(for:)`) is accepted only when the face's tags are lasting and `faces(matching:)` gives exactly that face (a cylinder
+  split into two halves that carry the same tags is refused). **A corner's neighbour** (the second `EdgePick`) is, among the edges other than
+  the clicked one with an end within `joinTolerance` of the clicked end, the lowest-`EdgeID` edge that (a) does not continue the clicked edge
+  (it leaves the point in a direction within `joinAngle` of opposite to the clicked edge's: the other piece of a split run, which may share its
+  key), (b) is not in the clicked edge's run, and (c) has an acceptable key as above. The clicked end must also be an extreme end of the clicked
+  edge's run (a joint inside a split run is not a corner). With no such neighbour, or at a joint, the corner is refused (R5). A neighbour is used
+  only to name the point: R5's line rule never applies to it (a box corner in the Front view whose lowest-ID neighbour is the depth edge running
+  along d is accepted). Refusals in R5.
 - **R4. Resolving** (decision 2; `DrawingAnchorResolver.resolve(_:in:frame:)`, never through `Topology.resolution`, whose operand keys and
   nearest-count fallbacks guess):
   - edge: `matches = topology.edges(matching: key)`. One match: **held**. Several forming one run (`Topology.runCount(matches) == 1` and the
@@ -84,13 +97,18 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
     keeps its centre, axis and radius, its sweep the sum). Several forming more than one run (a run count that changed, or a key that
     now fits separate edges): lost `.several(n)`, n the number of runs. None: `key.narrowed`'s matches; exactly one is held, more is `.several(n)`,
     none is `.missing`. `EdgeKey.operandKeys` is never tried.
-  - corner: both edges held, and exactly one end of the first (`EdgeCurve.ends`, over the run's pieces) lies within `Topology.runJoinTolerance`
-    (1e-4 mm) of an end of the second; else `.cornerGone`.
+  - corner: both edges held, and exactly one of the first's run's two extreme ends (a single edge's two ends, `EdgeCurve.ends`; a joint inside
+    a run never counts) lies within `DrawingAnchorResolver.joinTolerance` (1e-4 mm, `public static let`, equal to the kernel's internal
+    `Topology.runJoinTolerance`) of an end of the second's run; else `.cornerGone`. `joinAngle` (0.01 rad, equal to `Topology.runJoinAngle`)
+    is the pick's continuation test (R3). Test `joinConstantsMatchTheKernels`: two collinear pieces whose ends are 0.9e-4 mm apart are one run by
+    `Topology.runCount` and a corner at that gap holds; at 1.1e-4 mm two runs and `.cornerGone`; pieces meeting at 0.009 rad off opposite are one
+    run, at 0.011 rad two.
   - centre: the edge held and a circle (`.notLineOrCircle` otherwise).
-  - outline and axis: `faces(matching:)` exactly one, or `Topology.resolution(of:)` narrowed with `isAmbiguous == false` and one face; a
-    narrowed ambiguous answer is `.guessed`, none `.missing`; the face must have `kind == .cylinder`, `radius`, `axisPoint` and `normal`
-    (`.notCylinder`). An outline's side: with the axis projected to the view and turned +90° as p, `|p · side| ≥ 0.5` picks the sign of
-    `p · side`; under 0.5 is `.outlineTurned`.
+  - outline and axis: `faces(matching:)` exactly one is held; several are lost `.severalFaces(n)` (n the count); none is `.missing`.
+    `Topology.resolution(of:)` is never asked: `facePick(for:)` stores a normal only for a plane, so a narrowed cylinder pick always comes back
+    `isAmbiguous`, and the narrowed branch could never hold (it would only turn `.missing` into a guess). The face must have `kind == .cylinder`,
+    `radius`, `axisPoint` and `normal` (`.notCylinder`). An outline's side: with the axis projected to the view and turned +90° as p,
+    `|p · side| ≥ 0.5` picks the sign of `p · side`; under 0.5 is `.outlineTurned`.
   - An edge whose `curve` is nil can be held (a leader may point at it) but no dimension measures it: `.notLineOrCircle`.
   - Lost reasons (`LostReason.sentence`, exact):
 
@@ -98,7 +116,7 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
     |---|---|
     | `missing` | What it was attached to is no longer in the part. |
     | `several(n)` | What it was attached to now fits N edges, and a dimension never guesses which. |
-    | `guessed` | Its face can now only be found by guessing, and a dimension never guesses. |
+    | `severalFaces(n)` | What it was attached to now fits N faces, and a dimension never guesses which. |
     | `notLineOrCircle` | What it measured is no longer a straight line or a circle. |
     | `cornerGone` | The two edges that met at its corner no longer meet at one point. |
     | `notCylinder` | The face it was attached to is no longer a cylinder. |
@@ -129,7 +147,10 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
   Other pick refusals: "This edge has no lasting name, so a dimension can't hold on to it." (unnamed or ordinals needed), "This line's edge
   shares its name with other edges, so a dimension can't hold on to it." (key forms more than one run), "This line is a free curve;
   dimensions attach to a part's edges." (`.curve` source), "This edge isn't a straight line or a circle, so it can't be dimensioned here.",
-  "Only a cylinder's outline can be dimensioned here.", "This corner can't be named; dimension the edge instead.". A held dimension whose
+  "Only a cylinder's outline can be dimensioned here.", "This corner can't be named; dimension the edge instead." (no neighbour, or a joint
+  inside a split run), "This cylinder has no lasting name, so a dimension can't hold on to it." (its tags empty or holding an `.unnamed` role),
+  "This cylinder shares its name with other faces, so a dimension can't hold on to it." (`faces(matching:)` gives more than the face). The
+  line rule applies to the edges a dimension measures or takes ends from, never to a corner's neighbour (R3). A held dimension whose
   geometry a model edit tilts out of the plane is lost `.foreshortened`. Cost: a horizontal dimension of a slanted-in-depth edge is refused
   even though its x-extent would read true; pick its two corners instead.
 - **R6. What each kind measures** (`DrawingMeasure`, model-plane mm; `AnnotationFigure` is what the layout draws):
@@ -225,7 +246,14 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
   between two faces.". The general tolerance is structured (`GeneralTolerance`): ISO is an ISO 2768-1 class f, m, c or v with an optional
   ISO 2768-2 class H, K or L ("ISO 2768-mK", the default); ASME is a table by number of decimals typed by the user, in one unit, defaults
   `X ±0.5, X.X ±0.1, X.XX ±0.05` (rows of 0, 1, 2 places, mm) and `.X ±.03, .XX ±.010, .XXX ±.005` (rows of 1, 2, 3 places, in), written in the
-  title block as "±0.5, ±0.1, ±0.05 mm" and "±.03, ±.010, ±.005 in". A format-17 string decodes: "ISO 2768-" followed by a class letter and an
+  title block as "±0.5, ±0.1, ±0.05 mm" and "±.03, ±.010, ±.005 in". `ASMEToleranceRow.text` is the magnitude as typed, with no sign: "0.5",
+  ".010" (the "±" is added only where it is written, so `value(for:use:places:)` reads it with `Double(text)`, which takes ".010"). The setter
+  trims whitespace and accepts a row only when `Double(text)` is finite and greater than 0, else it refuses "A general tolerance is a number,
+  such as 0.1." and commits nothing; a typed "±0.5" is refused the same way. `DrawingSettings.defaultTolerance(for:inches:)` is removed;
+  `GeneralTolerance.standardDefault(for:inches:)` replaces it at every call site (`DrawingSettings.init`, `addSheet()`, `setStandard`), and
+  DR-1's `DrawingModelTests.defaultTolerances` asserts the same three strings through `standardDefault(...).text` and
+  `DrawingSettings().generalTolerance == .iso2768(.m, .K)`. `GeneralTolerance.isEmpty` is true only for a `.text` whose text is blank, which is
+  what `addSheet()` replaces with the standard's default (DR-1's empty-string check). A format-17 string decodes: "ISO 2768-" followed by a class letter and an
   optional geometric letter to `.iso2768`, either ASME default string to its table, anything else to `.text(original)`, shown as typed. The
   title block's tolerance field becomes automatic (`TitleBlockKey.tolerance.isTyped == false`). The inspector's "General" row: ISO 2768-1 Table
   1 for lengths and diameters, Table 2 for radii and chamfer heights, the class's name only for angles; ASME the row with the dimension's
@@ -280,21 +308,41 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
   cap at `position`), "Note" when made; an empty text is refused "A note needs some text; delete it instead.". A leader (`LeaderEnd`:
   `target`, `hint: Vector2` model-plane, `lastPoint` via R15) runs from the block's nearer side, at the first line's middle, a `shoulder` long,
   then straight to its end, a filled arrowhead there. An edge target ends at the point of the edge's projected lines nearest the hint; a corner
-  or centre at that point; a free `point` where it was put. A note's leaders point into its own view: "A note's leaders point into one view."
-  Notes' text goes through R13 of DR-1 (WinAnsi, "?" and one export warning per distinct text).
+  or centre at that point; a free `point` where it was put. A note's leaders point into one view. A view's note whose leader lands on a line of
+  another view is refused "A note's leaders point into one view." and commits nothing. **A sheet note** (`view == nil`) whose leader lands on a
+  view's line (an edge, corner or centre target) **joins that view** in the same "Add Leader" step: `view` becomes that view and `position` and
+  every existing `point` leader are re-based from absolute to relative to the view's resolved centre (`absolute − centre`), so nothing moves on
+  the sheet then, and from then on the note moves with the view. A sheet note's leader that ends on empty space (`point`) leaves it free.
+  Removing a joined note's last view leader does not free it again (it stays the view's; cost: a note once joined follows its view).
+  **Typed text in lettering** goes through R13 of DR-1 (WinAnsi, "?" and one export warning per distinct text, `ReplacedTexts.collect` over
+  `SheetText.original`) wherever it is drawn: notes (each line's `original` is that line), dimension and callout labels (every `SheetText` of a
+  label whose prefix or suffix is non-empty has `original` = the label's `plainText` with that prefix and suffix, so the warning quotes the
+  whole label; generated text is WinAnsi by construction: "Ø" 0xD8, "±" 0xB1, "°" 0xB0, "×" 0xD7, symbols are strokes), and the title block's
+  tolerance field (`TitleBlockLayout` already sets `original` to the value, now `generalTolerance.text`, which covers ASME row text and a
+  legacy `.text`).
 - **R15. A lost annotation** (the anti-goal and the smaller call). Every composed annotation reports `held` with its current `LastGood`
-  (values, label lines, figure in model-plane mm, leader points) or `lost(reason)`. The editor remembers the newest held `LastGood` per
-  annotation (`DrawingEditorModel.remembered`, in memory, never an edit). A lost annotation is drawn from `remembered[id] ?? annotation.last`:
+  (values, label lines, figure in model-plane mm, leader points) or `lost(reason)`, and per anchor an `AnchorStatus` (`held` or
+  `lost(LostReason)`, one per anchor in the annotation's order: a dimension's anchors, a callout's, centre mark's or centre line's one, a
+  note's leader targets; empty when the view itself has no part, R25). An annotation lost for a measure-level reason (`.foreshortened`,
+  `.notLineOrCircle` from measuring, `.notAHole`, `.refused`) has every anchor held. The editor remembers the newest held `LastGood` per
+  annotation (`DrawingEditorModel.remembered`, `public internal(set)`, in memory, never an edit), fed by the pictures the editor rebuilds and by
+  the app's refresh after each evaluation (R26, through `public func remember(_: [AnnotationID: LastGood])`); `draftPicture`'s composes never
+  feed it (a draft has no id in the document, and its preview must not become anyone's last value). A lost annotation is drawn from `remembered[id] ?? annotation.last`:
   its figure through the view's current mapping, every value or the callout's first line with "?" appended ("25?", "Ø6 THRU?"), on screen in
   the warning colour (`isLost`), in files in ink; with neither, a lone "?" at the view frame's bottom-left corner. An annotation of a view with
   no projection (removed, never projected) is listed but not drawn. Lost annotations are listed in the sheet inspector ("Lost references", each
-  row the label text and the reason, a click selects it) and in every export's warnings, one sentence per sheet: "On “Sheet 1”, 2 annotations
-  lost what they were attached to and show “?”." (one: "On “Sheet 1”, 1 annotation lost what it was attached to and shows “?”."). Lost
-  annotations never block an export. On save the app writes `remembered` into each annotation's `last` (`DrawingEditorModel.documentForSaving()`)
+  row the label text and the reason, a click selects it) and in every export's warnings, **listed one by one** (spec §Export: "The export
+  warns about them, listing them"): per lost annotation, in sheet order then the sheet's annotation order, "On “Sheet 1”, “40?” lost what it
+  was attached to: What it was attached to is no longer in the part." (the label's `plainText` with "?", then the reason's sentence; a lone "?"
+  when it has no last value, then "“?”"). At most 10 per sheet are listed; beyond that one more sentence: "On “Sheet 1”, 3 more annotations
+  lost what they were attached to." (one: "1 more annotation lost what it was attached to."). Lost annotations never block an export. On save the app writes `remembered` into each annotation's `last` (`DrawingEditorModel.documentForSaving()`)
   through `DocumentModel.fileData(savingTo:drawings:)` and `didSave(to:drawings:)`: no undo step, not an edit, the saved document not dirty.
-  Re-attaching: with exactly one lost annotation selected, a click on a line of its view (within the hover tolerance) replaces its first lost
-  anchor with that pick, validated as a fresh pick and of the same case (edge, corner, centre, outline or axis), else "Pick the same kind of
-  thing the annotation lost: a line, a circle, a corner or a centre."; one step "Reattach Dimension".
+  Re-attaching: with exactly one lost annotation selected, a click on a line of its view (within the hover tolerance) replaces the first anchor
+  whose `AnchorStatus` is lost with that pick, validated as a fresh pick and of the same case (edge, corner, centre, outline or axis), else "Pick
+  the same kind of thing the annotation lost: a line, a circle, a corner or a centre."; one step "Reattach Dimension". When no anchor is lost
+  (a measure-level reason) the click refuses "What it was attached to is still there; it is lost because of what that measures now. Delete it or
+  change the model." and commits nothing; when the view has no part (R25: `.sourceRemoved`, `.viewFailed`, `.noPart`, anchors empty) it refuses
+  "Its view has no part to attach it to." Neither refusal changes the selection.
 - **R16. Picture primitives.** `SheetPicture` gains `fills: [SheetFill]` (closed polygons: arrowheads), `standard: DrawingStandard` (so the
   writers dash by the page's style: the DR-1 backlog's hard-coded ISO dashes), `annotationReports: [AnnotationID: AnnotationReport]` (lookup
   only), `lostAnnotations: [AnnotationID]` (sheet order) and `viewExtents: [ViewID: Rect2D]` (frame ∪ its annotations, for culling; hit
@@ -333,7 +381,7 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
   | `setTolerance(_:of:)` | Change Tolerance |
   | `setNoteText(_:of:)` | Edit Note |
   | a re-attaching click | Reattach Dimension |
-  | `setGeneralTolerance(_:)` | Edit Title Block |
+  | `setGeneralTolerance(_:)`, `setASMEToleranceRow(places:text:)` | Edit Title Block |
   | `setDecimalSign(_:)` | Change Number Format |
   | `setShowsCentreMarks(_:of:)` | Change View |
 
@@ -352,7 +400,7 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
 - **R22. Export.** Annotations are part of every picture, so the PDF and the DXF of the sheet carry them. DXF of a view at 1:1 stays geometry
   only; a new kind `dxfViewWithAnnotations` ("DXF of View at 1:1 with Annotations…" in File ▸ Export and the top bar's Export menu) adds the
   view's annotations mapped back to model mm (sheet ÷ scale, text heights ÷ scale), so geometry measures true and lettering keeps its size
-  relative to the part. Lost annotations add R15's warning to the summary.
+  relative to the part. Lost annotations add R15's listed warnings to the summary (for a view's DXF, only that view's).
 - **R23. File format 18.** The `drawings` key gains annotations, `DrawingView.showsCentreMarks`, a structured `DrawingSettings.generalTolerance`
   and `decimalSign`. A DR-1 build would drop annotations silently on its next save (its decoder ignores unknown keys) and would misread the new
   tolerance, so the version is bumped and an older build refuses the file. Enums with payloads are coded as keyed containers with a `type`
@@ -360,6 +408,52 @@ texture, balloons, parts lists, revisions and MCP tools are DR-3 to DR-5: leave 
 - **R24. Performance.** Composing resolves every annotation of the sheet each time (a drag step included; DR-1 already recomposes per step).
   Benchmark rows `drawing-3` (composing the bracket's sheet with 30 dimensions) and `drawing-3-warm` (a dimension dragged, warm window CPU per
   frame, budget 16.67 ms) are recorded; caching resolutions by topology identity is parked unless `drawing-3` is over 4 ms.
+- **R25. Pending and failed views** (the review's "every edit loses every dimension"). `ViewContent.topology` travels with
+  `ViewContent.projection` in every branch of `DrawingProjector.content`: wherever it returns `previous?.projection` (the `.evaluating` branch,
+  the `.failed` branch and the catch) it also returns `previous?.topology`, so the lines drawn and the topology annotated always belong to one
+  projection. The composer decides an annotated view's state in this order:
+  1. no content, or content with no projection: the annotation is listed and not drawn (R15), reason `.sourceRemoved` when
+     `problem == DrawingProjector.removedSentence`, `.noPart` when it is `nothingYetSentence` or `onlyMeshesSentence`, `.viewFailed(problem)`
+     for any other problem, `.noPart` with none;
+  2. a `problem` that is not nil (a failed source still showing its old projection, or an evaluating one whose previous content had failed,
+     since the `.evaluating` branch keeps `previous?.problem`): **lost `.viewFailed(problem)`** (`.sourceRemoved` / `.noPart` for those
+     sentences), drawn from `remembered ?? last` through the old projection's mapping, anchors empty; its stale lines are not measured, because
+     a value read from geometry the model no longer has is the anti-goal's "old value" shown as current;
+  3. no topology (a projection of curves only): lost `.noPart`;
+  4. otherwise resolve and measure. An `.evaluating` view whose previous content was good (problem nil, `isPending` true) is therefore **held
+     against the previous topology**: its dimensions keep their values, are not listed and draw in ink while the view re-projects; the new
+     values replace them when the projection lands. Its held reports feed `remembered` (they are the values already remembered).
+  Tests: Task 8 `anEvaluatingViewKeepsItsDimensionsHeld`, `aFailedViewLosesItsDimensionsWithItsSentence`, `aViewOfOnlyMeshesHasNoPart`,
+  `aViewOfCurvesOnlyHasNoPart`; Task 9 `anEvaluatingSourceCarriesThePreviousTopology`, `aFailedSourceCarriesThePreviousTopology`. Cost: during
+  the short re-projection after an edit, dimensions show the values before the edit (in ink, as the lines beside them do).
+- **R26. Refreshing the last good values after every evaluation** (the review's stale "40?"). Composing, and so the editor's `remembered`,
+  happens only in Drawing mode and for the shown sheet. So after every evaluation that ends with results (`DocumentModel.apply`, any
+  workspace mode, held results included) the app refreshes `remembered` for **every annotation on every sheet** without projecting: per view,
+  its source's solids (`DrawingSession.content(of:in:)`, `.ready` with at least one solid; any other state skips the view and keeps what is
+  remembered), their topology from `ProjectionCache.topology(of:compoundTag:kernel:)` (one solid: its own topology with no kernel call;
+  several: the compound's, with the projector's `compoundTag` `NodeTag(node: output, item: 0)`, made once and shared with the projection that
+  later wants it, so `compoundCalls` counts one), the view's `orientation.frame` and the sheet's `NumberFormat`. `AnnotationRefresh.lastGood(
+  for: DrawingAnnotation, topology: Topology, frame: ProjectionFrame, format: NumberFormat, standard: DrawingStandard) -> LastGood?` (pure,
+  `CreatorDrawing`) resolves and measures exactly as the composer does with `mapping: nil` (Task 4 says nil and a real mapping give the same
+  figure, since views never rotate) and returns the `LastGood` when held, nil when lost (nil never erases what is remembered). Notes are
+  skipped (their leaders' last points need the projected lines and come from composes only); centre marks, centre lines and hole callouts are
+  refreshed like dimensions. The refresh runs in a task off the main actor, a newer evaluation cancelling the older, and merges on the main
+  actor through `editor.remember(_:)`. Example: a dimension reads 40, a Model-mode edit makes it 60, a chamfer then loses it before Drawing
+  mode is entered: it shows "60?" and saves `last` 60, and the same for a dimension on a sheet that isn't shown. Tests: Task 8
+  `theRefreshMatchesTheCompose` (for each kind in the fixtures, `lastGood` equals the composed report's `current`), `aLostAnnotationRefreshesToNil`;
+  Task 9 `aTopologyRequestThenAProjectionCompoundOnce`, `aSingleSolidsTopologyNeedsNoKernel`; Task 14
+  `aModelEditOutsideDrawingModeRefreshesTheLastValue`, `anotherSheetsDimensionIsRefreshed`. Cost: one resolve and measure per annotation per
+  evaluation (the same work as one compose, R24) and one compound call per multi-solid source.
+- **R27. Smaller interface rulings.**
+  - The editor's `replaceDocument(_:)` (undo, redo, `resync`, and `didSave(to:drawings:)`'s write-back) prunes `selectedAnnotations` to the
+    annotations still on the current sheet, drops `picks`, the draft and `hoverCandidate` when the view they were made in (`pickView`) is gone
+    or the sheet changed, and drops `addingLeader` when its note is gone. Test (Task 11) `undoPrunesTheAnnotationSelectionAndPicks`.
+  - `DrawingSheet.removeView(_:)` removes the view's annotations too (`annotations.removeAll { $0.view == id }`), and `ViewPlacement.removing`
+    calls it, so tests and `DrawingBench` that remove views directly leave no orphans in memory. Test (Task 1) `removeViewDropsItsAnnotations`.
+  - Leaders' shoulders: `public enum ShoulderSide: Hashable, Sendable { case left, right }` with `static func toward(_ direction: Vector2) ->
+    ShoulderSide` (`.right` when `direction.x ≥ 0`); `SheetDimensionLayout.leader(tip: Vector2, knee: Vector2, side: ShoulderSide, style:
+    AnnotationStyle) -> AnnotationDrawing` draws the arrowhead at `tip`, the line to `knee` and the shoulder `shoulder` mm from `knee` toward
+    `side`; the text goes at the shoulder's far end (R8: "on the side the leader points to", so callers pass `.toward(knee − tip)`).
 
 **Backlog.** Pulled in from DR-1's parked items: `PDFWriter`'s hard-coded ISO dashes (R16: dashes by the page's standard, needed by
 centre lines); `pointerCancelled` leaving a half-moved view (R18); tool shortcuts (R17); renaming drawing anchors in Group, Ungroup and Make
@@ -372,7 +466,9 @@ sheet names and whitespace renames; every drag step recomposing the sheet (measu
 of views and annotations, tab reordering by drag, ANSI zone counts, hidden tangent lines, compressed streams, DXF text widths and a progress
 sheet. **Parked by DR-2:** dual dimensioning (decision 3), isometric dimensioning (decision 4), jogged ordinate leaders and automatic
 de-cluttering (R8), fits over 500 mm or outside IT5–IT11 (R11), hole counts and tolerances in callouts (R12), ellipse and B-spline edges'
-dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor resolution (R24).
+dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor resolution (R24), narrowing a face anchor that matches
+nothing (R4: a cylinder pick stores no normal, so it could only guess), freeing a joined note from its view (R14), listing more than 10 lost
+annotations per sheet in an export (R15), refreshing notes' leader points outside a compose (R26).
 
 ## Review Focus
 
@@ -392,6 +488,15 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 5. **A drag that MetalUI cancels, and deleting a view under its dimensions.** No undo step is left by the cancelled drag; Delete View takes its
    annotations in the same step and undo brings both back. Task 11 (`aCancelledDragRestoresAndDiscards`, `deletingAViewDeletesItsAnnotations`),
    Task 14 (`aCancelledDragLeavesNoStep`).
+6. **An edit while dimensions are on screen, and an edit made elsewhere.** While a view re-projects its dimensions stay held at their old
+   values (never a flash of "?"); a failed source makes them lost with its own sentence; a dimension changed in Model mode, or on another
+   sheet, and then lost shows and saves its newest value, never an older one. Task 8 (`anEvaluatingViewKeepsItsDimensionsHeld`,
+   `aFailedViewLosesItsDimensionsWithItsSentence`, `theRefreshMatchesTheCompose`), Task 9 (`anEvaluatingSourceCarriesThePreviousTopology`),
+   Task 14 (`anEditKeepsDimensionsHeldWhileReprojecting`, `aModelEditOutsideDrawingModeRefreshesTheLastValue`).
+7. **Corners at split edges and faces that share a name.** A corner never names the other piece of its own run, a joint is never a corner, a
+   corner's depth neighbour is never foreshortening-checked, and a cylinder whose tags fit two faces is refused at the pick and lost
+   `.severalFaces` later. Task 4 (`aCornerUsesTheRunsExtremeEnds`, `aFaceThatFitsTwoIsLost`, `joinConstantsMatchTheKernels`), Task 9
+   (`aCornerAtASplitNamesATrueNeighbour`, `aJointInsideARunIsNotACorner`, `aDepthNeighbourStillNamesACorner`, `aCylinderWhoseNameIsSharedIsRefused`).
 
 ---
 
@@ -406,9 +511,14 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   `Sources/CreatorDrawing/Views/ViewPlacement.swift` (`removing` drops the view's annotations), `Sources/CreatorDrawing/Sheet/TitleBlockLayout.swift`
   (`.tolerance` automatic: `settings.generalTolerance.text`), `Sources/CreatorGraph/GraphFile.swift` (18), and to keep the editor compiling:
   `Sources/CreatorDrawingEditor/DrawingEditorModel+Inspector.swift` (`setTitleField(.tolerance, …)` now does nothing; `setStandard` compares
-  `GeneralTolerance.standardDefault`), `Sources/CreatorDrawingEditor/Views/SheetInspector.swift` (`.tolerance` leaves `fields`)
+  `GeneralTolerance.standardDefault`), `Sources/CreatorDrawingEditor/DrawingEditorModel+Sheets.swift` (`addSheet()`: `generalTolerance.isEmpty`
+  is `GeneralTolerance.isEmpty` and the default is `GeneralTolerance.standardDefault(for:inches:)`, R10),
+  `Sources/CreatorDrawingEditor/Views/SheetInspector.swift` (`.tolerance` leaves `fields`); `DrawingSettings.defaultTolerance(for:inches:)` is
+  removed (R10)
 - Test: `Tests/CreatorDrawingTests/AnnotationModelTests.swift`, `Tests/CreatorDrawingTests/GeneralToleranceModelTests.swift`,
-  `Tests/CreatorGraphTests/DrawingsFileTests.swift` (additions), DR-1 tests that wrote the tolerance as a string (updated, not weakened)
+  `Tests/CreatorGraphTests/DrawingsFileTests.swift` (additions), `Tests/CreatorDrawingTests/DrawingModelTests.swift` (`defaultTolerances` asserts
+  the same strings through `standardDefault`, R10), `Tests/CreatorDrawingEditorTests/SheetEditingTests.swift` (addition), DR-1 tests that wrote
+  the tolerance as a string (updated, not weakened)
 
 **Interfaces:**
 - Produces:
@@ -418,9 +528,9 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     { case H, K, L }`, `public struct ASMEToleranceRow: Hashable, Codable, Sendable { places: Int; text: String }`, `public struct
     ASMEToleranceTable: Hashable, Codable, Sendable { unit: LengthUnit; rows: [ASMEToleranceRow] }`, `public enum GeneralTolerance:
     Hashable, Codable, Sendable { case iso2768(ISO2768Class, ISO2768GeometricClass?); case asme(ASMEToleranceTable); case text(String) }`
-    with `var text: String` ("ISO 2768-mK", "ISO 2768-m", "±0.5, ±0.1, ±0.05 mm", "±.03, ±.010, ±.005 in", the legacy text),
-    `static func standardDefault(for: DrawingStandard, inches: Bool) -> GeneralTolerance` and `init(legacy: String, standard: DrawingStandard)`
-    (R10's decoding).
+    with `var text: String` ("ISO 2768-mK", "ISO 2768-m", "±0.5, ±0.1, ±0.05 mm", "±.03, ±.010, ±.005 in", the legacy text), `var isEmpty:
+    Bool` (a blank `.text` only), `static func standardDefault(for: DrawingStandard, inches: Bool) -> GeneralTolerance` and `init(legacy:
+    String, standard: DrawingStandard)` (R10's decoding). `ASMEToleranceRow.text` is the magnitude without a sign ("0.5", ".010"; R10).
   - `public struct AnnotationID` shaped like `ViewID` (bare UUID, `Comparable` by text).
   - `public enum LinearDirection: String, Codable { case horizontal, vertical, aligned }`, `public enum OrdinateAxis: String, Codable { case
     horizontal, vertical }`, `public enum DrawingDimensionKind: Hashable, Codable, Sendable { case linear(LinearDirection), baseline(LinearDirection),
@@ -446,7 +556,8 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     centreLine(CentreLine), note(DrawingNote) }`; `public struct DrawingAnnotation: Hashable, Codable, Sendable, Identifiable { id; view: ViewID?;
     kind; last: LastGood? }`.
   - `DrawingSheet`: `public private(set) var annotations: [DrawingAnnotation]` (sorted by id), `annotation(_:)`, `setAnnotation(_:)`,
-    `removeAnnotation(_:)`, `annotations(of view: ViewID) -> [DrawingAnnotation]`; decoding drops an annotation whose `view` is not on the sheet;
+    `removeAnnotation(_:)`, `annotations(of view: ViewID) -> [DrawingAnnotation]`; `removeView(_:)` drops the view's annotations with it and
+    `ViewPlacement.removing` calls it (R27); decoding drops an annotation whose `view` is not on the sheet;
     encoded only when non-empty. `DrawingView.showsCentreMarks: Bool` (default true; missing decodes true). `DrawingSettings.generalTolerance:
     GeneralTolerance`, `decimalSign: DecimalSign` (default `.point`, encoded only when `.comma`); a string `generalTolerance` decodes through
     `GeneralTolerance(legacy:standard:)`.
@@ -456,17 +567,20 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `AnnotationModelTests`: `annotationsStaySortedById`; `everyKindRoundTrips` (one annotation of each kind with every anchor case and every
     tolerance case, encode then decode equal); `kindsAreCodedByType` (a horizontal dimension with one `.edge` anchor encodes to JSON whose
     `kind` object has `"type":"dimension"` and whose anchor has `"type":"edge"`, with no `"_0"` key anywhere); `aFitGradeOutOfRangeReadsGeneral`;
-    `anAnnotationOfAMissingViewIsDropped`; `removingAViewRemovesItsAnnotations` (`ViewPlacement.removing`); `freeAnnotationsSurviveViewRemoval`;
-    `centreMarksDefaultOnForOldViews`; `noAnnotationsKeyWhenEmpty`.
+    `anAnnotationOfAMissingViewIsDropped`; `removingAViewRemovesItsAnnotations` (`ViewPlacement.removing`); `removeViewDropsItsAnnotations`
+    (`DrawingSheet.removeView` directly, R27); `freeAnnotationsSurviveViewRemoval`; `centreMarksDefaultOnForOldViews`; `noAnnotationsKeyWhenEmpty`.
   - `GeneralToleranceModelTests`: `legacyISOStringsParse` ("ISO 2768-mK" → `.iso2768(.m, .K)`, "ISO 2768-f" → `.iso2768(.f, nil)`);
-    `legacyASMEDefaultsParse` (both default strings to their tables); `anythingElseIsKeptAsText`; `textsMatchTheTitleBlock` (R10's four
-    strings); `theToleranceFieldIsAutomatic`; `decimalSignDefaultsToPoint`.
+    `legacyASMEDefaultsParse` (both default strings to their tables, rows "0.5", "0.1", "0.05" and ".03", ".010", ".005"); `anythingElseIsKeptAsText`;
+    `textsMatchTheTitleBlock` (R10's four strings); `theToleranceFieldIsAutomatic`; `decimalSignDefaultsToPoint`; `onlyABlankTextIsEmpty`.
+  - `Tests/CreatorDrawingEditorTests/SheetEditingTests.swift` addition: `addSheetFillsAnEmptyTolerance` (a document whose tolerance is
+    `.text("")` gets `standardDefault`; one that holds `.text("Per drawing 12")` keeps it).
   - `DrawingsFileTests` additions: `aFormat17FileOpensAndIsWrittenAs18` (a format-17 fixture with `"generalTolerance":"ISO 2768-mK"` reads, its
     tolerance structured, and writes `formatVersion` 18); `aNewerFileIsRefused` (19); `annotationsRoundTripThroughTheGraphFile`.
 - [ ] **Step 2: Run** `swift test --filter 'AnnotationModelTests|GeneralToleranceModelTests|DrawingsFileTests'`; compile failure.
 - [ ] **Step 3: Implement.** Codable by hand where R23 says so; keep every DR-1 test's meaning (a DR-1 test that typed the tolerance through
   `setTitleField(.tolerance, …)` now asserts it commits nothing; Task 11 adds `setGeneralTolerance`).
 - [ ] **Step 4: Run** the filter, then `swift test --filter CreatorDrawingTests`, `--filter CreatorDrawingEditorTests`, `--filter CreatorGraphTests`; pass.
+  `grep -rn "defaultTolerance(for" Sources Tests` finds nothing.
 - [ ] **Step 5: Commit** "Drawings: the annotation model and file format 18".
 
 ### Task 2: Tolerance tables (ISO 286, ISO 2768, the ASME table)
@@ -524,8 +638,9 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `public enum LabelSymbol: Hashable, Sendable { case depth, counterbore, countersink }`; `public enum LabelPiece: Hashable, Sendable { case
     text(String); case symbol(LabelSymbol) }`; `public struct StackedText: Hashable, Sendable { upper: String; lower: String }`;
     `public struct DimensionLabel: Hashable, Sendable { lines: [[LabelPiece]]; stack: StackedText?; trailing: String; isBoxed: Bool }` with
-    `var plainText: String` (symbols as "↧", "⌴", "⌵"; for lists, never drawn) and `func lost() -> DimensionLabel` ("?" after the first line's
-    text, before any stack).
+    `var plainText: String` (symbols as "↧", "⌴", "⌵"; for lists, never drawn), `var hasTypedText: Bool` (true when made with a non-empty
+    prefix or suffix; R14: its drawn texts then carry `plainText` as their `original`) and `func lost() -> DimensionLabel` ("?" after the first
+    line's text, before any stack).
   - `public enum SizeSymbol: Sendable { case none, radius, diameter }`; `DimensionLabel.size(_ mm: Double, symbol: SizeSymbol, tolerance:
     DimensionTolerance, precision: Int?, prefix: String, suffix: String, format: NumberFormat) throws(DrawingRefusal) -> DimensionLabel`
     (radius refuses a fit); `DimensionLabel.angle(_ radians: Double, tolerance:, precision:, prefix:, suffix:, format:)
@@ -547,7 +662,7 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `DimensionLabelTests`: `general` ("25"); `symmetric` ("25 ±0.1"; inch "1.000 ±.005"); `deviationStacksPadded` (+0.1/−0.25 → upper "+0.10", lower
     "-0.25"); `limitsStack` ("25.1" over "24.9"); `reference` ("(25)"); `basicIsBoxed`; `fitWithDeviations` ("Ø20 H7" trailing "(+0.021/0)");
     `fitInInches` ("(+.0008/0)"); `fitOnARadiusIsRefused` (the sentence); `fitOutOfRangeIsRefused`; `prefixAndSuffix` ("2× Ø6 TYP" from prefix "2×",
-    suffix "TYP" joined by spaces); `chamferForms` (ISO 2 mm 45° "C2", 30° "2 × 30°", ASME "2 X 45°"); `holeForms` (THRU "Ø6 THRU"; blind "Ø6 ↧10"
+    suffix "TYP" joined by spaces; `hasTypedText` true, false without them); `chamferForms` (ISO 2 mm 45° "C2", 30° "2 × 30°", ASME "2 X 45°"); `holeForms` (THRU "Ø6 THRU"; blind "Ø6 ↧10"
     as `.text("Ø6 ")`, `.symbol(.depth)`, `.text("10")`; counterbore second line; countersink "⌵Ø12 × 90°", ASME "X"); `lostAppendsAQuestionMark`
     ("25?" keeps its stack).
   - `CalloutSymbolTests`: `depthStrokes`, `counterboreStrokes`, `countersinkStrokes` (each symbol's segments at h = 2.5 and origin (10, 20) equal the
@@ -560,7 +675,7 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 ### Task 4: Anchor resolution and measurement
 
 **Files:**
-- Create: `Sources/CreatorDrawing/Anchors/AnchorGeometry.swift`, `LostReason.swift`, `DrawingAnchorResolver.swift`,
+- Create: `Sources/CreatorDrawing/Anchors/AnchorGeometry.swift`, `AnchorNaming.swift`, `LostReason.swift`, `DrawingAnchorResolver.swift`,
   `Sources/CreatorDrawing/Dimensions/DrawingMeasure.swift`, `Sources/CreatorDrawing/Layout/ViewMapping.swift`
 - Test: `Tests/CreatorDrawingTests/AnchorResolverTests.swift`, `DrawingMeasureTests.swift`, `Support/TopologyFixtures.swift` (hand-built
   topologies: a plate with named faces, an edge split into two collinear pieces, a circle, a cylinder)
@@ -571,7 +686,9 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `public enum AnchorGeometry: Hashable, Sendable { case segment(Vector3, Vector3); case circle(center: Vector3, axis: Vector3, radius: Double,
     sweep: Double); case point(Vector3); case cylinder(axisPoint: Vector3, axis: Vector3, radius: Double, side: Double /* +1, −1, or 0 for the axis */);
     case other(midpoint: Vector3) }` (other: a held edge with no exact curve).
-  - `public enum LostReason: Hashable, Sendable` with R4's cases and `var sentence: String`.
+  - `public enum LostReason: Hashable, Sendable` with R4's cases (`severalFaces(Int)`, no `guessed`) and `var sentence: String`.
+  - `public enum AnchorNaming { public static func isLasting(_ tags: Set<TopoTag>) -> Bool }` (R3).
+  - `DrawingAnchorResolver.joinTolerance = 1e-4` and `.joinAngle = 0.01` (`public static let`; R4, equal to the kernel's internal constants).
   - `public enum AnchorResolution: Hashable, Sendable { case held(AnchorGeometry, edges: [EdgeID], isRun: Bool); case lost(LostReason) }`.
   - `DrawingAnchorResolver.resolve(_ target: AnchorTarget, in topology: Topology, frame: ProjectionFrame) -> AnchorResolution` (R4; callers
     never pass `.point`, which the composer places itself (R14); given one it answers `.lost(.missing)`).
@@ -586,9 +703,12 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `AnchorResolverTests`: `anExactMatchIsHeld`; `aSplitEdgeIsMeasuredAsItsRun` (two collinear pieces sharing an end: `.held(.segment(extreme ends),
     isRun: true)`); `aChangedRunCountIsLost` (the two pieces now meet at an angle: `.several(2)`); `severalSeparateMatchesAreLost`
     (`.several(2)`, the sentence says "2 edges"); `aNarrowedKeyFindingOneIsHeld`; `aNarrowedKeyFindingTwoIsLost`; `operandKeysAreNeverTried` (a key
-    that only `operandKeys` would find is `.missing`); `aCornerIsTheSharedEnd`; `aCornerWhoseEdgesPartIsLost`; `aCentreOfALineIsLost`
-    (`.notLineOrCircle`); `aGuessedFaceIsLost` (narrowed, ambiguous: `.guessed`); `anOutlinePicksItsSide` (side (0, 1) on a cylinder along x seen from
-    the front: +1); `aTurnedOutlineIsLost`; `aPlaneIsNotACylinder`; `everyReasonHasItsSentence` (R4's table verbatim).
+    that only `operandKeys` would find is `.missing`); `aCornerIsTheSharedEnd`; `aCornerWhoseEdgesPartIsLost`; `aCornerUsesTheRunsExtremeEnds`
+    (the first edge now split in two collinear pieces: the corner still holds at the run's end, and a neighbour meeting only the joint is
+    `.cornerGone`); `joinConstantsMatchTheKernels` (R4); `aCentreOfALineIsLost` (`.notLineOrCircle`); `aFaceThatFitsTwoIsLost` (a cylinder
+    split into two halves with the same tags: `.severalFaces(2)`, the sentence says "2 faces"); `aNarrowableCylinderIsStillMissing` (a pick that
+    matches nothing although `Topology.resolution` would narrow it: `.missing`); `anOutlinePicksItsSide` (side (0, 1) on a cylinder along x seen
+    from the front: +1); `aTurnedOutlineIsLost`; `aPlaneIsNotACylinder`; `everyReasonHasItsSentence` (R4's table verbatim).
   - `DrawingMeasureTests`: `aHorizontalEdge` (Front view, edge (0,0,0)–(40,0,0): 40, figure points (0,0),(40,0)); `aTiltedEdgeIsForeshortened` (edge
     (0,0,0)–(40,10,0) in the Front view: `.foreshortened`); `aVerticalBetweenCorners`; `alignedBetweenPoints` (3-4-5: 5); `pointToLine`;
     `parallelLines`; `aDiameterOfAFaceOnCircle` (Top view, circle axis z, r 3: 6); `aCircleSeenEdgeOnIsForeshortened`; `aSideOnCylinderDiameter`
@@ -671,10 +791,12 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     original: String; origin: Vector2; height: Double; angle: Double }`.
   - `LabelLayout.place(_ label: DimensionLabel, height: Double, center: Vector2, angle: Double, style: AnnotationStyle) -> (texts: [PlacedText],
     segments: [SheetSegment], width: Double, box: [Vector2]?)` (pieces left to right through `DrawingText.layout`, symbols through
-    `DrawingSymbols.labelSymbol`, the stack after the main text, the trailing text after a space; centred on `center`, rotated by `angle`).
+    `DrawingSymbols.labelSymbol`, the stack after the main text, the trailing text after a space; centred on `center`, rotated by `angle`;
+    each `PlacedText.original` is the label's `plainText` when `hasTypedText`, else the piece's own text, R14).
   - `SheetDimensionLayout.draw(_ figure: AnnotationFigure, kind: DrawingDimensionKind, labels: [DimensionLabel], placement: DimensionPlacement,
     mapping: ViewMapping, standard: DrawingStandard, height: Double) -> AnnotationDrawing` (one label per value; ordinate also the origin's);
-    `SheetDimensionLayout.callout(center:radius:lines:placement:mapping:standard:height:)`, `.leader(from: Vector2, to: Vector2, side: …)`.
+    `SheetDimensionLayout.callout(center:radius:lines:placement:mapping:standard:height:)`; R27's `ShoulderSide` and
+    `SheetDimensionLayout.leader(tip: Vector2, knee: Vector2, side: ShoulderSide, style: AnnotationStyle) -> AnnotationDrawing`.
 
 - [ ] **Step 1: Tests** (A3, h = 2.5, 1:1 unless said):
   - `LabelLayoutTests`: `widthIsHelveticas` ("25" at 2.5 = the run's width); `symbolsAdvance1_6h`; `aStackFollowsTheValue`; `rotationKeepsTheCentre`;
@@ -688,7 +810,10 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `RadialAndAngleLayoutTests`: `aRadiusArrowPointsAtTheArc`; `aDiameterInside` (Ø40, ISO: line through the centre, two heads inside);
     `aSmallCircleTakesALeader` (Ø3 ISO; any diameter ASME); `anAngleArcSpansTheSector`; `aShortArcFlipsItsArrows`; `asmeAngleTextHorizontal`.
   - `LeaderLayoutTests`: `aCalloutLeaderEndsInAShoulder` (3 mm, the text on the side the leader points to, lines downward 1.6h apart);
-    `aNoteLeaderLeavesTheNearerSide`.
+    `aNoteLeaderLeavesTheNearerSide`; `shoulderSideFollowsTheLeader` (`.toward((-1, 2))` is `.left`, `(0, 1)` and `(1, -1)` are `.right`; a
+    left shoulder runs from the knee toward −x).
+  - `LabelLayoutTests` addition: `typedTextCarriesTheWholeLabelAsOriginal` (prefix "2×", suffix "TYP→" (→ is outside WinAnsi): every text's `original` is
+    "2× Ø6 TYP→", and `ReplacedTexts.collect` over them gives it once; without prefix or suffix the originals are the pieces).
 - [ ] **Step 2: Run** `swift test --filter 'LabelLayoutTests|LinearLayoutTests|RadialAndAngleLayoutTests|LeaderLayoutTests'`; compile failure.
 - [ ] **Step 3: Implement** R7 and R8.
 - [ ] **Step 4: Run** the filter, `--filter CreatorDrawingTests`; pass.
@@ -698,24 +823,31 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 
 **Files:**
 - Create: `Sources/CreatorDrawing/Picture/AnnotationReport.swift`, `AnnotationComposer.swift`, `AnnotationComposer+Kinds.swift`,
-  `CentreMarkComposer.swift`
+  `CentreMarkComposer.swift`, `Sources/CreatorDrawing/Picture/AnnotationRefresh.swift` (R26)
 - Modify: `Sources/CreatorDrawing/Picture/SheetComposer.swift` (`compose(_:in:contents:facts:notices:units:remembered:)`, annotations after the
-  views, `viewExtents`), `Sources/CreatorDrawing/Views/ViewContent.swift` (`topology: Topology?`)
-- Test: `Tests/CreatorDrawingTests/AnnotationComposerTests.swift`, `CentreMarkTests.swift`, `SheetComposerTests.swift` (additions)
+  views, `viewExtents`), `Sources/CreatorDrawing/Views/ViewContent.swift` (`topology: Topology?`, carried in `init` beside `projection`)
+- Test: `Tests/CreatorDrawingTests/AnnotationComposerTests.swift`, `CentreMarkTests.swift`, `SheetComposerTests.swift` (additions),
+  `AnnotationRefreshTests.swift`
 
 **Interfaces:**
 - Consumes: Tasks 1 to 7.
 - Produces:
-  - `ViewContent.topology: Topology?` (the projected solid's; filled in Task 9).
-  - `public enum AnnotationStatus: Hashable, Sendable { case held; case lost(LostReason) }`; `public struct AnnotationReport: Hashable, Sendable
-    { status; current: LastGood? (held only); label: String (plain text, "25?" when lost); frame: Rect2D; textCenter: Vector2? }`.
+  - `ViewContent.topology: Topology?` (the projected solid's; filled in Task 9, carried with the projection in every branch, R25).
+  - `public enum AnnotationStatus: Hashable, Sendable { case held; case lost(LostReason) }`; `public enum AnchorStatus: Hashable, Sendable {
+    case held; case lost(LostReason) }`; `public struct AnnotationReport: Hashable, Sendable { status; anchors: [AnchorStatus] (R15: one per
+    anchor, empty when the view has no part); current: LastGood? (held only); label: String (plain text, "25?" when lost); frame: Rect2D;
+    textCenter: Vector2? }` with `var firstLostAnchor: Int?`.
   - `SheetComposer.compose(_ sheet:, in:, contents:, facts:, notices: Bool = true, units: DocumentUnits = .millimetres, remembered:
     [AnnotationID: LastGood] = [:]) -> SheetPicture`; the picture's `annotationReports`, `lostAnnotations` (sheet order), `viewExtents`.
-  - Behaviour: per annotation of a view with a projection and a topology: resolve (Task 4), measure (Task 4 / Task 5), label (Task 3, the
-    sheet's `NumberFormat`), lay out (Task 7), tag strokes, texts and fills with the view, the annotation and `isLost`; R15 for lost ones (a fit
-    refused when labelled, such as a size that has left ISO 286's range, makes the annotation lost `.refused(sentence)`; a view with no topology
-    gives `.noPart`, a removed source `.sourceRemoved`, a failed one `.viewFailed(problem)`); a note's leaders resolved alone (a lost leader end draws to its `last` point, the note itself held);
-    R13's automatic centre marks for views with `showsCentreMarks`, on `.center`, never selectable.
+  - `AnnotationRefresh.lastGood(for:topology:frame:format:standard:) -> LastGood?` (R26; the composer's own resolve, measure and label path
+    with `mapping: nil`, shared code, never a copy).
+  - Behaviour: a view's state by R25's order (no projection: listed, not drawn; a problem: lost `.viewFailed` / `.sourceRemoved` / `.noPart`,
+    drawn from the last value through the old projection's mapping; no topology: `.noPart`; else annotated). Per annotation of an annotated
+    view: resolve (Task 4), measure (Task 4 / Task 5), label (Task 3, the sheet's `NumberFormat`), lay out (Task 7), tag strokes, texts and
+    fills with the view, the annotation and `isLost`; R15 for lost ones (a fit refused when labelled, such as a size that has left ISO 286's
+    range, makes the annotation lost `.refused(sentence)` with its anchors held); a note's leaders resolved alone (a lost leader end draws to
+    its `last` point, the note itself held; its anchor statuses say which); R13's automatic centre marks for views with `showsCentreMarks`, on
+    `.center`, never selectable.
 
 - [ ] **Step 1: Tests** (FakeKernel-free: projections and topologies from `TopologyFixtures`):
   - `AnnotationComposerTests`: `aHeldDimensionDrawsItsValue` ("40" on `.dimension`, tagged); `itMovesWithItsView` (moving the view by (10, 0) moves
@@ -723,10 +855,19 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     `lostAnnotations`, report reason `.missing`); `withoutAnyLastValueItIsALoneQuestionMark`; `aRemovedSourceListsButDrawsNothing`;
     `theReportCarriesTheCurrentFigure`; `aNoteDrawsItsLines` (two lines 1.6h apart on `.text`); `aNoteLeaderEndsOnItsEdge` (nearest point to the hint);
     `aFreeNoteIsAbsolute`; `aHoleCallout` ("Ø6 THRU" with its symbol strokes); `aCentreLineRunsPastTheCylinder`; `generalToleranceWritesNothing`;
-    `inchesFlowThrough` (units inches: "1.575" for 40 mm at 3); `viewExtentsCoverAnnotations`.
+    `inchesFlowThrough` (units inches: "1.575" for 40 mm at 3); `viewExtentsCoverAnnotations`; R25's `anEvaluatingViewKeepsItsDimensionsHeld`
+    (content `isPending` with the previous projection and topology and no problem: "40" in ink, held, not in `lostAnnotations`),
+    `aFailedViewLosesItsDimensionsWithItsSentence` (previous projection and topology kept, problem "The fillet failed.": lost
+    `.viewFailed("The fillet failed.")`, "40?" drawn through the old mapping, anchors empty), `aViewOfOnlyMeshesHasNoPart` (no projection, the
+    only-meshes sentence: `.noPart`, listed, not drawn), `aViewOfCurvesOnlyHasNoPart` (a projection, no topology); R15's
+    `anchorStatusesSayWhichIsLost` (a two-anchor dimension whose second edge is gone: anchors `[.held, .lost(.missing)]`, `firstLostAnchor` 1),
+    `aForeshortenedDimensionHasEveryAnchorHeld`; R14's `aPrefixOutsideWinAnsiIsReplaced` (prefix "→": the text drawn "? 40", and
+    `ReplacedTexts.collect(picture.texts)` holds the label's plain text once).
+  - `AnnotationRefreshTests`: `theRefreshMatchesTheCompose` (a dimension of each kind, a hole callout, a centre mark and a centre line from the
+    fixtures: `lastGood` equals the composed report's `current`); `aLostAnnotationRefreshesToNil`; `notesAreNotRefreshed`.
   - `CentreMarkTests`: `aFaceOnCircleGetsAMark` (two `.centre` strokes reaching r × s + 2); `concentricCirclesShareOne`; `aSmallCircleGetsASolidCross`;
     `arcsAndHiddenCirclesGetNone`; `theViewFlagTurnsThemOff`.
-- [ ] **Step 2: Run** `swift test --filter 'AnnotationComposerTests|CentreMarkTests|SheetComposerTests'`; fail.
+- [ ] **Step 2: Run** `swift test --filter 'AnnotationComposerTests|AnnotationRefreshTests|CentreMarkTests|SheetComposerTests'`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** `swift test --filter CreatorDrawingTests`; pass (DR-1 composer tests unchanged).
 - [ ] **Step 5: Commit** "Drawings: annotations on the sheet, held or lost".
@@ -735,9 +876,10 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 
 **Files:**
 - Create: `Sources/CreatorDrawing/Picks/PickCandidate.swift`, `DrawingPick.swift`, `DimensionInference.swift`
-- Modify: `Sources/CreatorDrawing/Projection/ProjectionCache.swift` (`projection(...)` returns `CachedProjection`), `DrawingProjector.swift` (fills
-  `ViewContent.topology`), `Sources/CreatorDrawing/Picture/SheetHitTest.swift` (`line(near:…)` skips annotation and centre-mark strokes;
-  `annotation(at:in:order:)`)
+- Modify: `Sources/CreatorDrawing/Projection/ProjectionCache.swift` (`projection(...)` returns `CachedProjection`; `topology(of:compoundTag:kernel:)`,
+  R26), `DrawingProjector.swift` (fills `ViewContent.topology`, and carries `previous?.topology` wherever it carries `previous?.projection`:
+  the `.evaluating` and `.failed` branches and the catch, R25), `Sources/CreatorDrawing/Picture/SheetHitTest.swift` (`line(near:…)` skips
+  annotation and centre-mark strokes; `annotation(at:in:order:)`)
 - Test: `Tests/CreatorDrawingTests/DrawingPickTests.swift`, `DimensionInferenceTests.swift`, `ProjectionCacheTests.swift` and
   `DrawingProjectorTests.swift` (additions), `SheetHitTestTests.swift` (additions)
 
@@ -745,7 +887,11 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 - Consumes: Tasks 1, 4, 5, 8.
 - Produces:
   - `public struct CachedProjection: Sendable { projection: Projection2D; topology: Topology? }` (one solid: its topology; several: the compound's;
-    none: nil). Callers of `ProjectionCache.projection` read `.projection`.
+    none: nil). Callers of `ProjectionCache.projection` read `.projection`. `ProjectionCache.topology(of solids: [Solid], compoundTag: NodeTag,
+    kernel: any Kernel) async throws -> Topology?` (R26: nil for no solids, a single solid's own topology with no kernel call, several solids'
+    compound made once per set of solid identities and tag and kept in a compound table the projection path reads too, so a topology request
+    and a projection of the same solids make one `compoundCalls`; the table is bounded by the cache's byte limit with the projections, least
+    recently used first).
   - `public enum PickCandidate: Hashable, Sendable { case edge(EdgeID, stroke: Int); case corner(EdgeID, at: Vector2); case centre(EdgeID, at:
     Vector2); case outline(FaceID, stroke: Int) }` (sheet points); `DrawingPick.candidate(at: Vector2, in: SheetPicture, view: ViewID, tolerance:
     Double) -> PickCandidate?` (R17's order; `.curve` sources give nil candidates and a separate `refusal(at:…)` reports R5's free-curve sentence).
@@ -753,8 +899,10 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     { case line(Vector2, Vector2); case circle(center: Vector2, radius: Double, isFull: Bool); case point(Vector2); case cylinder(axisPoint: Vector2,
     direction: Vector2, radius: Double) }` (model plane); `public struct PickedAnchor: Hashable, Sendable { target: AnchorTarget; shape: PickShape }`;
     `DrawingPick.anchor(for: PickCandidate, click: Vector2, purpose: PickPurpose, topology: Topology, frame: ProjectionFrame, mapping: ViewMapping,
-    isIsometric: Bool) -> Result<PickedAnchor, DrawingRefusal>` (R3, R5; a corner's neighbour is the lowest-`EdgeID` edge with a one-run key that
-    ends at the same 3D point within 1e-4 mm; an outline's `side` is the unit sheet vector from the axis toward the clicked line).
+    isIsometric: Bool) -> Result<PickedAnchor, DrawingRefusal>` (R3, R5; a corner's neighbour by R3's rule: the lowest-`EdgeID` edge with an
+    acceptable one-run key ending within `joinTolerance` of the clicked end that neither continues the clicked edge (within `joinAngle` of
+    opposite) nor lies in its run, the clicked end an extreme end of its run; R5's line rule is not applied to the neighbour; an outline's `side`
+    is the unit sheet vector from the axis toward the clicked line).
   - `public enum DimensionTool: Sendable { case smart, baseline, chain, ordinate, chamfer }`; `DimensionInference.isComplete(_ picks: [PickedAnchor],
     tool: DimensionTool) -> Bool`, `DimensionInference.make(tool:, picks:, placing: Vector2 (model plane), aligned: Bool) -> Result<(kind:
     DrawingDimensionKind, anchors: [AnchorTarget]), DrawingRefusal>` (R6), `DimensionInference.placement(for kind: DrawingDimensionKind, picks:
@@ -766,13 +914,21 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   - `DrawingPickTests`: `aLineIsAnEdge`; `nearAnEndIsACorner` (its neighbour the lowest-ID edge at that end); `nearACircleCentreIsACentre`;
     `aSilhouetteIsAnOutline` (side toward the click); `anUnnamedEdgeIsRefused`; `aSharedKeyIsRefused`; `aSplitEdgeIsAccepted` (key forms one run:
     `runCount` 1); `aFreeCurveIsRefused`; `anIsometricViewRefusesDimensionsButNotLeaders`; `aTiltedLineIsRefused` (decision 4's sentence);
-    `aCircleSeenEdgeOnIsRefused`; `anEllipseEdgeIsRefusedForDimensionsOnly`; `aBossIsNotAHole` (hole purpose); `annotationStrokesAreNotPicked`.
+    `aCircleSeenEdgeOnIsRefused`; `anEllipseEdgeIsRefusedForDimensionsOnly`; `aBossIsNotAHole` (hole purpose); `annotationStrokesAreNotPicked`;
+    `aCornerAtASplitNamesATrueNeighbour` (the clicked edge is one of two collinear pieces sharing a key and the other piece has the lower ID at
+    the run's end: the neighbour is the crossing edge, never the other piece); `aJointInsideARunIsNotACorner` (a click at the joint of a split
+    run: "This corner can't be named; dimension the edge instead."); `aDepthNeighbourStillNamesACorner` (a box corner in the Front view whose
+    lowest-ID neighbour runs along the view direction: accepted, no foreshortening refusal); `anUnnamedCylinderIsRefused` (tags with an
+    `.unnamed` role: R5's sentence); `aCylinderWhoseNameIsSharedIsRefused` (two halves with the same tags: R5's sentence); `anUnnamedKeySideIsRefused`
+    (an edge whose key's one side holds an `.unnamed` tag: "This edge has no lasting name, …").
   - `DimensionInferenceTests`: R6's table row by row (`aHorizontalLine`, `aSlantedLineIsAligned`, `aCircleIsADiameter`, `anArcIsARadius`,
     `twoPointsByWhereTheyArePlaced` (above → horizontal, right → vertical, ⇧ → aligned), `pointAndLine`, `parallelLines`, `twoLinesAreAnAngle`,
     `aCircleWithAPointGivesItsCentre`, `baselineDirectionByPlacement`, `aLineThatDoesntCrossIsRefused`, `chamferNeedsTwoLines`); `placementFromTheClick`
     (offset = the click's distance along n; radial angle = atan2 of the click about the centre).
-  - `ProjectionCacheTests`: `aSingleSolidGivesItsTopology`; `aCompoundGivesItsOwn` (the hook's solid's topology); `curvesOnlyGiveNone`.
-  - `DrawingProjectorTests`: `contentCarriesTheTopology`.
+  - `ProjectionCacheTests`: `aSingleSolidGivesItsTopology`; `aCompoundGivesItsOwn` (the hook's solid's topology); `curvesOnlyGiveNone`;
+    `aSingleSolidsTopologyNeedsNoKernel` (`topology(of:)` of one solid: `compoundCalls` 0); `aTopologyRequestThenAProjectionCompoundOnce`.
+  - `DrawingProjectorTests`: `contentCarriesTheTopology`; `anEvaluatingSourceCarriesThePreviousTopology`; `aFailedSourceCarriesThePreviousTopology`
+    (and the catch branch: a hook that throws keeps the previous projection and topology with its problem).
 - [ ] **Step 2: Run** the filters; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** `swift test --filter CreatorDrawingTests`; pass.
@@ -793,22 +949,32 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 - Produces:
   - `DrawingTool` cases `dimension, baselineDimension, chainDimension, ordinateDimension, chamferDimension, holeCallout, centreMark, centreLine, note`
     (titles "Dimension", "Baseline", "Chain", "Ordinate", "Chamfer", "Hole Callout", "Centre Mark", "Centre Line", "Note") after DR-1's.
-  - `DrawingEditorModel`: `public internal(set) var hoverCandidate: PickCandidate?`, `picks: [PickedAnchor]` (read only), `draftPicture:
-    SheetPicture?` (the current picture with the draft annotation composed in, nil without one), `@ObservationIgnored var remembered:
-    [AnnotationID: LastGood]` (merged from every rebuilt picture's held reports), `public var units: DocumentUnits` (rebuilds), `addingLeader:
-    AnnotationID?`, `beginLeader(for:)`.
-  - Behaviour: R17 and R15's re-attach; R19's Add steps; a refusal sets `refusal` and commits nothing; Esc drops picks, then the tool.
+  - `DrawingEditorModel`: `public internal(set) var hoverCandidate: PickCandidate?`, `public internal(set) var picks: [PickedAnchor]`,
+    `public internal(set) var pickView: ViewID?` (the view the picks were made in), `public internal(set) var draftPicture: SheetPicture?` (the
+    current picture with the draft annotation composed in, nil without one), `@ObservationIgnored public internal(set) var remembered:
+    [AnnotationID: LastGood]` (merged from every rebuilt picture's held reports, never from `draftPicture`'s compose, R15) and `public func
+    remember(_ goods: [AnnotationID: LastGood])` (the app's R26 refresh: merges, entry by entry, replacing what is there; never removes),
+    `public var units: DocumentUnits` (rebuilds), `public internal(set) var addingLeader: AnnotationID?`, `beginLeader(for:)`.
+  - Behaviour: R17 and R15's re-attach (by `AnnotationReport.firstLostAnchor`, with R15's two refusals when there is none); R14's leaders (a view
+    note's leader into another view refused; a sheet note joins the view its first line-leader lands in, re-based); R19's Add steps; a refusal
+    sets `refusal` and commits nothing; Esc drops picks, then the tool.
 
 - [ ] **Step 1: Tests.**
   - `AnnotationToolTests`: `oneLineThenEmptySpacePlacesItsLength` (Front view of a 40 mm plate: one "Add Dimension" commit, kind `linear(.horizontal)`,
     one `.edge` anchor, offset from the click); `twoCornersByPlacement`; `shiftMakesItAligned`; `aCircleIsADiameterAtOnce`; `aBaselineCollectsUntilPlaced`;
     `anOrdinateTakesAnOrigin`; `aChamferNeedsTwoLines`; `aHoleCalloutReadsTheHole` ("Add Hole Callout"); `aCentreMarkCommitsOnOnePick`; `aCentreLineOnAnOutline`;
     `aNoteInAViewBelongsToIt` (position relative to the view's centre; "Add Note"; selected); `aNoteOutsideIsFree`; `aLeaderEndsOnTheNextClick` ("Add Leader");
-    `aLeaderIntoAnotherViewIsRefused`; `isometricRefusesTheDimensionTool` (the sentence; no commit); `foreshortenedRefuses`; `escapeDropsPicksThenTheTool`;
-    `theDraftFollowsThePointer` (`draftPicture` non-nil after the first pick, nothing committed); `toolKeys` (D, H, M, L, N select their tools; F still fits);
-    `hoverFindsCornersAndCentres`; `unitsChangeRebuildsThePicture`; `rememberedKeepsTheNewestHeld`.
-  - `ReattachTests`: `aClickReplacesTheFirstLostAnchor` (one "Reattach Dimension" commit; the dimension is held again); `theSameCaseIsRequired` (a
-    corner for an edge: the sentence); `onlyWithOneLostSelected` (a held selection: the click selects the view as before).
+    `aLeaderIntoAnotherViewIsRefused`; `aSheetNotesFirstLeaderJoinsThatView` (a free note at (300, 200) on the sheet, a leader to an edge of a
+    view centred at (150, 150): one "Add Leader" step, `view` that view, `position` (150, 50) relative, the note drawn where it was);
+    `aJoinedNoteMovesWithItsView`; `aSheetNotesPointLeaderLeavesItFree`; `isometricRefusesTheDimensionTool` (the sentence; no commit);
+    `foreshortenedRefuses`; `escapeDropsPicksThenTheTool`; `theDraftFollowsThePointer` (`draftPicture` non-nil after the first pick, nothing
+    committed); `theDraftNeverFeedsRemembered` (`remembered` unchanged while a draft is shown); `toolKeys` (D, H, M, L, N select their tools; F
+    still fits); `hoverFindsCornersAndCentres`; `unitsChangeRebuildsThePicture`; `rememberedKeepsTheNewestHeld`; `rememberMergesWithoutRemoving`.
+  - `ReattachTests`: `aClickReplacesTheFirstLostAnchor` (a two-anchor dimension whose second anchor is lost: the click replaces anchor 1, not 0;
+    one "Reattach Dimension" commit; the dimension is held again); `theSameCaseIsRequired` (a corner for an edge: the sentence);
+    `onlyWithOneLostSelected` (a held selection: the click selects the view as before); `aMeasureLevelLossIsNotReattached` (a foreshortened
+    dimension: R15's "What it was attached to is still there; …" refusal, no commit); `aViewWithNoPartIsNotReattached` ("Its view has no part to
+    attach it to.").
 - [ ] **Step 2: Run** `swift test --filter 'AnnotationToolTests|ReattachTests'`; fail.
 - [ ] **Step 3: Implement.** Update DR-1 call sites of the editor `init` (fixtures, `DrawingSession`) to pass `units`.
 - [ ] **Step 4: Run** `swift test --filter CreatorDrawingEditorTests`; pass.
@@ -818,7 +984,7 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 
 **Files:**
 - Create: `Sources/CreatorDrawingEditor/DrawingEditorModel+AnnotationSelection.swift`, `DrawingEditorModel+AnnotationInspector.swift`
-- Modify: `DrawingEditorModel+Pointer.swift`, `DrawingEditorModel+Keys.swift`, `DrawingEditorModel+Views.swift` (`deleteSelection`),
+- Modify: `DrawingEditorModel.swift` (`replaceDocument` prunes, R27), `DrawingEditorModel+Pointer.swift`, `DrawingEditorModel+Keys.swift`, `DrawingEditorModel+Views.swift` (`deleteSelection`),
   `DrawingEditorModel+Sheets.swift` (`duplicateSheet` copies annotations), `DrawingEditorModel+Inspector.swift` (`setGeneralTolerance`,
   `setDecimalSign`), `DrawingEditorEvents.swift` (`discarded: @MainActor (String) -> Void`, default no-op), `DrawingStepName.swift` (the rest of R19)
 - Test: `Tests/CreatorDrawingEditorTests/AnnotationSelectionTests.swift`, `AnnotationInspectorTests.swift`, `DrawingStepNameTests.swift` (R19's table
@@ -833,19 +999,26 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     direction, radius ↔ diameter; baseline and chain refuse `.aligned`: "Baseline and chain dimensions run horizontally or vertically."),
     `setPrecision(_: Int?, of:)`, `setPrefix(_: String, of:)`, `setSuffix(_: String, of:)`, `setTolerance(_: DimensionTolerance, of:)`,
     `setTolerance(text: …)` parsing helpers for the inspector (`symmetricText:`, `upperText:lowerText:`), `setNoteText(_: String, of:)`,
-    `removeLeader(at index: Int, of:)`, `setShowsCentreMarks(_: Bool, of: ViewID)`, `setGeneralTolerance(_: GeneralTolerance)`, `setDecimalSign(_:)`.
+    `removeLeader(at index: Int, of:)`, `setShowsCentreMarks(_: Bool, of: ViewID)`, `setGeneralTolerance(_: GeneralTolerance)` (an ASME table
+    whose row text isn't a positive number is refused "A general tolerance is a number, such as 0.1.", R10), `setASMEToleranceRow(places: Int,
+    text: String)` (the inspector's per-row field: trims, validates as R10 says, then `setGeneralTolerance`), `setDecimalSign(_:)`.
   - `pointerCancelled()` restores the gesture's base document and calls `events.discarded(key)` when it committed (R18).
+  - `replaceDocument(_:)` (R27): prunes `selectedAnnotations` to the current sheet's annotations, drops `picks`, the draft, `pickView` and
+    `hoverCandidate` when `pickView` is no longer on the current sheet or the sheet changed, and drops `addingLeader` when its note is gone.
 
 - [ ] **Step 1: Tests.**
   - `AnnotationSelectionTests`: `annotationsAreHitBeforeViews`; `shiftAddsAnnotations`; `aDragMovesTheDimensionLine` (offset grows by the motion along n;
     one coalesced "Move Dimension"); `draggingTheTextShiftsIt`; `aRadialDragTurnsTheLeader`; `aNoteDragMovesItsPosition` ("Move Note"); `mixedIsMoveAnnotations`;
     `nudgeMovesSelectedAnnotations`; `deleteNames` (R19's four cases); `deletingAViewDeletesItsAnnotations` (one "Delete View"); `duplicateSheetCopiesAnnotations`
     (new IDs, views remapped); `aCancelledDragRestoresAndDiscards` (document equal to the base, `discarded` called once with the drag's key);
-    `documentForSavingWritesRemembered`.
+    `documentForSavingWritesRemembered`; `undoPrunesTheAnnotationSelectionAndPicks` (R27: an added dimension selected, a pick in a view, a leader
+    being added to a note; `replaceDocument` with the document before all three: `selectedAnnotations` empty, `picks` empty, `draftPicture` nil,
+    `addingLeader` nil; a replace that keeps them keeps them).
   - `AnnotationInspectorTests`: `kindAndDirection`; `precision`; `toleranceKinds` (each case commits "Change Tolerance"); `aFitOnARadiusIsRefused`;
     `aBadToleranceNumberIsRefused` ("A tolerance is a number, such as 0.1."); `tolerancesAreTypedInTheDocumentUnit` (inches "0.005" stores 0.127 mm);
     `anEmptyNoteIsRefused`; `removeLeader`; `centreMarksToggleIsChangeView`; `generalToleranceIsEditTitleBlock`; `decimalSignIsChangeNumberFormat`;
-    `lostAnnotationsListed` (label "40?" and the reason).
+    `asmeRowsStoreTheMagnitude` (" .010 " stores ".010"; the title block reads "±.010"); `aBadASMERowIsRefused` ("±0.5", "abc", "0" and "-1":
+    "A general tolerance is a number, such as 0.1.", no commit); `lostAnnotationsListed` (label "40?" and the reason).
 - [ ] **Step 2: Run** `swift test --filter 'AnnotationSelectionTests|AnnotationInspectorTests|DrawingStepNameTests'`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** `swift test --filter CreatorDrawingEditorTests`; pass.
@@ -908,7 +1081,10 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
   `Sources/CreatorApp/AppModel+Files.swift` (`save(to:)` passes `drawing.editor.documentForSaving()` to both), `Sources/CreatorApp/Drawing/DrawingSession.swift`
   (`editor.units` kept level with `document.units`; the editor's `discarded` → `discardHandler`), `Sources/CreatorApp/Drawing/AppModel+Drawing.swift`
   (`discardDrawingStep(_ key:)`: `document.discardCoalescedStep(key:)` then `drawing.resync()`), `Sources/CreatorApp/AppModel+DrawingExport.swift`
-  (composes with `units` and `remembered`; R15's per-sheet lost warning; `dxfViewWithAnnotations`), `Sources/CreatorApp/Export/DrawingExportKind.swift`,
+  (composes with `units` and `remembered`; R15's listed lost warnings, at most 10 per sheet then the "more" sentence; `dxfViewWithAnnotations`),
+  `Sources/CreatorApp/Drawing/AppModel+DrawingRefresh.swift` (create: R26's refresh after every evaluation that ends with results, any mode,
+  every sheet; one task, a newer evaluation cancelling it; merges through `drawing.editor.remember(_:)`; `settle()` waits for it),
+  `Sources/CreatorApp/Export/DrawingExportKind.swift`,
   `Sources/CreatorApp/AppCommands.swift` and `Sources/CreatorApp/TopBar.swift` (the new menu item), `Sources/CreatorDrawing/Export/DXFWriter.swift`
   (`view(_ projection:, view:, style:, annotations: (picture: SheetPicture, mapping: ViewMapping)? = nil)`: the view's annotation strokes, fills
   and texts mapped back by the mapping, text heights ÷ scale)
@@ -927,13 +1103,21 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
     (`undoName` unchanged after a cancelled drag of a dimension); `anInchDocumentRestylesItsNumbers` (`setUnits` to inches at 3: the picture's text
     "1.575", ASME ".984" for 25 mm); `savingWritesLastGoodValuesWithoutAnEdit` (save to a temporary file: the file's annotation has `last.values` [40],
     `document.content == savedContent`, the undo stack's count unchanged, the window not edited); `aReopenedLostDimensionShowsItsLastValue` (reopen
-    the saved file after removing the edge's feature in it: "40?", listed, in the PDF as "40?"); `exportWarnsAboutLostAnnotations` (R15's sentence
-    for one sheet); `lostAnnotationsDontBlockAnExport`; `dxfViewWithAnnotationsMeasuresTrue` (a 1:2 view: the dimension's extension lines 40 apart in
-    the DXF, its text height 5).
+    the saved file after removing the edge's feature in it: "40?", listed, in the PDF as "40?"); `exportListsEachLostAnnotation` (two lost on
+    "Sheet 1": two sentences in sheet order, each "On “Sheet 1”, “40?” lost what it was attached to: <reason>"); `exportListsAtMostTenPerSheet`
+    (13 lost: ten listed, then "On “Sheet 1”, 3 more annotations lost what they were attached to."); `lostAnnotationsDontBlockAnExport`;
+    `aTypedSuffixOutsideWinAnsiWarnsOnce` (a dimension's suffix "→": the PDF and DXF exports each carry DR-1's replacement warning quoting the
+    label once); `dxfViewWithAnnotationsMeasuresTrue` (a 1:2 view: the dimension's extension lines 40 apart in the DXF, its text height 5);
+    R26's `aModelEditOutsideDrawingModeRefreshesTheLastValue` (a 40 mm dimension; in Model mode the width becomes 60, then the edge is removed;
+    entering Drawing mode shows "60?", and the save writes `last.values` [60]) and `anotherSheetsDimensionIsRefreshed` (the same for a dimension
+    on a sheet that isn't shown, read through `documentForSaving()`); R25's `anEditKeepsDimensionsHeldWhileReprojecting` (a hook holds the
+    projection: during it the dimension is held at its old value and not listed; after it the new value).
   - `DrawingDimensionOCCTTests`: `aDimensionFollowsAWidthChange` (Box → Output, Front view, the top edge's length dimension; width 40 → 60: "60",
     held); `aChamferOnTheEdgeLosesTheDimension` (a Chamfer node on that edge: lost, "40?", not attached to a neighbour); `aRibThatSplitsTheEdgeKeepsIt`
     (a union that splits the top edge collinearly: held, measuring the run, value unchanged); `aHoleCalloutOnARealCounterbore`.
   - `DocumentSavingTests`: `fileDataWithDrawingsWritesThem`; `didSaveWithDrawingsIsNotAnUndoStep`.
+  The projection hook in `anEditKeepsDimensionsHeldWhileReprojecting` is a suspending kernel hook or `HookGate`, never a semaphore (Global
+  Constraints).
 - [ ] **Step 2: Run** `swift test --filter 'DrawingDimensionTests|DrawingDimensionOCCTTests|DrawingExportTests|DocumentSavingTests'`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** `swift test --filter CreatorAppTests` and `--filter CreatorGraphTests`; pass.
@@ -957,7 +1141,7 @@ dimensions (R5), part-lost chains (R4), in-canvas note editing, caching anchor r
 **Files:**
 - Modify: `CLAUDE.md` (a "Drawings, DR-2" paragraph after DR-1's: the annotation model and format 18, the resolver's rule and the lost display, the
   measurer and decision 4, the hole reader, tolerances and ISO 286's scope, the layout beside the viewport's (R1), centre marks and lines, notes and
-  leaders, the tools and keys, saving last values, group renaming, the new export kind, R1 to R24 in short, the parked items; the file-format sentence
+  leaders, the tools and keys, saving last values, group renaming, the new export kind, the refresh of last values after every evaluation (R26), R1 to R27 in short, the parked items; the file-format sentence
   becomes "File format is version 18 (… 18 added drawing annotations, a view's centre-mark flag and the structured general tolerance and decimal sign
   …); files of format 1 to 17 open unchanged and are written as 18"; the `CreatorDrawing` and `CreatorDrawingEditor` module entries mention
   annotations), `docs/verification/human-checks.md` (group DR-2, below), `docs/superpowers/specs/2026-11-24-drawings-design.md` (Status line: "… DR-1
