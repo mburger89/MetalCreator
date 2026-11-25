@@ -68,6 +68,8 @@ private struct MeasureContext {
     /// The outline's direction across the axis, the model vector `axis x viewDirection`.
     func across(_ axis: Vector3) -> Vector3 { (axis.cross(frame.direction)).normalized ?? Vector3(0, 0, 0) }
 
+    func circleFaceOn(_ axis: Vector3) -> Bool { abs(axis.dot(frame.direction)) >= 1 - tolerance }
+
     func cylinderSeenSideOn(_ axis: Vector3) -> Bool { abs(axis.dot(frame.direction)) <= tolerance }
 
     /// What a geometry contributes as a point to a dimension that measures along `direction`: a line gives its end nearer
@@ -75,7 +77,9 @@ private struct MeasureContext {
     func point(of geometry: AnchorGeometry, along direction: Vector2) -> Result<Vector2, LostReason> {
         switch geometry {
         case .point(let p): return .success(frame.place(p))
-        case .circle(let center, _, _, _): return .success(frame.place(center))
+        case .circle(let center, let axis, _, _):
+            guard circleFaceOn(axis) else { return .failure(.foreshortened) }
+            return .success(frame.place(center))
         case .segment(let a, let b):
             switch line(a, b) {
             case .failure(let reason): return .failure(reason)
@@ -138,7 +142,9 @@ private struct MeasureContext {
         case (.segment(let a, let b), _): return pointAndLine(second, (a, b), lineFirst: true)
         case (_, .segment(let a, let b)): return pointAndLine(first, (a, b), lineFirst: false)
         default:
-            guard let p = plainPoint(first), let q = plainPoint(second) else { return .failure(.notLineOrCircle) }
+            let ends = [first, second].map(plainPoint)
+            for end in ends { if case .failure(let reason) = end { return .failure(reason) } }
+            guard case .success(let p) = ends[0], case .success(let q) = ends[1] else { return .failure(.notLineOrCircle) }
             // The 3D segment between the two points must be square to the view.
             let along = q - p
             guard abs(along.dot(frame.direction)) <= tolerance * along.length else { return .failure(.foreshortened) }
@@ -148,16 +154,21 @@ private struct MeasureContext {
         }
     }
 
-    func plainPoint(_ geometry: AnchorGeometry) -> Vector3? {
+    func plainPoint(_ geometry: AnchorGeometry) -> Result<Vector3, LostReason> {
         switch geometry {
-        case .point(let p): p
-        case .circle(let center, _, _, _): center
-        default: nil
+        case .point(let p): return .success(p)
+        case .circle(let center, let axis, _, _):
+            return circleFaceOn(axis) ? .success(center) : .failure(.foreshortened)
+        default: return .failure(.notLineOrCircle)
         }
     }
 
     func pointAndLine(_ other: AnchorGeometry, _ segment: (Vector3, Vector3), lineFirst: Bool) -> Outcome {
-        guard let p3 = plainPoint(other) else { return .failure(.notLineOrCircle) }
+        let p3: Vector3
+        switch plainPoint(other) {
+        case .failure(let reason): return .failure(reason)
+        case .success(let p): p3 = p
+        }
         switch line(segment.0, segment.1) {
         case .failure(let reason): return .failure(reason)
         case .success(let (a, b)):

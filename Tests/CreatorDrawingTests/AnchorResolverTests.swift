@@ -184,6 +184,13 @@ struct AnchorResolverTests {
         #expect(resolve(.centre(Fixture.pick(topology, [0])), topology) == .held(.point(v(5, 0, 6)), edges: [EdgeID(0)], isRun: false))
     }
 
+    @Test func aTiltedCentreIsForeshortened() {
+        let tilt = 10.0 * .pi / 180
+        let axis = v(0, cos(tilt), sin(tilt))
+        let topology = Fixture.plate(edges: [Fixture.circle(0, center: v(5, 0, 6), axis: axis, radius: 3, between: 0, 2)])
+        #expect(resolve(.centre(Fixture.pick(topology, [0])), topology) == .lost(.foreshortened))
+    }
+
     @Test func aFaceThatFitsTwoIsLost() {
         let topology = Topology(faces: [Fixture.cylinder(0, .side(segment: 0)), Fixture.cylinder(1, .side(segment: 0))], edges: [])
         let pick = FacePick(tags: Fixture.tags(.side(segment: 0)))

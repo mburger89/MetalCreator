@@ -17,15 +17,20 @@ public enum DrawingAnchorResolver {
             case .success(let held): return .held(geometry(of: held.edges), edges: held.edges.map(\.id), isRun: held.isRun)
             }
         case .corner(let first, let second): return corner(first, second, in: topology)
-        case .centre(let pick):
-            let found = heldEdges(pick, in: topology)
-            guard case .success(let held) = found else { return lost(found) }
-            guard case .circle(let center, _, _, _) = geometry(of: held.edges) else { return .lost(.notLineOrCircle) }
-            return .held(.point(center), edges: held.edges.map(\.id), isRun: held.isRun)
+        case .centre(let pick): return centre(pick, in: topology, frame: frame)
         case .outline(let pick, let side): return cylinder(pick, side: side, in: topology, frame: frame)
         case .axis(let pick): return cylinder(pick, side: nil, in: topology, frame: frame)
         case .point: return .lost(.missing)
         }
+    }
+
+    private static func centre(_ pick: EdgePick, in topology: Topology, frame: ProjectionFrame) -> AnchorResolution {
+        let found = heldEdges(pick, in: topology)
+        guard case .success(let held) = found else { return lost(found) }
+        guard case .circle(let center, let axis, _, _) = geometry(of: held.edges) else { return .lost(.notLineOrCircle) }
+        // R5: a centre obeys the circle rule, so a hole a model edit tilts loses its centre dimension.
+        guard abs(axis.dot(frame.direction)) >= 1 - 1e-9 else { return .lost(.foreshortened) }
+        return .held(.point(center), edges: held.edges.map(\.id), isRun: held.isRun)
     }
 
     private struct Held {

@@ -101,6 +101,15 @@ struct DrawingMeasureTests {
         expectValues(measure(.radius, [circle], frame: StandardOrientation.top.frame), [3])
     }
 
+    @Test func aCircleAnchorOfALinearDimensionMustBeFaceOn() {
+        let tilted = held(.circle(center: v(5, 0, 6), axis: v(0, 0.2, 1).normalized ?? v(0, 0, 1), radius: 3, sweep: 2 * .pi))
+        let faceOn = held(.circle(center: v(5, 0, 6), axis: v(0, 1, 0), radius: 3, sweep: 2 * .pi))
+        #expect(measure(.linear(.horizontal), [tilted, point(v(0, 0, 0))]) == .failure(.foreshortened))
+        #expect(measure(.linear(.aligned), [tilted, point(v(0, 0, 6))]) == .failure(.foreshortened))
+        #expect(measure(.linear(.aligned), [point(v(0, 0, 6)), tilted]) == .failure(.foreshortened))
+        expectValues(measure(.linear(.horizontal), [faceOn, point(v(0, 0, 0))]), [5])
+    }
+
     @Test func aCircleSeenEdgeOnIsForeshortened() {
         let circle = held(.circle(center: v(5, 6, 0), axis: v(0, 0, 1), radius: 3, sweep: 2 * .pi))
         #expect(measure(.diameter, [circle]) == .failure(.foreshortened))
