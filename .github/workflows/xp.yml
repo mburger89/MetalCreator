@@ -253,6 +253,20 @@ jobs:
         run: |
           "METALUI_SHADERCROSS=$env:RUNNER_TEMP\shadercross\bin\shadercross.exe" >> $env:GITHUB_ENV
           "METALUI_SHADERCROSS_LIB=$env:RUNNER_TEMP\shadercross\bin" >> $env:GITHUB_ENV
+      - name: Pick the MSVC toolset Swift's Clang accepts
+        # The runner image's newest toolset (14.52, v145) has an STL that refuses any Clang older than 22 (static assertion STL1000 in
+        # yvals_core.h), and Swift 6.4's Clang is older, so every C++ file of Sources/COCCT failed. The image keeps 14.44 (v143, whose STL
+        # wants Clang 19) beside it, and Clang takes its MSVC toolchain from the environment first (VCToolsInstallDir, or the cl.exe on
+        # PATH). Drop this step when the Swift toolchain's Clang reaches 22. It runs after vcpkg: OpenCascade's packages stay as the
+        # cache holds them (the C++ runtime is binary compatible across 14.x), so the cache key is untouched.
+        run: |
+          $vc = "${env:ProgramFiles}\Microsoft Visual Studio\18\Enterprise\VC"
+          $dir = "$vc\Tools\MSVC\14.44.35207"
+          if (-not (Test-Path "$dir\bin\Hostx64\x64\cl.exe")) { throw "MSVC toolset 14.44.35207 is not on this runner image; see this step's comment" }
+          "VCToolsInstallDir=$dir\" >> $env:GITHUB_ENV
+          "VCToolsVersion=14.44.35207" >> $env:GITHUB_ENV
+          "VCINSTALLDIR=$vc\" >> $env:GITHUB_ENV
+          "$dir\bin\Hostx64\x64" >> $env:GITHUB_PATH
       - name: Fetch AccessKit
         working-directory: MetalUI/Backends/SDL
         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
