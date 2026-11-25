@@ -259,6 +259,12 @@ jobs:
         run: |
           python scripts/fetch-accesskit.py --print-flags > "$env:RUNNER_TEMP\accesskit-flags.txt"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # The runner image's newest MSVC STL (14.52) refuses any Clang older than 22 (static assertion STL1000 in yvals_core.h), and
+          # Swift 6.4's Clang is older. swift-build picks that newest toolset whatever INCLUDE, LIB, VCToolsInstallDir or vcvars say
+          # (a side-by-side 14.44 could not be selected: runs 45570424336, 45572434543), so every C++ file (the shim, MetalUI's
+          # CHarfBuzz) gets Microsoft's escape hatch through the one flags file every swift step reads. It is unsupported by Microsoft;
+          # remove it when the Swift toolchain's Clang reaches 22.
+          Add-Content "$env:RUNNER_TEMP\accesskit-flags.txt" @("-Xcc", "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH")
           Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt"
       - name: Build (compiles the viewport's shaders)
         working-directory: MetalCreator
