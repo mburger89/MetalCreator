@@ -20,6 +20,7 @@ extension ColorTheme {
         sketchProjected: HexColor(0xbd93f9),
         fieldLow: HexColor(0x8be9fd), fieldMid: HexColor(0xf1fa8c), fieldHigh: HexColor(0xff5555),
         dimensionDriving: HexColor(0x8be9fd), dimensionReference: HexColor(0x6272a4),
-        sectionFill: HexColor(0xbd93f9), sectionHatch: HexColor(0x282a36), sectionEdge: HexColor(0xf8f8f2)
+        sectionFill: HexColor(0xbd93f9), sectionHatch: HexColor(0x282a36), sectionEdge: HexColor(0xf8f8f2),
+        drawingPaper: HexColor(0xffffff), drawingInk: HexColor(0x000000), drawingHighlight: HexColor(0x1f6feb)
     ))
 }

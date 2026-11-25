@@ -1,5 +1,6 @@
 import CreatorDrawing
 import CreatorGeometry
+import MetalUI
 
 extension DrawingEditorModel {
     /// Adds a sheet after the last, named "Sheet N" with the smallest unused N, and shows it.
@@ -74,5 +75,37 @@ extension DrawingEditorModel {
     public func selectSheet(_ id: SheetID) {
         guard document.sheet(id) != nil else { return }
         show(sheet: id)
+    }
+}
+
+// MARK: Renaming in place
+
+extension DrawingEditorModel {
+    /// Opens the tab's field with the whole name selected, so typing replaces it.
+    public func beginRenaming(_ id: SheetID) {
+        guard let sheet = document.sheet(id) else { return }
+        renaming = SheetRename(
+            sheet: id, draft: sheet.name, selection: TextSelection(range: sheet.name.startIndex..<sheet.name.endIndex))
+    }
+
+    public func renameDraftChanged(_ text: String) {
+        renaming?.draft = text
+    }
+
+    public func renameSelectionChanged(_ selection: TextSelection?) {
+        renaming?.selection = selection
+    }
+
+    /// Return, or the field losing focus: one "Rename Sheet" step when the name changed and isn't empty.
+    public func commitRename() {
+        guard let rename = renaming else { return }
+        renaming = nil
+        guard let sheet = document.sheet(rename.sheet), rename.draft != sheet.name else { return }
+        renameSheet(rename.sheet, to: rename.draft)
+    }
+
+    /// Esc: the name stays as it was.
+    public func cancelRename() {
+        renaming = nil
     }
 }

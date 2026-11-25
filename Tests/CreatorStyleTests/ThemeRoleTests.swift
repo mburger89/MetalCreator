@@ -14,7 +14,7 @@ struct ThemeRoleTests {
 
     @Test func theRolesAreThePropertiesOfThemeColorsInOrder() {
         #expect(Self.properties(ColorTheme.dracula.colors).map(\.label) == ThemeRole.all.map(\.name))
-        #expect(ThemeRole.all.count == 49)
+        #expect(ThemeRole.all.count == 52)
     }
 
     @Test(arguments: ThemeRole.all)

@@ -1,6 +1,7 @@
 import CreatorDrawing
 import CreatorGeometry
 import CreatorKernel
+import MetalUI
 import Observation
 
 /// The drawing editor's behaviour: sheets, views, selection, moving and the sheet's canvas transform. Graph-free; the host stores
@@ -28,6 +29,8 @@ public final class DrawingEditorModel {
         didSet { rebuildPicture() }
     }
     public internal(set) var refusal: String?
+    /// The tab being renamed in place; view state, committed as one "Rename Sheet" step.
+    public internal(set) var renaming: SheetRename?
     public internal(set) var hoveredStroke: Int?
     /// The current sheet composed by `SheetComposer`.
     public private(set) var picture: SheetPicture?
@@ -40,6 +43,8 @@ public final class DrawingEditorModel {
     @ObservationIgnored var gesture: Gesture?
     @ObservationIgnored var dragSerial = 0
     @ObservationIgnored var pinchStart: (zoom: Double, anchor: Vector2)?
+    @ObservationIgnored var pointerIsDown = false
+    @ObservationIgnored var middleLast: Vector2?
 
     enum Gesture {
         case movingViews(base: DrawingSheet, start: Vector2, key: String, roots: [ViewID])
