@@ -1,0 +1,72 @@
+import CreatorGeometry
+import CreatorKernel
+
+public enum ViewKind: String, Sendable, Codable {
+    case base
+    case projected
+}
+
+public enum AlignmentAxis: String, Sendable, Codable {
+    case horizontal
+    case vertical
+}
+
+/// A projected view's tie to its parent: the two share a coordinate along `axis`.
+public struct ViewAlignment: Hashable, Sendable, Codable {
+    public var parent: ViewID
+    public var axis: AlignmentAxis
+
+    public init(parent: ViewID, axis: AlignmentAxis) {
+        self.parent = parent
+        self.axis = axis
+    }
+}
+
+/// One view of an Output on a sheet. `center` is in sheet millimetres (plan R7); a nil `scale` follows the sheet's.
+public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
+    public var id: ViewID
+    public var kind: ViewKind
+    public var source: NodeID
+    public var orientation: ViewOrientation
+    public var scale: DrawingScale?
+    public var center: Vector2
+    public var alignment: ViewAlignment?
+    public var showsHidden: Bool
+    public var showsTangent: Bool
+    public var showsLabel: Bool
+
+    public init(
+        id: ViewID = ViewID(), kind: ViewKind, source: NodeID, orientation: ViewOrientation, scale: DrawingScale? = nil,
+        center: Vector2, alignment: ViewAlignment? = nil, showsHidden: Bool = false, showsTangent: Bool = true,
+        showsLabel: Bool = false
+    ) {
+        self.id = id
+        self.kind = kind
+        self.source = source
+        self.orientation = orientation
+        self.scale = scale
+        self.center = center
+        self.alignment = alignment
+        self.showsHidden = showsHidden
+        self.showsTangent = showsTangent
+        self.showsLabel = showsLabel
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, source, orientation, scale, center, alignment, showsHidden, showsTangent, showsLabel
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(ViewID.self, forKey: .id)
+        kind = try c.decode(ViewKind.self, forKey: .kind)
+        source = try c.decode(NodeID.self, forKey: .source)
+        orientation = try c.decode(ViewOrientation.self, forKey: .orientation)
+        scale = try c.decodeIfPresent(DrawingScale.self, forKey: .scale)
+        center = try c.decode(Vector2.self, forKey: .center)
+        alignment = try c.decodeIfPresent(ViewAlignment.self, forKey: .alignment)
+        showsHidden = try c.decodeIfPresent(Bool.self, forKey: .showsHidden) ?? false
+        showsTangent = try c.decodeIfPresent(Bool.self, forKey: .showsTangent) ?? true
+        showsLabel = try c.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? false
+    }
+}

@@ -71,6 +71,8 @@ var targets: [Target] = [
     .target(name: "CreatorSketch", dependencies: ["CreatorGeometry"]),
     // CreatorPCB: KiCad board import (KI-1); portable, geometry only.
     .target(name: "CreatorPCB", dependencies: ["CreatorGeometry"]),
+    // CreatorDrawing: the 2D drawing model, sheets, views and their styles (DR-1); portable, no OCCT.
+    .target(name: "CreatorDrawing", dependencies: ["CreatorKernel", "CreatorGeometry"]),
     .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
     // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
     .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
@@ -151,6 +153,9 @@ var targets: [Target] = [
     .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
     .testTarget(name: "CreatorPCBTests", dependencies: ["CreatorPCB", "CreatorGeometry", "CreatorKernel"]),
+    .testTarget(
+        name: "CreatorDrawingTests",
+        dependencies: ["CreatorDrawing", "CreatorKernel", "CreatorGeometry", "CreatorGraph"]),
     .testTarget(
         name: "CreatorImplicitTests",
         dependencies: [
