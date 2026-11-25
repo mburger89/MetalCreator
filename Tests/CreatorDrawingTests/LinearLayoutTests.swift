@@ -72,6 +72,13 @@ struct LinearLayoutTests {
         #expect(LayoutSupport.hasLine(drawing, Vector2(-2.5, 10), Vector2(-5, 10)))
     }
 
+    /// The x-intervals the dimension line (y = 10) covers, merged.
+    private func covered(_ drawing: AnnotationDrawing) -> [(Double, Double)] {
+        DrawingBuilder.merged(
+            LayoutSupport.lines(drawing).filter { abs($0.0.y - 10) < 1e-9 && abs($0.1.y - 10) < 1e-9 }
+                .map { (Swift.min($0.0.x, $0.1.x), Swift.max($0.0.x, $0.1.x)) })
+    }
+
     @Test(arguments: [DrawingStandard.iso, DrawingStandard.asme])
     func textOutsideClearsTheExtensionLines(standard: DrawingStandard) {
         let drawing = horizontal(length: 8, label: "1234567890", standard: standard)
@@ -79,6 +86,13 @@ struct LinearLayoutTests {
         let text = drawing.texts[0]
         #expect(text.origin.x >= 8 + style.textGap + style.arrowLength - 1e-9)
         #expect(drawing.textCenter.map { $0.x > 8 } == true)
+        // The line runs on to the text without a gap (ASME stops at its break).
+        let spans = covered(drawing)
+        let w = LayoutSupport.width("1234567890")
+        let cx = drawing.textCenter?.x ?? 0
+        #expect(spans.count == 1)
+        let stop = standard == .iso ? cx + w / 2 : cx - w / 2 - style.textGap
+        #expect(spans.first.map { $0.0 <= 1e-9 && $0.1 >= stop - 1e-9 } == true)
     }
 
     @Test func aTextShiftMovesTheTextAndExtendsTheLine() {
@@ -87,6 +101,9 @@ struct LinearLayoutTests {
         #expect(LayoutSupport.close(drawing.texts[0].origin.x, 55 - w / 2))
         let reach = LayoutSupport.lines(drawing).filter { $0.0.y == 10 && $0.1.y == 10 }.flatMap { [$0.0.x, $0.1.x] }.max() ?? 0
         #expect(reach >= 55 + w / 2 - 1e-9)
+        let spans = covered(drawing)
+        #expect(spans.count == 1)
+        #expect(spans.first.map { $0.0 <= 1e-9 && $0.1 >= 55 + w / 2 - 1e-9 } == true)
     }
 
     @Test func baselineStacks() {

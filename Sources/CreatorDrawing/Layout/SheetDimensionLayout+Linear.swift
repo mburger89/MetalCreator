@@ -91,6 +91,9 @@ extension DrawingBuilder {
             spans.append((hi + arrow, hi + 2 * arrow))
         }
         spans.append((centre - extent / 2, centre + extent / 2))
+        // Text past a foot: the line runs on from that foot to reach it (R8).
+        if centre - extent / 2 > hi { spans.append((hi, centre - extent / 2)) }
+        if centre + extent / 2 < lo { spans.append((centre + extent / 2, lo)) }
         var merged = Self.merged(spans)
         let textAngle: Double
         let textPoint: Vector2
