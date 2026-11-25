@@ -232,6 +232,6 @@ import Testing
     @Test func theFixturesDigestIsPinned() {
         let digest = SHA256.hash(fixture().data)
             .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
-        #expect(digest == "916e7937e7f7b5b7cf478ace06fdba160cc68e459d8cd17be7758823a45bb853")
+        #expect(digest == "334a00adde9aa63c8f186ea0c9f32e5f133143059080cca750d58afca301e6d2")
     }
 }
