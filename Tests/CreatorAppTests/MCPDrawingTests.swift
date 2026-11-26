@@ -79,6 +79,22 @@ struct MCPDrawingTests {
         #expect(result["parts_list"]?.array?.count == 1)
     }
 
+    @Test func getSheetLeavesAnUncommittedEditorAlone() async throws {
+        let (app, _, _) = try await dimensioned()
+        #expect(app.drawing.isActive)
+        // A live drag: the editor holds a document the model doesn't yet.
+        var live = app.drawing.editor.document
+        live.sheets[0].name = "Dragging"
+        app.drawing.editor.replaceDocument(live)
+        let (_, core) = rig(app)
+        let listed = try await call(core, "list_drawings")
+        let sheetID = try #require(listed.result["sheets"]?.array?.first?["id"]?.string)
+        let (_, isError) = try await call(core, "get_sheet", .object(["sheet": .string(sheetID)]))
+        #expect(!isError)
+        #expect(app.drawing.editor.document == live)
+        #expect(app.drawing.editor.document != app.document.drawings)
+    }
+
     @Test func exportIsRefusedWhileEditsAre() async throws {
         var builder = GraphBuilder()
         _ = builder.sketchedBox()

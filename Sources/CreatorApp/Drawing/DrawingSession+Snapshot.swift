@@ -19,8 +19,11 @@ extension DrawingSession {
     public func sheetSnapshot(
         _ id: SheetID, within limit: Duration
     ) async -> (picture: SheetPicture, facts: TitleBlockFacts, views: [ViewID: ViewStatus])? {
-        resync()  // the sheet as the document holds it now, in any mode
-        guard let sheet = editor.document.sheet(id) else { return nil }
+        // A read never touches the editor: in Drawing mode the editor may hold a live drag, so it composes from the committed
+        // document; otherwise the editor is brought to the document first, as nothing of the person's is in it.
+        if !isActive { resync() }
+        let drawings = isActive ? document.drawings : editor.document
+        guard let sheet = drawings.sheet(id) else { return nil }
         let landed = Landed()
         let (stream, signal) = AsyncStream<Bool>.makeStream()
         let work = Task { @MainActor [weak self] in
@@ -53,7 +56,7 @@ extension DrawingSession {
         }
         let facts = landed.facts ?? TitleBlockFacts(parts: partFacts())
         let picture = SheetComposer.compose(
-            sheet, in: editor.document, contents: contents, facts: facts, notices: false, units: document.units,
+            sheet, in: drawings, contents: contents, facts: facts, notices: false, units: document.units,
             remembered: editor.remembered)
         return (picture, facts, statuses)
     }
