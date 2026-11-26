@@ -170,4 +170,38 @@ struct SectionContentTests {
         #expect(content.warnings == [DrawingProjector.hatchFailedSentence])
         #expect(DrawingProjector.hatchFailedSentence == "The cut faces of a part couldn't be hatched.")
     }
+
+    /// A box with `open` of its faces marked as a bare shell's: the value holds a closed solid and an open shell (R5).
+    func mixed(_ box: Solid, openFaces open: Set<FaceID>) -> Solid {
+        var topology = box.topology
+        topology.faces = topology.faces.map { face in
+            var face = face
+            face.isOnOpenShell = open.contains(face.id)
+            return face
+        }
+        return Solid(topology: topology, bounds: box.bounds, storage: box.storage)
+    }
+
+    func hatch(of solid: Solid, kernel: FakeKernel) async -> [HatchRegion] {
+        await kernel.setSectionCutHook { part, _, _ in part }
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        return await projector.content(for: sectionView(cutter), scale: 1, source: source([solid]), previous: nil).hatch
+    }
+
+    @Test func aRegionBoundedByAnOpenShellIsNotHatched() async throws {
+        let kernel = FakeKernel()
+        let box = try await ProjectionCacheTests.box(kernel, 10)
+        let section = try await kernel.section(box, by: Plane(origin: box.bounds.center, normal: Vector3(0, 0, 1), xAxis: Vector3(1, 0, 0)),
+                                               tolerance: 1e-4)
+        let pieceFaces = Set(section.regions.flatMap(\.boundary).compactMap(\.sourceFace))
+        let cut = try #require(pieceFaces.sorted { $0.rawValue < $1.rawValue }.first)
+        let other = try #require(box.topology.faces.map(\.id).first { !pieceFaces.contains($0) })
+        let dropped = mixed(box, openFaces: [cut])
+        #expect(dropped.holdsClosedSolid && dropped.hasOpenShell)
+        #expect(await hatch(of: dropped, kernel: kernel).isEmpty)
+        // A face the cut doesn't touch being open leaves the region hatched.
+        let kept = mixed(box, openFaces: [other])
+        #expect(kept.holdsClosedSolid && kept.hasOpenShell)
+        #expect(await hatch(of: kept, kernel: kernel).count == 1)
+    }
 }
