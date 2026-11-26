@@ -283,7 +283,17 @@ extension DrawingExportTests {
         let reader = try PDFStructureReader(data: Data(contentsOf: url))
         let page = try #require(reader.pages.first)
         let lines = page.operators.filter { $0.name == "l" }.count
-        #expect(lines >= hatch, "the page draws at least the hatch's \(hatch) lines: \(lines)")
+        // The sheet's border, zones and title block draw many lines of their own, so the hatch is what the section adds: the same
+        // drawing without the section view is exported too and the difference must hold at least the hatch's lines.
+        app.drawing.editor.selection = [section]
+        app.drawing.editor.deleteSelection()
+        await app.settle()
+        let plain = temporaryURL("plain.pdf")
+        defer { try? FileManager.default.removeItem(at: plain) }
+        _ = try await app.exportDrawingReturningWarnings(.pdf, to: plain)
+        let without = try #require(PDFStructureReader(data: Data(contentsOf: plain)).pages.first)
+        let baseline = without.operators.filter { $0.name == "l" }.count
+        #expect(lines - baseline >= hatch, "the section adds at least the hatch's \(hatch) lines: \(lines) against \(baseline)")
         #expect(tj(page).contains("(A)"), "the arrows' letters are on the page: \(tj(page))")
     }
 
