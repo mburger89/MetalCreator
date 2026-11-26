@@ -73,15 +73,23 @@ leave them out.
 - **R2. Anchors and attachment.** A symbol on a line holds DR-2's anchors only, picked by three new `PickPurpose`s: `.datum` and `.surface`
   take a straight edge (`EdgeInfo.curve` `.line`) or a cylinder's outline seen side on; `.frame` takes those and a circle seen face on (a
   hole's rim). A `.corner` candidate picks its edge and a `.centre` candidate its circle (`.frame` only), as DR-3's `AuxiliaryRule` does.
-  Names are DR-2's (`Picker.name`, lasting, one run); refusals (exact): `.datum` on a circle "A datum symbol stands on a straight line of a
-  view or on a dimension."; `.surface` on a circle "A surface symbol stands on a straight line of a view."; `.frame` on a circle not face on,
-  DR-2's `DrawingPick.circleSentence`; any symbol in a pictorial view (`DrawingSheet.isPictorial`) "Isometric views take notes and leaders, not
-  datum, tolerance or surface symbols." (`DrawingPick.symbolIsometricSentence`). The **foot** is computed from exact geometry, never a projected
+  **A straight edge need not be square to the view** (a symbol states no size, so foreshortening does not matter): for the three symbol
+  purposes `Picker.refuse` accepts any segment except one **seen end on**, `|along − (along · direction) direction| ≤ 1e-9 × |along|`
+  (refused `DrawingPick.symbolEndOnSentence`), and never gives DR-2's `lineSentence`; DR-2's purposes keep their square-to-the-view rule
+  unchanged. The same test is the lost rule below, so a pick that is accepted is never lost at once.
+  Names are DR-2's (`Picker.name`, lasting, one run); refusals are worded for symbols (R20): `.datum` on a circle "A datum symbol stands on a
+  straight line of a view or on a dimension."; `.surface` on a circle "A surface symbol stands on a straight line of a view."; `.frame` on a
+  circle not face on `DrawingPick.symbolCircleSentence`; any symbol in a pictorial view (`DrawingSheet.isPictorial`) "Isometric views take
+  notes and leaders, not datum, tolerance or surface symbols." (`DrawingPick.symbolIsometricSentence`). `.frame` takes no free-form edge (a
+  spline, an ellipse, a B-spline outline): refused `DrawingPick.symbolCurveSentence`. Cost: a profile frame on a free-form edge, the commonest
+  place for one, has to go on a straight neighbour or a leader note until a foot rule for curves exists (parked, R19). The **foot** is computed from exact geometry, never a projected
   polyline (`SymbolFoot.of(_ geometry: AnchorGeometry, hint: Vector2, frame: ProjectionFrame)`): a segment's or outline's **infinite** line
   nearest the hint (so a hint beyond the edge's ends stands on its extension line), a face-on circle's nearest point; with `along` the unit
   tangent there (model plane). Lost (by `AnnotationEvaluator`): every `LostReason` the resolver gives; a held edge that is no longer straight
-  for `.datum`/`.surface` (a new `LostReason.notStraight`, "What it stands on is no longer a straight line."); a line seen end on (projected
-  length under 1e-9) or a circle no longer face on, `.foreshortened`. Never re-attached by itself; Select's click on a line re-attaches it
+  for `.datum`/`.surface` (a new `LostReason.notStraight`, "What it stands on is no longer a straight line."); a line now seen end on (the
+  pick's test above) or a frame's circle no longer face on, a new `LostReason.turnedAway` ("What it stands on has turned, so this view no
+  longer shows it the way the symbol needs."; DR-2's `.foreshortened` speaks of a size and stays the dimensions'). A line that is merely
+  slanted stays held. Never re-attached by itself; Select's click on a line re-attaches it
   (DR-2 R15, step "Reattach Symbol"). A symbol on a dimension takes a dimension or hole callout of the same view, never a note or another
   symbol: datum symbols take `.linear` dimensions (any direction) and `.diameter` dimensions and hole callouts, else "A datum symbol goes on a
   size: a linear dimension, a diameter or a hole callout."; frames take `.linear`, `.radius`, `.diameter` and hole callouts, else "A tolerance
@@ -91,16 +99,25 @@ leave them out.
   re-attachable itself: Select's re-attach click on it refuses "This symbol hangs on a dimension; reattach the dimension and the symbol follows
   it.". Deleting a dimension deletes the symbols on it in the same step (`DrawingSheet.removeAnnotation` cascades); undo brings both. Cost: a
   symbol on a dimension cannot outlive it (the user re-adds it).
+  These kind rules are one function, `SymbolAttachment.accepts(_ symbol: SymbolKind, on dimension: DrawingAnnotation) -> Bool` (`SymbolKind`
+  `.datum`, `.frame`, `.surface`), read by the tools (R15), by decoding (R14) and by **a dimension whose kind changes**: `setDimensionKind`
+  allows radius ↔ diameter, and a datum on a diameter would then sit on a radius, which this rule forbids. So `setDimensionKind` refuses a
+  change the dimension's symbols would not accept, before committing, with "A datum symbol hangs on this diameter, and a radius can't carry
+  one; delete the datum symbol first." (`DrawingEditorModel.symbolBlocksKindSentence`); frames accept both kinds, so a frame never blocks the
+  change. Refusing (not dropping the symbol in the same step, not losing it) keeps a symbol from vanishing as a side effect of a menu choice.
+  Cost: the user deletes the datum by hand before turning a diameter into a radius.
 - **R3. Glyphs are strokes.** `DrawingSymbols.characteristic(_ c: GeometricCharacteristic, origin: Vector2, h: Double) -> [SheetSegment]` draws
-  in the box h × h whose bottom left is `origin`, from this table (unit box coordinates, scaled by h; `k = (3.0).squareRoot() / 3`, `s =
-  (3.0).squareRoot() / 2`; arcs `.arc(center:radius:start:sweep:)` with start 0 and sweep 2π for full circles):
+  in the box h × h whose bottom left is `origin`, from this table (unit box coordinates, scaled by h; `k = DrawingSymbols.slant =
+  (3.0).squareRoot() / 3`, `s = DrawingSymbols.sixty = (3.0).squareRoot() / 2`, both `public static let`; arcs `.arc(center:radius:start:sweep:)`
+  with start 0 and sweep 2π for full circles). Every point is built as `origin + unit × h`, the unit point formed from the table's
+  constants first, so a glyph drawn at origin (0, 0) with h = 1 has exactly the table's numbers:
 
   | Characteristic | Segments |
   |---|---|
   | straightness | line (0, 0.5)–(1, 0.5) |
   | flatness | polyline (0, 0.2), (0.7, 0.2), (1, 0.8), (0.3, 0.8), (0, 0.2) |
   | circularity | arc c (0.5, 0.5) r 0.5 full |
-  | cylindricity | arc c (0.5, 0.5) r 0.3 full; lines p ± 0.5 d for p = (0.5, 0.5) ± 0.3 n, d = (0.5, s), n = (s, −0.5) |
+  | cylindricity | arc c (0.5, 0.5) r 0.3 full; two lines tangent to it at 60°, p − 0.4 d to p + 0.4 d for p = (0.5, 0.5) ± 0.3 n, d = (0.5, s), n = (s, −0.5): (0.3 + 0.3s, 0.35 − 0.4s)–(0.7 + 0.3s, 0.35 + 0.4s) ≈ (0.5598, 0.0036)–(0.9598, 0.6964) and (0.3 − 0.3s, 0.65 − 0.4s)–(0.7 − 0.3s, 0.65 + 0.4s) ≈ (0.0402, 0.3036)–(0.4402, 0.9964) (± 0.4 d keeps them inside the cell; ± 0.5 d would reach y −0.083 and 1.083) |
   | lineProfile | arc c (0.5, 0.25) r 0.5 start 0 sweep π |
   | surfaceProfile | that arc; line (0, 0.25)–(1, 0.25) |
   | parallelism | lines (0.1, 0)–(0.1 + k, 1), (0.4, 0)–(0.4 + k, 1) |
@@ -116,7 +133,8 @@ leave them out.
   full arc of radius `SymbolStyle.circleRadius` (0.6h) and the letter as a `SheetText` of cap height 0.7h centred on it (Helvetica's advance;
   the letter itself is WinAnsi). The lay symbol ⊥ is the perpendicularity glyph at 0.8h; the other lay symbols are text. The datum triangle is
   a `SheetFill`. Cost: proportions are ours within the standards' figures (human check DR4-1 compares them with ISO 1101's table).
-- **R4. The feature control frame** (`FrameLayout.draw(_:at:h:format:standard:) -> AnnotationDrawing`, sheet mm). Rows are `frameHeight` =
+- **R4. The feature control frame** (`FrameLayout.draw(_ frame: FeatureControlFrame, topLeft: Vector2, h: Double, format: NumberFormat,
+  standard: DrawingStandard) -> AnnotationDrawing`, sheet mm; `standard` picks composite's form). Rows are `frameHeight` =
   2h tall; compartments left to right: the characteristic (a 2h × 2h square, its glyph h × h centred), the tolerance, then one per datum
   reference. The tolerance compartment holds "Ø" when the zone is `.diameter`, the value, then the modifiers in this order, each 0.3h after
   the previous piece: Ⓜ or Ⓛ, Ⓕ, Ⓣ, Ⓟ followed (0.3h) by its length when set; a circled modifier advances `circledAdvance` = 1.2h. A datum
@@ -179,7 +197,8 @@ leave them out.
 
   Ⓕ (free state) is allowed everywhere. Raw values (coding) are the case names. Cost: rarer forms (Y14.5's derived median plane flatness Ⓜ,
   ISO's CZ, UZ, statistical tolerancing) are parked.
-- **R8. Rules are warnings in words** (`GDTRules.warnings(for:in:sheet:document:) -> [String]`), in this order, exact:
+- **R8. Rules are warnings in words** (`GDTRules.warnings(for annotation: DrawingAnnotation, context: GDTRules.Context) -> [String]`, the
+  context made once per compose by `GDTRules.Context.make(document:sheet:)`, R18), in this order, exact:
   1. a form characteristic with any datum: "\(title) is a form tolerance and takes no datum." ("Flatness is a form tolerance and takes no datum.");
   2. an orientation, location or run-out characteristic with no datum in its first row: "\(title) needs a datum reference.";
   3. position whose frame's view has no dimension with `DimensionTolerance.basic` (DR-2's boxed tolerance is the basic-dimension flag; no new
@@ -206,9 +225,10 @@ leave them out.
   is. Cost: duplicating a sheet makes duplicate-datum warnings until the copy is re-lettered.
 - **R11. Composing** (`AnnotationPass`). Per view: every annotation that is not on a dimension, in id order (DR-2's loop; symbols on lines are
   among them); then frames on dimensions, in id order; then datum symbols on dimensions, in id order, so a hanging datum sits below the frames
-  on the same dimension. `AnnotationDrawing` and `AnnotationReport` gain `labelRect: Rect2D?` (the first label's bounding rectangle, box
-  included) and `dimensionLine: [Vector2]?` (a linear dimension's first run's two arrow tips in feet order, or an ISO diameter's two tips;
-  nil otherwise), set for held and lost-drawn dimensions alike, and `warnings: [String]`. A symbol on a held dimension is held; on a lost one it
+  on the same dimension. `AnnotationDrawing` gains `labelRect: Rect2D?` (the first label's bounding rectangle, box included) and
+  `dimensionLine: [Vector2]?` (a linear dimension's first run's two arrow tips in feet order, or an ISO diameter's two tips; nil otherwise),
+  both set by the dimension layouts for held and lost-drawn dimensions alike; `AnnotationReport` gains the same two (copied from the drawing
+  by the pass) and `warnings: [String]` (R8's, filled by the pass; a drawing has no warnings). A symbol on a held dimension is held; on a lost one it
   is lost with the same reason and drawn (`isLost`) from that dimension's lost drawing; on a dimension that drew nothing it is listed and not
   drawn. A **lost** symbol on a line draws from its last figure (`AnnotationFigure.attachment(foot:along:)`, model plane, saved like DR-2's
   figures) with every piece `isLost`, plus a "?" text (cap h, `.dimension`, `isLost`) `textGap` right of its frame's top right; with no last
@@ -225,8 +245,11 @@ leave them out.
   above the block when there is none), left-aligned to the block's left edge, the notes numbered "1. …", one per line, the first on top, cap h,
   pitch `AnnotationStyle.linePitch × h`, the edge-break note last: ISO "Break all sharp edges \(min) to \(max)." (or "Break all sharp edges
   \(min)." when equal), ASME "BREAK ALL SHARP EDGES \(min)-\(max)" (or "BREAK ALL SHARP EDGES \(min)"), numbers by `GDTNumber.tolerance`.
-  Texts on `.text`, the surface strokes on `.text`. Typed lines are never wrapped. Cost: ISO 13715's graphical edge symbol is parked (words
-  only).
+  Texts on `.text`, the surface strokes on `.text`. Typed lines are never wrapped. **This departs from the spec**, whose §DR-4 puts the
+  general surface requirement in the title block: ISO 7200's block has no free field left for it, and ISO 21920-1 itself shows the general
+  requirement beside the block, so it stands above it; Task 11 records the change in the spec (its Status line and an erratum under §DR-4).
+  Cost: ISO 13715's graphical edge symbol is parked (words only); a house style that wants the symbol inside the block needs a block field
+  (DR-5's templates).
 - **R13. Layers and export.** Datum, frame and surface symbols draw on `.dimension` (strokes, fills, texts), like dimensions; sheet notes on
   `.text`; no new DXF layer. The PDF and the DXF of the sheet carry them; "DXF of View at 1:1 with Annotations" maps a view's symbols back as it
   maps its dimensions. Every export adds, after the lost-annotation sentences, one sentence per warning of `checkedAnnotations` (ten per sheet,
@@ -236,7 +259,9 @@ leave them out.
   build gives its "newer file" refusal. `GraphFile`'s comment gains "20: DR-4's datum feature symbols, feature control frames and surface
   texture symbols (`AnnotationKind`), `AnnotationFigure.attachment` and a sheet's `notes`; a version-19 reader cannot decode the new annotation
   kinds." Decoding repairs: a symbol on a dimension that is not on the sheet, is not a dimension or hole callout, or lies in another view is
-  dropped; a symbol with no view is dropped; a frame with no rows is dropped, one with more than two keeps two, a composite of a characteristic
+  dropped; a symbol on a dimension of a kind R2 does not let it take (`SymbolAttachment.accepts` false: a frame on an angle, chamfer,
+  ordinate, baseline or chain dimension, a datum on a radius or an angle, any surface symbol on a dimension) is dropped; a symbol with no
+  view is dropped; a frame with no rows is dropped, one with more than two keeps two, a composite of a characteristic
   that takes none keeps its first row, datum references past three are dropped. Group, Ungroup and Make Unique rename a symbol's
   `LeaderEnd.target` (`DrawingAnnotation.renamingTags`). Cost: none.
 - **R15. Tools, keys, steps and inspector.**
@@ -276,7 +301,30 @@ leave them out.
   annotation compose; this adds no kernel call and no projection). Cost: none.
 - **R19. Parked.** A datum symbol on a frame, ASME's datum targets, ISO's CZ, UZ and statistical modifiers, Y14.5's derived-median-plane
   flatness Ⓜ, stacked frames that are not composite, surface symbols standing on non-horizontal lines, all-around and manufacturing-method
-  surface notes, ISO 13715's edge symbol, a stricter basic-dimension check (R8 rule 3), datum letters per sheet, and symbols in pictorial views.
+  surface notes, ISO 13715's edge symbol, a stricter basic-dimension check (R8 rule 3), datum letters per sheet, symbols in pictorial views, a
+  frame on a free-form edge (R2), and rewording `LostReason.several`/`.severalFaces`, which say "a dimension never guesses which" (R20).
+- **R20. Pick refusals are worded for symbols.** `DrawingPick.Picker` takes its sentences from a `PickWording` chosen by purpose:
+  `.dimensions` for DR-2's and DR-3's purposes (today's constants, unchanged, so no earlier test changes) and `.symbols` for `.datum`, `.frame`
+  and `.surface`. The symbol sentences (exact; `DrawingPick` statics):
+  - `symbolNoEdgeNameSentence` "This edge has no lasting name, so a symbol can't hold on to it."
+  - `symbolSharedEdgeSentence` "This line's edge shares its name with other edges, so a symbol can't hold on to it."
+  - `symbolNoCylinderNameSentence` "This cylinder has no lasting name, so a symbol can't hold on to it."
+  - `symbolSharedCylinderSentence` "This cylinder shares its name with other faces, so a symbol can't hold on to it."
+  - `symbolCylinderSentence` (an outline not side on) "This cylinder isn't seen side on, so it has no outline here for a symbol to stand on."
+  - `symbolEndOnSentence` (R2) "This edge is seen end on here, so a symbol can't stand on it."
+  - `symbolCircleSentence` (`.frame`, R2) "This circle isn't seen face on here; point the frame at it in a view that looks along its axis."
+  - `symbolCurveSentence` (`.frame` on a free-form edge, R2) "This edge isn't a straight line or a circle, so a symbol can't stand on it here."
+  - the circle refusals of `.datum` and `.surface` and the isometric one, as R2 gives them.
+  A lost symbol's reason sentence is `LostReason.sentence`, shared with dimensions; its anchor-side wording ("What it was attached to …") fits
+  a symbol, and the two that end "a dimension never guesses which" (`.several`, `.severalFaces`) are **accepted as they are** for DR-4.
+  Cost: a lost datum whose edge now fits two edges reads "… and a dimension never guesses which" (parked, R19; rewording them touches DR-2's
+  pinned texts).
+- **R21. The app's refresh needs no change.** `AppModel+DrawingRefresh.swift`'s `pendingRefreshes` filters out only notes, so a view's
+  `RefreshKey.annotations` holds its symbols too: a symbol on a line is re-read like a dimension (its `LastGood` with the `.attachment`
+  figure, R11); a symbol on a dimension makes `AnnotationRefresh.lastGood` return nil, which the job skips (`if let good`), keeping what is
+  remembered. Confirmed against the source (2026-11-25): the key compares annotations by value, so dragging a symbol on a dimension re-keys
+  its view and re-reads that view's topology from the cache once; that is accepted (no projection, no kernel call, the same cost a dimension
+  drag has today). Task 10's `aSymbolRefreshesItsLastGood` covers the first case and adds `aSymbolOnADimensionIsNotRefreshed` for the second.
 
 **Backlog.** Pulled in: `DimensionNumber.render` gives "?" for a non-finite value (never "0") and a measurement with a non-finite value is lost
 `.refused("What it measures has no finite size here.")` (Task 3, Task 5: frames print numbers through it); a lost dimension's label keeps its
@@ -307,6 +355,12 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 6. **Inch documents.** Frames read ".005" (ASME) and "0.005" (ISO in inches), roughness reads microinches. Task 3 (`inchTolerancesKeepPrecision`,
    `roughnessInInchesIsMicroinches`).
 7. **Moving and nudging symbols** with and without their dimension selected: a symbol is never moved twice. Task 7 (`aSymbolMovesWithItsDimensionOnce`).
+8. **Slanted, end-on and free-form edges.** A symbol takes a slanted (foreshortened) line, which a dimension refuses; an end-on line is refused
+   and, when an edit turns a held line end on, lost `.turnedAway`; a frame refuses a spline; refusals say "symbol", never "dimension" (R2,
+   R20). Task 5 (`aSlantedEdgeIsAccepted`, `anEndOnEdgeIsRefused`, `aFrameRefusesASpline`, `aLineTurnedEndOnIsTurnedAway`, `anUnnamedEdgeIsRefused`).
+9. **A dimension whose kind changes under a symbol.** Diameter → radius is refused while a datum hangs on it, allowed with a frame; decoding
+   drops a symbol on a kind it cannot take. Task 8 (`aDatumBlocksDiameterToRadius`, `aFrameDoesNotBlockDiameterToRadius`), Task 1
+   (`aSymbolOnAKindItCannotTakeIsDropped`).
 
 ---
 
@@ -322,7 +376,10 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   `Model/DrawingSheet.swift` (`notes`, R14's repairs, `removeAnnotation` cascade, `symbols(on:)`), `Sources/CreatorGraph/GraphFile.swift` (20 and
   its comment), `Sources/CreatorGraph/Groups/DrawingDocument+TagRenaming.swift`, `Sources/CreatorDrawingEditor/DrawingEditorModel+Sheets.swift`
   (`duplicateSheet` remaps attachments). Every exhaustive `switch` over `AnnotationKind` or `AnnotationFigure` that stops compiling gets the new
-  cases as "draws nothing / not movable / no anchors" placeholders, each marked `// DR-4 Task N` naming the task that fills it (5, 7 or 8).
+  cases as "draws nothing / not movable / no anchors / no inspector page" placeholders, each marked `// DR-4 Task N` naming the task that fills
+  it: 5 (`CreatorDrawing`'s composer, evaluator and refresh), 7 (the editor model's selection, moves and picking), 8 (the editor model's
+  inspector setters) or 9 (`Sources/CreatorDrawingEditor/Views/AnnotationInspector.swift` and any other view that switches over the kind).
+  `Sources/CreatorApp/Drawing/AppModel+DrawingRefresh.swift` needs no change (R21).
 - Test: `Tests/CreatorDrawingTests/SymbolModelTests.swift`, `Tests/CreatorDrawingTests/DatumLettersTests.swift`, `Tests/CreatorGraphTests/DrawingsFileTests.swift`
   (additions), `Tests/CreatorGraphTests/` the existing drawing-anchor renaming test file (addition; find it with `grep -rl renamingTags Tests/CreatorGraphTests`),
   `Tests/CreatorDrawingEditorTests/SheetEditingTests.swift` (addition)
@@ -336,7 +393,9 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   (sheet order); `DatumLetters.isValid(_ letter: String) -> Bool`, `DatumLetters.normalized(_ typed: String) -> String?` (uppercased and
   trimmed, nil when invalid), `DatumLetters.letters(in document: DrawingDocument) -> [String]` (every datum symbol's letter, sheets then
   annotation order), `DatumLetters.next(in document: DrawingDocument) -> String`; `DrawingAnnotation.symbolAttachment: SymbolAttachment?` (the
-  attachment of a datum or frame, `.feature` of a surface symbol, nil otherwise); `GraphFile.currentFormatVersion == 20`.
+  attachment of a datum or frame, `.feature` of a surface symbol, nil otherwise); `SymbolKind` (`.datum`, `.frame`, `.surface`) and
+  `SymbolAttachment.accepts(_ symbol: SymbolKind, on dimension: DrawingAnnotation) -> Bool` (R2's kind rules, the one place they are written);
+  `GraphFile.currentFormatVersion == 20`.
 
 - [ ] **Step 1: Tests.**
   - `SymbolModelTests`: `everyKindRoundTripsByType` (each kind's JSON has its `"type"` string and no `"_0"`; a frame with two rows, Ø, M, F, T,
@@ -344,7 +403,9 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
     `"type"` keys); `theAttachmentFigureRoundTrips`; `capabilitiesFollowTheTable` (every row of R7's table, including `isInASME` false for
     concentricity and symmetry only); `removingADimensionRemovesItsSymbols` (a dimension with a frame and a datum on it, and a datum on a line:
     `removeAnnotation(dimension)` leaves only the datum on the line); `aSymbolOnAMissingDimensionIsDropped` (decode); `aSymbolOnANoteIsDropped`;
-    `aSymbolOnAnotherViewsDimensionIsDropped`; `aSymbolWithoutAViewIsDropped`; `framesAreRepaired` (no rows dropped; three rows keep two; a
+    `aSymbolOnAnotherViewsDimensionIsDropped`; `aSymbolOnAKindItCannotTakeIsDropped` (decode: a frame on an angle dimension, a frame on a
+    chain dimension, a datum on a radius and a surface symbol on a linear dimension are dropped; a frame on a radius and a datum on a diameter
+    are kept); `acceptsFollowsR2` (every `DrawingDimensionKind` and a hole callout against the three symbol kinds); `aSymbolWithoutAViewIsDropped`; `framesAreRepaired` (no rows dropped; three rows keep two; a
     composite flatness keeps one row; four datums keep three); `sheetNotesAreWrittenOnlyWhenSet` (an empty `SheetNotes` writes no `notes` key;
     lines, an edge break and a general surface round-trip).
   - `DatumLettersTests`: `datumLetterRules` ("A", "Z", "AA" valid; "I", "O", "Q", "AI", "AAA", "1", "", "Ä" invalid; " b " normalizes to "B");
@@ -356,7 +417,7 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   - `SheetEditingTests`: `duplicatingRemapsSymbolAttachments` (a frame on a dimension: the copy's frame names the copied dimension; letters kept).
 - [ ] **Step 2: Run** `swift test --filter 'SymbolModelTests|DatumLettersTests|DrawingsFileTests|SheetEditingTests'` and the renaming test;
   compile failure.
-- [ ] **Step 3: Implement** R1, R7's table, R10's letter rules, R12's model, R14 (repairs in `DrawingSheet.init(from:)` after the annotations
+- [ ] **Step 3: Implement** R1, R2's `SymbolAttachment.accepts`, R7's table, R10's letter rules, R12's model, R14 (repairs in `DrawingSheet.init(from:)` after the annotations
   are filtered by view; the cascade in `removeAnnotation`).
 - [ ] **Step 4: Run** the filter, then `swift test --filter CreatorDrawingTests`, `--filter CreatorGraphTests`, `--filter CreatorDrawingEditorTests`; pass.
 - [ ] **Step 5: Commit** "Drawings: datum, tolerance frame and surface symbols in the model, file format 20".
@@ -377,7 +438,8 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
     `surfaceShort` 1.4, `surfaceLong` 3, `surfaceTextGap` 0.3, `layOrigin` (1, 0.2), `layGlyph` 0.8, `defaultSurfaceOffset` (2, 4)) and mm
     constants `notesGap` 4, `standSnap` 3; `static func of(_ standard: DrawingStandard) -> SymbolStyle` (the same values for both standards today,
     so a later difference is one place). Factor members are multiplied by h at the call site (`style.frameHeight * h`).
-  - `DrawingSymbols.characteristic(_ c: GeometricCharacteristic, origin: Vector2, h: Double) -> [SheetSegment]`;
+  - `DrawingSymbols.slant` (k = `(3.0).squareRoot() / 3`) and `DrawingSymbols.sixty` (s = `(3.0).squareRoot() / 2`), `public static let`;
+  - `DrawingSymbols.characteristic(_ c: GeometricCharacteristic, origin: Vector2, h: Double) -> [SheetSegment]` (each point `origin + unit × h`, R3);
     `DrawingSymbols.circled(_ letter: String, center: Vector2, h: Double) -> (segments: [SheetSegment], text: PlacedText)`;
     `DrawingSymbols.layPerpendicular(origin: Vector2, h: Double) -> [SheetSegment]`;
     `DrawingSymbols.surface(_ process: SurfaceProcess, apex: Vector2, h: Double, extension: Double?) -> [SheetSegment]` (`extension`: the
@@ -387,9 +449,13 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 
 - [ ] **Step 1: Tests.**
   - `ToleranceGlyphTests` (h = 2.5, origin (10, 20)): one test per characteristic, `straightnessIsOneLine` … `totalRunoutIsTwoArrowsOnABase`, each
-    comparing the segments with R3's table within 1e-12 (arcs by centre, radius, start and sweep); `slantsAreExactConstants` (parallelism's and
-    angularity's x offsets equal `(3.0).squareRoot() / 3 × h` exactly, `==`); `everyGlyphFitsItsCellLoosely` (every point within the box grown by
-    0.05h); `circledLetterIsCentred` (the text's run centre within 1e-9 of the circle's centre horizontally, its cap middle vertically; radius
+    comparing the segments with R3's table within 1e-12 (arcs by centre, radius, start and sweep; `cylindricityHasTwoTangentLines` checks both
+    lines' end points as R3 gives them and that each line's distance from (0.5, 0.5) is 0.3 within 1e-12); `slantsAreExactConstants` (the
+    constants themselves: `DrawingSymbols.slant == (3.0).squareRoot() / 3` and `DrawingSymbols.sixty == (3.0).squareRoot() / 2`, `==`; then
+    the glyphs drawn at origin (0, 0) with h = 1, where `origin + unit × h` is exact: parallelism's first line ends at x `== 0.1 +
+    DrawingSymbols.slant`, its second at x `== 0.4 + DrawingSymbols.slant`, and angularity's first point is `(1, DrawingSymbols.slant)` with y
+    `==`; at origin (10, 20) and h 2.5 the same points are only compared within 1e-12, since adding the origin rounds);
+    `everyGlyphFitsItsCellLoosely` (every segment end point, and every arc's extreme points, within the box grown by 0.05h, for all fourteen); `circledLetterIsCentred` (the text's run centre within 1e-9 of the circle's centre horizontally, its cap middle vertically; radius
     0.6h; cap 0.7h); `noTextIsOutsideWinAnsi` (for every characteristic and modifier, no `PlacedText` from this file holds a byte that
     `DrawingText.layout` had to replace, `hasReplacements` false).
   - `SurfaceSymbolTests` (apex (0, 0), h 2.5): `theBasicSymbolHasTwoLegsAt60Degrees` (legs to (−1.4h × k, 1.4h) and (3h × k, 3h), k as R6);
@@ -413,8 +479,9 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 **Interfaces:**
 - Consumes: Tasks 1 and 2.
 - Produces (all return DR-2's `AnnotationDrawing`, `fitFrame()` called):
-  - `FrameLayout.draw(_ frame: FeatureControlFrame, topLeft: Vector2, h: Double, format: NumberFormat, style: DrawingStyle) -> AnnotationDrawing`
-    (R4's compartments; `style.standard` picks composite's form) and `FrameLayout.size(of:h:format:standard:) -> Vector2`;
+  - `FrameLayout.draw(_ frame: FeatureControlFrame, topLeft: Vector2, h: Double, format: NumberFormat, standard: DrawingStandard) -> AnnotationDrawing`
+    (R4's signature exactly; `standard` picks composite's form) and `FrameLayout.size(of frame: FeatureControlFrame, h: Double, format:
+    NumberFormat, standard: DrawingStandard) -> Vector2`;
     `FrameLayout.leader(from foot: Vector2, toFrameAt rect: Rect2D, rowHeight: Double, style: AnnotationStyle) -> AnnotationDrawing` (R4's side rule).
   - `DatumLayout.onLine(letter: String, foot: Vector2, along: Vector2, distance: Double, edgeEnds: (Vector2, Vector2)?, h: Double, style: AnnotationStyle)`,
     `DatumLayout.onDimensionLine(letter:end:other:distance:h:style:)` (`end` the line end it stands on, `other` the other end), `DatumLayout.hanging(letter:below
@@ -462,7 +529,8 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 - Consumes: Task 1.
 - Produces: `GDTRules.Context { standard: DrawingStandard; definedLetters: [String: Int] /* letter → how many datum symbols carry it in the
   document; built once per compose with DatumLetters.letters */; basicViews: Set<ViewID> /* views of the sheet with a basic dimension */ }`
-  (`static func make(document:sheet:) -> Context`), `GDTRules.warnings(for annotation: DrawingAnnotation, context: Context) -> [String]` (R8,
+  (`static func make(document:sheet:) -> Context`), `GDTRules.warnings(for annotation: DrawingAnnotation, context: Context) -> [String]` (R8's
+  signature exactly,
   in its order; datum symbols get the duplicate sentence; surface symbols none), and the sentence builders as statics (`formWithDatum(_:)`,
   `needsDatum(_:)`, `positionNeedsBasic`, `undefined(_:)`, `duplicate(_:)`, `asmeConcentricity`, `asmeSymmetry`, `compositeDatums`).
 
@@ -489,8 +557,8 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   `Layout/AnnotationDrawing.swift` and `Layout/SheetDimensionLayout+Linear.swift`, `SheetDimensionLayout+Leaders.swift`, `SheetDimensionLayout.swift`
   (set `labelRect` in `DrawingBuilder.label` for the first label and `dimensionLine` in the linear first run and the ISO diameter across),
   `Picture/SheetPicture.swift` (`checkedAnnotations`), `Picture/SheetComposer.swift` (pass the document to the pass), `Anchors/LostReason.swift`
-  (`.notStraight`), `Picks/DrawingPick.swift` (`.datum`, `.frame`, `.surface` purposes and R2's sentences, `symbolIsometricSentence`; the
-  purpose of a reattach), `Picture/AnnotationRefresh.swift` (doc comment: symbols on dimensions are skipped like notes)
+  (`.notStraight`, `.turnedAway`), `Picks/DrawingPick.swift` (`.datum`, `.frame`, `.surface` purposes, R2's slanted-edge and end-on rule for
+  them, R2's and R20's sentences through `PickWording`, `symbolIsometricSentence`; the purpose of a reattach), `Picture/AnnotationRefresh.swift` (doc comment: symbols on dimensions are skipped like notes)
 - Test: `Tests/CreatorDrawingTests/SymbolComposerTests.swift`, `SymbolPickTests.swift`, `AnnotationRefreshTests.swift` (additions),
   `AnnotationComposerTests.swift` (additions)
 
@@ -498,20 +566,29 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 - Consumes: Tasks 1 to 4.
 - Produces: `SymbolFoot.of(_ geometry: AnchorGeometry, hint: Vector2, frame: ProjectionFrame) -> Result<(foot: Vector2, along: Vector2,
   segment: (Vector2, Vector2)?), LostReason>` (model plane; `segment` the edge's projected ends for a line, nil otherwise); `PickPurpose`
-  cases `datum`, `frame`, `surface`; `DrawingPick.symbolIsometricSentence`, `datumCircleSentence`, `surfaceCircleSentence`; `AnnotationReport.labelRect:
-  Rect2D?`, `dimensionLine: [Vector2]?`, `warnings: [String]` (defaults nil, nil, []); `SheetPicture.checkedAnnotations: [AnnotationID]`;
+  cases `datum`, `frame`, `surface`; `PickWording` (`.dimensions`, `.symbols`, R20); `DrawingPick.symbolIsometricSentence`, `datumCircleSentence`,
+  `surfaceCircleSentence` and R20's eight symbol sentences; `LostReason.notStraight`, `.turnedAway` (R2's sentences); `AnnotationDrawing.labelRect:
+  Rect2D?` and `dimensionLine: [Vector2]?` (defaults nil, set by the dimension layouts); `AnnotationReport.labelRect: Rect2D?`, `dimensionLine:
+  [Vector2]?` (copied from the drawing) and `warnings: [String]` (defaults nil, nil, []); `SheetPicture.checkedAnnotations: [AnnotationID]`;
   `AnnotationComposer.symbolOnDimensionSentence` ("This symbol hangs on a dimension; reattach the dimension and the symbol follows it.").
 
 - [ ] **Step 1: Tests** (`AnnotationFixtures`: Top view of the plate, edge 102 the horizontal line y = 0 from x 0 to 40, 100 and 103 vertical, ring 0
   the Ø6 hole at (20, 10)).
   - `SymbolPickTests`: `aDatumTakesAStraightLine`; `aDatumRefusesACircle` (R2's sentence); `aCornerPicksItsLine`; `aFrameTakesAFaceOnCircle`;
-    `aFrameTakesACentreAsItsCircle`; `aSurfaceRefusesACircle`; `symbolsAreRefusedInIsometricViews`; `anUnnamedEdgeIsRefused` (DR-2's sentence).
+    `aFrameTakesACentreAsItsCircle`; `aSurfaceRefusesACircle`; `symbolsAreRefusedInIsometricViews`; `anUnnamedEdgeIsRefused` (R20's
+    `symbolNoEdgeNameSentence`; the same edge picked for `.dimension` still gets DR-2's `noEdgeNameSentence`); `aSlantedEdgeIsAccepted` (a
+    hand-built topology, as `AnnotationFixtures` builds its own, with a named edge from (0, 0, 0) to (40, 0, 10) in the Top view: `.datum`,
+    `.frame` and `.surface` accept it and its `PickShape.line` is the projected (0, 0)–(40, 0); `.dimension` on the same edge still refuses
+    DR-2's `lineSentence`); `anEndOnEdgeIsRefused` (an edge from (0, 0, 0) to (0, 0, 10) in the Top view: `symbolEndOnSentence` for all three);
+    `aFrameRefusesASpline` (`symbolCurveSentence`); `aFrameRefusesATiltedCircle` (`symbolCircleSentence`).
   - `SymbolComposerTests`: `aDatumStandsOnItsLine` (strokes, fill and text tagged with the annotation, on `.dimension`; the triangle's base on
     y = the line's sheet y); `aDatumBeyondTheEdgeDrawsAnExtensionLine` (hint x = 50); `aFrameLeadsToItsLine`; `aSurfaceSymbolStands`;
     `aSymbolFollowsItsLineThroughAWidthChange` (topology with edge 102 from x 0 to 60 and the same names: the foot's x unchanged relative to the hint,
     held); `aLostSymbolKeepsItsLastPlaceWithAQuestionMark` (edge 102 removed, `remembered` holding its `.attachment` figure: every piece `isLost`, a
     "?" text, `lostAnnotations` holds it, the report's reason `.missing`); `aSlantedEdgeTurnedCurvedIsNotStraight` (a held edge whose curve is now a
-    circle: `.notStraight` for a datum, held for a frame when face on); `aFrameFollowsItsDimension` (a frame on a horizontal dimension: its top
+    circle: `.notStraight` for a datum, held for a frame when face on); `aLineTurnedEndOnIsTurnedAway` (the held edge now runs along the view
+    direction: `.turnedAway`); `aSlantedLineStaysHeld` (the held edge tilts out of the view plane but is not end on: held, the foot on its
+    projected line); `aFrameFollowsItsDimension` (a frame on a horizontal dimension: its top
     left is `(labelRect.min.x, labelRect.min.y − textGap) + offset`; moving the dimension's placement moves the frame);
     `framesStackUnderOneDimension`; `aDatumOnADimensionLineEnd`; `aDatumHangsWhenTheDimensionLineGoes` (an ISO diameter with a datum composed in ASME:
     hanging under the label, held); `aHangingDatumSitsBelowTheFrames`; `aSymbolOnALostDimensionIsLost` (same reason, drawn `isLost`, listed);
@@ -531,7 +608,7 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 - Create: `Sources/CreatorDrawing/Sheet/SheetNotesLayout.swift`
 - Modify: `Picture/SheetComposer.swift` (append R12's block after the title block), `Sections/DerivedViewNotices.swift` and
   `Picture/SheetComposer+Marks.swift` (the two backlog sentences when a section's or auxiliary view's parent has no mapping),
-  `Tests/CreatorDrawingTests/Support/DrawingFixtures.swift` (`symbolsSheet(standard:)`: a frame of every modifier, a composite, a datum on a line
+  `Tests/CreatorDrawingTests/Support/DrawingFixtures.swift` (`symbolsSheet(standard: DrawingStandard = .iso) -> SheetPicture`, the default as `hatchedSheet` has: a frame of every modifier, a composite, a datum on a line
   and on a dimension, two surface symbols, sheet notes with an edge break and a general surface)
 - Test: `Tests/CreatorDrawingTests/SheetNotesTests.swift`, `PDFWriterTests.swift`, `DXFWriterTests.swift` (additions), `SheetComposerDerivedTests.swift`
   (additions)
@@ -548,9 +625,11 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
     document, 0.2032 and 0.508 mm: "BREAK ALL SHARP EDGES .008-.020"; equal values one number); `theGeneralSurfaceStandsRightAligned`; `parenthesesFollowWhenTheSheetHasSurfaceSymbols` (texts "(" and ")" around the
     basic symbol's strokes; none on a sheet without surface symbols); `notesAreOnTheTextLayer`; `emptyNotesDrawNothing`.
   - `SheetComposerDerivedTests` additions: `aParentWithNothingDrawnGivesANotice` (section and auxiliary: the exact sentences; no mark strokes).
-  - `PDFWriterTests`: `symbolsPageDigest` (`DrawingFixtures.symbolsSheet()`: SHA-256 pinned; DR-1 to DR-3 digests unchanged; the page's
+  - `PDFWriterTests`: `symbolsPageDigest` (`DrawingFixtures.symbolsSheet()`, ISO by the default; `symbolsPageDigestASME` pins `symbolsSheet(standard: .asme)` too: SHA-256 pinned; DR-1 to DR-3 digests unchanged; the page's
     content stream has no text byte outside WinAnsi).
-  - `DXFWriterTests`: `symbolsAreOnTheDimensionLayer` (every LINE, ARC, CIRCLE, SOLID and TEXT of a symbol on DIMENSION; notes on TEXT);
+  - `DXFWriterTests`: `symbolsAreOnTheDimensionLayer` (every entity the writer emits for a symbol, whatever its type: LINE, LWPOLYLINE (the frame
+    boxes, the flatness glyph, the run-out arrowheads, the datum square), ARC, CIRCLE, SOLID or TEXT, is on DIMENSION; every entity of the sheet
+    notes on TEXT);
     `aSymbolsSheetIsDeterministic` (two writes equal; its digest pinned).
 - [ ] **Step 2: Run** `swift test --filter 'SheetNotesTests|SheetComposerDerivedTests|PDFWriterTests|DXFWriterTests'`; fail.
 - [ ] **Step 3: Implement** R12, R13's layers (no writer change expected; if one is needed, say why in the commit), the notice.
@@ -594,7 +673,7 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   - `DrawingStepNameTests`: R15's twelve names in `all`, each made by its method (the setters' ones in Task 8's tests).
   - `SheetCanvasInputTests`: `theLettersAGAndRChooseSymbolTools` (lower and capital).
 - [ ] **Step 2: Run** `swift test --filter 'SymbolToolTests|SymbolSelectionTests|ReattachTests|DrawingStepNameTests|SheetCanvasInputTests'`; fail.
-- [ ] **Step 3: Implement** R15's flow, R16, R17 and the reattach rules.
+- [ ] **Step 3: Implement** R15's flow (a dimension target judged by `SymbolAttachment.accepts`, Task 1), R16, R17 and the reattach rules.
 - [ ] **Step 4: Run** `swift test --filter CreatorDrawingEditorTests`; pass.
 - [ ] **Step 5: Commit** "Drawings: the Datum, Feature Control Frame and Surface Finish tools".
 
@@ -602,7 +681,8 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 
 **Files:**
 - Create: `Sources/CreatorDrawingEditor/DrawingEditorModel+SymbolInspector.swift`, `Sources/CreatorDrawingEditor/DrawingEditorModel+SheetNotes.swift`
-- Modify: `DrawingEditorModel+AnnotationInspector.swift` (`setDimensionKind` refuses a mismatch with the backlog sentence)
+- Modify: `DrawingEditorModel+AnnotationInspector.swift` (`setDimensionKind` refuses a mismatch with the backlog sentence, and a change the
+  dimension's symbols would not accept with R2's `symbolBlocksKindSentence`, checked through `SymbolAttachment.accepts` before committing)
 - Test: `Tests/CreatorDrawingEditorTests/SymbolInspectorModelTests.swift`, `SheetNotesModelTests.swift`, `AnnotationInspectorTests.swift` (addition)
 
 **Interfaces:**
@@ -629,7 +709,10 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
     `noChangeNoCommit` (each setter with the current value).
   - `SheetNotesModelTests`: `notesSplitIntoLines`; `anEdgeBreakNeedsOrderedLengths` (0.5 and 0.2 refused; "" and "" clears; "0.3" and "" stores 0.3
     and 0.3); `theGeneralSurfaceIsSet` ("Change General Surface").
-  - `AnnotationInspectorTests`: `aMismatchedKindIsRefused` (linear → radius: the sentence; nothing committed).
+  - `AnnotationInspectorTests`: `aMismatchedKindIsRefused` (linear → radius: the sentence; nothing committed); `aDatumBlocksDiameterToRadius`
+    (a Ø dimension carrying a datum: → radius refused with R2's `symbolBlocksKindSentence`, nothing committed, the datum still there; after
+    deleting the datum the change commits "Change Dimension"); `aFrameDoesNotBlockDiameterToRadius` (a Ø dimension carrying a frame: → radius
+    commits, the frame still attached and held).
 - [ ] **Step 2: Run** `swift test --filter 'SymbolInspectorModelTests|SheetNotesModelTests|AnnotationInspectorTests'`; fail.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** `swift test --filter CreatorDrawingEditorTests`; pass.
@@ -647,7 +730,7 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   `SheetViewEqualityTests.swift` (new properties' variants)
 
 **Interfaces:**
-- Consumes: Tasks 7 and 8. Produces views only; every new `.equatable()` view's `==` covers its stored properties (`expectEqualityCovers`).
+- Consumes: Tasks 5 (the reports' `warnings` and `SheetPicture.checkedAnnotations`, which the pages and CHECKS read), 7 and 8. Produces views only; every new `.equatable()` view's `==` covers its stored properties (`expectEqualityCovers`).
 
 - [ ] **Step 1: Tests.** `DrawingToolbarTests.everyToolHasAButtonOrMore` (seventeen tools, Datum, Feature Control Frame and Surface Finish after
   Note, overflow into More); `DrawingInspectorTests`: `aFramePageShowsOnlyWhatTheCharacteristicTakes` (flatness: no Zone, Material or Projected
@@ -673,14 +756,18 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
 
 - [ ] **Step 1: Tests.**
   - `DrawingSymbolTests`: `addingADatumIsOneUndoStep` (undo removes it, redo brings it back); `aSymbolRefreshesItsLastGood` (after an evaluation
-    the editor's `remembered` holds its `.attachment` figure; the document is not marked edited); `savingWritesTheSymbolsLastGood`;
+    the editor's `remembered` holds its `.attachment` figure; the document is not marked edited); `aSymbolOnADimensionIsNotRefreshed` (R21: a
+    frame on a dimension has no entry of its own in `remembered` after an evaluation, and the dimension's entry is refreshed as before);
+    `savingWritesTheSymbolsLastGood`;
     `groupingKeepsASymbolHeld` (Group the part's producer: the datum stays held).
   - `DrawingSymbolOCCTTests` (a 60 × 40 × 10 Box minus a Ø10 Cylinder through at (30, 20) → Output; Top base view at 1 : 1; datum A on the
     bottom edge, datum B on the left edge; two basic linear dimensions from the hole's centre to A's and B's edges; a Ø dimension on the hole with
     a frame Position Ø0.1 Ⓜ | A | B on it; a surface symbol Ra 1.6 standing on the top edge): `symbolsAreHeldAndWarnNothing` (every report held,
     no warnings); `symbolsStayHeldThroughAWidthChange` (60 → 80: all held, the frame still under the Ø label, A's foot on the bottom edge);
     `aRemovedEdgeLosesItsDatum` (a 2 mm Chamfer, by an Edges by Tag rule, of the edge between the top face and the front face (y = 0), inserted
-    between the subtract and the Output: that edge is gone, so datum A and the basic dimension to it are lost `.missing` with "?" and listed;
+    between the subtract and the Output: that edge is gone, so datum A and the basic dimension to it are lost (`#expect(report.isLost, "…:
+    \(report.status)")`, as DR-2's `aChamferOnTheEdgeLosesTheDimension` asserts, never a particular reason: `EdgeKey.narrowed` may report
+    `.missing` or `.several`) with "?" and listed;
     the frame on the Ø stays held and warns nothing, since A is still defined by its symbol, lost or not, and the lost dimension is still basic,
     R8 reading what is saved); `aFlatnessWithADatumWarns` (a frame Flatness 0.05 | A: the exact sentence in its report and in
     the PDF export's warnings).
@@ -703,7 +790,11 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
   sentence becomes "File format is version 20 (… 20 added datum feature symbols, feature control frames, surface texture symbols and a sheet's
   notes …); files of format 1 to 19 open unchanged and are written as 20"; the `CreatorDrawing` entry names `Rules/` and `SymbolStyle`),
   `docs/verification/human-checks.md` (group DR-4, below), `docs/superpowers/specs/2026-11-24-drawings-design.md` (Status line: "… DR-3 done (…).
-  DR-4 done (<date>; human checks group DR-4 pending; R3: every GD&T and surface glyph drawn as strokes, never a font character)."),
+  DR-4 done (<date>; human checks group DR-4 pending; R3: every GD&T and surface glyph drawn as strokes, never a font character; R12: the
+  general surface requirement and notes stand above the title block, not in it).", and at the end of §DR-4 an erratum paragraph: "Erratum
+  (DR-4, plan R12): the general surface requirement is drawn above the title block, right-aligned to it, not in the block: ISO 7200's block
+  has no free field for it and ISO 21920-1 shows the general requirement beside the block. The sheet's notes and edge-break note stand above
+  it."),
   `docs/metalui-gaps.md` (only if a task logged a `DR-4-x` gap)
 - Group DR-4 checks: DR4-1 the fourteen characteristic glyphs side by side against ISO 1101's table, and Ⓜ Ⓛ Ⓟ Ⓕ Ⓣ, on screen and in the PDF
   at 400 %; DR4-2 datum A on a line, on an extension line and on a dimension line, in ISO and ASME; DR4-3 a position frame on a hole's Ø with
