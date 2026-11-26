@@ -266,6 +266,12 @@ struct SheetNameTests {
         #expect(h.model.document.sheets.map(\.name) == ["ß", "SS"])
     }
 
+    @Test func aNewSheetNameIgnoresTrailingSpaceInAFileLoadedName() throws {
+        let sheet = DrawingSheet(name: "Sheet 1 ")
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        #expect(h.model.nextSheetName() == "Sheet 2")
+    }
+
     @Test func switchingSheetsDropsALeaderAndTheHover() throws {
         let sheets = [DrawingSheet(name: "A"), DrawingSheet(name: "B")]
         let h = EditorHarness(document: EditorDocuments.document(sheets), sheet: sheets[0].id)

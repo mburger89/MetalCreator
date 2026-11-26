@@ -131,16 +131,20 @@ struct AnnotationInspectorTests {
         m.setTolerance(symmetricText: "", of: Scene.horizontal)
         #expect(m.refusal == Self.badNumber)
         m.refusal = nil
-        m.setTolerance(upperText: "0.1", lowerText: "x", of: Scene.horizontal)
+        m.setTolerance(.deviation(upper: 0.1, lower: -0.1), of: Scene.horizontal)
+        s.h.log.commits.removeAll()
+        m.setToleranceLower(text: "x", of: Scene.horizontal)
         #expect(m.refusal == Self.badNumber)
         m.refusal = nil
         m.setTolerance(symmetricText: "-0.1", of: Scene.horizontal)
         #expect(m.refusal == Self.badNumber, "a symmetric tolerance is a positive amount")
         #expect(s.h.log.commits.isEmpty)
         m.setTolerance(symmetricText: "0.1", of: Scene.horizontal)
-        m.setTolerance(upperText: "+0.1", lowerText: "-0.2", of: Scene.horizontal)
-        m.setTolerance(upperText: "0.3", lowerText: "-0.3", limits: true, of: Scene.horizontal)
-        #expect(names(s) == ["Change Tolerance", "Change Tolerance", "Change Tolerance"])
+        m.setTolerance(.deviation(upper: 0.1, lower: -0.1), of: Scene.horizontal)
+        m.setToleranceUpper(text: "+0.2", of: Scene.horizontal)
+        m.setTolerance(.limits(upper: 0.3, lower: -0.2), of: Scene.horizontal)
+        m.setToleranceLower(text: "-0.3", limits: true, of: Scene.horizontal)
+        #expect(Set(names(s)) == ["Change Tolerance"] && names(s).count == 5)
         #expect(s.dimension(Scene.horizontal)?.tolerance == .limits(upper: 0.3, lower: -0.3))
     }
 

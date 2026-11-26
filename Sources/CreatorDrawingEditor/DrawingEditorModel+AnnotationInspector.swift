@@ -134,15 +134,6 @@ extension DrawingEditorModel {
         setTolerance(.symmetric(amount), of: id)
     }
 
-    /// A deviation, or with `limits` the limit sizes, typed in the document's unit (degrees for an angle).
-    public func setTolerance(upperText: String, lowerText: String, limits: Bool = false, of id: AnnotationID) {
-        guard let upper = toleranceAmount(upperText, of: id), let lower = toleranceAmount(lowerText, of: id) else {
-            refuse(Self.toleranceNumberSentence)
-            return
-        }
-        setTolerance(limits ? .limits(upper: upper, lower: lower) : .deviation(upper: upper, lower: lower), of: id)
-    }
-
     /// Replaces the upper value of a deviation or limits tolerance with what was typed; the lower value stays exactly as stored (R10).
     public func setToleranceUpper(text: String, limits: Bool = false, of id: AnnotationID) {
         guard let (_, lower) = storedBounds(of: id) else { return }

@@ -24,7 +24,7 @@ extension DrawingEditorModel {
 
     /// "Sheet N" with the smallest unused N.
     func nextSheetName() -> String {
-        let used = Set(document.sheets.map(\.name))
+        let used = Set(document.sheets.map { Self.trimmed($0.name) })
         var number = 1
         while used.contains("Sheet \(number)") { number += 1 }
         return "Sheet \(number)"
