@@ -41,6 +41,25 @@ enum DrawingBenchFixtures {
         return document
     }
 
+    /// The model-plane height of the Top view's row of holes the section line runs through (the holes are at y = 8 mm either
+    /// side of the plate's middle).
+    static let sectionLineHeight = 8.0
+
+    /// `bracketSheet` with a straight section of its Top view: a horizontal cutting line through a row of the plate's holes, looking
+    /// toward +y of the Top view's plane, its view to the right of the sheet's middle. Nothing is applied when this returns.
+    @MainActor
+    static func sectionedBracketSheet(_ app: AppModel) async throws -> DrawingDocument {
+        var document = try await bracketSheet(app)
+        let top = try #require(document.sheets[0].views.first { $0.orientation == .standard(.top) })
+        let cutter = SectionCutter(
+            frame: top.orientation.frame, points: [Vector2(-40, sectionLineHeight), Vector2(40, sectionLineHeight)],
+            viewing: Vector2(0, 1))
+        document.sheets[0].setView(DrawingView(
+            kind: .section, source: top.source, orientation: .custom(SectionFrame.frame(for: cutter)),
+            center: Vector2(210, 60), derivation: .section(SectionLine(parent: top.id, cutter: cutter)), letter: "A"))
+        return document
+    }
+
     /// The number of dimensions `annotatedBracketSheet` puts on the sheet.
     static let dimensionCount = 30
 
