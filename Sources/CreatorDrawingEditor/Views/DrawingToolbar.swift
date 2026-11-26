@@ -1,8 +1,8 @@
 import CreatorStyle
 import MetalUI
 
-/// The drawing toolbar, one row for the top bar: Base View and Projected View (a check while chosen), then the drag gap. DR-2 to
-/// DR-5 add their tools after these. It is a `ViewThatFits` over `candidateCount` rows, as the sketch toolbar is: row k shows
+/// The drawing toolbar, one row for the top bar: the seventeen tools (Base View to Surface Finish, a check while chosen), then the
+/// drag gap. DR-5 adds its tools after these. It is a `ViewThatFits` over `candidateCount` rows, as the sketch toolbar is: row k shows
 /// all but the last k tools as buttons and puts those k in a "More" menu, so tools leave the row from the end as the window
 /// narrows, and the first row that fits wins. The gap has the lowest layout priority, so the buttons are sized first and it
 /// takes what is left; it is a window drag handle, since the window is dragged by the bar's empty parts.

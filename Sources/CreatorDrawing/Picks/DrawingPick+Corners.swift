@@ -72,11 +72,11 @@ extension DrawingPick.Picker {
         guard purpose != .holeCallout, purpose != .centreMark else { return .failure(wrong()) }
         guard let face = topology.face(id), face.kind == .cylinder, let axis = face.normal?.normalized,
               let axisPoint = face.axisPoint else { return .failure(refusal(DrawingPick.outlineOnlySentence)) }
-        guard AnchorNaming.isLasting(face.tags) else { return .failure(refusal(DrawingPick.noCylinderNameSentence)) }
+        guard AnchorNaming.isLasting(face.tags) else { return .failure(refusal(wording.noCylinderName)) }
         guard let pick = topology.facePick(for: id), topology.faces(matching: pick).count == 1 else {
-            return .failure(refusal(DrawingPick.sharedCylinderSentence))
+            return .failure(refusal(wording.sharedCylinder))
         }
-        if purpose != .leader, abs(axis.dot(frame.direction)) > 1e-9 { return .failure(refusal(DrawingPick.cylinderSentence)) }
+        if purpose != .leader, abs(axis.dot(frame.direction)) > 1e-9 { return .failure(refusal(wording.cylinder)) }
         let target: AnchorTarget = purpose == .centreLine
             ? .axis(pick) : .outline(pick, side: side(axisPoint: axisPoint, axis: axis))
         switch held(target) {

@@ -28,11 +28,18 @@ public struct AnnotationDrawing: Hashable, Sendable {
     public var textCenter: Vector2?
     /// The smallest rectangle holding everything drawn.
     public var frame: Rect2D
+    /// The first label's bounding rectangle, box included (plan R11); `nil` with no label.
+    public var labelRect: Rect2D?
+    /// A linear dimension's first run's two arrow tips in feet order, or an ISO diameter's two tips (plan R11); `nil` otherwise.
+    public var dimensionLine: [Vector2]?
 
     public init(
         segments: [SheetSegment] = [], boxes: [[Vector2]] = [], fills: [[Vector2]] = [], texts: [PlacedText] = [],
-        textCenter: Vector2? = nil, frame: Rect2D = Rect2D(min: .zero, max: .zero)
+        textCenter: Vector2? = nil, frame: Rect2D = Rect2D(min: .zero, max: .zero), labelRect: Rect2D? = nil,
+        dimensionLine: [Vector2]? = nil
     ) {
+        self.labelRect = labelRect
+        self.dimensionLine = dimensionLine
         self.segments = segments
         self.boxes = boxes
         self.fills = fills

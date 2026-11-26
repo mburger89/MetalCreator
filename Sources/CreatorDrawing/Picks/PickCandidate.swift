@@ -17,6 +17,9 @@ extension DrawingPick {
     /// The sentence for a click on a free curve (plan R5).
     public static let freeCurveSentence = "This line is a free curve; dimensions attach to a part's edges."
 
+    /// The same for a symbol tool, which says symbol (R20).
+    public static let symbolFreeCurveSentence = "This line is a free curve; symbols attach to a part's edges."
+
     /// What lies under a click on `view`, in R17's order: a full circle's centre within `tolerance`, a straight line's end within it
     /// (a corner), then the nearest line. A free curve gives nothing (`refusal(at:in:view:tolerance:)` says why).
     public static func candidate(at point: Vector2, in picture: SheetPicture, view: ViewID, tolerance: Double) -> PickCandidate? {
@@ -32,14 +35,16 @@ extension DrawingPick {
     }
 
     /// The sentence for a click that lands on a free curve, else nil.
-    public static func refusal(at point: Vector2, in picture: SheetPicture, view: ViewID, tolerance: Double) -> DrawingRefusal? {
+    public static func refusal(
+        at point: Vector2, in picture: SheetPicture, view: ViewID, tolerance: Double, purpose: PickPurpose? = nil
+    ) -> DrawingRefusal? {
         if centre(near: point, in: picture, view: view, tolerance: tolerance) != nil
             || corner(near: point, in: picture, view: view, tolerance: tolerance) != nil {
             return nil
         }
         guard let index = SheetHitTest.line(near: point, in: picture, view: view, tolerance: tolerance),
               case .curve = picture.strokes[index].source else { return nil }
-        return DrawingRefusal(sentence: freeCurveSentence)
+        return DrawingRefusal(sentence: purpose?.isSymbol == true ? symbolFreeCurveSentence : freeCurveSentence)
     }
 
     /// Strokes of a view that are projected lines: no annotation's and no centre mark.

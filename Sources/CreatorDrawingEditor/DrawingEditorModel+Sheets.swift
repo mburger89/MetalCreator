@@ -46,17 +46,37 @@ extension DrawingEditorModel {
                 views[position].derivation = derivation.withParent(parent)
             }
         }
+        var newIDs: [AnnotationID: AnnotationID] = [:]
+        for annotation in original.annotations { newIDs[annotation.id] = AnnotationID() }
         let annotations = original.annotations.map { annotation -> DrawingAnnotation in
             var copied = annotation
-            copied.id = AnnotationID()
+            copied.id = newIDs[annotation.id] ?? AnnotationID()
             copied.view = annotation.view.flatMap { renamed[$0] }
+            copied.kind = Self.remappingAttachment(of: annotation.kind, newIDs)
             return copied
         }
         let copy = DrawingSheet(
             name: original.name + " Copy", size: original.size, orientation: original.orientation, scale: original.scale,
-            titleBlock: original.titleBlock, views: views, annotations: annotations)
+            titleBlock: original.titleBlock, views: views, annotations: annotations, notes: original.notes)
         commit(DrawingStepName.duplicateSheet) { $0.sheets.insert(copy, at: index + 1) }
         show(sheet: copy.id)
+    }
+
+    /// A copied symbol on a dimension names the copied dimension (plan R14).
+    private static func remappingAttachment(of kind: AnnotationKind, _ ids: [AnnotationID: AnnotationID]) -> AnnotationKind {
+        func remapped(_ attachment: SymbolAttachment) -> SymbolAttachment {
+            if case .dimension(let id) = attachment { return .dimension(ids[id] ?? id) }
+            return attachment
+        }
+        switch kind {
+        case .datumFeature(var datum):
+            datum.attachment = remapped(datum.attachment)
+            return .datumFeature(datum)
+        case .featureControl(var frame):
+            frame.attachment = remapped(frame.attachment)
+            return .featureControl(frame)
+        default: return kind
+        }
     }
 
     public func deleteSheet(_ id: SheetID) {

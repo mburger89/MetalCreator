@@ -179,4 +179,37 @@ struct SheetEditingTests {
         #expect(h.model.currentSheet == sheets[1].id)
         #expect(h.log.sheets.last == sheets[1].id)
     }
+
+    @Test func duplicatingRemapsSymbolAttachments() throws {
+        let node = NodeID()
+        let view = DrawingView(kind: .base, source: node, orientation: .standard(.front), center: Vector2(100, 100))
+        let tag = TopoTag(node: node, item: 0, role: .startCap)
+        let pick = EdgePick(key: EdgeKey([tag], [TopoTag(node: node, item: 0, role: .endCap)]), matchCount: 1)
+        let size = DrawingAnnotation(
+            view: view.id,
+            kind: .dimension(
+                DrawingDimension(kind: .linear(.horizontal), anchors: [.edge(pick)], placement: DimensionPlacement(offset: 5, angle: 0))))
+        let frame = DrawingAnnotation(
+            view: view.id,
+            kind: .featureControl(
+                FeatureControlFrame(
+                    characteristic: .position, rows: [ToleranceRow(value: 0.1)], attachment: .dimension(size.id))))
+        let datum = DrawingAnnotation(
+            view: view.id, kind: .datumFeature(DatumFeature(letter: "B", attachment: .dimension(size.id))))
+        let sheet = DrawingSheet(name: "Plate", views: [view], annotations: [size, frame, datum])
+        let h = EditorHarness(document: DrawingDocument(sheets: [sheet]), sheet: sheet.id)
+        h.model.duplicateSheet(sheet.id)
+        let copy = try #require(h.model.document.sheets.first { $0.id != sheet.id })
+        let copiedSize = try #require(
+            copy.annotations.first { if case .dimension = $0.kind { true } else { false } })
+        #expect(copiedSize.id != size.id)
+        let hanging = copy.symbols(on: copiedSize.id)
+        #expect(hanging.count == 2)
+        #expect(copy.annotations.count == 3)
+        let letters = hanging.compactMap { annotation -> String? in
+            if case .datumFeature(let d) = annotation.kind { d.letter } else { nil }
+        }
+        #expect(letters == ["B"])
+        #expect(h.model.document.sheet(sheet.id)?.symbols(on: size.id).count == 2)
+    }
 }

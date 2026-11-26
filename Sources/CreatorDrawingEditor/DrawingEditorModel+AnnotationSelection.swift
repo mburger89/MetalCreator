@@ -29,6 +29,11 @@ struct AnnotationSeed {
     var feetMiddle: Vector2?
     /// Whether the press was on the text, which shifts it along the line.
     var onLabel = false
+    /// The view's millimetres on the sheet per model millimetre, for a symbol that slides along its line (DR-4 R16).
+    var scale = 1.0
+    /// The dimension a symbol hangs on and that dimension's dimension line (its two tips on the sheet), when it has one.
+    var host: AnnotationID?
+    var tips: [Vector2]?
 }
 
 extension DrawingEditorModel {
@@ -94,6 +99,10 @@ extension DrawingEditorModel {
             if let figure, let view = annotation.view, case .success(let context) = pickContext(of: view) {
                 Self.describe(figure, with: context.mapping, in: &seed)
             }
+            if case .dimension(let host)? = annotation.symbolAttachment {
+                seed.host = host
+                seed.tips = picture.annotationReports[host]?.dimensionLine
+            }
             result.append(seed)
         }
         return result
@@ -113,6 +122,9 @@ extension DrawingEditorModel {
             seed.anchor = mapping.sheet(vertex)
         case .chamfer(let start, let end):
             seed.anchor = mapping.sheet((start + end) * 0.5)
+        case .attachment(_, let along):
+            seed.direction = unit(along)
+            seed.scale = mapping.scale
         case .centreMark, .centreLine, .leaders:
             break
         }
@@ -135,6 +147,8 @@ extension DrawingEditorModel {
         for seed in seeds {
             guard let annotation = sheet.annotation(seed.id) else { continue }
             if let view = annotation.view, before[view] != after[view] { continue }
+            // A symbol on a dimension is drawn from it: moving the dimension moves the symbol, and moving it again would double it.
+            if case .dimension(let host)? = annotation.symbolAttachment, seeds.contains(where: { $0.id == host }) { continue }
             result.setAnnotation(moved(annotation, seed: seed, by: delta))
         }
         return result
@@ -154,8 +168,49 @@ extension DrawingEditorModel {
             result.kind = .holeCallout(callout)
         case .centreMark, .centreLine:
             break
+        case .datumFeature(var datum):
+            movedDatum(&datum, seed: seed, by: delta)
+            result.kind = .datumFeature(datum)
+        case .featureControl(var frame):
+            frame.offset += delta
+            result.kind = .featureControl(frame)
+        case .surfaceTexture(var texture):
+            if let offset = texture.offset {
+                texture.offset = offset + delta
+            } else if let along = seed.direction {
+                texture.feature.hint += along * ((delta.x * along.x + delta.y * along.y) / seed.scale)
+            }
+            result.kind = .surfaceTexture(texture)
         }
         return result
+    }
+
+    /// A datum on a line slides its foot along it and changes its distance by the across part; on a dimension line it goes to the
+    /// nearer end and the pointer's distance; hanging under a label it changes by the downward part (plan R16).
+    private static func movedDatum(_ datum: inout DatumFeature, seed: AnnotationSeed, by delta: Vector2) {
+        switch datum.attachment {
+        case .feature(var end):
+            guard let along = seed.direction else { return }
+            let across = Vector2(-along.y, along.x)
+            end.hint += along * ((delta.x * along.x + delta.y * along.y) / seed.scale)
+            datum.distance += delta.x * across.x + delta.y * across.y
+            datum.attachment = .feature(end)
+        case .dimension:
+            guard let tips = seed.tips, tips.count == 2 else {
+                datum.distance = Swift.max(0, datum.distance - delta.y)
+                return
+            }
+            func outward(_ end: Int) -> Vector2 {
+                let way = tips[end] - tips[1 - end]
+                return way.length > 1e-12 ? way * (1 / way.length) : Vector2(1, 0)
+            }
+            let end = Swift.min(Swift.max(datum.dimensionEnd, 0), 1)
+            let centre = tips[end] + outward(end) * Swift.abs(datum.distance) + delta
+            let nearer = (tips[1] - centre).length < (tips[0] - centre).length ? 1 : 0
+            let from = centre - tips[nearer]
+            datum.dimensionEnd = nearer
+            datum.distance = Swift.max(0, from.x * outward(nearer).x + from.y * outward(nearer).y)
+        }
     }
 
     private static func placement(
@@ -199,11 +254,11 @@ extension DrawingEditorModel {
         let kinds = seeds.compactMap { sheet.annotation($0.id)?.kind }
         return Self.groupName(
             of: kinds, dimension: DrawingStepName.moveDimension, note: DrawingStepName.moveNote,
-            mixed: DrawingStepName.moveAnnotations)
+            symbol: DrawingStepName.moveSymbol, mixed: DrawingStepName.moveAnnotations)
     }
 
-    /// One name for a set of annotations: all dimensions and callouts, all notes, or anything else.
-    static func groupName(of kinds: [AnnotationKind], dimension: String, note: String, mixed: String) -> String {
+    /// One name for a set of annotations: all dimensions and callouts, all notes, all symbols, or anything else.
+    static func groupName(of kinds: [AnnotationKind], dimension: String, note: String, symbol: String, mixed: String) -> String {
         let isDimension = kinds.allSatisfy {
             switch $0 {
             case .dimension, .holeCallout: true
@@ -213,8 +268,14 @@ extension DrawingEditorModel {
         let isNote = kinds.allSatisfy {
             if case .note = $0 { true } else { false }
         }
+        let isSymbol = kinds.allSatisfy {
+            switch $0 {
+            case .datumFeature, .featureControl, .surfaceTexture: true
+            default: false
+            }
+        }
         if kinds.isEmpty { return mixed }
-        return isDimension ? dimension : isNote ? note : mixed
+        return isDimension ? dimension : isNote ? note : isSymbol ? symbol : mixed
     }
 
     // MARK: Gestures
@@ -259,6 +320,6 @@ extension DrawingEditorModel {
         let kinds = (sheet?.annotations ?? []).filter { ids.contains($0.id) }.map(\.kind)
         return Self.groupName(
             of: kinds, dimension: DrawingStepName.deleteDimension, note: DrawingStepName.deleteNote,
-            mixed: DrawingStepName.deleteAnnotations)
+            symbol: DrawingStepName.deleteSymbol, mixed: DrawingStepName.deleteAnnotations)
     }
 }

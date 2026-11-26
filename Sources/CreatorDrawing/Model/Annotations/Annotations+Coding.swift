@@ -1,5 +1,7 @@
 extension AnnotationKind: Codable {
-    private enum CodingKeys: String, CodingKey { case type, dimension, holeCallout, centreMark, centreLine, note }
+    private enum CodingKeys: String, CodingKey {
+        case type, dimension, holeCallout, centreMark, centreLine, note, datumFeature, featureControl, surfaceTexture
+    }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -9,6 +11,9 @@ extension AnnotationKind: Codable {
         case "centreMark": self = .centreMark(try c.decode(CentreMark.self, forKey: .centreMark))
         case "centreLine": self = .centreLine(try c.decode(CentreLine.self, forKey: .centreLine))
         case "note": self = .note(try c.decode(DrawingNote.self, forKey: .note))
+        case "datumFeature": self = .datumFeature(try c.decode(DatumFeature.self, forKey: .datumFeature))
+        case "featureControl": self = .featureControl(try c.decode(FeatureControlFrame.self, forKey: .featureControl))
+        case "surfaceTexture": self = .surfaceTexture(try c.decode(SurfaceTexture.self, forKey: .surfaceTexture))
         default: throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "Unknown annotation kind.")
         }
     }
@@ -31,6 +36,15 @@ extension AnnotationKind: Codable {
         case .note(let value):
             try c.encode("note", forKey: .type)
             try c.encode(value, forKey: .note)
+        case .datumFeature(let value):
+            try c.encode("datumFeature", forKey: .type)
+            try c.encode(value, forKey: .datumFeature)
+        case .featureControl(let value):
+            try c.encode("featureControl", forKey: .type)
+            try c.encode(value, forKey: .featureControl)
+        case .surfaceTexture(let value):
+            try c.encode("surfaceTexture", forKey: .type)
+            try c.encode(value, forKey: .surfaceTexture)
         }
     }
 }

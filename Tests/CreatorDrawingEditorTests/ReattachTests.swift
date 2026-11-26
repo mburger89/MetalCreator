@@ -20,7 +20,8 @@ struct ReattachTests {
 
     /// A horizontal dimension between the edges `anchors` of the full part, shown against `content`.
     private func open(
-        _ content: ViewContent, orientation: StandardOrientation = .top, anchors: [Int], kind: DrawingDimensionKind = .linear(.horizontal)
+        _ content: ViewContent, orientation: StandardOrientation = .top, anchors: [Int], kind: DrawingDimensionKind = .linear(.horizontal),
+        mappedFrom mapped: ViewContent? = nil
     ) -> Opened {
         let full = Fixtures.topology()
         let annotation = DrawingAnnotation(
@@ -36,7 +37,7 @@ struct ReattachTests {
         let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id, contents: [view.id: content])
         h.model.transform = SheetTransform(offset: Vector2(0, 297 * 4), zoom: 4)
         h.model.selectedAnnotations = [placed.id]
-        return Opened(h: h, view: view, mapping: Fixtures.mapping(content), id: placed.id)
+        return Opened(h: h, view: view, mapping: Fixtures.mapping(mapped ?? content), id: placed.id)
     }
 
     private func click(_ o: Opened, _ x: Double, _ y: Double) {
@@ -115,6 +116,77 @@ struct ReattachTests {
         #expect(report.isLost && report.anchors.isEmpty, "\(report)")
         click(o, 30, 15)
         #expect(o.h.model.refusal == "Its view has no part to attach it to.")
+        #expect(o.h.log.commits.isEmpty)
+        #expect(o.h.model.selectedAnnotations == [o.id])
+    }
+
+    @Test func aRemovedSourceWithNoLinesSaysSo() throws {
+        let content = ViewContent(problem: DrawingProjector.removedSentence, lastSize: Vector2(60, 40))
+        let o = open(content, anchors: [100, 103], mappedFrom: Fixtures.top())
+        let report = try #require(o.h.model.picture?.annotationReports[o.id])
+        #expect(report.isLost && report.anchors.isEmpty, "\(report)")
+        click(o, 30, 15)
+        #expect(o.h.model.refusal == "Its view has no part to attach it to.", "\(o.h.model.refusal ?? "")")
+        #expect(o.h.log.commits.isEmpty)
+        #expect(o.h.model.selectedAnnotations == [o.id], "the lost annotation stays selected")
+    }
+
+    // MARK: Symbols (DR-4)
+
+    private func openSymbol(
+        _ kind: AnnotationKind, content: ViewContent, extra: [DrawingAnnotation] = []
+    ) -> (h: EditorHarness, mapping: ViewMapping, id: AnnotationID) {
+        let view = EditorDocuments.view(at: Fixtures.centre, orientation: .top)
+        let symbol = DrawingAnnotation(view: view.id, kind: kind)
+        let sheet = DrawingSheet(name: "Sheet 1", views: [view], annotations: extra.map { annotation in
+            var placed = annotation
+            placed.view = view.id
+            return placed
+        } + [symbol])
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id, contents: [view.id: content])
+        h.model.transform = SheetTransform(offset: Vector2(0, 297 * 4), zoom: 4)
+        h.model.selectedAnnotations = [symbol.id]
+        return (h, Fixtures.mapping(content), symbol.id)
+    }
+
+    @Test func aLostDatumReattachesToAnotherLine() throws {
+        let full = Fixtures.topology()
+        let datum = DatumFeature(
+            letter: "A", attachment: .feature(LeaderEnd(target: Fixtures.pick(full, 103), hint: Vector2(40, 10))), distance: 8)
+        let o = openSymbol(.datumFeature(datum), content: Fixtures.top(Fixtures.topology(removing: [103])))
+        let report = try #require(o.h.model.picture?.annotationReports[o.id])
+        #expect(report.anchors == [.lost(.missing)], "\(report.anchors)")
+        let point = o.mapping.sheet(Vector2(30, 15))
+        o.h.click(point.x, point.y)
+        #expect(o.h.log.commits.map(\.name) == ["Reattach Symbol"], "\(o.h.model.refusal ?? "")")
+        guard case .datumFeature(let after)? = o.h.model.document.sheets[0].annotation(o.id)?.kind,
+            case .feature(let end) = after.attachment else {
+            Issue.record("expected a datum on a line")
+            return
+        }
+        #expect(end.target == Fixtures.pick(full, 106))
+        #expect(abs(end.hint.x - 30) < 1e-6, "\(end.hint)")
+        #expect(after.letter == "A" && after.distance == 8)
+        #expect(o.h.model.picture?.annotationReports[o.id]?.status == .held)
+    }
+
+    @Test func aSymbolOnADimensionSaysReattachTheDimension() throws {
+        let full = Fixtures.topology()
+        let dimension = DrawingAnnotation(
+            id: AnnotationID(), view: nil,
+            kind: .dimension(
+                DrawingDimension(
+                    kind: .linear(.horizontal), anchors: [Fixtures.pick(full, 100), Fixtures.pick(full, 103)],
+                    placement: DimensionPlacement(offset: 10, angle: 0))))
+        let frame = FeatureControlFrame(
+            characteristic: .flatness, rows: [ToleranceRow(value: 0.05)], attachment: .dimension(dimension.id))
+        let o = openSymbol(
+            .featureControl(frame), content: Fixtures.top(Fixtures.topology(removing: [103])), extra: [dimension])
+        let report = try #require(o.h.model.picture?.annotationReports[o.id])
+        #expect(report.isLost, "\(report)")
+        let point = o.mapping.sheet(Vector2(30, 15))
+        o.h.click(point.x, point.y)
+        #expect(o.h.model.refusal == "This symbol hangs on a dimension; reattach the dimension and the symbol follows it.")
         #expect(o.h.log.commits.isEmpty)
         #expect(o.h.model.selectedAnnotations == [o.id])
     }

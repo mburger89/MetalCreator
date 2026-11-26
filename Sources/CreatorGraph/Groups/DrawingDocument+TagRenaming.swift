@@ -37,6 +37,15 @@ extension DrawingAnnotation {
         case .centreLine(var line):
             line.anchor = line.anchor.renamingTags(names)
             renamed.kind = .centreLine(line)
+        case .datumFeature(var datum):
+            datum.attachment = datum.attachment.renamingTags(names)
+            renamed.kind = .datumFeature(datum)
+        case .featureControl(var frame):
+            frame.attachment = frame.attachment.renamingTags(names)
+            renamed.kind = .featureControl(frame)
+        case .surfaceTexture(var texture):
+            texture.feature = LeaderEnd(target: texture.feature.target.renamingTags(names), hint: texture.feature.hint)
+            renamed.kind = .surfaceTexture(texture)
         }
         return renamed
     }
@@ -51,6 +60,15 @@ extension AnchorTarget {
         case .outline(let face, let side): .outline(TagRenaming.renaming(face, names), side: side)
         case .axis(let face): .axis(TagRenaming.renaming(face, names))
         case .point: self
+        }
+    }
+}
+
+extension SymbolAttachment {
+    func renamingTags(_ names: [NodeID: NodeID]) -> SymbolAttachment {
+        switch self {
+        case .feature(let end): .feature(LeaderEnd(target: end.target.renamingTags(names), hint: end.hint))
+        case .dimension: self
         }
     }
 }

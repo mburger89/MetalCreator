@@ -83,6 +83,7 @@ struct SheetInspector: Component {
                     model.setDensity(text: text)
                 }
             }
+            SheetNotesSection(model: model, sheet: sheet, colors: colors)
             lostReferences
             if let refusal = model.refusal {
                 Text(refusal).font(.caption).foregroundStyle(colors.warning.color)

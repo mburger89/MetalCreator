@@ -11,34 +11,43 @@ public enum DerivedViewNotices {
     public static let auxiliaryParentTurned =
         "The view this auxiliary view was projected from now looks another way, so its arrow isn't shown."
 
-    public static func notices(for view: DrawingView, in sheet: DrawingSheet) -> [String] {
+    public static let sectionParentEmpty =
+        "The view this section was cut from has nothing drawn yet, so its cutting line isn't shown."
+    public static let auxiliaryParentEmpty =
+        "The view this auxiliary view was projected from has nothing drawn yet, so its arrow isn't shown."
+
+    /// `contents` is what each view shows now: a parent with no projection has no mapping to draw the mark on.
+    public static func notices(for view: DrawingView, in sheet: DrawingSheet, contents: [ViewID: ViewContent]) -> [String] {
         switch view.derivation {
         case .section(let line):
             return notice(
-                parent: line.parent, stored: line.cutter.frame, in: sheet, deleted: sectionParentDeleted,
-                turned: sectionParentTurned)
+                parent: line.parent, stored: line.cutter.frame, in: sheet, contents: contents,
+                sentences: (sectionParentDeleted, sectionParentTurned, sectionParentEmpty))
         case .auxiliary(let arrow):
             return notice(
-                parent: arrow.parent, stored: arrow.parentFrame, in: sheet, deleted: auxiliaryParentDeleted,
-                turned: auxiliaryParentTurned)
+                parent: arrow.parent, stored: arrow.parentFrame, in: sheet, contents: contents,
+                sentences: (auxiliaryParentDeleted, auxiliaryParentTurned, auxiliaryParentEmpty))
         case .detail, nil:
             return []
         }
     }
 
     /// Whether a section's or auxiliary view's marks are drawn: its parent is on the sheet and looks as it did.
-    public static func marksAreShown(for view: DrawingView, in sheet: DrawingSheet) -> Bool {
+    public static func marksAreShown(for view: DrawingView, in sheet: DrawingSheet, contents: [ViewID: ViewContent]) -> Bool {
         switch view.derivation {
-        case .section, .auxiliary: notices(for: view, in: sheet).isEmpty
+        case .section, .auxiliary: notices(for: view, in: sheet, contents: contents).isEmpty
         case .detail, nil: false
         }
     }
 
     private static func notice(
-        parent: ViewID, stored: ProjectionFrame, in sheet: DrawingSheet, deleted: String, turned: String
+        parent: ViewID, stored: ProjectionFrame, in sheet: DrawingSheet, contents: [ViewID: ViewContent],
+        sentences: (deleted: String, turned: String, empty: String)
     ) -> [String] {
-        guard let parent = sheet.view(parent) else { return [deleted] }
-        return matches(parent.orientation.frame, stored) ? [] : [turned]
+        guard let parent = sheet.view(parent) else { return [sentences.deleted] }
+        guard matches(parent.orientation.frame, stored) else { return [sentences.turned] }
+        let content = contents[parent.id] ?? ViewContent()
+        return (content.framing ?? content.projection?.bounds) == nil ? [sentences.empty] : []
     }
 
     private static func matches(_ a: ProjectionFrame, _ b: ProjectionFrame) -> Bool {

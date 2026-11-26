@@ -77,3 +77,14 @@ import Testing
         #expect(DimensionNumber.places(of: "25") == 0)
     }
 }
+
+@Suite struct DimensionNumberNonFiniteTests {
+    @Test func nonFiniteRendersAQuestionMark() {
+        let format = NumberFormat(units: .millimetres, standard: .iso, decimalSign: .point)
+        for value in [Double.nan, .infinity] {
+            let made = DimensionNumber.render(value, places: 2, keepZeros: true, format: format)
+            #expect(made.text == "?" && !made.isZero)
+            #expect(DimensionNumber.length(value, precision: 2, format: format) == "?")
+        }
+    }
+}

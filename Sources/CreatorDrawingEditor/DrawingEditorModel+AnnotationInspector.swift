@@ -15,23 +15,57 @@ extension DrawingEditorModel {
     /// A linear dimension's direction (a baseline or chain keeps its family), or a circle's radius against diameter.
     public func setDimensionKind(_ kind: DrawingDimensionKind, of id: AnnotationID) {
         guard case .dimension(let current)? = sheet?.annotation(id)?.kind else { return }
-        let next: DrawingDimensionKind
+        guard let next = nextKind(from: current, asking: kind) else { return }
+        if let sheet, current.kind != next, !symbolsAccept(next, on: id, in: sheet) { return refuse(Self.symbolBlocksKindSentence) }
+        commitDimension(id, DrawingStepName.changeDimension) { $0.kind = next }
+    }
+
+    /// The kind a dimension takes for the one asked, or `nil` after refusing (or when nothing changes).
+    private func nextKind(from current: DrawingDimension, asking kind: DrawingDimensionKind) -> DrawingDimensionKind? {
         switch (current.kind, kind) {
         case (.linear, .linear(let direction)), (.linear, .baseline(let direction)), (.linear, .chain(let direction)):
-            next = .linear(direction)
+            return .linear(direction)
         case (.baseline, .linear(let direction)), (.baseline, .baseline(let direction)), (.baseline, .chain(let direction)):
-            guard direction != .aligned else { return refuse(Self.seriesDirectionSentence) }
-            next = .baseline(direction)
+            guard direction != .aligned else { return refused(Self.seriesDirectionSentence) }
+            return .baseline(direction)
         case (.chain, .linear(let direction)), (.chain, .baseline(let direction)), (.chain, .chain(let direction)):
-            guard direction != .aligned else { return refuse(Self.seriesDirectionSentence) }
-            next = .chain(direction)
+            guard direction != .aligned else { return refused(Self.seriesDirectionSentence) }
+            return .chain(direction)
         case (.radius, .radius), (.radius, .diameter), (.diameter, .radius), (.diameter, .diameter):
-            if case .radius = kind, case .fit = current.tolerance { return refuse(Self.fitSentence) }
-            next = kind
+            if case .radius = kind, case .fit = current.tolerance { return refused(Self.fitSentence) }
+            return kind
         default:
-            return
+            if !Self.sameFamily(current.kind, kind) { refuse(Self.mismatchedKindSentence) }
+            return nil
         }
-        commitDimension(id, DrawingStepName.changeDimension) { $0.kind = next }
+    }
+
+    private func refused(_ sentence: String) -> DrawingDimensionKind? {
+        refuse(sentence)
+        return nil
+    }
+
+    private static func sameFamily(_ a: DrawingDimensionKind, _ b: DrawingDimensionKind) -> Bool {
+        switch (a, b) {
+        case (.linear, .linear), (.baseline, .baseline), (.chain, .chain), (.ordinate, .ordinate), (.radius, .radius),
+            (.diameter, .diameter), (.angle, .angle), (.chamfer, .chamfer): true
+        default: false
+        }
+    }
+
+    /// Whether every symbol hanging on the dimension would still be accepted once it has kind `next` (plan R2).
+    private func symbolsAccept(_ next: DrawingDimensionKind, on id: AnnotationID, in sheet: DrawingSheet) -> Bool {
+        guard var changed = sheet.annotation(id), case .dimension(var value) = changed.kind else { return true }
+        value.kind = next
+        changed.kind = .dimension(value)
+        return sheet.symbols(on: id).allSatisfy { symbol in
+            switch symbol.kind {
+            case .datumFeature: SymbolAttachment.accepts(.datum, on: changed)
+            case .featureControl: SymbolAttachment.accepts(.frame, on: changed)
+            case .surfaceTexture: SymbolAttachment.accepts(.surface, on: changed)
+            default: true
+            }
+        }
     }
 
     /// Decimals from 0 to 4, or the document's own (`nil`).

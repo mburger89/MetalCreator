@@ -19,7 +19,7 @@ struct DrawingToolbarTests {
 
     private static let everyTool = [
         "Base View", "Projected View", "Section", "Detail", "Auxiliary", "Dimension", "Baseline", "Chain", "Ordinate", "Chamfer",
-        "Hole Callout", "Centre Mark", "Centre Line", "Note",
+        "Hole Callout", "Centre Mark", "Centre Line", "Note", "Datum", "Feature Control Frame", "Surface Finish",
     ]
 
     private func model() -> DrawingEditorModel {
@@ -28,7 +28,7 @@ struct DrawingToolbarTests {
 
     @Test func theRowsMoveToolsIntoMoreFromTheEnd() async throws {
         let model = model()
-        let wide = try await labels(width: 1600, model: model)
+        let wide = try await labels(width: 2400, model: model)
         #expect(wide == Self.everyTool)
         let middle = try await labels(width: 200, model: model)
         #expect(middle == ["Base View", "More"], "the last tool moved first: \(middle)")
@@ -39,7 +39,7 @@ struct DrawingToolbarTests {
     @Test func theChosenToolIsMarked() async throws {
         let model = model()
         model.press(.projectedView)
-        let wide = try await labels(width: 1600, model: model)
+        let wide = try await labels(width: 2400, model: model)
         #expect(wide == Self.everyTool.map { $0 == "Projected View" ? "Projected View ✓" : $0 })
         let middle = try await labels(width: 200, model: model)
         #expect(middle == ["Base View", "More ✓"])
@@ -48,7 +48,7 @@ struct DrawingToolbarTests {
     @Test func everyToolHasAButtonOrMore() async throws {
         let model = model()
         let titles = DrawingTool.allCases.compactMap(\.title)
-        #expect(titles == Self.everyTool, "all eleven, in R17's order")
+        #expect(titles == Self.everyTool, "every tool, in R17's and R15's order")
         for width in [1000.0, 700, 400, 200, 100] {
             let shown = try await labels(width: Float(width), model: model)
             let more = shown.contains { $0.hasPrefix("More") }

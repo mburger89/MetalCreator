@@ -15,6 +15,9 @@ public enum DrawingTool: Hashable, Sendable, CaseIterable {
     case centreMark
     case centreLine
     case note
+    case datum
+    case featureControlFrame
+    case surfaceFinish
 }
 
 extension DrawingTool {
@@ -36,6 +39,17 @@ extension DrawingTool {
         case .centreMark: "Centre Mark"
         case .centreLine: "Centre Line"
         case .note: "Note"
+        case .datum: "Datum"
+        case .featureControlFrame: "Feature Control Frame"
+        case .surfaceFinish: "Surface Finish"
+        }
+    }
+
+    /// The three symbol tools (DR-4 R15): a first click names the target, the next places the symbol.
+    public var isSymbolTool: Bool {
+        switch self {
+        case .datum, .featureControlFrame, .surfaceFinish: true
+        default: false
         }
     }
 

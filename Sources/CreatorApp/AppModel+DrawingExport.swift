@@ -138,7 +138,9 @@ extension AppModel {
         switch kind {
         case .pdf:
             let pictures = drawings.sheets.map(picture(of:))
-            let lost = zip(drawings.sheets, pictures).flatMap { Self.lostWarnings(on: $0, in: $1, view: nil) }
+            let lost = zip(drawings.sheets, pictures).flatMap {
+                Self.lostWarnings(on: $0, in: $1, view: nil) + Self.checkWarnings(on: $0, in: $1, view: nil)
+            }
             let output = PDFWriter.write(pictures, title: exportName)
             return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: lost)
         case .dxfSheet:
@@ -146,7 +148,8 @@ extension AppModel {
             let page = picture(of: sheet)
             let output = DXFWriter.sheet(page, style: style)
             return DrawingFile(
-                data: output.data, replaced: output.replacedTexts, lost: Self.lostWarnings(on: sheet, in: page, view: nil))
+                data: output.data, replaced: output.replacedTexts,
+                lost: Self.lostWarnings(on: sheet, in: page, view: nil) + Self.checkWarnings(on: sheet, in: page, view: nil))
         case .dxfView, .dxfViewWithAnnotations:
             guard let view = plan.view else { throw AppProblem("Select one view", "Select one view to export it at 1:1.") }
             guard let content = snapshot.contents[view.id], let projection = content.projection else {
@@ -164,7 +167,8 @@ extension AppModel {
                 ?? ViewMapping(scale: scale, offset: center)
             let output = DXFWriter.view(projection, view: view, style: style, annotations: (page, mapping))
             return DrawingFile(
-                data: output.data, replaced: output.replacedTexts, lost: Self.lostWarnings(on: sheet, in: page, view: view.id))
+                data: output.data, replaced: output.replacedTexts,
+                lost: Self.lostWarnings(on: sheet, in: page, view: view.id) + Self.checkWarnings(on: sheet, in: page, view: view.id))
         }
     }
 
@@ -187,6 +191,29 @@ extension AppModel {
             sentences.append(more == 1
                 ? "On “\(sheet.name)”, \(count) more annotation lost what it was attached to."
                 : "On “\(sheet.name)”, \(count) more annotations lost what they were attached to.")
+        }
+        return sentences
+    }
+
+    /// At most this many symbols with warnings are listed one by one per sheet (DR-4 R13).
+    static let listedChecksPerSheet = 10
+
+    /// The rules the symbols of `sheet` break, one sentence per warning in sheet order (the first `listedChecksPerSheet` symbols),
+    /// then one more for the rest; `view` limits them to the symbols of that view.
+    static func checkWarnings(on sheet: DrawingSheet, in picture: SheetPicture, view: ViewID?) -> [String] {
+        let checked = picture.checkedAnnotations.filter { id in view == nil || sheet.annotation(id)?.view == view }
+        var sentences: [String] = []
+        for id in checked.prefix(listedChecksPerSheet) {
+            guard let report = picture.annotationReports[id] else { continue }
+            let text = report.label.isEmpty ? "?" : report.label
+            for warning in report.warnings { sentences.append("On “\(sheet.name)”, “\(text)”: \(warning)") }
+        }
+        let more = checked.count - listedChecksPerSheet
+        if more > 0 {
+            let count = more.formatted(.number.locale(.messages))
+            sentences.append(more == 1
+                ? "On “\(sheet.name)”, \(count) more symbol has a warning."
+                : "On “\(sheet.name)”, \(count) more symbols have warnings.")
         }
         return sentences
     }

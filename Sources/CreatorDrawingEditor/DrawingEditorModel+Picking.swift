@@ -54,7 +54,7 @@ extension DrawingEditorModel {
             if hoverCandidate != nil { hoverCandidate = nil }
             return
         }
-        let view = picks.isEmpty ? viewUnder(point) : pickView
+        let view = symbolDraft?.view ?? (picks.isEmpty ? viewUnder(point) : pickView)
         let found = view.flatMap { candidate(at: point, in: $0) }
         if found != hoverCandidate { hoverCandidate = found }
     }
@@ -68,6 +68,8 @@ extension DrawingEditorModel {
             leaderClick(note, at: point)
         } else if tool == .note {
             placeNote(at: point)
+        } else if tool.isSymbolTool {
+            symbolClick(at: point)
         } else if tool.isAnnotationTool {
             pickClick(at: point, modifiers: modifiers)
         }
@@ -209,14 +211,23 @@ extension DrawingEditorModel {
         guard tool == .select, selectedAnnotations.count == 1, let id = selectedAnnotations.first, let sheet, let picture,
               let annotation = sheet.annotation(id), let viewID = annotation.view,
               let report = picture.annotationReports[id], report.isLost, viewUnder(point) == viewID else { return false }
-        if report.anchors.isEmpty {
+        // A view with no part has no lines to click, so this is refused before the line guard below.
+        // (A symbol hung on a dimension has no anchors of its own; its refusal is below, behind the line guard.)
+        var onDimension = false
+        if case .dimension? = annotation.symbolAttachment { onDimension = true }
+        if report.anchors.isEmpty, !onDimension {
             refuse(Self.noPartSentence)
             return true
         }
         let found = candidate(at: point, in: viewID)
         let tolerance = Self.hoverTolerancePoints / transform.zoom
+        // Only a click on a line is refused: any other click selects or drags as usual.
         guard found != nil || SheetHitTest.line(near: point, in: picture, view: viewID, tolerance: tolerance) != nil else {
             return false
+        }
+        if onDimension {
+            refuse(Self.symbolOnDimensionSentence)
+            return true
         }
         guard let index = report.firstLostAnchor else {
             refuse(Self.stillThereSentence)
@@ -267,7 +278,8 @@ extension DrawingEditorModel {
                 refuse(reason.sentence)
                 return
             }
-            commitSheet(DrawingStepName.reattachDimension) { $0.setAnnotation(updated) }
+            let name = annotation.symbolKind == nil ? DrawingStepName.reattachDimension : DrawingStepName.reattachSymbol
+            commitSheet(name) { $0.setAnnotation(updated) }
         }
     }
 
@@ -279,7 +291,15 @@ extension DrawingEditorModel {
         case .centreMark(let mark): [mark.anchor]
         case .centreLine(let line): [line.anchor]
         case .note(let note): note.leaders.map(\.target)
+        // A symbol on a line has its one anchor; one on a dimension has none of its own.
+        case .datumFeature(let datum): Self.lineTargets(of: datum.attachment)
+        case .featureControl(let frame): Self.lineTargets(of: frame.attachment)
+        case .surfaceTexture(let texture): [texture.feature.target]
         }
+    }
+
+    private static func lineTargets(of attachment: SymbolAttachment) -> [AnchorTarget] {
+        if case .feature(let end) = attachment { [end.target] } else { [] }
     }
 
     static func purpose(of kind: AnnotationKind) -> PickPurpose {
@@ -289,6 +309,9 @@ extension DrawingEditorModel {
         case .centreMark: .centreMark
         case .centreLine: .centreLine
         case .note: .leader
+        case .datumFeature: PickPurpose(symbol: .datum)
+        case .featureControl: PickPurpose(symbol: .frame)
+        case .surfaceTexture: PickPurpose(symbol: .surface)
         }
     }
 
@@ -309,6 +332,15 @@ extension DrawingEditorModel {
         case .note(var note):
             note.leaders[index] = LeaderEnd(target: target, hint: hint)
             return .note(note)
+        case .datumFeature(var datum):
+            datum.attachment = .feature(LeaderEnd(target: target, hint: hint))
+            return .datumFeature(datum)
+        case .featureControl(var frame):
+            frame.attachment = .feature(LeaderEnd(target: target, hint: hint))
+            return .featureControl(frame)
+        case .surfaceTexture(var texture):
+            texture.feature = LeaderEnd(target: target, hint: hint)
+            return .surfaceTexture(texture)
         }
     }
 }

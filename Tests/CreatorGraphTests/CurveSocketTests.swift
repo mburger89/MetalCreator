@@ -18,13 +18,13 @@ struct CurveSocketTests {
     }
 
     @Test func aGroupInterfaceCarriesACurveSocketAtFormat14() throws {
-        #expect(GraphFile.currentFormatVersion == 19)
+        #expect(GraphFile.currentFormatVersion == 20)
         var group = Doubler()
         group.definition.inputs = [SocketSpec("path", .curve, access: .list, optional: true)]
         let file = GraphFile(graph: Graph(), definitions: [group.definition.id: group.definition])
         let data = try GraphFileIO.encode(file)
         let back = try GraphFileIO.decode(data, registry: testRegistry)
-        #expect(back.formatVersion == 19)
+        #expect(back.formatVersion == 20)
         #expect(back.definitions[group.definition.id]?.inputs == group.definition.inputs)
         #expect(try #require(String(bytes: data, encoding: .utf8)).contains("\"curve\""))
     }

@@ -52,7 +52,7 @@ public enum DimensionNumber {
     static func render(
         _ value: Double, places: Int, keepZeros: Bool, format: NumberFormat, sign: SignMode = .minusOnly, leadingZero: Bool? = nil
     ) -> Rendered {
-        guard value.isFinite else { return Rendered(text: "0", isZero: true) }
+        guard value.isFinite else { return Rendered(text: "?", isZero: false) }
         var scale = 1.0
         for _ in 0..<places { scale *= 10 }
         let scaled = (Swift.abs(value) * scale * (1 + 1e-12)).rounded()

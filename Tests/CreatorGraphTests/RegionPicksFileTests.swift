@@ -41,7 +41,7 @@ struct RegionPicksFileTests {
     }
 
     @Test func theFormatIs16() {
-        #expect(GraphFile.currentFormatVersion == 19)
+        #expect(GraphFile.currentFormatVersion == 20)
     }
 
     @Test func keepRegionsIsNotReserved() {

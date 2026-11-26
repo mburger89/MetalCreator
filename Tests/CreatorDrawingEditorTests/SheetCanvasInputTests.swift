@@ -41,4 +41,15 @@ struct SheetCanvasInputTests {
         #expect(h.model.transform.zoom == before.zoom)
         #expect(h.model.transform.offset != before.offset)
     }
+
+    @Test func theLettersAGAndRChooseSymbolTools() {
+        for (key, tool) in [
+            (KeyEquivalent("a"), DrawingTool.datum), (KeyEquivalent("g"), .featureControlFrame),
+            (KeyEquivalent("r"), .surfaceFinish),
+        ] {
+            #expect(SheetCanvasInput.key(key, modifiers: []) == .tool(tool))
+            #expect(SheetCanvasInput.key(KeyEquivalent(Character(key.character.uppercased())), modifiers: []) == .tool(tool))
+        }
+        #expect(SheetCanvasInput.key("a", modifiers: .primary) == nil, "a chord belongs to the menus")
+    }
 }

@@ -4,6 +4,9 @@ public enum AnnotationKind: Hashable, Sendable {
     case centreMark(CentreMark)
     case centreLine(CentreLine)
     case note(DrawingNote)
+    case datumFeature(DatumFeature)
+    case featureControl(FeatureControlFrame)
+    case surfaceTexture(SurfaceTexture)
 }
 
 /// One annotation of a sheet (plan R2): on a view (`view`), or free on the sheet when nil.
@@ -18,5 +21,27 @@ public struct DrawingAnnotation: Hashable, Codable, Sendable, Identifiable {
         self.view = view
         self.kind = kind
         self.last = last
+    }
+}
+
+extension DrawingAnnotation {
+    /// What a datum or frame stands on, the `feature` of a surface symbol, nil for any other kind (plan R1).
+    public var symbolAttachment: SymbolAttachment? {
+        switch kind {
+        case .datumFeature(let datum): datum.attachment
+        case .featureControl(let frame): frame.attachment
+        case .surfaceTexture(let texture): .feature(texture.feature)
+        default: nil
+        }
+    }
+
+    /// The symbol kind, nil for any other annotation.
+    public var symbolKind: SymbolKind? {
+        switch kind {
+        case .datumFeature: .datum
+        case .featureControl: .frame
+        case .surfaceTexture: .surface
+        default: nil
+        }
     }
 }

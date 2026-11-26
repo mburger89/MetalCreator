@@ -5,7 +5,7 @@ import Testing
 @testable import CreatorGraph
 @testable import CreatorKernel
 
-/// The drawings are saved with the top-level graph (DR-1 Task 4): format 19, the key written only when there is a sheet, one command
+/// The drawings are saved with the top-level graph (DR-1 Task 4): format 20, the key written only when there is a sheet, one command
 /// that replaces the document, and the mode and sheet kept as view state.
 @MainActor
 struct DrawingsFileTests {
@@ -25,8 +25,8 @@ struct DrawingsFileTests {
         DocumentModel(file: GraphFile(), registry: testRegistry, kernel: FakeKernel())
     }
 
-    @Test func theFormatIs19() {
-        #expect(GraphFile.currentFormatVersion == 19)
+    @Test func theFormatIs20() {
+        #expect(GraphFile.currentFormatVersion == 20)
     }
 
     @Test func aDocumentWithoutDrawingsHasNoKey() throws {
@@ -42,7 +42,7 @@ struct DrawingsFileTests {
         let back = try reopened(file)
         #expect(back == file)
         #expect(back.graph.drawings.sheets.map(\.name) == ["Plate", "Cover"])
-        #expect(back.formatVersion == 19)
+        #expect(back.formatVersion == 20)
     }
 
     @Test func aFormat16FileOpens() throws {
@@ -50,10 +50,10 @@ struct DrawingsFileTests {
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 16)
         #expect(file.graph.drawings.isEmpty)
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 19)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
     }
 
-    @Test func aFormat17FileOpensAndIsWrittenAs19() throws {
+    @Test func aFormat17FileOpensAndIsWrittenAs20() throws {
         let text = #"""
         {"formatVersion": 17, "graph": {"nodes": [], "links": [], "parameters": [],
          "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
@@ -61,17 +61,17 @@ struct DrawingsFileTests {
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 17)
         #expect(file.graph.drawings.settings.generalTolerance == .iso2768(.m, .K))
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 19)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
     }
 
-    @Test func aFormat18FileOpensAndIsWrittenAs19() throws {
+    @Test func aFormat18FileOpensAndIsWrittenAs20() throws {
         let text = #"""
         {"formatVersion": 18, "graph": {"nodes": [], "links": [], "parameters": [],
          "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
         """#
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 18)
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 19)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
     }
 
     @Test func derivedViewsRoundTrip() throws {
@@ -93,7 +93,7 @@ struct DrawingsFileTests {
     }
 
     @Test func aNewerFileIsRefused() throws {
-        let text = #"{"formatVersion": 20, "graph": {"nodes": [], "links": [], "parameters": []}}"#
+        let text = #"{"formatVersion": 21, "graph": {"nodes": [], "links": [], "parameters": []}}"#
         #expect(throws: (any Error).self) { try GraphFileIO.decode(Data(text.utf8), registry: testRegistry) }
     }
 
@@ -117,6 +117,51 @@ struct DrawingsFileTests {
         #expect(back == file)
         #expect(back.graph.drawings.sheets[0].annotations == [annotation])
         #expect(back.graph.drawings.settings.decimalSign == .comma)
+    }
+
+    @Test func aFormat19FileOpensAndIsWrittenAs20() throws {
+        let text = #"""
+        {"formatVersion": 19, "graph": {"nodes": [], "links": [], "parameters": [],
+         "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
+        """#
+        let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
+        #expect(file.formatVersion == 19)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
+    }
+
+    @Test func symbolsRoundTrip() throws {
+        let node = NodeID()
+        let view = DrawingView(kind: .base, source: node, orientation: .standard(.front), center: Vector2(100, 100))
+        let tag = TopoTag(node: node, item: 0, role: .startCap)
+        let pick = EdgePick(key: EdgeKey([tag], [TopoTag(node: node, item: 0, role: .endCap)]), matchCount: 1)
+        let end = LeaderEnd(target: .edge(pick), hint: Vector2(1, 2))
+        let size = DrawingAnnotation(
+            view: view.id,
+            kind: .dimension(
+                DrawingDimension(kind: .diameter, anchors: [.edge(pick)], placement: DimensionPlacement(offset: 8, angle: 0))))
+        let datum = DrawingAnnotation(
+            view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(size.id), distance: 7, dimensionEnd: 1)))
+        let frame = DrawingAnnotation(
+            view: view.id,
+            kind: .featureControl(
+                FeatureControlFrame(
+                    characteristic: .position,
+                    rows: [ToleranceRow(zone: .diameter, value: 0.1, material: .maximum, datums: [DatumReference(letter: "A")])],
+                    attachment: .feature(end), offset: Vector2(5, -5))))
+        let surface = DrawingAnnotation(
+            view: view.id,
+            kind: .surfaceTexture(
+                SurfaceTexture(
+                    requirement: SurfaceRequirement(process: .removalRequired, parameter: .ra, value: 1.6), lay: .circular,
+                    feature: end)))
+        var sheet = DrawingSheet(name: "Plate", views: [view])
+        for annotation in [size, datum, frame, surface] { sheet.setAnnotation(annotation) }
+        sheet.notes = SheetNotes(lines: ["Deburr."], edgeBreak: EdgeBreak(minimum: 0.2, maximum: 0.4))
+        let file = GraphFile(graph: Graph(drawings: DrawingDocument(sheets: [sheet])))
+        let back = try reopened(file)
+        #expect(back == file)
+        #expect(back.graph.drawings.sheets[0].annotations.count == 4)
+        #expect(back.graph.drawings.sheets[0].notes == sheet.notes)
     }
 
     @Test func setDrawingsIsUndoable() throws {

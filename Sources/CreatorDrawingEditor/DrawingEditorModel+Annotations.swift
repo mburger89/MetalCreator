@@ -40,6 +40,7 @@ extension DrawingEditorModel {
     func dropPicks() {
         picks = []
         pickView = nil
+        symbolDraft = nil
         draftPicture = nil
     }
 
@@ -51,13 +52,17 @@ extension DrawingEditorModel {
     }
 
     /// Whether Esc has picks, a draft or a leader to drop.
-    var holdsAnnotationInput: Bool { !picks.isEmpty || draftPicture != nil || addingLeader != nil }
+    var holdsAnnotationInput: Bool { !picks.isEmpty || draftPicture != nil || addingLeader != nil || symbolDraft != nil }
 
     /// The picture with the annotation under construction composed in at the pointer, or none (plan R17). It is composed under the
     /// model's one draft id and never feeds `remembered`: its figures are nobody's last values.
     func updateDraft() {
         if holdsToolDraft {
             draftPicture = derivedDraftPicture()
+            return
+        }
+        if symbolDraft != nil {
+            draftPicture = symbolDraftPicture()
             return
         }
         guard !picks.isEmpty, let sheet, let pickView, let point = lastPointer,
@@ -85,17 +90,20 @@ extension DrawingEditorModel {
             hoverCandidate = nil
         }
         if let note = addingLeader, !present.contains(note) { addingLeader = nil }
+        pruneSymbolDraft()
     }
 
     // MARK: Committing
 
     /// Adds `kind` to the current sheet as one step and selects it.
-    func addAnnotation(_ kind: AnnotationKind, view: ViewID?, name: String) {
-        let annotation = DrawingAnnotation(view: view, kind: kind)
-        guard commitSheet(name, { $0.setAnnotation(annotation) }) else { return }
+    @discardableResult
+    func addAnnotation(_ kind: AnnotationKind, view: ViewID?, name: String, id: AnnotationID = AnnotationID()) -> Bool {
+        let annotation = DrawingAnnotation(id: id, view: view, kind: kind)
+        guard commitSheet(name, { $0.setAnnotation(annotation) }) else { return false }
         selection = []
         selectedAnnotations = [annotation.id]
         dropPicks()
+        return true
     }
 
     /// A note at `point` (sheet millimetres): in a view's frame it belongs to that view and sits relative to its centre.

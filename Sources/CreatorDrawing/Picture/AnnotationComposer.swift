@@ -59,6 +59,8 @@ struct AnnotationContext {
     var style: AnnotationStyle
     var drawingStyle: DrawingStyle
     var height: Double
+    /// The view takes no dimensions and no symbols on its lines (R17).
+    var isPictorial = false
 }
 
 /// Composes one annotation: resolve, measure, label, lay out and tag (plan R15, R25).
@@ -69,14 +71,18 @@ enum AnnotationComposer {
         if case .note(let note) = annotation.kind {
             return composeNote(annotation, note, context: context, remembered: remembered ?? annotation.last)
         }
+        if annotation.symbolKind != nil {
+            return composeSymbol(annotation, context: context, format: format, remembered: remembered ?? annotation.last)
+        }
         switch context.state {
         case .unlisted(let reason):
             let last = remembered ?? annotation.last
-            let label = lostLabel(annotation, last: last)
+            let label = lostLabel(annotation, last: last, format: format)
             return (
                 AnnotationReport(status: .lost(reason), label: reportText(annotation, label) ?? "?"), AnnotationPieces())
         case .failed(let reason):
-            return lostDrawn(annotation, reason: reason, anchors: [], context: context, last: remembered ?? annotation.last)
+            return lostDrawn(
+                annotation, reason: reason, anchors: [], context: context, format: format, last: remembered ?? annotation.last)
         case .annotated(let topology, let frame):
             guard let evaluated = AnnotationEvaluator.evaluate(annotation, topology: topology, frame: frame, format: format) else {
                 return (AnnotationReport(status: .lost(.noPart)), AnnotationPieces())
@@ -84,12 +90,14 @@ enum AnnotationComposer {
             switch evaluated.outcome {
             case .failure(let reason):
                 return lostDrawn(
-                    annotation, reason: reason, anchors: evaluated.anchors, context: context, last: remembered ?? annotation.last)
+                    annotation, reason: reason, anchors: evaluated.anchors, context: context, format: format,
+                    last: remembered ?? annotation.last)
             case .success(let held):
                 let made = pieces(of: annotation, figure: held.current.figure, labels: held.labels, context: context, isLost: false)
                 let report = AnnotationReport(
                     status: .held, anchors: evaluated.anchors, current: held.current, label: held.label,
-                    frame: made.value.frame ?? Rect2D(min: .zero, max: .zero), textCenter: made.drawing?.textCenter)
+                    frame: made.value.frame ?? Rect2D(min: .zero, max: .zero), textCenter: made.drawing?.textCenter,
+                    labelRect: made.drawing?.labelRect, dimensionLine: made.drawing?.dimensionLine)
                 return (report, made.value)
             }
         }
@@ -99,9 +107,10 @@ enum AnnotationComposer {
 
     /// A lost annotation: its last figure through the view's mapping, every value marked "?"; a lone "?" with nothing remembered.
     private static func lostDrawn(
-        _ annotation: DrawingAnnotation, reason: LostReason, anchors: [AnchorStatus], context: AnnotationContext, last: LastGood?
+        _ annotation: DrawingAnnotation, reason: LostReason, anchors: [AnchorStatus], context: AnnotationContext,
+        format: NumberFormat, last: LastGood?
     ) -> (report: AnnotationReport, pieces: AnnotationPieces) {
-        let labels = lostLabel(annotation, last: last)
+        let labels = lostLabel(annotation, last: last, format: format)
         var drawn: (value: AnnotationPieces, drawing: AnnotationDrawing?)?
         if let last, context.mapping != nil {
             let made = pieces(of: annotation, figure: last.figure, labels: labels, context: context, isLost: true)
@@ -112,6 +121,8 @@ enum AnnotationComposer {
         if let drawn {
             report.frame = drawn.value.frame ?? report.frame
             report.textCenter = drawn.drawing?.textCenter
+            report.labelRect = drawn.drawing?.labelRect
+            report.dimensionLine = drawn.drawing?.dimensionLine
             return (report, drawn.value)
         }
         // Nothing to draw from: a lone "?" at the view frame's bottom left (a view with no projection draws nothing).
@@ -135,18 +146,20 @@ enum AnnotationComposer {
         return labels.first?.plainText
     }
 
-    /// The labels of a lost annotation: its remembered lines, the first of each marked "?".
-    private static func lostLabel(_ annotation: DrawingAnnotation, last: LastGood?) -> [DimensionLabel] {
-        guard let last, !last.lines.isEmpty else { return [] }
+    /// The labels of a lost annotation, the first of each marked "?": a dimension's rebuilt from its remembered values with its
+    /// own tolerance, so a basic dimension stays boxed and a deviation keeps its stack, else its remembered lines.
+    private static func lostLabel(_ annotation: DrawingAnnotation, last: LastGood?, format: NumberFormat) -> [DimensionLabel] {
+        guard let last else { return [] }
         switch annotation.kind {
-        case .holeCallout: return [DimensionLabel.restored(from: last.lines).lost()]
+        case .holeCallout:
+            return last.lines.isEmpty ? [] : [DimensionLabel.restored(from: last.lines).lost()]
         case .dimension(let dimension):
             var isOrdinate = false
             if case .ordinate = dimension.kind { isOrdinate = true }
-            return last.lines.enumerated().map { index, line in
-                let label = DimensionLabel.restored(from: [line])
-                return isOrdinate && index == 0 ? label : label.lost()
-            }
+            var base: [DimensionLabel]?
+            if !last.values.isEmpty { base = try? AnnotationEvaluator.labels(of: dimension, values: last.values, format: format) }
+            let labels = base ?? last.lines.map { DimensionLabel.restored(from: [$0]) }
+            return labels.enumerated().map { index, label in isOrdinate && index == 0 ? label : label.lost() }
         default: return []
         }
     }
