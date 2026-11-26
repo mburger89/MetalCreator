@@ -19,6 +19,8 @@ public final class DrawingEditorModel {
     /// The annotations chosen on the current sheet.
     public var selectedAnnotations: Set<AnnotationID> = []
     public internal(set) var tool: DrawingTool = .select
+    /// What ⌘C or ⌘X put aside (DR-5 R18): the editor's own, never the system pasteboard.
+    public internal(set) var clipboard: DrawingClipboard?
     public var transform = SheetTransform() {
         // A pan or a zoom is the person's: the sheet is no longer waiting to be fitted to the canvas's first real size.
         didSet { fitsOnNextSize = false }

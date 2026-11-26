@@ -23,6 +23,12 @@ extension DrawingEditorModel {
             return finishSectionDraft()
         case .escape:
             return escapePressed()
+        case .copy:
+            return copySelection()
+        case .cut:
+            return cutSelection()
+        case .paste:
+            return paste()
         }
     }
 

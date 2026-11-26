@@ -10,6 +10,8 @@ public enum DrawingKey: Hashable, Sendable {
     case tool(DrawingTool)
     /// Return: finishes a cutting line.
     case finish
+    /// ⌘C, ⌘X and ⌘V (Ctrl elsewhere): the editor's own clipboard (DR-5 R18).
+    case copy, cut, paste
 }
 
 /// The modifiers the editor reads; graph-free, as `CanvasModifiers` is for the graph. The views map MetalUI's into it.

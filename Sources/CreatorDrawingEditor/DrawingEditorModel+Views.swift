@@ -78,9 +78,14 @@ extension DrawingEditorModel {
     }
 
     public func deleteSelection() {
+        removeSelection(named: nil)
+    }
+
+    /// Deletes the selection as one step: `name`, else the delete name its contents give.
+    func removeSelection(named chosen: String?) {
         guard let id = currentSheet, !selection.isEmpty || !selectedAnnotations.isEmpty else { return }
         let doomed = selection, doomedAnnotations = selectedAnnotations
-        let name = deleteName(of: doomedAnnotations, withViews: !doomed.isEmpty)
+        let name = chosen ?? deleteName(of: doomedAnnotations, withViews: !doomed.isEmpty)
         commitSheet(id, name) { sheet in
             for annotation in doomedAnnotations { sheet.removeAnnotation(annotation) }
             for view in sheet.views where doomed.contains(view.id) {

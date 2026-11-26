@@ -40,32 +40,12 @@ extension DrawingEditorModel {
     public func duplicateSheet(_ id: SheetID) {
         guard let index = document.sheets.firstIndex(where: { $0.id == id }) else { return }
         let original = document.sheets[index]
-        var views = original.views
-        var renamed: [ViewID: ViewID] = [:]
-        for view in views { renamed[view.id] = ViewID() }
-        for position in views.indices {
-            views[position].id = renamed[views[position].id] ?? views[position].id
-            if let alignment = views[position].alignment {
-                views[position].alignment = renamed[alignment.parent].map {
-                    ViewAlignment(parent: $0, axis: alignment.axis)
-                }
-            }
-            if let derivation = views[position].derivation, let parent = renamed[derivation.parent] {
-                views[position].derivation = derivation.withParent(parent)
-            }
-        }
-        var newIDs: [AnnotationID: AnnotationID] = [:]
-        for annotation in original.annotations { newIDs[annotation.id] = AnnotationID() }
-        let annotations = original.annotations.map { annotation -> DrawingAnnotation in
-            var copied = annotation
-            copied.id = newIDs[annotation.id] ?? AnnotationID()
-            copied.view = annotation.view.flatMap { renamed[$0] }
-            copied.kind = Self.remappingAttachment(of: annotation.kind, newIDs)
-            return copied
-        }
-        let copy = DrawingSheet(
+        let blank = DrawingSheet(
             name: uniqueCopyName(of: original.name), size: original.size, orientation: original.orientation, scale: original.scale,
-            titleBlock: original.titleBlock, views: views, annotations: annotations, notes: original.notes)
+            titleBlock: original.titleBlock, notes: original.notes)
+        let copied = SheetCopy.copy(
+            views: original.views, annotations: original.annotations, onto: blank, offset: .zero, keepingLetters: true)
+        let copy = copied.sheet
         commit(DrawingStepName.duplicateSheet) { $0.sheets.insert(copy, at: index + 1) }
         show(sheet: copy.id)
     }
@@ -78,23 +58,6 @@ extension DrawingEditorModel {
         var number = 2
         while used.contains("\(base) \(number)") { number += 1 }
         return "\(base) \(number)"
-    }
-
-    /// A copied symbol on a dimension names the copied dimension (plan R14).
-    private static func remappingAttachment(of kind: AnnotationKind, _ ids: [AnnotationID: AnnotationID]) -> AnnotationKind {
-        func remapped(_ attachment: SymbolAttachment) -> SymbolAttachment {
-            if case .dimension(let id) = attachment { return .dimension(ids[id] ?? id) }
-            return attachment
-        }
-        switch kind {
-        case .datumFeature(var datum):
-            datum.attachment = remapped(datum.attachment)
-            return .datumFeature(datum)
-        case .featureControl(var frame):
-            frame.attachment = remapped(frame.attachment)
-            return .featureControl(frame)
-        default: return kind
-        }
     }
 
     public func deleteSheet(_ id: SheetID) {

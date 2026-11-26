@@ -60,4 +60,12 @@ struct SheetCanvasInputTests {
         }
         #expect(SheetCanvasInput.key("b", modifiers: .primary) == nil)
     }
+
+    @Test func primaryCXVAreClipboardKeys() {
+        #expect(SheetCanvasInput.key("c", modifiers: .primary) == .copy)
+        #expect(SheetCanvasInput.key("x", modifiers: .primary) == .cut)
+        #expect(SheetCanvasInput.key("v", modifiers: .primary) == .paste)
+        #expect(SheetCanvasInput.key("s", modifiers: .primary) == nil)
+        #expect(SheetCanvasInput.key("c", modifiers: [.primary, .shift]) == nil)
+    }
 }

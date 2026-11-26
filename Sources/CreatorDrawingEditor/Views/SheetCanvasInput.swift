@@ -24,6 +24,8 @@ enum SheetCanvasInput {
 
     /// The drawing key a press stands for: F, the tool letters D, H, M, L, N, S, E, U, A, G, R, B and P, Return (finishes a cutting line), Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
     static func key(_ key: KeyEquivalent, modifiers: EventModifiers, isRepeat: Bool = false) -> DrawingKey? {
+        // ⌘C, ⌘X and ⌘V (Ctrl elsewhere) are the editor's clipboard; every other chord belongs to the menus.
+        if let clipboard = clipboardKey(key, modifiers: modifiers) { return clipboard }
         // A chord with ⌘ (Ctrl elsewhere) or ⌥ belongs to the menus.
         if modifiers.contains(.primary) || modifiers.contains(.control) || modifiers.contains(.option) { return nil }
         if let letter = key.character.lowercased().first, let tool = toolLetters[letter] { return .tool(tool) }
@@ -34,6 +36,13 @@ enum SheetCanvasInput {
         case .escape: return .escape
         default: return arrow(key, step: modifiers.contains(.shift) ? 10.0 : 1.0, isRepeat: isRepeat)
         }
+    }
+
+    private static let clipboardLetters: [Character: DrawingKey] = ["c": .copy, "x": .cut, "v": .paste]
+
+    private static func clipboardKey(_ key: KeyEquivalent, modifiers: EventModifiers) -> DrawingKey? {
+        guard modifiers.contains(.primary), !modifiers.contains(.option), !modifiers.contains(.shift) else { return nil }
+        return key.character.lowercased().first.flatMap { clipboardLetters[$0] }
     }
 
     private static func arrow(_ key: KeyEquivalent, step: Double, isRepeat: Bool) -> DrawingKey? {
