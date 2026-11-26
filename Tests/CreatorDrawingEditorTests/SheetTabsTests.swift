@@ -43,9 +43,30 @@ struct SheetTabsTests {
     @Test func plusAddsASheet() async throws {
         let f = try await open()
         f.window.window.click(at: try centre(f, "Add Sheet"))
+        try await f.window.window.runUntilIdle()
+        try f.window.window.chooseMenuItem("New Sheet")
+        try await f.window.window.runUntilIdle()
         #expect(f.harness.model.document.sheets.map(\.name) == ["Sheet 1", "Sheet 2", "Sheet 3"])
         #expect(f.harness.model.currentSheet == f.harness.model.document.sheets.last?.id)
         #expect(f.harness.log.commits.map(\.name) == ["Add Sheet"])
+    }
+
+    @Test func thePlusMenuListsTemplates() async throws {
+        let one = DrawingSheet(name: "Sheet 1")
+        var requests: [DrawingEditorRequest] = []
+        let model = DrawingEditorModel(
+            document: EditorDocuments.document([one]), sheet: one.id, today: { "2026-11-24" },
+            events: DrawingEditorEvents(committed: { _ in }, requested: { requests.append($0) }))
+        model.templateChoices = [DrawingTemplateChoice(id: "t1", name: "Acme"), DrawingTemplateChoice(id: "t2", name: "Shop")]
+        let window = try await DrawingWindow.open(size: Size(width: Pixels(600), height: Pixels(100)), scaleFactor: 2) {
+            SheetTabs(model: model)
+        }
+        let plus = try window.window.element(label: "Add Sheet")
+        window.window.click(at: Point(x: plus.frame.origin.x + 4, y: plus.frame.origin.y + 4))
+        try await window.window.runUntilIdle()
+        try window.window.chooseMenuItem("New Sheet from “Shop”")
+        try await window.window.runUntilIdle()
+        #expect(requests == [.newSheetFromTemplate("t2")])
     }
 
     @Test func aDoubleClickRenamesInPlace() async throws {

@@ -31,6 +31,9 @@ extension DrawingEditorModel {
         for (part, name) in names where rememberedPartNames[part] != name { rememberedPartNames[part] = name }
     }
 
+    /// What each part is called: the facts' names, else the remembered ones (the order the balloons show, DR-5 R5).
+    var partNames: [NodeID: String] { pinningNames }
+
     private var pinningNames: [NodeID: String] {
         var names = PartItems.names(of: partFacts)
         for (part, name) in rememberedPartNames where names[part] == nil { names[part] = name }

@@ -27,6 +27,12 @@ struct SheetViewEqualityTests {
     }
 
     private let fixedID = ViewID()
+    private let sharedBitmaps = SheetBitmaps()
+    private var image: SheetImage {
+        SheetImage(
+            rect: Rect2D(min: .zero, max: Vector2(4, 3)),
+            pixels: GreyPixels(key: "k", width: 2, height: 1, bytes: [0, 255])!)
+    }
     private let fill = SheetFill(points: [Vector2(0, 0), Vector2(2, 0), Vector2(1, 1)])
 
     @Test func theViewLayerReadsEveryPropertyInEquals() {
@@ -54,12 +60,13 @@ struct SheetViewEqualityTests {
 
     @Test func theFrameLayerReadsEveryPropertyInEquals() {
         func frameLayer(
-            strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, fills: [SheetFill]? = nil, zoom: Double = 2,
-            paperHeight: Double = 210, colors: DrawingColors? = nil, style: DrawingStyle = .iso
+            strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, fills: [SheetFill]? = nil, images: [SheetImage]? = nil,
+            bitmaps: SheetBitmaps? = nil, zoom: Double = 2, paperHeight: Double = 210, colors: DrawingColors? = nil,
+            style: DrawingStyle = .iso
         ) -> SheetFrameLayer {
             SheetFrameLayer(
-                strokes: strokes ?? [stroke], texts: texts ?? [text], fills: fills ?? [fill], zoom: zoom, paperHeight: paperHeight,
-                colors: colors ?? self.colors, style: style)
+                strokes: strokes ?? [stroke], texts: texts ?? [text], fills: fills ?? [fill], images: images ?? [image],
+                bitmaps: bitmaps ?? sharedBitmaps, zoom: zoom, paperHeight: paperHeight, colors: colors ?? self.colors, style: style)
         }
         var other = colors
         other.paper = HexColor(0xeeeeee)
@@ -69,6 +76,8 @@ struct SheetViewEqualityTests {
                 "strokes": frameLayer(strokes: []),
                 "texts": frameLayer(texts: []),
                 "fills": frameLayer(fills: []),
+                "images": frameLayer(images: []),
+                "bitmaps": frameLayer(bitmaps: SheetBitmaps()),
                 "zoom": frameLayer(zoom: 3),
                 "paperHeight": frameLayer(paperHeight: 297),
                 "colors": frameLayer(colors: other),
@@ -106,5 +115,30 @@ struct SheetViewEqualityTests {
         let clockwise = Array(counter.reversed())
         #expect(SheetFillShape.counterClockwise(counter) == counter)
         #expect(SheetFillShape.counterClockwise(clockwise) == counter, "a clockwise polygon is turned round")
+    }
+
+    @Test func theImageLayerReadsEveryPropertyInEquals() {
+        func layer(
+            images: [SheetImage]? = nil, bitmaps: SheetBitmaps? = nil, zoom: Double = 2, paperHeight: Double = 210
+        ) -> SheetImageLayer {
+            SheetImageLayer(images: images ?? [image], bitmaps: bitmaps ?? sharedBitmaps, zoom: zoom, paperHeight: paperHeight)
+        }
+        expectEqualityCovers(
+            layer(), equalTo: layer(),
+            [
+                "images": layer(images: []),
+                "bitmaps": layer(bitmaps: SheetBitmaps()),
+                "zoom": layer(zoom: 3),
+                "paperHeight": layer(paperHeight: 297),
+            ])
+    }
+
+    @Test func aBitmapIsMadeOncePerKey() {
+        let bitmaps = SheetBitmaps()
+        let one = bitmaps.bitmap(for: image.pixels)
+        #expect(one.width == 2 && one.height == 1)
+        #expect(bitmaps.count == 1)
+        _ = bitmaps.bitmap(for: image.pixels)
+        #expect(bitmaps.count == 1)
     }
 }

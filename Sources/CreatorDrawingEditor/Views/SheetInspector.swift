@@ -75,7 +75,19 @@ struct SheetInspector: Component {
             Text("TITLE BLOCK").font(.caption2).foregroundStyle(colors.secondary.color)
             ForEach(Self.fields, id: \.0) { field in
                 DrawingRow(field.1, colors: colors) {
-                    DrawingField(model: model, text: typed(field.0), width: 150) { model.setTitleField(field.0, to: $0) }
+                    if field.0 == .revision, !sheet.revisionIsTyped {
+                        Text("From the revision table").font(.callout).foregroundStyle(colors.secondary.color)
+                    } else {
+                        DrawingField(model: model, text: typed(field.0), width: 150) { model.setTitleField(field.0, to: $0) }
+                    }
+                }
+            }
+            DrawingRow("Logo", colors: colors) {
+                HStack(spacing: Pixels(8)) {
+                    Button("Choose Logo…") { model.request(.chooseLogo(sheet.id)) }
+                    if sheet.titleBlock.logo != nil {
+                        Button("Remove Logo") { model.setLogo(nil, of: sheet.id) }
+                    }
                 }
             }
             DrawingRow("Density g/cm³", colors: colors) {
@@ -84,6 +96,7 @@ struct SheetInspector: Component {
                 }
             }
             SheetNotesSection(model: model, sheet: sheet, colors: colors)
+            TemplatesSection(model: model, sheet: sheet, colors: colors)
             lostReferences
             if let refusal = model.refusal {
                 Text(refusal).font(.caption).foregroundStyle(colors.warning.color)
@@ -140,4 +153,9 @@ extension SheetInspector {
             }
         }
     }
+}
+
+extension DrawingSheet {
+    /// Whether the title block's Revision field is the person's to type: it is, unless the sheet's revision table has rows (DR-5 R9).
+    var revisionIsTyped: Bool { revisionTable?.table.rows.isEmpty ?? true }
 }

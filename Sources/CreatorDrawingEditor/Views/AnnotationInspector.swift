@@ -44,7 +44,22 @@ struct AnnotationInspector: Component {
         case .surfaceTexture(let texture):
             SurfaceInspector(model: model, id: annotation.id, texture: texture, report: report, colors: colors)
         case .balloon, .partsList, .revisionTable:
-            deletePage("Annotation")  // DR-5 Task 10
+            assemblyPage(annotation, report)
+        }
+    }
+
+    /// The balloon, the parts list and the revision table (DR-5 R20).
+    @ElementBuilder
+    private func assemblyPage(_ annotation: DrawingAnnotation, _ report: AnnotationReport?) -> some ElementGroup {
+        switch annotation.kind {
+        case .balloon(let balloon):
+            BalloonInspector(model: model, sheet: sheet, annotation: annotation, balloon: balloon, report: report, colors: colors)
+        case .partsList:
+            PartsListInspector(model: model, colors: colors)
+        case .revisionTable(let table):
+            RevisionTableInspector(model: model, table: table, colors: colors)
+        default:
+            deletePage("Annotation")
         }
     }
 

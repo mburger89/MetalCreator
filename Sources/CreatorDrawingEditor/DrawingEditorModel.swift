@@ -87,6 +87,8 @@ public final class DrawingEditorModel {
     }
     /// The templates the sheet inspector offers; set by the host (DR-5 R10).
     public var templateChoices: [DrawingTemplateChoice] = []
+    /// Why the last template save or delete failed, shown under the template rows; set by the host, nil when the last change worked.
+    public var templateProblem: String?
     /// What each wanted part is called, as the facts the composer reads say (DR-5 R5); set by the host from that same build, so the
     /// order the editor pins is the order the balloons show.
     public var partFacts: [NodeID: PartFacts] = [:]
@@ -101,6 +103,9 @@ public final class DrawingEditorModel {
     var standardUnitsAreInches: Bool { units.length == .inches }
     let today: () -> String
     let events: DrawingEditorEvents
+
+    /// The bitmaps of the sheet's pictures, made once per image (DR-5 R12); not observed.
+    @ObservationIgnored let bitmaps = SheetBitmaps()
 
     // Gesture state; not observed.
     @ObservationIgnored var gesture: Gesture?
