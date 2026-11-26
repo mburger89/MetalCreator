@@ -24,6 +24,8 @@ drawing document, as a `SketchCommit` carries the whole sketch), which the app s
 and the smaller calls on PDF bytes, the title-block date, `drawingHighlight` and a view whose Output is deleted). Dimensions,
 sections, details, auxiliary views, GD&T, balloons, parts lists and MCP tools are DR-2 to DR-5: leave them out.
 
+**Errata (drawings minors, 2026-11-26):** R10's polyline sampler is not GCPnts: the shim samples by its own bisection (at least 8 pieces, depth 16). This line corrects the plan.
+
 ## Global Constraints
 
 - **Worktree and branch.** `/Users/maxburger/Developer/MetalCreator-dr1`, branch `dr-1`. Never touch `../MetalUI` (read it, never edit

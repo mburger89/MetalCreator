@@ -37,14 +37,55 @@ struct DetailClipTests {
         #expect(clip([curve]) == [curve])
     }
 
-    @Test func anArcStaysAnArc() {
+    @Test func anArcStaysAnArc() throws {
         let result = clip([.arc(center: Vector2(10, 5), radius: 6, start: 0, sweep: 2 * Double.pi)])
         #expect(result.isEmpty)
+        // The arc of radius 4 about (10, 1) meets the clip circle at 30 and 150 degrees; the part between them is inside.
         let crossing = clip([.arc(center: Vector2(10, 1), radius: 4, start: 0, sweep: Double.pi)])
-        #expect(!crossing.isEmpty && crossing.count <= 2)
-        for piece in crossing {
-            guard case .arc(let c, let r, _, _) = piece else { Issue.record("not an arc"); continue }
-            #expect(c == Vector2(10, 1) && r == 4)
+        #expect(crossing.count == 1)
+        guard case .arc(let c, let r, let start, let sweep) = try #require(crossing.first) else {
+            Issue.record("not an arc")
+            return
+        }
+        #expect(c == Vector2(10, 1) && r == 4)
+        #expect(abs(start - Double.pi / 6) < 1e-9)
+        #expect(abs(start + sweep - 5 * Double.pi / 6) < 1e-9)
+    }
+
+    @Test func aFullCircleCutAtItsStartIsOneArc() throws {
+        // About (7, 5) with radius 2 the angle 0 point (9, 5) is inside and the angle 180 degrees point (5, 5) outside, so the two
+        // inside runs [0, a] and [b, 2 pi] meet at angle 0 and are one arc.
+        let result = clip([.arc(center: Vector2(7, 5), radius: 2, start: 0, sweep: 2 * Double.pi)])
+        #expect(result.count == 1)
+        guard case .arc(let c, let r, let start, let sweep) = try #require(result.first) else {
+            Issue.record("not an arc")
+            return
+        }
+        #expect(c == Vector2(7, 5) && r == 2 && sweep > 0 && sweep < 2 * Double.pi)
+        for angle in [start, start + sweep] {
+            #expect(abs(dist(Vector2(c.x + r * cos(angle), c.y + r * sin(angle))) - 4) < 1e-9)
+        }
+        #expect(start > Double.pi && start + sweep > 2 * Double.pi)
+    }
+
+    @Test func anEllipseThatOnlyJustLeavesTheCircleIsCut() {
+        // The ellipse pokes 0.0002 mm out of the circle at both ends of its major axis, over about a hundredth of a radian, which is
+        // less than the 256-step sampling's spacing: no sample sees it, only the dip between samples does. The ellipse starts half a
+        // step before its vertex so that neither sample beside the vertex is outside either.
+        let step = 2 * Double.pi / 256
+        let curve = ProjectedCurve.ellipse(
+            center: Vector2(10, 5), majorAxis: Vector2(1, 0), majorRadius: 4.0002, minorRadius: 2, start: -step / 2,
+            sweep: 2 * Double.pi)
+        let result = clip([curve])
+        #expect(result.count == 2)
+        for piece in result {
+            guard case .ellipse(let c, _, let major, let minor, let start, let sweep) = piece else {
+                Issue.record("not an ellipse")
+                continue
+            }
+            for t in [start, start + sweep] {
+                #expect(abs(dist(Vector2(c.x + major * cos(t), c.y + minor * sin(t))) - 4) < 1e-9)
+            }
         }
     }
 

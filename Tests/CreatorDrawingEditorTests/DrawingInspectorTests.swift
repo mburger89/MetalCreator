@@ -205,6 +205,36 @@ struct DrawingInspectorScaleDensityTests {
         #expect(try fields() == before, "the other view follows the sheet's scale")
     }
 
+    @Test func customOnOneSheetDoesNotCarryToTheNext() async throws {
+        let sheets = [DrawingSheet(name: "Sheet 1"), DrawingSheet(name: "Sheet 2")]
+        let h = EditorHarness(document: EditorDocuments.document(sheets), sheet: sheets[0].id)
+        let window = try await DrawingWindow.open(size: Size(width: Pixels(400), height: Pixels(900)), scaleFactor: 1) {
+            DrawingInspector(model: h.model)
+        }
+        func fields() throws -> Int { try window.window.elements(role: .textField).count }
+        let before = try fields()
+        let menus = try window.window.elements(role: .popUpButton)
+        let scaleMenu = try #require(menus.first { $0.value == h.model.document.sheets[0].scale.text(for: .iso) })
+        window.window.click(at: Point(x: scaleMenu.frame.origin.x + 4, y: scaleMenu.frame.origin.y + 4))
+        try await window.window.runUntilIdle()
+        try window.window.chooseMenuItem("Custom…")
+        try await window.window.runUntilIdle()
+        #expect(try fields() == before + 2, "Custom… shows the two fields")
+        // Typing through the rendered fields sets the sheet's scale.
+        let ones = try window.window.elements(role: .textField).filter { $0.value == "1" }
+        #expect(ones.count == 2, "the numerator and the denominator: \(ones.count)")
+        let denominator = try #require(ones.last)
+        window.window.click(at: Point(x: denominator.frame.origin.x + 4, y: denominator.frame.origin.y + 4))
+        try await window.window.runUntilIdle()
+        window.window.typeText("3")
+        window.window.typeKey(.return)
+        try await window.window.runUntilIdle()
+        #expect([13, 31].contains(h.model.document.sheets[0].scale.denominator), "scale: \(h.model.document.sheets[0].scale)")
+        h.model.selectSheet(sheets[1].id)
+        try await window.window.runUntilIdle()
+        #expect(try fields() == before, "the other sheet shows its own scale")
+    }
+
     @Test func aTypedScaleOnAViewIsOneStep() {
         let (h, view) = harness()
         h.model.setScale(DrawingScale(numerator: 1, denominator: 3), of: view.id)

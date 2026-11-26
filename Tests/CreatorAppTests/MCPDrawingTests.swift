@@ -188,4 +188,97 @@ struct MCPDrawingTests {
         #expect(!done.isError)
         #expect(try String(contentsOf: url, encoding: .utf8).hasPrefix("<?xml"))
     }
+
+    /// An app in Model mode with a view on each of two sheets (different orientations, so no projection is shared).
+    func twoSheets(kernel: FakeKernel) async throws -> (AppModel, DrawingBox) {
+        let box = DrawingBox(width: 40)
+        let app = await AppModel.inDrawing(box.graph, kernel: kernel)
+        _ = try #require(await app.placeBaseView())
+        app.drawing.editor.addSheet()
+        await app.settle()
+        _ = try #require(await app.placeBaseView())
+        var drawings = app.drawing.editor.document
+        var second = drawings.sheets[1].views[0]
+        second.orientation = .standard(.top)
+        drawings.sheets[1].setView(second)
+        try app.document.perform(.setDrawings(drawings), name: "Top")
+        app.setMode(.model)
+        await app.settle()
+        return (app, box)
+    }
+
+    @Test func aFailedViewMakesTheSheetIncomplete() async throws {
+        let kernel = FakeKernel()
+        let (app, box) = try await twoSheets(kernel: kernel)
+        let (_, core) = rig(app)
+        await kernel.setProjectionHook { throw KernelError.unsupported("projecting views") }
+        try app.document.perform(.setInput(box.rectangle.id, "width", .number(60)), name: "Wider")
+        await app.settle()
+        let sheetID = try #require(app.document.drawings.sheets.first?.id.rawValue.uuidString)
+        let (result, isError) = try await call(core, "get_sheet", .object(["sheet": .string(sheetID)]))
+        #expect(!isError)
+        let status = try #require(result["views"]?.array?.first)
+        #expect(status["status"]?.string == "failed", "\(status)")
+        #expect(status["problem"]?.string?.isEmpty == false)
+        #expect(result["complete"]?.bool == false)
+    }
+
+    @Test func aRemovedPartKeepsItsNameInTheList() async throws {
+        let box = DrawingBox(width: 40)
+        let app = await AppModel.inDrawing(box.graph)
+        _ = try #require(await app.placeBaseView())
+        let name = try #require(app.document.graph.nodes[box.output.id]?.name)
+        await app.settle()
+        try app.document.perform(.removeNode(box.output.id), name: "Remove")
+        await app.settle()
+        let (_, core) = rig(app)
+        let (result, isError) = try await call(core, "list_drawings")
+        #expect(!isError)
+        let parts = try #require(result["sheets"]?.array?.first?["views"]?.array?.first?["parts"]?.array)
+        #expect(parts.first?["name"]?.string == name, "\(parts)")
+    }
+
+    @Test func anExportComposesEachSheetOnce() async throws {
+        let (app, _) = try await twoSheets(kernel: FakeKernel())
+        let (_, core) = rig(app)
+        let url = temporaryURL("once.pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        app.drawing.composeCount = 0
+        let (_, isError) = try await call(core, "export_drawing", .object(["kind": .string("pdf"), "path": .string(url.path)]))
+        #expect(!isError)
+        #expect(app.drawing.composeCount == 2)
+    }
+
+    @Test func oneDeadlineCoversEverySheetOfAnExport() async throws {
+        let kernel = FakeKernel()
+        let (app, box) = try await twoSheets(kernel: kernel)
+        let (session, core) = rig(app)
+        // A clock the test moves: no timing margin. The limit is ten seconds; the first sheet's projection uses up 9.9 of them.
+        let offset = Mutex<Duration>(.zero)
+        let start = ContinuousClock.now
+        session.drawingNow = { start.advanced(by: offset.withLock { $0 }) }
+        session.drawingSettleLimit = .seconds(10)
+        let gate = HookGate()
+        defer { gate.open() }
+        let calls = Mutex(0)
+        await kernel.setProjectionHook {
+            if calls.withLock({ $0 += 1; return $0 }) == 1 {
+                offset.withLock { $0 = .milliseconds(9_900) }
+            } else {
+                await gate.hold()
+            }
+        }
+        try app.document.perform(.setInput(box.rectangle.id, "width", .number(60)), name: "Wider")
+        await app.document.waitForEvaluation()
+        let url = temporaryURL("late.pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        // The second sheet's projection stays held until the tool has answered, so only its (shortened) wait can end.
+        let refused = try await call(core, "export_drawing", .object(["kind": .string("pdf"), "path": .string(url.path)]))
+        #expect(refused.isError)
+        #expect(refused.result.string == "MetalCreator is still drawing this sheet. Try again in a moment.")
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(session.drawingWaits.count == 2)
+        #expect(session.drawingWaits[0] == .seconds(10))
+        #expect(session.drawingWaits[1] <= .milliseconds(100), "the second sheet gets what the first left, not a fresh limit")
+    }
 }

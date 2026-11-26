@@ -191,13 +191,12 @@ public protocol Kernel: Actor {
     /// tool's tag: its side faces become the cut faces). `nil` when nothing is left; the solid itself when the line misses it.
     /// The default refuses.
     func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid?
+    /// `cutAway` plus the sentences for what the cut had to leave out (a sheet beside a part that couldn't be cut). The default
+    /// forwards to `cutAway` with none.
+    func cutAwayNoting(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> (solid: Solid?, warnings: [String])
 }
 
 extension Kernel {
-    public func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
-        throw KernelError.unsupported("cutting sections")
-    }
-
     public func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) throws
         -> Projection2D {
         throw KernelError.unsupported("projecting views")

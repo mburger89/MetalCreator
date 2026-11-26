@@ -140,3 +140,49 @@ extension SymbolComposerTests {
                 == "This symbol hangs on a dimension; reattach the dimension and the symbol follows it.")
     }
 }
+
+extension SymbolComposerTests {
+    // MARK: On a hole callout and on a cylinder's outline
+
+    @Test func symbolsHangOnAHoleCallout() throws {
+        let view = Fixtures.makeView()
+        let callout = DrawingAnnotation(
+            view: view.id,
+            kind: .holeCallout(HoleCallout(anchor: Fixtures.pick(part, 0), placement: DimensionPlacement(offset: 10, angle: 0.7))))
+        let boxed = frame(view, .dimension(callout.id), offset: .zero)
+        let marked = datum(view, .dimension(callout.id))
+        let picture = Fixtures.compose(view, [callout, boxed, marked], content: Fixtures.content())
+        let rect = try #require(picture.annotationReports[callout.id]?.labelRect)
+        #expect(picture.annotationReports[boxed.id]?.status == .held)
+        #expect(picture.annotationReports[marked.id]?.status == .held)
+        // The frame stacks a text gap under the callout's text; the datum hangs below the frame, never over the callout.
+        #expect(hasPoint(Fixtures.strokes(picture, of: boxed.id), Vector2(rect.min.x, rect.min.y - style.textGap)))
+        let fill = try #require(picture.fills.first { $0.annotation == marked.id })
+        #expect(fill.points.allSatisfy { $0.y < rect.min.y })
+        // The callout moving takes both symbols along.
+        let moved = DrawingAnnotation(
+            id: callout.id, view: view.id,
+            kind: .holeCallout(HoleCallout(anchor: Fixtures.pick(part, 0), placement: DimensionPlacement(offset: 20, angle: 0.7))))
+        let again = Fixtures.compose(view, [moved, boxed, marked], content: Fixtures.content())
+        let movedRect = try #require(again.annotationReports[callout.id]?.labelRect)
+        #expect(movedRect != rect)
+        #expect(hasPoint(Fixtures.strokes(again, of: boxed.id), Vector2(movedRect.min.x, movedRect.min.y - style.textGap)))
+    }
+
+    @Test func aFrameStandsOnACylindersOutline() throws {
+        let view = Fixtures.makeView(orientation: .front)
+        let facePick = try #require(part.facePick(for: FaceID(2)))
+        let outline = LeaderEnd(target: .outline(facePick, side: Vector2(1, 0)), hint: Vector2(23, -5))
+        let symbol = frame(view, .feature(outline))
+        let picture = Fixtures.compose(view, [symbol], content: Fixtures.content())
+        let report = try #require(picture.annotationReports[symbol.id])
+        #expect(report.status == .held, "\(report.status)")
+        guard case .attachment(let foot, let along, let ends)? = report.current?.figure else {
+            Issue.record("the outline is remembered as an attachment: \(String(describing: report.current?.figure))")
+            return
+        }
+        #expect(abs(abs(foot.x - 20) - 3) < 1e-9, "the foot is on a side of the cylinder, 3 mm from its axis: \(foot)")
+        #expect(abs(along.x) < 1e-9 && abs(abs(along.y) - 1) < 1e-9, "the outline runs along the axis")
+        #expect(ends.isEmpty, "an outline has no ends")
+    }
+}

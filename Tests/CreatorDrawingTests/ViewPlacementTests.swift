@@ -1,3 +1,4 @@
+import Foundation
 import CreatorGeometry
 import CreatorKernel
 import Testing
@@ -73,7 +74,7 @@ struct ViewPlacementTests {
         #expect(removed.view(side.id)?.center == Vector2(180, 100))
     }
 
-    @Test func aCycleLeavesViewsFree() {
+    @Test func aCycleFreesOnlyTheHigherIDAndTheOtherFollowsIt() {
         var a = base(Vector2(10, 20))
         var b = base(Vector2(50, 60))
         a.alignment = ViewAlignment(parent: b.id, axis: .horizontal)
@@ -82,8 +83,11 @@ struct ViewPlacementTests {
         built.setView(a)
         built.setView(b)
         let centers = ViewPlacement.centers(in: built)
-        #expect(centers[a.id] == Vector2(10, 20))
-        #expect(centers[b.id] == Vector2(50, 60))
+        let (low, high) = a.id < b.id ? (a, b) : (b, a)
+        #expect(centers[high.id] == high.center)
+        let axis = low.alignment?.axis
+        let expected = axis == .horizontal ? Vector2(low.center.x, high.center.y) : Vector2(high.center.x, low.center.y)
+        #expect(centers[low.id] == expected)
     }
 
     private func section(of parent: DrawingView, aligned: AlignmentAxis?, at: Vector2) -> DrawingView {
@@ -144,5 +148,63 @@ struct ViewPlacementTests {
         second.derivation = .detail(DetailCircle(parent: first.id, center: .zero, radius: 1))
         let moved = ViewPlacement.moving(first.id, by: Vector2(1, 1), in: sheet([a, first, second]))
         #expect(moved.view(second.id)?.center == Vector2(21, 21))
+    }
+}
+
+@Suite("View alignment repair")
+struct ViewAlignmentRepairTests {
+    private let node = NodeID()
+
+    private func view(_ id: ViewID, aligned parent: ViewID?) -> DrawingView {
+        DrawingView(
+            id: id, kind: .projected, source: node, orientation: .standard(.right), center: Vector2(10, 10),
+            alignment: parent.map { ViewAlignment(parent: $0, axis: .horizontal) })
+    }
+
+    private func decoded(_ views: [DrawingView]) throws -> DrawingSheet {
+        let sheet = DrawingSheet(name: "S", views: views)
+        return try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+    }
+
+    private func ids() -> (ViewID, ViewID, ViewID) {
+        let sorted = [ViewID(), ViewID(), ViewID()].sorted()
+        return (sorted[0], sorted[1], sorted[2])
+    }
+
+    @Test func aMissingGrandparentFreesOnlyTheViewBesideIt() throws {
+        let (a, b, c) = ids()
+        let sheet = try decoded([view(b, aligned: a), view(c, aligned: b)])
+        #expect(sheet.view(b)?.alignment == nil)
+        #expect(sheet.view(c)?.alignment?.parent == b)
+        // The unrepaired sheet places the same way: c still follows b's height.
+        var free = view(b, aligned: a)
+        free.center = Vector2(10, 30)
+        var follower = view(c, aligned: b)
+        follower.center = Vector2(70, 5)
+        let centers = ViewPlacement.centers(in: DrawingSheet(name: "S", views: [free, follower]))
+        #expect(centers[b] == Vector2(10, 30))
+        #expect(centers[c] == Vector2(70, 30))
+    }
+
+    @Test func aTwoViewCycleFreesTheHigherID() throws {
+        let (low, high, _) = ids()
+        let sheet = try decoded([view(low, aligned: high), view(high, aligned: low)])
+        #expect(sheet.view(high)?.alignment == nil)
+        #expect(sheet.view(low)?.alignment?.parent == high)
+    }
+
+    @Test func aViewLeadingIntoACycleKeepsItsAlignment() throws {
+        let (a, b, c) = ids()
+        let sheet = try decoded([view(a, aligned: b), view(b, aligned: a), view(c, aligned: a)])
+        #expect(sheet.view(b)?.alignment == nil)
+        #expect(sheet.view(a)?.alignment?.parent == b)
+        #expect(sheet.view(c)?.alignment?.parent == a)
+    }
+
+    @Test func aCycleInAnUnrepairedSheetFreesTheHigherIDOnly() {
+        let (low, high, _) = ids()
+        let raw = DrawingSheet(name: "S", views: [view(low, aligned: high), view(high, aligned: low)])
+        let centers = ViewPlacement.centers(in: raw)
+        #expect(centers[high] == Vector2(10, 10) && centers[low] == Vector2(10, 10))
     }
 }

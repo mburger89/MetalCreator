@@ -93,6 +93,21 @@ struct AnnotationSelectionTests {
         #expect(Set(s.h.log.commits.map(\.coalescingKey)).count == 1)
     }
 
+    @Test func nudgingALinearDimensionAlongItSlidesTheLabel() throws {
+        let s = Scene.make([.horizontal])
+        s.h.model.selectedAnnotations = [Scene.horizontal]
+        #expect(s.h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: false)))
+        #expect(s.h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: true)))
+        let slid = try #require(s.dimension(Scene.horizontal))
+        #expect(abs(slid.placement.offset - 10) < 1e-9, "along the measured direction the line stays")
+        #expect(abs(try #require(slid.placement.textShift) - 2) < 1e-6)
+        #expect(Set(s.h.log.commits.map(\.coalescingKey)).count == 1)
+        #expect(s.h.model.keyPressed(.nudge(Vector2(0, -1), isRepeat: false)))
+        let across = try #require(s.dimension(Scene.horizontal))
+        #expect(abs(across.placement.offset - 9) < 1e-9, "across it the line moves as before")
+        #expect(abs(try #require(across.placement.textShift) - 2) < 1e-6)
+    }
+
     @Test func deleteNames() {
         func deleted(_ pieces: [Scene.Piece], _ ids: [AnnotationID], views: Bool = false) -> (String?, Int) {
             let s = Scene.make(pieces)

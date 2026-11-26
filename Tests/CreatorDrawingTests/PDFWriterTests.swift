@@ -204,14 +204,14 @@ import Testing
     @Test func symbolsPageDigest() {
         let data = write([DrawingFixtures.symbolsSheet()], title: "Symbols").data
         #expect(data == write([DrawingFixtures.symbolsSheet()], title: "Symbols").data)
-        #expect(hexDigest(data) == "f05cc611acd0c1fcab6d1c01cf422a29455c032143c0b3f7e48a7f384f0942ba")
+        #expect(hexDigest(data) == "3f53241674cf53ed5154f56cbf8c452053959db29e448459a2039669a66a3d27")
         #expect(pdfText(data).contains("(1. Deburr.)"))
     }
 
     @Test func symbolsPageDigestASME() {
         let data = write([DrawingFixtures.symbolsSheet(standard: .asme)], title: "Symbols").data
         #expect(data == write([DrawingFixtures.symbolsSheet(standard: .asme)], title: "Symbols").data)
-        #expect(hexDigest(data) == "8fb361760db6aaf7da678343931dddbd25b234b92164991b16b27670b71ab5eb")
+        #expect(hexDigest(data) == "31c43fff174f2ebefa56308740b3863d5f159582bc5c3810b266e803aa5fd652")
     }
 
     @Test func theSymbolsPageHasNoTextOutsideWinAnsi() throws {

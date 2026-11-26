@@ -67,6 +67,16 @@ extension SheetCanvasRenderTests {
         #expect(abs(pixel.r - r) < 60 && abs(pixel.g - g) < 60 && abs(pixel.b - b) < 60, "warning colour \(warning): \(pixel)")
     }
 
+    @Test func everyFillIsItsOwnPath() {
+        let counter = SheetFill(points: [Vector2(0, 0), Vector2(20, 0), Vector2(10, 20)])
+        let clockwise = SheetFill(points: [Vector2(0, 0), Vector2(10, 20), Vector2(20, 0)])
+        let groups = SheetStrokeGroups(
+            strokes: [], zoom: 4, paperHeight: 100, ink: DrawingColors(nil).ink, style: .iso, fills: [counter, clockwise])
+        let shapes = groups.fillShapes()
+        #expect(shapes.count == 2, "two fills are two paths, so no winding can cancel them")
+        #expect(shapes.map(\.shape.polygon) == [counter.points, clockwise.points])
+    }
+
     @Test func overlappingFillsDoNotCancel() async throws {
         // Two triangles over the same ground, one wound each way: where they overlap the paper must be inked, not left blank.
         let counter = SheetFill(points: [Vector2(0, 0), Vector2(20, 0), Vector2(10, 20)])

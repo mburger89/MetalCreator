@@ -87,7 +87,7 @@ extension DrawingEditorModel {
         let working: ViewID
         if let current = pickView, !picks.isEmpty {
             if let hit, hit != current, candidate(at: point, in: hit) != nil {
-                refuse(Self.otherViewSentence)
+                refuse(tool == .holeCallout ? Self.calloutOtherViewSentence : Self.otherViewSentence)
                 return
             }
             working = current
@@ -287,11 +287,25 @@ extension DrawingEditorModel {
                    of: updated, topology: context.topology, frame: context.frame,
                    format: NumberFormat(units: units, settings: document.settings), standard: document.settings.standard,
                    parts: context.parts ?? [], isPictorial: context.isPictorial) {
-                refuse(reason.sentence)
+                refuse(Self.cantHoldSentence(of: annotation.kind, because: reason))
                 return
             }
             commitSheet(Self.reattachName(of: annotation)) { $0.setAnnotation(updated) }
         }
+    }
+
+    /// The sentence for a re-attach click whose line the annotation could not hold: worded for a pick being made now (never the
+    /// lost annotation's "no longer"), naming the kind it was for.
+    static func cantHoldSentence(of kind: AnnotationKind, because reason: LostReason) -> String {
+        let noun: String
+        switch kind {
+        case .dimension: noun = "dimension"
+        case .holeCallout: noun = "hole callout"
+        case .datumFeature, .featureControl, .surfaceTexture: noun = "symbol"
+        case .balloon: noun = "balloon"
+        default: noun = "annotation"
+        }
+        return "That line can't hold this \(noun): " + pickReason(reason)
     }
 
     /// A balloon stays on its part (R4): the sentence when `target` lies on another.

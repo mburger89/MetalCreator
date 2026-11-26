@@ -68,6 +68,8 @@ public struct DrawingProjector: Sendable {
 
     public static let curvesLeftOutSentence =
         "This section leaves out the Output's curves; a section shows what the cut leaves of solids and sheets."
+    public static let assemblyCurvesLeftOutSentence =
+        "This section leaves out the parts' curves; a section shows what the cut leaves of solids and sheets."
     public static let cutAwaySentence = "The cutting line leaves nothing of the part on the side it looks toward."
     public static let noSolidsToCutSentence =
         "A section shows what the cut leaves of solids and sheets, and this Output has none."
@@ -93,6 +95,7 @@ public struct DrawingProjector: Sendable {
                 if let remainder = piece.remainder { remainders.append(remainder) }
                 hatch += piece.regions
                 hatchFailed = hatchFailed || piece.hatchFailed
+                for sentence in piece.warnings where !warnings.contains(sentence) { warnings.append(sentence) }
             }
             if remainders.isEmpty {
                 return ViewContent(problem: Self.cutAwaySentence, warnings: warnings, lastSize: previous?.lastSize)

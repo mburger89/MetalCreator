@@ -32,4 +32,10 @@ public struct HoleShape: Hashable, Sendable {
         self.counterbore = counterbore
         self.countersink = countersink
     }
+
+    /// Whether every size the shape holds is a finite number.
+    var isFinite: Bool {
+        diameter.isFinite && (depth?.isFinite ?? true) && (counterbore.map { $0.diameter.isFinite && $0.depth.isFinite } ?? true)
+            && (countersink.map { $0.diameter.isFinite && $0.angle.isFinite } ?? true)
+    }
 }

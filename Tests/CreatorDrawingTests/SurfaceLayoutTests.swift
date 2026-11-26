@@ -43,7 +43,7 @@ import Testing
 
     @Test func theValueSitsUnderTheExtension() {
         let drawing = SurfaceLayout.requirement(
-            SurfaceRequirement(parameter: .ra, value: 1.6), apex: Vector2(0, 0), h: h, format: format)
+            SurfaceRequirement(parameter: .ra, value: 1.6), apex: Vector2(0, 0), h: h, format: format, standard: .iso)
         let text = drawing.texts[0]
         #expect(text.original == "Ra 1.6")
         #expect(abs(text.origin.x - (3 * h * k + 0.3 * h)) <= 1e-12)
@@ -60,7 +60,7 @@ import Testing
         let perpendicular = SurfaceLayout.draw(
             texture(lay: .perpendicular, value: nil), foot: Vector2(0, 0), along: Vector2(1, 0), h: h, format: format, style: style)
         #expect(perpendicular.texts.isEmpty)
-        for segment in DrawingSymbols.layPerpendicular(origin: Vector2(h, 0.2 * h), h: h) {
+        for segment in DrawingSymbols.layPerpendicular(origin: Vector2(h, 0.2 * h), h: h, standard: .iso) {
             #expect(perpendicular.segments.contains(segment))
         }
     }

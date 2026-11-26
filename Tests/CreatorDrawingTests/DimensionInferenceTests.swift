@@ -111,6 +111,47 @@ struct DimensionInferenceTests {
         #expect(made?.anchors.count == 2)
     }
 
+    private func deepPoint(_ id: Int, _ p: Vector2, depth: Double) -> PickedAnchor {
+        PickedAnchor(target: .corner(pick(id), pick(id + 50)), shape: .point(p), depth: depth)
+    }
+
+    private func alignedRefusal(_ picks: [PickedAnchor]) -> String? {
+        if case .failure(let refused) = DimensionInference.make(tool: .smart, picks: picks, placing: Vector2(5, 12), aligned: true) {
+            return refused.sentence
+        }
+        return nil
+    }
+
+    @Test func anAlignedDimensionBetweenPointsAtDifferentDepthsIsRefusedAtThePick() {
+        let near = deepPoint(1, Vector2(0, 0), depth: 0)
+        let far = deepPoint(2, Vector2(10, 4), depth: 7)
+        #expect(
+            alignedRefusal([near, far]) == "These points aren't at the same depth in this view, so the length would be foreshortened.")
+        // The same depth, a plain horizontal dimension of two depths, and picks with no recorded depth all go through.
+        #expect(alignedRefusal([near, deepPoint(2, Vector2(10, 4), depth: 0)]) == nil)
+        #expect(make(.smart, [near, far], placing: Vector2(5, 12))?.kind == .linear(.horizontal))
+        #expect(alignedRefusal([point(1, Vector2(0, 0)), point(2, Vector2(10, 4))]) == nil)
+    }
+
+    @Test func anAlignedDimensionFromAPointToALineAtAnotherDepthIsRefusedAtThePick() {
+        func deepLine(_ depth: Double) -> PickedAnchor {
+            PickedAnchor(target: .edge(pick(9)), shape: .line(Vector2(0, 0), Vector2(10, 4)), depth: depth)
+        }
+        let corner = deepPoint(1, Vector2(3, 8), depth: 0)
+        #expect(alignedRefusal([corner, deepLine(5)]) == DimensionInference.depthSentence)
+        #expect(alignedRefusal([deepLine(5), corner]) == DimensionInference.depthSentence)
+        #expect(alignedRefusal([corner, deepLine(0)]) == nil)
+    }
+
+    @Test func anAlignedDimensionToAnOutlineIsRefusedAtThePick() {
+        let face = FacePick(tags: Fixture.tags(.side(segment: 4)))
+        let outline = PickedAnchor(
+            target: .outline(face, side: Vector2(0, -1)), shape: .cylinder(axisPoint: Vector2(0, 5), direction: Vector2(1, 0), radius: 5))
+        #expect(alignedRefusal([outline, point(2, Vector2(10, 4))]) == "An outline can't take an aligned dimension.")
+        // Without Shift the outline still gives a horizontal or vertical dimension.
+        #expect(make(.smart, [outline, point(2, Vector2(10, 4))], placing: Vector2(5, 12))?.kind == .linear(.horizontal))
+    }
+
     @Test func completionPerTool() {
         let one = line(1, Vector2(0, 0), Vector2(10, 0))
         #expect(!DimensionInference.isComplete([], tool: .smart))

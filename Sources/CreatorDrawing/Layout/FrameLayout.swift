@@ -28,8 +28,8 @@ public enum FrameLayout {
         return pieces
     }
 
-    static func width(of pieces: [Piece], h: Double) -> Double {
-        let style = SymbolStyle.of(.iso)
+    static func width(of pieces: [Piece], h: Double, standard: DrawingStandard) -> Double {
+        let style = SymbolStyle.of(standard)
         var total = 0.0
         for (index, piece) in pieces.enumerated() {
             if index > 0 { total += style.modifierGap * h }
@@ -42,14 +42,16 @@ public enum FrameLayout {
     }
 
     /// Each column's width, shared by the rows: the characteristic's, the tolerance's, then one per datum position.
-    static func columns(of frame: FeatureControlFrame, h: Double, format: NumberFormat) -> [Double] {
-        let style = SymbolStyle.of(.iso)
+    static func columns(
+        of frame: FeatureControlFrame, h: Double, format: NumberFormat, standard: DrawingStandard
+    ) -> [Double] {
+        let style = SymbolStyle.of(standard)
         let pad = style.framePadding * h
         var widths = [style.frameHeight * h, 0]
         for row in frame.rows {
-            widths[1] = Swift.max(widths[1], width(of: pieces(of: row, format: format), h: h) + 2 * pad)
+            widths[1] = Swift.max(widths[1], width(of: pieces(of: row, format: format), h: h, standard: standard) + 2 * pad)
             for (index, datum) in row.datums.enumerated() {
-                let cell = Swift.max(style.datumCellMinimum * h, width(of: pieces(of: datum), h: h) + 2 * pad)
+                let cell = Swift.max(style.datumCellMinimum * h, width(of: pieces(of: datum), h: h, standard: standard) + 2 * pad)
                 if widths.count <= 2 + index { widths.append(0) }
                 widths[2 + index] = Swift.max(widths[2 + index], cell)
             }
@@ -68,7 +70,7 @@ public enum FrameLayout {
 
     /// The frame's size: its widest row by its rows' height.
     public static func size(of frame: FeatureControlFrame, h: Double, format: NumberFormat, standard: DrawingStandard) -> Vector2 {
-        let columns = columns(of: frame, h: h, format: format)
+        let columns = columns(of: frame, h: h, format: format, standard: standard)
         let widest = frame.rows.indices.map { rowWidth(frame, row: $0, columns: columns) }.max() ?? columns[0]
         return Vector2(widest, SymbolStyle.of(standard).frameHeight * h * Double(Swift.max(frame.rows.count, 1)))
     }
@@ -79,7 +81,7 @@ public enum FrameLayout {
     ) -> AnnotationDrawing {
         let style = SymbolStyle.of(standard)
         let rowHeight = style.frameHeight * h
-        let columns = columns(of: frame, h: h, format: format)
+        let columns = columns(of: frame, h: h, format: format, standard: standard)
         let stacked = isStackedAsme(frame, standard: standard)
         var builder = DrawingBuilder(style: .of(standard), height: h)
         var edges = [topLeft.x]
@@ -102,9 +104,12 @@ public enum FrameLayout {
                 builder.drawing.segments += DrawingSymbols.characteristic(frame.characteristic, origin: origin, h: h)
             }
             place(
-                pieces(of: row, format: format), in: edges[1]..<edges[2], baseline: bottom, h: h, builder: &builder)
+                pieces(of: row, format: format), in: edges[1]..<edges[2], baseline: bottom, h: h, standard: standard,
+                builder: &builder)
             for (position, datum) in row.datums.enumerated() {
-                place(pieces(of: datum), in: edges[2 + position]..<edges[3 + position], baseline: bottom, h: h, builder: &builder)
+                place(
+                    pieces(of: datum), in: edges[2 + position]..<edges[3 + position], baseline: bottom, h: h, standard: standard,
+                    builder: &builder)
             }
         }
         if stacked {
@@ -138,9 +143,12 @@ public enum FrameLayout {
     // swiftlint:enable function_parameter_count
 
     /// Lays `pieces` centred in the compartment `span`, baselines `h / 2` above `baseline`.
-    private static func place(_ pieces: [Piece], in span: Range<Double>, baseline: Double, h: Double, builder: inout DrawingBuilder) {
-        let style = SymbolStyle.of(.iso)
-        var x = (span.lowerBound + span.upperBound) / 2 - width(of: pieces, h: h) / 2
+    private static func place(
+        _ pieces: [Piece], in span: Range<Double>, baseline: Double, h: Double, standard: DrawingStandard,
+        builder: inout DrawingBuilder
+    ) {
+        let style = SymbolStyle.of(standard)
+        var x = (span.lowerBound + span.upperBound) / 2 - width(of: pieces, h: h, standard: standard) / 2
         for (index, piece) in pieces.enumerated() {
             if index > 0 { x += style.modifierGap * h }
             switch piece {
@@ -151,7 +159,7 @@ public enum FrameLayout {
                 x += run.width
             case .circled(let letter):
                 let advance = style.circledAdvance * h
-                let circle = DrawingSymbols.circled(letter, center: Vector2(x + advance / 2, baseline + h), h: h)
+                let circle = DrawingSymbols.circled(letter, center: Vector2(x + advance / 2, baseline + h), h: h, standard: standard)
                 builder.drawing.segments += circle.segments
                 builder.drawing.texts.append(circle.text)
                 x += advance

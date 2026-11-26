@@ -111,4 +111,41 @@ struct ProjectionCacheCutTests {
         _ = try await two.value
         #expect(await cache.cutCalls == 1)
     }
+
+    /// A caller that is cancelled while it shares a cut with another leaves at once (it does not wait for the kernel), and the cut
+    /// goes on for the one still waiting and is cached.
+    @Test func aCancelledSharerReturnsAtOnceWhileTheCutGoesOn() async throws {
+        let kernel = FakeKernel()
+        let cache = ProjectionCache()
+        let solid = try await Base.box(kernel)
+        let gate = SuspendingGate()
+        await kernel.setSectionCutHook { part, _, _ in
+            await gate.hold()
+            return part
+        }
+        let one = Task { try await cache.sectionCut(of: solid, index: 0, cutter: Self.cutter, tolerance: 0.01, kernel: kernel) }
+        await gate.waitForEntries(1)
+        let two = Task { try await cache.sectionCut(of: solid, index: 0, cutter: Self.cutter, tolerance: 0.01, kernel: kernel) }
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await cache.cutWaiterCount < 2 {
+            try #require(ContinuousClock.now < deadline, "the second caller never joined the cut")
+            await Task.yield()
+        }
+        one.cancel()
+        // The kernel's cut is still held, so a caller that came back did so without waiting for it.
+        let outcome = await one.result
+        guard case .failure(let error) = outcome else {
+            Issue.record("the cancelled caller returned a piece")
+            await gate.open()
+            return
+        }
+        #expect(error is CancellationError)
+        #expect(await cache.cutCalls == 1)
+        #expect(await cache.cachedCutCount == 0, "the cut has not finished")
+        await gate.open()
+        let piece = try await two.value
+        #expect(piece.remainder === solid)
+        #expect(await cache.cachedCutCount == 1, "the cut went on and was cached")
+        #expect(await cache.cutCalls == 1)
+    }
 }

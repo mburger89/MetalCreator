@@ -107,6 +107,12 @@ struct DrawingSectionOCCTTests {
         #expect(app.undoTitle == "Undo Move Cutting Line")
         #expect(app.texts(of: id).contains("20?"), "\(app.texts(of: id))")
         #expect(app.report(of: id)?.status == .lost(.missing))
+        // It is listed among the sheet's lost annotations and in an export's warnings, not only drawn with its question mark.
+        let picture = try #require(app.drawing.editor.picture)
+        #expect(picture.lostAnnotations.contains(id))
+        let sheet = try #require(app.drawing.editor.sheet)
+        let listed = AppModel.lostWarnings(on: sheet, in: picture, view: section)
+        #expect(listed.count == 1 && listed[0].hasPrefix("On “\(sheet.name)”"), "\(listed)")
         app.undo()
         await app.settle()
         #expect(app.report(of: id)?.status == .held, "undo brings it back held")
@@ -115,7 +121,7 @@ struct DrawingSectionOCCTTests {
 
     // MARK: Details and auxiliary views
 
-    @Test func aDetailOfTheSectionMeasuresModelMillimetres() async throws {
+    @Test func aDetailOfTheTopViewMeasuresModelMillimetres() async throws {
         var box = plate()
         let hole = box.builder.add(CircleNode.self, ["diameter": .number(6), "plane": .plane(.through(Vector3(20, 10, -1)))])
         let holeSolid = box.builder.add(ExtrudeNode.self, ["distance": .number(12)])

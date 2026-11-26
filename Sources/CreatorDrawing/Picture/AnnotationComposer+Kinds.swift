@@ -30,7 +30,7 @@ enum AnnotationEvaluator {
         case .centreMark(let mark): centreMark(mark, topology: topology, frame: frame, parts: parts)
         case .centreLine(let line): centreLine(line, topology: topology, frame: frame, parts: parts)
         case .note: nil
-        case .balloon, .partsList, .revisionTable: nil  // DR-5 Task 4 (balloon) and Task 5 (tables)
+        case .balloon, .partsList, .revisionTable: nil  // their own passes compose them (a balloon's last value: `composeBalloon`)
         case .datumFeature, .featureControl, .surfaceTexture:
             symbol(annotation, topology: topology, frame: frame, format: format, parts: parts)
         }
@@ -138,6 +138,10 @@ enum AnnotationEvaluator {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
         case .notAHole: return lost(.notAHole, anchors: [.held])
         case .hole(let shape, let center, _, let radius):
+            // The same refusal as a dimension's (DR-4): a size that isn't a number is lost in words, never drawn.
+            guard shape.isFinite, radius.isFinite, center.x.isFinite, center.y.isFinite, center.z.isFinite else {
+                return lost(.refused(nonFiniteSentence), anchors: [.held])
+            }
             let label = DimensionLabel.hole(shape, precision: nil, prefix: callout.prefix, suffix: callout.suffix, format: format)
             return held(
                 [.held], labels: [label], values: [shape.diameter], figure: .hole(center: frame.place(center), radius: radius),
@@ -152,7 +156,7 @@ enum AnnotationEvaluator {
     ) -> EvaluatedAnnotation {
         switch DrawingAnchorResolver.resolve(mark.anchor, in: topology, frame: frame, parts: parts) {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
-        case .held(.circle(let center, let axis, let radius, _), _, _):
+        case .held(.circle(let center, let axis, let radius, _, _), _, _):
             guard abs(axis.dot(frame.direction)) >= 1 - 1e-9 else { return lost(.foreshortened, anchors: [.held]) }
             return held(
                 [.held], labels: [], values: [radius], figure: .centreMark(center: frame.place(center), radius: radius), label: nil)

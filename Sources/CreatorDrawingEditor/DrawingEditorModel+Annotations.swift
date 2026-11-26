@@ -3,6 +3,7 @@ import CreatorGeometry
 
 extension DrawingEditorModel {
     static let otherViewSentence = "A dimension takes its picks from one view."
+    static let calloutOtherViewSentence = "A hole callout takes its pick from one view."
     static let leaderViewSentence = "A note's leaders point into one view."
     static let sameKindSentence = "Pick the same kind of thing the annotation lost: a line, a circle, a corner or a centre."
     static let stillThereSentence = """
@@ -78,7 +79,8 @@ extension DrawingEditorModel {
             return
         }
         let draft = AnnotationDraft(tool: tool, picks: picks)
-        guard draft.isComplete, case .success(let kind) = draft.kind(placing: point, aligned: false, mapping: context.mapping) else {
+        let aligned = heldModifiers.contains(.shift)
+        guard draft.isComplete, case .success(let kind) = draft.kind(placing: point, aligned: aligned, mapping: context.mapping) else {
             draftPicture = nil
             return
         }

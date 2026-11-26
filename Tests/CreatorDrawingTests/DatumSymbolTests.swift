@@ -8,7 +8,7 @@ import Testing
 
     @Test func theTriangleSitsOnTheLine() {
         let foot = Vector2(5, 6), along = Vector2(1, 0), n = Vector2(0, 1)
-        let fill = DrawingSymbols.datumTriangle(foot: foot, along: along, toward: n, h: h)
+        let fill = DrawingSymbols.datumTriangle(foot: foot, along: along, toward: n, h: h, standard: .iso)
         #expect(fill.count == 3)
         #expect(fill[0] == Vector2(5 - 0.6 * h, 6) && fill[1] == Vector2(5 + 0.6 * h, 6))
         #expect(fill[2] == Vector2(5, 6 + 1.2 * h * DrawingSymbols.sixty))
@@ -18,7 +18,7 @@ import Testing
     }
 
     @Test func theSquareIsTwoH() {
-        let square = DrawingSymbols.datumSquare(center: Vector2(10, 10), h: h)
+        let square = DrawingSymbols.datumSquare(center: Vector2(10, 10), h: h, standard: .iso)
         #expect(square.count == 5 && square.first == square.last)
         #expect(square[0] == Vector2(10 - h, 10 - h) && square[2] == Vector2(10 + h, 10 + h))
     }

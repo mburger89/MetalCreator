@@ -146,3 +146,28 @@ struct TitleBlockTests {
         #expect(!file.texts.contains { $0.isNotice })
     }
 }
+
+@Suite("Revision field")
+struct RevisionFieldTests {
+    private func sheet(_ letters: [String], typed: String = "typed") -> DrawingSheet {
+        var block = TitleBlock()
+        block.revision = typed
+        return DrawingSheet(
+            name: "S", size: .a3, titleBlock: block,
+            annotations: [DrawingAnnotation(view: nil, kind: .revisionTable(RevisionTable(rows: letters.map { RevisionRow(letter: $0) })))])
+    }
+
+    @Test func aBlankOrInvalidLastRowIsSkipped() {
+        #expect(sheet(["A", "B", ""]).revisionShown == "B")
+        #expect(sheet(["A", "B", "Q"]).revisionShown == "B")
+        #expect(sheet(["A", "B", "b1"]).lastValidRevisionLetter == "B")
+        #expect(sheet(["A", "B", "C"]).revisionShown == "C")
+    }
+
+    @Test func noValidRowFallsBackToTheTypedRevision() {
+        #expect(sheet(["", "x"]).lastValidRevisionLetter == nil)
+        #expect(sheet(["", "x"]).revisionShown == "typed")
+        #expect(sheet([]).revisionShown == "typed")
+        #expect(DrawingSheet(name: "S").lastValidRevisionLetter == nil)
+    }
+}

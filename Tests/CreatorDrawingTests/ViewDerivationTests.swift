@@ -41,6 +41,38 @@ struct ViewDerivationTests {
         try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
     }
 
+    @Test func aDamagedSectionCutterDropsTheSectionAndKeepsTheRest() throws {
+        let nan = Double.nan
+        let damaged: [(String, SectionCutter)] = [
+            ("one point", SectionCutter(frame: frame, points: [Vector2(0, 0)], viewing: Vector2(0, 1))),
+            ("no points", SectionCutter(frame: frame, points: [], viewing: Vector2(0, 1))),
+            ("zero viewing", SectionCutter(frame: frame, points: [Vector2(0, 0), Vector2(20, 0)], viewing: .zero)),
+            ("nan viewing", SectionCutter(frame: frame, points: [Vector2(0, 0), Vector2(20, 0)], viewing: Vector2(nan, 1))),
+            ("infinite viewing", SectionCutter(frame: frame, points: [Vector2(0, 0), Vector2(20, 0)], viewing: Vector2(.infinity, 0))),
+            ("nan point", SectionCutter(frame: frame, points: [Vector2(0, 0), Vector2(nan, 0)], viewing: Vector2(0, 1))),
+            ("infinite point", SectionCutter(frame: frame, points: [Vector2(0, 0), Vector2(0, -.infinity)], viewing: Vector2(0, 1))),
+        ]
+        for (label, bad) in damaged {
+            let views = [base(1), section(2, parent: id(1), cutter: bad)]
+            let kept = DrawingSheet.droppingBrokenDerivations(views)
+            #expect(kept.map(\.id) == [id(1)], "\(label)")
+        }
+        // The encodable kinds also go through a real decode.
+        for (label, bad) in damaged.prefix(3) {
+            let sheet = DrawingSheet(name: "S", views: [base(1), section(2, parent: id(1), cutter: bad)])
+            #expect(try roundTrip(sheet).views.map(\.id) == [id(1)], "\(label)")
+        }
+        let good = DrawingSheet(name: "S", views: [base(1), section(2, parent: id(1))])
+        #expect(try roundTrip(good).views.count == 2)
+    }
+
+    @Test func aDerivedViewOfADroppedSectionFollowsTheMissingParentRule() throws {
+        let bad = SectionCutter(frame: frame, points: [Vector2(0, 0)], viewing: Vector2(0, 1))
+        let views = [base(1), section(2, parent: id(1), cutter: bad), detail(3, parent: id(2))]
+        let kept = DrawingSheet.droppingBrokenDerivations(views)
+        #expect(kept.map(\.id) == [id(1), id(3)])
+    }
+
     @Test func everyCaseRoundTripsByType() throws {
         let cases: [ViewDerivation] = [
             .section(SectionLine(parent: id(1), cutter: cutter)),

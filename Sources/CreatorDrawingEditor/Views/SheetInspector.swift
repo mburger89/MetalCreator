@@ -58,6 +58,7 @@ struct SheetInspector: Component {
                 ScaleControl(model: model, current: sheet.scale, allowsSheetScale: false, standard: settings.standard) { scale in
                     if let scale { model.setSheetScale(scale) }
                 }
+                .id(sheet.id.rawValue.uuidString)
             }
             DrawingRow("Standard", colors: colors) {
                 DrawingSegments(options: ["ISO", "ASME"], selected: settings.standard == .iso ? 0 : 1) {

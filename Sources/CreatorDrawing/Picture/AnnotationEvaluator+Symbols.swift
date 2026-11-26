@@ -19,9 +19,11 @@ extension AnnotationEvaluator {
             case .failure(let reason): return lost(reason)
             case .success(let found):
                 let text = plainText(of: annotation, format: format)
-                let current = LastGood(values: [], lines: [text], figure: .attachment(foot: found.foot, along: found.along))
+                let ends = found.segment.map { [$0.0, $0.1] } ?? []
+                let current = LastGood(
+                    values: [], lines: [text], figure: .attachment(foot: found.foot, along: found.along, ends: ends))
                 var held = HeldAnnotation(labels: [], current: current, label: text)
-                if let segment = found.segment { held.edgeEnds = [segment.0, segment.1] }
+                held.edgeEnds = ends
                 return EvaluatedAnnotation(anchors: [.held], outcome: .success(held))
             }
         }
@@ -35,7 +37,7 @@ extension AnnotationEvaluator {
             return DrawingPick.isSeenEndOn(b - a, direction: frame.direction) ? .turnedAway : nil
         case .cylinder(_, let axis, _, _):
             return abs(axis.dot(frame.direction)) > 1e-9 * axis.length ? .turnedAway : nil
-        case .circle(_, let axis, _, _):
+        case .circle(_, let axis, _, _, _):
             guard kind == .frame else { return .notStraight }
             return abs(axis.dot(frame.direction)) >= 1 - 1e-9 ? nil : .turnedAway
         case .point, .other:

@@ -23,6 +23,7 @@ public actor FakeKernel: Kernel {
     var measureHook: (@Sendable () async throws -> Void)?
     var continuityHook: (@Sendable () async throws -> Void)?
     var projectionHook: (@Sendable () async throws -> Void)?
+    var sectionCutWarnings: [String] = []
     var sectionCutHook: (@Sendable (Solid, SectionCutter, NodeTag) async throws -> Solid?)?
     var compoundHook: (@Sendable ([Solid]) throws -> Solid)?
 

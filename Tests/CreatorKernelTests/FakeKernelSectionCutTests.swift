@@ -36,18 +36,30 @@ struct FakeKernelSectionCutTests {
         #expect(await seen.value)
     }
 
+    /// The hook suspends (it never blocks a thread): while it waits the caller is observed still suspended, and it goes on when the
+    /// hook is let through.
     @Test func aHookCanSuspend() async throws {
         let kernel = FakeKernel()
         let solid = try await box(kernel)
-        let (stream, gate) = AsyncStream<Void>.makeStream()
+        let gate = HookGate()
         await kernel.setSectionCutHook { part, _, _ in
-            for await _ in stream { break }
+            await gate.hold()
             return part
         }
-        let task = Task { try await kernel.cutAway(solid, by: cutter, tag: tag) }
-        gate.yield()
+        let cutter = self.cutter, tag = self.tag
+        let finished = Seen()
+        let task = Task {
+            let result = try await kernel.cutAway(solid, by: cutter, tag: tag)
+            await finished.set(true)
+            return result
+        }
+        await gate.waitUntilHeld()
+        for _ in 0..<50 { await Task.yield() }
+        #expect(await finished.value == false, "the caller is suspended while the hook awaits")
+        await gate.open()
         let result = try await task.value
         #expect(result === solid)
+        #expect(await finished.value)
     }
 
     @Test func anInvalidCutterIsRefusedFirst() async throws {
@@ -75,4 +87,31 @@ struct FakeKernelSectionCutTests {
 private actor Seen {
     var value = false
     func set(_ newValue: Bool) { value = newValue }
+}
+
+/// Suspends a hook until `open()`, holding no thread; `waitUntilHeld()` returns once a hook has begun waiting.
+private actor HookGate {
+    private var held: [CheckedContinuation<Void, Never>] = []
+    private var watchers: [CheckedContinuation<Void, Never>] = []
+    private var isOpen = false
+
+    func hold() async {
+        let ready = watchers
+        watchers = []
+        for watcher in ready { watcher.resume() }
+        if isOpen { return }
+        await withCheckedContinuation { held.append($0) }
+    }
+
+    func waitUntilHeld() async {
+        if !held.isEmpty { return }
+        await withCheckedContinuation { watchers.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        let all = held
+        held = []
+        for continuation in all { continuation.resume() }
+    }
 }

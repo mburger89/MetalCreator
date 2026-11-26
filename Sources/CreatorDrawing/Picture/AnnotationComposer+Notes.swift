@@ -114,7 +114,7 @@ extension AnnotationComposer {
     private static func exactNearest(_ geometry: AnchorGeometry, hint: Vector2, frame: ProjectionFrame) -> Vector2? {
         switch geometry {
         case .segment(let a, let b): return CurveNearest.point(on: .line(frame.place(a), frame.place(b)), to: hint)
-        case .circle(let center, _, let radius, _):
+        case .circle(let center, _, let radius, _, _):
             let c = frame.place(center)
             return CurveNearest.point(on: .arc(center: c, radius: radius, start: 0, sweep: 2 * .pi), to: hint)
         default: return nil

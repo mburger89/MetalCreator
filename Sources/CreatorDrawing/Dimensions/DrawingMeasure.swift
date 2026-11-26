@@ -77,7 +77,7 @@ private struct MeasureContext {
     func point(of geometry: AnchorGeometry, along direction: Vector2) -> Result<Vector2, LostReason> {
         switch geometry {
         case .point(let p): return .success(frame.place(p))
-        case .circle(let center, let axis, _, _):
+        case .circle(let center, let axis, _, _, _):
             guard circleFaceOn(axis) else { return .failure(.foreshortened) }
             return .success(frame.place(center))
         case .segment(let a, let b):
@@ -157,7 +157,7 @@ private struct MeasureContext {
     func plainPoint(_ geometry: AnchorGeometry) -> Result<Vector3, LostReason> {
         switch geometry {
         case .point(let p): return .success(p)
-        case .circle(let center, let axis, _, _):
+        case .circle(let center, let axis, _, _, _):
             return circleFaceOn(axis) ? .success(center) : .failure(.foreshortened)
         default: return .failure(.notLineOrCircle)
         }
@@ -236,7 +236,7 @@ private struct MeasureContext {
     func radial(_ geometries: [AnchorGeometry], isDiameter: Bool) -> Outcome {
         guard geometries.count == 1 else { return .failure(.notLineOrCircle) }
         switch geometries[0] {
-        case .circle(let center, let axis, let radius, _):
+        case .circle(let center, let axis, let radius, _, _):
             guard abs(axis.dot(frame.direction)) >= 1 - tolerance else { return .failure(.foreshortened) }
             let figure = AnnotationFigure.radial(center: frame.place(center), radius: radius, isDiameter: isDiameter)
             return success([isDiameter ? 2 * radius : radius], figure)

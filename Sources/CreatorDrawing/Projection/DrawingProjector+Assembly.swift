@@ -107,7 +107,7 @@ extension DrawingProjector {
             warnings.append(Self.sharedSolidSentence(name: names[pair.part] ?? "", other: names[pair.other] ?? ""))
         }
         if case .section(let line)? = view.derivation {
-            if sources.contains(where: { !$0.curves.isEmpty }) { warnings.append(Self.curvesLeftOutSentence) }
+            if sources.contains(where: { !$0.curves.isEmpty }) { warnings.append(Self.assemblyCurvesLeftOutSentence) }
             let request = SectionRequest(
                 line: line, scale: scale, view: view, sources: sources, indices: shown.map(\.index), warnings: warnings)
             return await assemblySection(request, previous: previous)
@@ -147,6 +147,7 @@ extension DrawingProjector {
                     if let remainder = piece.remainder { cut.append(remainder) }
                     hatch += piece.regions
                     hatchFailed = hatchFailed || piece.hatchFailed
+                    for sentence in piece.warnings where !warnings.contains(sentence) { warnings.append(sentence) }
                 }
                 remainders.append(PartSolids(output: source.output, solids: cut, curves: []))
             }

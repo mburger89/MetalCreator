@@ -28,7 +28,8 @@ public final class DrawingTemplateStore {
 
     /// `base`, or `base 2`, `base 3`… when a template already has the name.
     public func uniqueName(_ base: String) -> String {
-        let taken = Set(templates.map(\.name))
+        let base = Self.trimmed(base)
+        let taken = Set(templates.map { Self.trimmed($0.name) })
         guard taken.contains(base) else { return base }
         var number = 2
         while taken.contains("\(base) \(number)") { number += 1 }
@@ -51,6 +52,10 @@ public final class DrawingTemplateStore {
             return
         }
         guard var renamed = template(id) else { return }
+        guard !templates.contains(where: { $0.id != id && Self.trimmed($0.name) == trimmed }) else {
+            saveProblem = "Another template already has that name."
+            return
+        }
         renamed.name = trimmed
         guard persist(renamed) else { return }
         templates = Self.sorted(templates.filter { $0.id != id } + [renamed])
@@ -86,6 +91,10 @@ public final class DrawingTemplateStore {
             saveProblem = error.message
             return false
         }
+    }
+
+    private static func trimmed(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func sorted(_ list: [DrawingTemplate]) -> [DrawingTemplate] {

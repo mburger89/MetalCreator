@@ -39,7 +39,7 @@ extension AnnotationComposer {
                     annotation, because: (reason, evaluated.anchors), context: context, format: format, last: remembered)
             case .success(let held):
                 var pieces = AnnotationPieces()
-                if let mapping = context.mapping, case .attachment(let foot, let along) = held.current.figure {
+                if let mapping = context.mapping, case .attachment(let foot, let along, _) = held.current.figure {
                     let drawing = onLine(
                         annotation, at: (foot, along), ends: held.edgeEnds, mapping: mapping, context: context, format: format)
                     pieces = tagged(drawing, annotation: annotation.id, context: context, isLost: false)
@@ -100,8 +100,8 @@ extension AnnotationComposer {
         let text = AnnotationEvaluator.plainText(of: annotation, format: format)
         var report = AnnotationReport(status: .lost(lost.reason), anchors: lost.anchors, label: text)
         guard let mapping = context.mapping else { return (report, AnnotationPieces()) }
-        if case .attachment(let foot, let along)? = last?.figure {
-            let drawing = onLine(annotation, at: (foot, along), ends: [], mapping: mapping, context: context, format: format)
+        if case .attachment(let foot, let along, let ends)? = last?.figure {
+            let drawing = onLine(annotation, at: (foot, along), ends: ends, mapping: mapping, context: context, format: format)
             var pieces = tagged(drawing, annotation: annotation.id, context: context, isLost: true)
             if let frame = pieces.frame {
                 pieces = marked(pieces, after: frame, annotation: annotation, context: context)

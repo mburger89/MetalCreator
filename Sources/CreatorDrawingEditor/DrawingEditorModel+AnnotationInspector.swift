@@ -134,13 +134,32 @@ extension DrawingEditorModel {
         setTolerance(.symmetric(amount), of: id)
     }
 
-    /// A deviation, or with `limits` the limit sizes, typed in the document's unit (degrees for an angle).
-    public func setTolerance(upperText: String, lowerText: String, limits: Bool = false, of id: AnnotationID) {
-        guard let upper = toleranceAmount(upperText, of: id), let lower = toleranceAmount(lowerText, of: id) else {
+    /// Replaces the upper value of a deviation or limits tolerance with what was typed; the lower value stays exactly as stored (R10).
+    public func setToleranceUpper(text: String, limits: Bool = false, of id: AnnotationID) {
+        guard let (_, lower) = storedBounds(of: id) else { return }
+        guard let upper = toleranceAmount(text, of: id) else {
             refuse(Self.toleranceNumberSentence)
             return
         }
         setTolerance(limits ? .limits(upper: upper, lower: lower) : .deviation(upper: upper, lower: lower), of: id)
+    }
+
+    /// Replaces the lower value with what was typed; the upper value stays exactly as stored (R10).
+    public func setToleranceLower(text: String, limits: Bool = false, of id: AnnotationID) {
+        guard let (upper, _) = storedBounds(of: id) else { return }
+        guard let lower = toleranceAmount(text, of: id) else {
+            refuse(Self.toleranceNumberSentence)
+            return
+        }
+        setTolerance(limits ? .limits(upper: upper, lower: lower) : .deviation(upper: upper, lower: lower), of: id)
+    }
+
+    private func storedBounds(of id: AnnotationID) -> (upper: Double, lower: Double)? {
+        guard case .dimension(let dimension)? = sheet?.annotation(id)?.kind else { return nil }
+        switch dimension.tolerance {
+        case .deviation(let upper, let lower), .limits(let upper, let lower): return (upper, lower)
+        default: return nil
+        }
     }
 
     /// Millimetres, or radians for an angle, from what was typed; `nil` when it is no number.

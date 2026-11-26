@@ -65,11 +65,36 @@ struct DrawingBenchFixturesTests {
         let content = try #require(app.drawing.editor.contents[section.id])
         #expect(content.problem == nil && !content.isPending, "\(String(describing: content.problem))")
         #expect(!content.hatch.isEmpty, "the cut has hatch")
+        // The line must really run through the plate's holes, which the Top view's own topology shows: every vertical hole whose
+        // circle the line y = 8 cuts across splits the cut face, so n holes leave n + 1 pieces of hatch.
+        let top = try #require(sheet.views.first { $0.orientation == .standard(.top) })
+        let base = try #require(app.drawing.editor.contents[top.id]?.topology)
+        let crossed = base.faces.filter { face in
+            guard face.kind == .cylinder, let axis = face.axisPoint, let radius = face.radius else { return false }
+            return abs(axis.y - DrawingBenchFixtures.sectionLineHeight) < radius
+        }
+        #expect(crossed.count == 2, "the line crosses the two holes of the row: \(crossed.count)")
+        #expect(content.hatch.count == crossed.count + 1, "each crossed hole splits the cut face: \(content.hatch.count) pieces")
         let loops = content.hatch.reduce(0) { $0 + $1.edges.count }
         #expect(loops > 1, "the line runs through the holes: \(content.hatch.map { $0.edges.map(\.count) })")
         let topology = try #require(content.topology)
         #expect(topology.faces.contains { $0.tags.contains { $0.node == SectionCutter.toolNode } }, "the section has a cut face")
         #expect((content.projection?.lines.count ?? 0) > 0)
+    }
+
+    @Test func theAssemblyDocumentEvaluatesToTenSolids() async throws {
+        let (document, outputs) = try DrawingBenchFixtures.assemblyDocument(parts: 10)
+        await document.waitForEvaluation()
+        #expect(outputs.count == 10)
+        for id in outputs {
+            let result = try #require(document.results[id], "no result for an Output")
+            #expect(result.state.isSuccess, "\(result.state)")
+            if case .ready(let solids, _, _) = DrawingSession.content(of: id, in: document).state {
+                #expect(solids.count == 1 && solids[0].topology.faces.count > 6, "a box with a hole through it: \(solids.count)")
+            } else {
+                Issue.record("the Output holds no solid")
+            }
+        }
     }
 
     @Test func theAssemblyFixtureHasTenParts() async throws {

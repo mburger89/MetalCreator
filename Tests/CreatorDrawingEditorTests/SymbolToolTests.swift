@@ -109,6 +109,10 @@ struct SymbolToolTests {
         #expect(datum.attachment == .dimension(Scene.horizontal))
         #expect(datum.dimensionEnd == ((tips[1] - spot).length < (tips[0] - spot).length ? 1 : 0))
         #expect(datum.dimensionEnd == 1)
+        // The click lies 3 mm past the line's end along its way out, which is nearer than the symbol can stand: the stored
+        // distance is the least the symbol draws at.
+        let least = DatumLayout.minimumDistance(h: DrawingStyle.iso.notesHeight(for: s.h.model.document.sheets[0].size), standard: .iso)
+        #expect(abs(datum.distance - least) < 1e-9, "\(datum.distance) against \(least)")
         #expect(made.view == s.view.id)
     }
 
