@@ -37,12 +37,12 @@ struct AnnotationInspector: Component {
             deletePage("Centre mark")
         case .centreLine:
             deletePage("Centre line")
-        case .datumFeature:
-            deletePage("Datum symbol")  // DR-4 Task 9
-        case .featureControl:
-            deletePage("Tolerance frame")  // DR-4 Task 9
-        case .surfaceTexture:
-            deletePage("Surface symbol")  // DR-4 Task 9
+        case .datumFeature(let datum):
+            DatumInspector(model: model, id: annotation.id, datum: datum, report: report, colors: colors)
+        case .featureControl(let frame):
+            FrameInspector(model: model, id: annotation.id, frame: frame, report: report, colors: colors)
+        case .surfaceTexture(let texture):
+            SurfaceInspector(model: model, id: annotation.id, texture: texture, report: report, colors: colors)
         }
     }
 

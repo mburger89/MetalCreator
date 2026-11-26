@@ -13,7 +13,7 @@ struct NoteInspector: Component {
     var content: some ElementGroup {
         VStack(alignment: .leading, spacing: Pixels(8)) {
             Text("Note").font(.headline).foregroundStyle(colors.primary.color)
-            NoteTextEntry(model: model, id: id, text: note.text)
+            NoteTextEntry(model: model, text: note.text) { model.setNoteText($0, of: id) }
             Text("LEADERS").font(.caption2).foregroundStyle(colors.secondary.color)
             ForEach(note.leaders.indices, id: \.self) { index in
                 HStack(spacing: Pixels(8)) {
@@ -31,12 +31,13 @@ struct NoteInspector: Component {
     }
 }
 
-/// A note's multi-line text box: the draft stays local while typing and is recorded with the model, so Save, Undo or a click
-/// elsewhere commits it first (as `DrawingField` does for a line of text).
+/// A multi-line text box: the draft stays local while typing and is recorded with the model, so Save, Undo or a click
+/// elsewhere commits it first (as `DrawingField` does for a line of text). `submit` takes the committed text: a note's, or the
+/// sheet's general notes.
 struct NoteTextEntry: Component {
     let model: DrawingEditorModel
-    let id: AnnotationID
     let text: String
+    let submit: @MainActor (String) -> Void
     @State var draft: String?
     @State var owner = UUID()
     @FocusState var isFocused: Bool
@@ -44,7 +45,7 @@ struct NoteTextEntry: Component {
     var content: some ElementGroup {
         TextEditor("Note", text: draft ?? text, onChange: { typed in
             draft = typed
-            model.notePendingDraft(owner: owner) { if typed != text { model.setNoteText(typed, of: id) } }
+            model.notePendingDraft(owner: owner) { if typed != text { submit(typed) } }
         })
         .focused($isFocused)
         .onKeyPress(keys: [.return]) { press in
@@ -66,6 +67,6 @@ struct NoteTextEntry: Component {
         guard let typed = draft else { return }
         draft = nil
         model.discardPendingDraft(ownedBy: owner)
-        if typed != text { model.setNoteText(typed, of: id) }
+        if typed != text { submit(typed) }
     }
 }

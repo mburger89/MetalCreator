@@ -46,3 +46,14 @@ extension DrawingEditorModel {
         setGeneralSurface(requirement)
     }
 }
+
+extension DrawingEditorModel {
+    /// What the sheet's symbols break, one entry per warning: the symbol's text and the sentence, in the sheet's order (R8, R15).
+    public var checks: [(id: AnnotationID, label: String, warning: String)] {
+        guard let picture else { return [] }
+        return picture.checkedAnnotations.flatMap { id -> [(id: AnnotationID, label: String, warning: String)] in
+            guard let report = picture.annotationReports[id] else { return [] }
+            return report.warnings.map { (id: id, label: report.label, warning: $0) }
+        }
+    }
+}

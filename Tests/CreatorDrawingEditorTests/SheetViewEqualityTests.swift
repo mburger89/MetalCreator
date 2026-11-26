@@ -100,4 +100,11 @@ struct SheetViewEqualityTests {
                 "style": layer(style: .asme),
             ])
     }
+
+    @Test func everyFillPolygonIsWoundCounterClockwise() {
+        let counter = [Vector2(0, 0), Vector2(20, 0), Vector2(10, 20)]
+        let clockwise = Array(counter.reversed())
+        #expect(SheetFillShape.counterClockwise(counter) == counter)
+        #expect(SheetFillShape.counterClockwise(clockwise) == counter, "a clockwise polygon is turned round")
+    }
 }
