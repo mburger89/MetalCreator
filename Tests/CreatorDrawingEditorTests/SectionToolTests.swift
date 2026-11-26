@@ -266,6 +266,29 @@ extension SectionToolTests {
         #expect(abs(line.cutter.points[1].x - 39) < 1e-6 && abs(line.cutter.points[1].y - 13) < 1e-6)
     }
 
+    @Test func draggingTheCuttingLineDividesByTheParentsScale() throws {
+        let content = Fixtures.top()
+        let view = EditorDocuments.view(at: Fixtures.centre, orientation: .top)
+        var sheet = DrawingSheet(name: "Sheet 1", views: [view])
+        sheet.scale = DrawingScale(numerator: 2, denominator: 1)
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id, contents: [view.id: content])
+        h.model.transform = SheetTransform(offset: Vector2(0, 297), zoom: 1)
+        let mapping = ViewMapping.of(content: content, center: Fixtures.centre, scale: 2)!
+        let o = OpenedView(h: h, view: view, mapping: mapping, content: content)
+        let made = try placed(o)
+        let start = o.at(15, 10)
+        h.model.pointerDown(at: h.canvas(start.x, start.y), modifiers: [])
+        h.model.pointerDragged(to: h.canvas(start.x + 2, start.y + 1))
+        h.model.pointerDragged(to: h.canvas(start.x + 4, start.y + 3))
+        h.model.pointerUp(at: h.canvas(start.x + 4, start.y + 3))
+        guard case .section(let line)? = h.model.document.sheets[0].view(made.id)?.derivation else {
+            Issue.record("no derivation")
+            return
+        }
+        #expect(abs(line.cutter.points[0].x - 7) < 1e-6 && abs(line.cutter.points[0].y - 11.5) < 1e-6)
+        #expect(abs(line.cutter.points[1].x - 37) < 1e-6 && abs(line.cutter.points[1].y - 11.5) < 1e-6)
+    }
+
     @Test func pressingAMarkSelectsItsView() throws {
         let o = open()
         let made = try placed(o)

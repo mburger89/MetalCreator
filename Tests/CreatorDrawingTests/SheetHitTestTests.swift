@@ -33,6 +33,23 @@ struct SheetHitTestTests {
         #expect(SheetHitTest.line(near: Vector2(60.5, 50), in: picture, view: b, tolerance: 1) == 1)
     }
 
+    @Test func aDetailsOwnBoundaryIsNotAMarkOnAParent() {
+        let parent = ViewID()
+        let detail = ViewID()
+        let drawn = SheetPicture(
+            size: Vector2(100, 100),
+            strokes: [
+                SheetStroke(
+                    segments: [.arc(center: Vector2(50, 50), radius: 10, start: 0, sweep: 2 * .pi)], width: 0.5, layer: .visible,
+                    view: detail, mark: detail),
+                SheetStroke(
+                    segments: [.arc(center: Vector2(20, 20), radius: 5, start: 0, sweep: 2 * .pi)], width: 0.5, layer: .visible,
+                    view: parent, mark: detail),
+            ])
+        #expect(SheetHitTest.mark(at: Vector2(60, 50), in: drawn, tolerance: 1) == nil)
+        #expect(SheetHitTest.mark(at: Vector2(25, 20), in: drawn, tolerance: 1) == detail)
+    }
+
     @Test func nothingNearIsNil() {
         #expect(SheetHitTest.line(near: Vector2(5, 20), in: picture, view: a, tolerance: 2) == nil)
         #expect(SheetHitTest.view(at: Vector2(300, 200), in: picture, order: [a, b]) == nil)

@@ -132,6 +132,13 @@ struct DetailToolTests {
         #expect(abs(circle.radius - 6) < 1e-6)
     }
 
+    @Test func dragsDivideByTheParentsScale() throws {
+        let o = open(scale: DrawingScale(numerator: 2, denominator: 1))
+        circled(o)
+        let draft = try #require(o.h.model.detailDraft)
+        #expect(abs(draft.radius - 3) < 1e-6)
+    }
+
     @Test func theEKeyChoosesTheTool() throws {
         #expect(SheetCanvasInput.key("e", modifiers: []) == .tool(.detail))
     }
