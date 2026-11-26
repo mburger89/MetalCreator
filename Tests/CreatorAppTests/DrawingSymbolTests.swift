@@ -33,17 +33,27 @@ struct DrawingSymbolTests {
 
     @Test func aSymbolRefreshesItsLastGood() async throws {
         let (app, plate, view) = try await start()
-        let id = try #require(await app.placeSymbol(.datum, on: view))
+        // On the left edge the datum's foot moves with the width (the bottom edge's middle would not).
+        let id = try #require(await app.placeSymbol(.datum, on: view, side: .left))
+        let before = try #require(app.drawing.editor.remembered[id])
+        guard case .attachment(let footBefore, _) = before.figure else {
+            Issue.record("the datum remembers its attachment figure: \(before.figure)")
+            return
+        }
         app.setMode(.model)
+        let edits = app.document.undoName
         try app.document.perform(plate.setWidth(60), name: "Width")
         await app.settle()
         let good = try #require(app.drawing.editor.remembered[id])
-        guard case .attachment = good.figure else {
+        guard case .attachment(let footAfter, _) = good.figure else {
             Issue.record("the datum remembers its attachment figure: \(good.figure)")
             return
         }
+        #expect(good.figure != before.figure, "the refresh read the wider plate")
+        #expect(abs(footAfter.x - footBefore.x * 1.5) < 1e-6, "foot x \(footBefore.x) -> \(footAfter.x)")
         let saved = app.drawing.editor.documentForSaving()
         #expect(saved.sheets[0].annotation(id)?.last?.figure == good.figure)
+        #expect(app.document.undoName != edits, "only the width edit is a step")
     }
 
     @Test func aSymbolOnADimensionIsNotRefreshed() async throws {
