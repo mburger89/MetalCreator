@@ -100,6 +100,11 @@ extension DrawingExportTests {
         for table in ["Item", "Qty", "Name", "Rev.", "Description", "Material"] {
             #expect(!texts.contains(table), "no entity of the parts list or the revision table: \(texts)")
         }
+        let everyText = reader.entities.filter { $0.type == "TEXT" || $0.type == "MTEXT" }.compactMap { $0.first(1) }
+        for table in ["Item", "Qty", "Name", "Rev.", "Description", "Material", "First"] {
+            #expect(!everyText.contains(table), "no text of either table on any layer: \(everyText)")
+        }
+        #expect(!reader.entities.contains { $0.type == "LWPOLYLINE" && $0.layer == "FRAME" }, "no frame of a table or the logo")
         #expect(!warnings.contains { $0.contains("logo") }, "a view's DXF has no title block: \(warnings)")
         _ = (balloon, list)
     }

@@ -40,14 +40,13 @@ extension DrawingSession {
     /// refuses them, or `nil` when they make a picture. Cached under their hash, so the sheet that takes them shows them at once.
     func vetLogo(_ data: Data) async -> String? {
         let hash = ImageHash(of: data).hex
-        if let known = logoCache[hash] {
-            if case .unreadable(let reason) = known { return reason }
-            return nil
-        }
+        // Only a decoded picture is trusted: an unreadable entry may be the absence of these very bytes from the document.
+        if case .picture? = logoCache[hash] { return nil }
         let fact = await Self.makeLogo(data, key: hash, decoder: logoDecoder)
         guard let fact else { return "The decoding was cancelled." }
         if case .unreadable(let reason) = fact { return reason }
         logoCache[hash] = fact
+        publishFacts()
         return nil
     }
 

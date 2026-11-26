@@ -179,7 +179,7 @@ extension DrawingSession {
 
     /// An assembly's solids laid out as the projector lays them out: each distinct solid cut once for a section, by its part's index in
     /// the view's Outputs (the hatch angle, R2 (b)), then `PartSpan.layout`. `nil` when a cut can't be had.
-    private static func assemblyLayout(of job: RefreshJob, cache: ProjectionCache, kernel: any Kernel) async -> PartLayout? {
+    private nonisolated static func assemblyLayout(of job: RefreshJob, cache: ProjectionCache, kernel: any Kernel) async -> PartLayout? {
         guard let cutter = job.key.cutter else {
             return PartSpan.layout(job.parts.map { PartSolids(output: $0.output, solids: $0.solids, curves: $0.curves) })
         }

@@ -78,6 +78,24 @@ struct DrawingTemplateAppTests {
         #expect(app.drawing.editor.document.sheets[0].titleBlock.logo == nil && app.document.images.isEmpty)
     }
 
+    @Test func aLogoThatWasAbsentCanBeChosenAgain() async throws {
+        let app = await app()
+        let sheet = try #require(app.drawing.editor.currentSheet)
+        let bytes = AppTestImages.png(20, 10, level: 90)
+        let hash = ImageHash(of: bytes)
+        // The images table dropped it: the absence is noticed first.
+        guard case .unreadable = await app.drawing.logo(forHash: hash.hex) else {
+            Issue.record("expected an absence")
+            return
+        }
+        let url = temporaryURL("repair.png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try bytes.write(to: url)
+        await app.chooseLogo(for: sheet, using: ScriptedPicker([url]))
+        #expect(app.alert == nil, "\(String(describing: app.alert))")
+        #expect(app.drawing.editor.document.sheets[0].titleBlock.logo == hash.hex)
+    }
+
     @Test func theLogoSizeUsesMessageNumbers() async throws {
         let app = await app()
         let sheet = try #require(app.drawing.editor.currentSheet)
