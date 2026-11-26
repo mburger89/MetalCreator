@@ -85,6 +85,13 @@ public final class DrawingEditorModel {
     public var units: DocumentUnits {
         didSet { if units != oldValue { rebuildPicture() } }
     }
+    /// The templates the sheet inspector offers; set by the host (DR-5 R10).
+    public var templateChoices: [DrawingTemplateChoice] = []
+    /// What each wanted part is called, as the facts the composer reads say (DR-5 R5); set by the host from that same build, so the
+    /// order the editor pins is the order the balloons show.
+    public var partFacts: [NodeID: PartFacts] = [:]
+    /// The names of parts whose Outputs may be gone (DR-5 R5): in memory, never an edit; saved by `documentForSaving()`.
+    public internal(set) var rememberedPartNames: [NodeID: String] = [:]
     /// The tab being renamed in place; view state, committed as one "Rename Sheet" step.
     public internal(set) var renaming: SheetRename?
     public internal(set) var hoveredStroke: Int?
@@ -140,6 +147,7 @@ public final class DrawingEditorModel {
         self.units = units
         self.today = today
         self.events = events
+        for entry in document.partNames { rememberedPartNames[entry.part] = entry.name }
         rebuildPicture()
     }
 
@@ -177,6 +185,7 @@ public final class DrawingEditorModel {
     /// Undo and redo: takes the drawings the host restored, keeping the sheet and the selection that still exist.
     public func replaceDocument(_ new: DrawingDocument) {
         document = new
+        for entry in new.partNames where rememberedPartNames[entry.part] == nil { rememberedPartNames[entry.part] = entry.name }
         let kept = currentSheet.flatMap { new.sheet($0) != nil ? $0 : nil } ?? new.sheets.first?.id
         if kept != currentSheet {
             currentSheet = kept

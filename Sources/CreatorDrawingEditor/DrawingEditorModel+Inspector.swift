@@ -22,6 +22,10 @@ extension DrawingEditorModel {
     /// Edits a typed title-block field of the current sheet and the defaults new sheets start with; an automatic key does nothing.
     public func setTitleField(_ key: TitleBlockKey, to value: String) {
         guard key.isTyped, let id = currentSheet else { return }
+        if key == .revision, let rows = sheet?.revisionTable?.table.rows, !rows.isEmpty {
+            refuse(Self.revisionFromTableSentence)
+            return
+        }
         commit(DrawingStepName.editTitleBlock) { document in
             guard let index = document.sheets.firstIndex(where: { $0.id == id }) else { return }
             func write(_ block: inout TitleBlock) {

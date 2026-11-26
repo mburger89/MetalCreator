@@ -213,3 +213,25 @@ struct SheetEditingTests {
         #expect(h.model.document.sheet(sheet.id)?.symbols(on: size.id).count == 2)
     }
 }
+
+@MainActor
+@Suite("Sheet names")
+struct SheetNameTests {
+    @Test func duplicateNamesAreUnique() throws {
+        let sheet = DrawingSheet(name: "Plate")
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.duplicateSheet(sheet.id)
+        h.model.duplicateSheet(sheet.id)
+        #expect(h.model.document.sheets.map(\.name).sorted() == ["Plate", "Plate Copy", "Plate Copy 2"])
+    }
+
+    @Test func renamingTrims() throws {
+        let sheet = DrawingSheet(name: "Plate")
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.renameSheet(sheet.id, to: "  Assembly  ")
+        #expect(h.model.document.sheets[0].name == "Assembly")
+        h.model.renameSheet(sheet.id, to: "   ")
+        #expect(h.model.document.sheets[0].name == "Assembly")
+        #expect(h.log.commits.count == 1)
+    }
+}

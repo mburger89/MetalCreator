@@ -1,18 +1,16 @@
 import CreatorDrawing
 import CreatorGeometry
+import Foundation
 import MetalUI
 
 extension DrawingEditorModel {
     /// Adds a sheet after the last, named "Sheet N" with the smallest unused N, and shows it.
     public func addSheet() {
         let settings = document.settings
-        let used = Set(document.sheets.map(\.name))
-        var number = 1
-        while used.contains("Sheet \(number)") { number += 1 }
         var block = settings.titleBlockDefaults
         block.date = today()
         let sheet = DrawingSheet(
-            name: "Sheet \(number)", size: settings.standard == .asme ? .ansiB : .a3, orientation: .landscape,
+            name: nextSheetName(), size: settings.standard == .asme ? .ansiB : .a3, orientation: .landscape,
             titleBlock: block)
         commit(DrawingStepName.addSheet) { document in
             document.sheets.append(sheet)
@@ -24,9 +22,19 @@ extension DrawingEditorModel {
         show(sheet: sheet.id)
     }
 
+    /// "Sheet N" with the smallest unused N.
+    func nextSheetName() -> String {
+        let used = Set(document.sheets.map(\.name))
+        var number = 1
+        while used.contains("Sheet \(number)") { number += 1 }
+        return "Sheet \(number)"
+    }
+
+    /// Renames to the trimmed text; a blank name keeps the old one (DR-5 R21).
     public func renameSheet(_ id: SheetID, to name: String) {
-        guard !name.isEmpty else { return }
-        commitSheet(id, DrawingStepName.renameSheet) { $0.name = name }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        commitSheet(id, DrawingStepName.renameSheet) { $0.name = trimmed }
     }
 
     public func duplicateSheet(_ id: SheetID) {
@@ -56,10 +64,20 @@ extension DrawingEditorModel {
             return copied
         }
         let copy = DrawingSheet(
-            name: original.name + " Copy", size: original.size, orientation: original.orientation, scale: original.scale,
+            name: uniqueCopyName(of: original.name), size: original.size, orientation: original.orientation, scale: original.scale,
             titleBlock: original.titleBlock, views: views, annotations: annotations, notes: original.notes)
         commit(DrawingStepName.duplicateSheet) { $0.sheets.insert(copy, at: index + 1) }
         show(sheet: copy.id)
+    }
+
+    /// "\(name) Copy", then "\(name) Copy 2", "\(name) Copy 3"… (DR-5 R21).
+    private func uniqueCopyName(of name: String) -> String {
+        let used = Set(document.sheets.map(\.name))
+        let base = name + " Copy"
+        guard used.contains(base) else { return base }
+        var number = 2
+        while used.contains("\(base) \(number)") { number += 1 }
+        return "\(base) \(number)"
     }
 
     /// A copied symbol on a dimension names the copied dimension (plan R14).

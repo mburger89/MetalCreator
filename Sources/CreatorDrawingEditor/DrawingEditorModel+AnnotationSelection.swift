@@ -52,6 +52,9 @@ extension DrawingEditorModel {
     /// The editor's own document is not changed (plan R15).
     public func documentForSaving() -> DrawingDocument {
         var saved = document
+        let wanted = PartItems.wanted(in: document)
+        saved.partNames = wanted.compactMap { part in rememberedPartNames[part].map { PartName(part: part, name: $0) } }
+            .sorted { $0.part < $1.part }
         for index in saved.sheets.indices {
             for annotation in saved.sheets[index].annotations {
                 guard let good = remembered[annotation.id], annotation.last != good else { continue }
