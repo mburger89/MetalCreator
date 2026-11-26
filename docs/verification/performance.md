@@ -1597,3 +1597,22 @@ BENCH load after: 9.28 9.59 8.91
 ```
 
 Each round gives the section a new view ID, so the session cuts and projects again; the benchmark checks that `ProjectionCache.cutCalls` grew every round. The same run re-measured the earlier rows (`drawing-1` median 7.65 ms, `drawing-2-warm` 11.78 ms, `drawing-3` 0.70 ms, `drawing-3-warm` 11.63 ms), all within their budgets.
+
+### DR-5 assemblies (`drawing-5`, `drawing-5-warm`)
+
+Plan R20: ten parts (each a 40 x 30 x 10 mm box less a 10 mm hole, 50 mm apart along x, one Output each), the Assembly View in Front with its Top and Right projected views at 1:5. Recorded, not gated. The Mac was loaded (load average 5 to 9 through the run), so the warm row is saturated, not a verdict: the same run measured the earlier warm rows over their budget too (`drawing-2-warm` median 17.65 ms, `drawing-3-warm` 23.51 ms; unloaded they were 11.78 and 11.63 ms).
+
+| Row | Time | Budget |
+|---|---|---|
+| `drawing-5` three views of ten parts, from the edit that adds them to the last projection landing (projection cache emptied, 10 runs) | median 10.77 ms, p95 12.24 ms, max 12.24 ms | under 1 s: met |
+| `drawing-5-warm` 60 pan and 60 zoom steps, ten balloons and the parts list, warm window CPU per frame | median 17.89 ms, p95 28.99 ms, max 51.50 ms (saturated) | 16.67 ms: missed on a loaded Mac |
+
+```text
+BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
+BENCH load before: 5.47 8.18 8.08
+BENCH drawing-5 ten-part assembly, three views projected (cache emptied): median 10.77 ms, p95 12.24 ms, max 12.24 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-5-warm window-cpu (warm frame, ten parts, ten balloons, parts list): median 17.89 ms, p95 28.99 ms, max 51.50 ms (n 115); budget 16.67 ms: missed
+BENCH load after: 7.22 8.98 8.64
+```
+
+`drawing-5` gives the views new IDs each round and checks that `ProjectionCache.kernelCalls` grew by at least three per round; `drawing-5-warm` asserts all ten balloons held before and after the run. Re-run on an idle Mac to settle the warm row.

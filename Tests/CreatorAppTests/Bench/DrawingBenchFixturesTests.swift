@@ -1,9 +1,12 @@
 #if canImport(CreatorOCCT)
 import CreatorDrawing
 import CreatorGeometry
+import CreatorGraph
 import CreatorKernel
+import CreatorNodes
 import Testing
 @testable import CreatorApp
+@testable import CreatorOCCT
 
 @MainActor
 struct DrawingBenchFixturesTests {
@@ -67,6 +70,55 @@ struct DrawingBenchFixturesTests {
         let topology = try #require(content.topology)
         #expect(topology.faces.contains { $0.tags.contains { $0.node == SectionCutter.toolNode } }, "the section has a cut face")
         #expect((content.projection?.lines.count ?? 0) > 0)
+    }
+
+    @Test func theAssemblyFixtureHasTenParts() async throws {
+        let (document, outputs) = try DrawingBenchFixtures.assemblyDocument(parts: 10)
+        #expect(outputs.count == 10)
+        #expect(document.graph.nodes.values.filter { $0.typeID == OutputNode.typeID }.count == 10)
+        let app = AppModel(kernel: OCCTKernel())
+        let ids = try DrawingBenchFixtures.addAssemblyParts(to: app.document, parts: 10)
+        await app.settle()
+        for id in ids {
+            #expect(app.document.results[id]?.state.isSuccess == true, "\(String(describing: app.document.results[id]?.state))")
+        }
+        app.setMode(.drawing)
+        app.drawing.editor.addSheet()
+        await app.settle()
+        let sheet = DrawingBenchFixtures.assemblySheet(app, outputs: ids)
+        #expect(sheet.sheets[0].views.count == 3)
+        try app.document.perform(.setDrawings(sheet), name: "Test")
+        app.refreshDrawing()
+        await app.settle()
+        for view in sheet.sheets[0].views {
+            let content = try #require(app.drawing.editor.contents[view.id])
+            #expect(content.problem == nil && !content.isPending, "\(String(describing: content.problem))")
+            #expect((content.projection?.lines.count ?? 0) > 0)
+            #expect(content.parts.count == 10, "ten spans")
+            let topology = try #require(content.topology)
+            for span in content.parts {
+                let faces = topology.faces[span.faces]
+                #expect(faces.count == 7, "a box with a hole has seven faces: \(faces.count)")
+                #expect(faces.contains { $0.kind == .cylinder }, "the hole")
+            }
+        }
+    }
+
+    @Test func theBalloonedAssemblyHoldsTenBalloons() async throws {
+        let app = AppModel(kernel: OCCTKernel())
+        let ids = try DrawingBenchFixtures.addAssemblyParts(to: app.document, parts: 10)
+        app.setMode(.drawing)
+        app.drawing.editor.addSheet()
+        await app.settle()
+        let document = try await DrawingBenchFixtures.balloonedAssemblySheet(app, outputs: ids)
+        let balloons = document.sheets[0].annotations.filter { if case .balloon = $0.kind { true } else { false } }
+        #expect(balloons.count == 10)
+        try app.document.perform(.setDrawings(document), name: "Test")
+        app.refreshDrawing()
+        await app.settle()
+        let reports = balloons.compactMap { app.drawing.editor.picture?.annotationReports[$0.id] }
+        #expect(reports.count == 10)
+        #expect(reports.allSatisfy { $0.status == .held }, "\(reports.map(\.status))")
     }
 }
 #endif
