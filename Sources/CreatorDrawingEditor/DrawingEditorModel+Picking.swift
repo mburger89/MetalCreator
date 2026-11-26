@@ -294,18 +294,18 @@ extension DrawingEditorModel {
         }
     }
 
-    /// The sentence for a re-attach click whose line the annotation could not hold: its own, not the lost annotation's "no longer"
-    /// wording (the click is a new pick, and the reason is why this one fails), naming the kind it was for.
+    /// The sentence for a re-attach click whose line the annotation could not hold: worded for a pick being made now (never the
+    /// lost annotation's "no longer"), naming the kind it was for.
     static func cantHoldSentence(of kind: AnnotationKind, because reason: LostReason) -> String {
         let noun: String
         switch kind {
-        case .dimension, .holeCallout: noun = "dimension"
+        case .dimension: noun = "dimension"
+        case .holeCallout: noun = "hole callout"
         case .datumFeature, .featureControl, .surfaceTexture: noun = "symbol"
         case .balloon: noun = "balloon"
         default: noun = "annotation"
         }
-        let why = reason.sentence
-        return "That line can't hold this \(noun): " + (why.first.map { $0.lowercased() + why.dropFirst() } ?? why)
+        return "That line can't hold this \(noun): " + pickReason(reason)
     }
 
     /// A balloon stays on its part (R4): the sentence when `target` lies on another.

@@ -95,6 +95,7 @@ public struct DrawingProjector: Sendable {
                 if let remainder = piece.remainder { remainders.append(remainder) }
                 hatch += piece.regions
                 hatchFailed = hatchFailed || piece.hatchFailed
+                for sentence in piece.warnings where !warnings.contains(sentence) { warnings.append(sentence) }
             }
             if remainders.isEmpty {
                 return ViewContent(problem: Self.cutAwaySentence, warnings: warnings, lastSize: previous?.lastSize)

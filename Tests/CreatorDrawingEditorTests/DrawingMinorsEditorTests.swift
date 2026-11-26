@@ -134,13 +134,21 @@ struct DrawingMinorsEditorTests {
         #expect(loaded.templates.isEmpty && loaded.problems.isEmpty)
     }
 
+    /// Writes the file's bytes under the upper-case name without ever renaming across case (a case-insensitive
+    /// filesystem would see the same file).
+    private static func reissue(_ lower: URL, as upper: URL) throws {
+        let bytes = try Data(contentsOf: lower)
+        try FileManager.default.removeItem(at: lower)
+        try bytes.write(to: upper)
+    }
+
     @Test func theExtensionFilterIgnoresCase() throws {
         let folder = DrawingTemplateStoreTests.folder()
         let template = DrawingTemplateStoreTests.template("Acme")
         try folder.save(template)
         let lower = folder.fileURL(for: template.id)
         let upper = lower.deletingLastPathComponent().appending(path: "\(template.id).MCTEMPLATE")
-        try FileManager.default.moveItem(at: lower, to: upper)
+        try Self.reissue(lower, as: upper)
         let loaded = folder.load()
         #expect(loaded.templates.map(\.id) == [template.id])
         try? FileManager.default.removeItem(at: folder.url)
@@ -152,7 +160,7 @@ struct DrawingMinorsEditorTests {
         try folder.save(template)
         let lower = folder.fileURL(for: template.id)
         let upper = lower.deletingLastPathComponent().appending(path: "\(template.id).MCTEMPLATE")
-        try FileManager.default.moveItem(at: lower, to: upper)
+        try Self.reissue(lower, as: upper)
         try folder.save(template)
         #expect(DrawingTemplateStoreTests.files(in: folder) == ["\(template.id).MCTEMPLATE"])
         try folder.remove(template.id)

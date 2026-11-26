@@ -13,6 +13,16 @@ extension FakeKernel {
         sectionCutHook = hook
     }
 
+    /// A test knob: the sentences `cutAwayNoting` reports with every cut.
+    public func setSectionCutWarnings(_ warnings: [String]) {
+        sectionCutWarnings = warnings
+    }
+
+    public func cutAwayNoting(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws
+        -> (solid: Solid?, warnings: [String]) {
+        (try await cutAway(solid, by: cutter, tag: tag), sectionCutWarnings)
+    }
+
     public func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
         try Task.checkCancellation()
         try cutter.validate()

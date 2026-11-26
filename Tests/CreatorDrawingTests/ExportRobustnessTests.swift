@@ -27,7 +27,9 @@ struct ExportRobustnessTests {
         let reference = try DXFReader(data: DXFWriter.sheet(screen, style: .iso).data).entities.filter { $0.layer == "FRAME" }.count
         #expect(onFrame == reference - 1)
         let warnings = file.fileWarnings()
-        #expect(warnings.count == 1 && warnings[0].hasPrefix("View ") && warnings[0].hasSuffix(" has nothing drawn."), "\(warnings)")
+        #expect(
+            warnings.count == 1 && warnings[0].hasPrefix("The view \u{201C}") && warnings[0].hasSuffix("\u{201D} has nothing drawn.")
+                && !warnings[0].contains("("), "\(warnings)")
         #expect(file.fileWarnings(view: view.id) == warnings)
         #expect(file.fileWarnings(view: ViewID()) == [])
     }

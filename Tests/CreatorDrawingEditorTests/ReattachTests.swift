@@ -86,7 +86,24 @@ struct ReattachTests {
         #expect(
             o.h.model.refusal?.hasPrefix("That line can't hold this dimension: ") == true,
             "its own sentence, not the lost one's: \(o.h.model.refusal ?? "")")
+        #expect(o.h.model.refusal?.contains("no longer") == false, "\(o.h.model.refusal ?? "")")
         #expect(o.h.log.commits.isEmpty, "nothing is stored that would stay lost")
+    }
+
+    @Test func theRefusalIsWordedForAPickAndNamesTheKind() {
+        let placement = DimensionPlacement(offset: 5, angle: 0)
+        let full = Fixtures.topology()
+        let callout = AnnotationKind.holeCallout(HoleCallout(anchor: Fixtures.pick(full, 0), placement: placement))
+        let dimension = AnnotationKind.dimension(
+            DrawingDimension(kind: .linear(.horizontal), anchors: [Fixtures.pick(full, 100)], placement: placement))
+        let hole = DrawingEditorModel.cantHoldSentence(of: callout, because: .notAHole)
+        #expect(hole == "That line can't hold this hole callout: it isn't a plain, counterbored or countersunk hole.")
+        let linear = DrawingEditorModel.cantHoldSentence(of: dimension, because: .notLineOrCircle)
+        #expect(linear == "That line can't hold this dimension: it isn't a straight line or a circle.")
+        for reason in [LostReason.missing, .foreshortened, .notStraight, .turnedAway, .partNotShown, .several(2), .noPart] {
+            let text = DrawingEditorModel.cantHoldSentence(of: dimension, because: reason)
+            #expect(!text.contains("no longer") && !text.contains("any more"), "\(text)")
+        }
     }
 
     @Test func onlyWithOneLostSelected() throws {

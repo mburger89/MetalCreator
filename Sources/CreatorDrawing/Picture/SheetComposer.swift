@@ -158,8 +158,9 @@ public enum SheetComposer {
                 SheetStroke(
                     segments: [.polyline(SheetFrame.closedPoints(of: frame))], width: style.thin, layer: .frame, view: view.id))
         }
-        let label = ViewLabel.text(for: view, sheet: sheet, standard: style.standard)
-        picture.emptyViews.append(EmptyViewNote(id: view.id, sentence: "View \(label) has nothing drawn."))
+        var label = ViewLabel.text(for: view, sheet: sheet, standard: style.standard)
+        if label.hasSuffix(")"), let open = label.range(of: " (", options: .backwards) { label = String(label[..<open.lowerBound]) }
+        picture.emptyViews.append(EmptyViewNote(id: view.id, sentence: "The view \u{201C}\(label)\u{201D} has nothing drawn."))
         if notices, let (problem, run) = layout {
             picture.texts.append(
                 SheetText(

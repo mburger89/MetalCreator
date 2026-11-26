@@ -147,6 +147,7 @@ extension DrawingProjector {
                     if let remainder = piece.remainder { cut.append(remainder) }
                     hatch += piece.regions
                     hatchFailed = hatchFailed || piece.hatchFailed
+                    for sentence in piece.warnings where !warnings.contains(sentence) { warnings.append(sentence) }
                 }
                 remainders.append(PartSolids(output: source.output, solids: cut, curves: []))
             }
