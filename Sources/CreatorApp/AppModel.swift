@@ -22,6 +22,8 @@ public final class AppModel {
     public let registry: NodeRegistry
     /// The theme the window shows (spec §6.6). The views read it from the environment; the viewport is handed it.
     public let themes: ThemeStore
+    /// The person's drawing templates (DR-5 R10): an app preference, never in a document.
+    public let templates: DrawingTemplateStore
     public private(set) var document: DocumentModel
     public private(set) var editor: EditorModel
     public private(set) var graphInput: GraphPanelInput
@@ -149,8 +151,9 @@ public final class AppModel {
     /// `kernel` evaluates the document and tessellates for the viewport (`OCCTKernel` in the app, `FakeKernel`
     /// in tests). `unitPreference` remembers the unit for new documents. `file` is the document to start with, `fileURL` where it came from, `themes` the app's themes.
     public init(kernel: any Kernel, registry: NodeRegistry = BuiltInNodes.registry, file: GraphFile = GraphFile(),
-                fileURL: URL? = nil, themes: ThemeStore = ThemeStore(), implicitEngine: ImplicitEngineChoice = .cpu,
-                unitPreference: any UnitPreference = InMemoryUnitPreference()) {
+                fileURL: URL? = nil, themes: ThemeStore = ThemeStore(), templates: DrawingTemplateStore = DrawingTemplateStore(),
+                implicitEngine: ImplicitEngineChoice = .cpu, unitPreference: any UnitPreference = InMemoryUnitPreference()) {
+        self.templates = templates
         self.kernel = kernel
         self.unitPreference = unitPreference
         self.registry = registry
@@ -223,6 +226,8 @@ public final class AppModel {
         drawing.commitHandler = { [weak self] in self?.storeDrawing($0) }
         drawing.sheetHandler = { [weak self] in self?.drawingSheetChanged($0) }
         drawing.discardHandler = { [weak self] in self?.discardDrawingStep($0) }
+        drawing.requestHandler = { [weak self] in self?.handleDrawingRequest($0) }
+        syncTemplateChoices()
         if mode == .drawing { drawing.activate() }
         sceneInputsChanged()
         followEvaluation()

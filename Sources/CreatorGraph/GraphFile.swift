@@ -34,8 +34,9 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// 18: DR-2's annotations on a sheet, `DrawingView.showsCentreMarks`, a structured general tolerance and the decimal sign; a version-17 reader would drop the annotations on its next save.
     /// 19: DR-3's section, detail and auxiliary views (`derivation`, `letter`); a version-18 reader cannot decode the new view kinds.
     /// 20: DR-4's datum feature symbols, feature control frames and surface texture symbols (`AnnotationKind`), `AnnotationFigure.attachment` and a sheet's `notes`; a version-19 reader cannot decode the new annotation kinds.
-    /// Files 1 to 19 open unchanged and are written as 20.
-    public static let currentFormatVersion = 20
+    /// 21: DR-5's assembly views (`DrawingView.assembly`), part anchors (`AnchorTarget.onPart`), balloons, parts lists and revision tables (`AnnotationKind`), the drawing's `items` and `partNames` and a title block's `logo`; a version-20 reader cannot decode the new anchors and kinds.
+    /// Files 1 to 20 open unchanged and are written as 21.
+    public static let currentFormatVersion = 21
 
     public var formatVersion: Int
     public var graph: Graph

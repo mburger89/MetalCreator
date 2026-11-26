@@ -1,3 +1,4 @@
+import CreatorDrawingEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorImplicit
@@ -33,10 +34,10 @@ extension AppModel {
     /// The model the app starts with: an empty first document in the last unit chosen, like New. A file opened from the
     /// command line or by a file-open event replaces it afterwards (`openRequested`) and keeps its own units.
     public static func launching(kernel: any Kernel, themes: ThemeStore = ThemeStore(),
-                                 implicitEngine: ImplicitEngineChoice = .cpu,
+                                 templates: DrawingTemplateStore = DrawingTemplateStore(), implicitEngine: ImplicitEngineChoice = .cpu,
                                  unitPreference: any UnitPreference) -> AppModel {
         AppModel(kernel: kernel, file: emptyFile(in: unitPreference.lastLength), themes: themes,
-                 implicitEngine: implicitEngine, unitPreference: unitPreference)
+                 templates: templates, implicitEngine: implicitEngine, unitPreference: unitPreference)
     }
 
     /// Open…: the open panel, then the chosen file. With unsaved changes it asks first.

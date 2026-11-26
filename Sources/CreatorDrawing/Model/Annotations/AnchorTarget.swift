@@ -2,13 +2,15 @@ import CreatorGeometry
 import CreatorKernel
 
 /// What an annotation is attached to (plan R3).
-public enum AnchorTarget: Hashable, Sendable {
+public indirect enum AnchorTarget: Hashable, Sendable {
     case edge(EdgePick)
     case corner(EdgePick, EdgePick)
     case centre(EdgePick)
     case outline(FacePick, side: Vector2)
     case axis(FacePick)
     case point(Vector2)
+    /// A target on one part of an assembly view (DR-5 R3); never nested, and never around a point.
+    case onPart(NodeID, AnchorTarget)
 
     public var caseName: String {
         switch self {
@@ -18,13 +20,27 @@ public enum AnchorTarget: Hashable, Sendable {
         case .outline: "outline"
         case .axis: "axis"
         case .point: "point"
+        case .onPart: "onPart"
         }
+    }
+
+    /// The part a wrapped target names.
+    public var part: NodeID? {
+        if case .onPart(let part, _) = self { return part }
+        return nil
+    }
+
+    /// The target without its part wrapper.
+    public var unwrapped: AnchorTarget {
+        if case .onPart(_, let target) = self { return target }
+        return self
     }
 }
 
 extension AnchorTarget: Codable {
-    private enum CodingKeys: String, CodingKey { case type, pick, first, second, face, side, point }
+    private enum CodingKeys: String, CodingKey { case type, pick, first, second, face, side, point, part, target }
 
+    // swiftlint:disable:next cyclomatic_complexity
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         switch try c.decode(String.self, forKey: .type) {
@@ -34,6 +50,14 @@ extension AnchorTarget: Codable {
         case "outline": self = .outline(try c.decode(FacePick.self, forKey: .face), side: try c.decode(Vector2.self, forKey: .side))
         case "axis": self = .axis(try c.decode(FacePick.self, forKey: .face))
         case "point": self = .point(try c.decode(Vector2.self, forKey: .point))
+        case "onPart":
+            // Nesting flattens to the innermost part, and a point has no part (DR-5 R3).
+            let part = try c.decode(NodeID.self, forKey: .part)
+            switch try c.decode(AnchorTarget.self, forKey: .target) {
+            case .onPart(let inner, let target): self = .onPart(inner, target)
+            case .point(let point): self = .point(point)
+            case let target: self = .onPart(part, target)
+            }
         default: throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "Unknown anchor type.")
         }
     }
@@ -51,6 +75,9 @@ extension AnchorTarget: Codable {
             try c.encode(side, forKey: .side)
         case .axis(let face): try c.encode(face, forKey: .face)
         case .point(let point): try c.encode(point, forKey: .point)
+        case .onPart(let part, let target):
+            try c.encode(part, forKey: .part)
+            try c.encode(target, forKey: .target)
         }
     }
 }

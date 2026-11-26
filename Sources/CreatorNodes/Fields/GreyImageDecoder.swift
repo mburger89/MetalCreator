@@ -44,6 +44,18 @@ public enum GreyImageDecoder {
     /// `CancellationError` when the task is cancelled.
     @concurrent
     public static func decode(_ data: Data) async throws -> GreyImage {
-        try await decode(data, bandBytes: defaultBandBytes)
+        try await decode(data, bandBytes: defaultBandBytes, background: .black)
     }
+
+    /// The grey picture in `data`, its transparent part composited against `background` (a logo's is paper, `.white`).
+    @concurrent
+    public static func decode(_ data: Data, background: GreyBackground) async throws -> GreyImage {
+        try await decode(data, bandBytes: defaultBandBytes, background: background)
+    }
+}
+
+/// What a picture's transparent part is composited against before it becomes grey (DR-5 R11): the fields keep `.black`; a logo on
+/// paper takes `.white`.
+public enum GreyBackground: Sendable, Equatable {
+    case black, white
 }

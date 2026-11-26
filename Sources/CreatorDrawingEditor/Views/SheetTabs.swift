@@ -2,7 +2,7 @@ import CreatorDrawing
 import CreatorStyle
 import MetalUI
 
-/// The sheet tabs (plan R22): one per sheet in tab order, a "+" that adds a sheet, a click that shows one, a double click that
+/// The sheet tabs (plan R22): one per sheet in tab order, a "+" menu (New Sheet, then New Sheet from each template, DR-5 R21), a click that shows one, a double click that
 /// renames it in place (the field opens with the whole name selected; Return or losing focus commits one "Rename Sheet", Esc
 /// none) and a context menu of Rename, Duplicate, Delete, Move Left and Move Right (the first tab can't move left, the last
 /// can't move right). Showing a sheet is not an edit.
@@ -25,7 +25,16 @@ public struct SheetTabs: Component {
                     SheetTab(model: model, sheet: sheet, isCurrent: sheet.id == model.currentSheet, colors: colors)
                 }
             }
-            Button("Add Sheet") { model.addSheet() }
+            Menu(content: {
+                Button("New Sheet") { model.addSheet() }
+                for template in model.templateChoices {
+                    // A String variable, never a literal: a name built from data is not Markdown.
+                    let title = "New Sheet from “\(template.name)”"
+                    Button(title) { model.request(.newSheetFromTemplate(template.id)) }
+                }
+            }, label: { ToolbarIcon.image("plus") })
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Add Sheet")
                 .help("Add a sheet")
         }
     }

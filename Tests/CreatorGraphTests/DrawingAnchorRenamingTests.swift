@@ -51,6 +51,7 @@ struct DrawingAnchorRenamingTests {
                     found.formUnion(a.key.first.union(a.key.second).union(b.key.first).union(b.key.second).map(\.node))
                 case .outline(let f, _), .axis(let f): found.formUnion(f.tags.map(\.node))
                 case .point: break
+                case .onPart(_, let inner): take(inner)
                 }
             }
             switch annotation.kind {
@@ -61,9 +62,27 @@ struct DrawingAnchorRenamingTests {
             case .centreLine(let l): take(l.anchor)
             case .datumFeature, .featureControl, .surfaceTexture:
                 if case .feature(let end)? = annotation.symbolAttachment { take(end.target) }
+            case .balloon(let balloon): take(balloon.leader.target)
+            case .partsList, .revisionTable: break
             }
         }
         return found
+    }
+
+    @Test func partAnchorsAreRenamed() {
+        let a = NodeID(), b = NodeID(), part = NodeID()
+        let wrapped = AnchorTarget.onPart(part, .edge(edgePick(a)))
+        #expect(wrapped.renamingTags([a: b]) == .onPart(part, .edge(edgePick(b))))
+        let balloon = DrawingAnnotation(
+            view: nil, kind: .balloon(Balloon(leader: LeaderEnd(target: wrapped, hint: Vector2(1, 1)), offset: Vector2(4, 4))))
+        let dimension = DrawingAnnotation(
+            view: nil,
+            kind: .dimension(DrawingDimension(kind: .linear(.horizontal), anchors: [wrapped],
+                                              placement: DimensionPlacement(offset: 5, angle: 0))))
+        let renamed = [balloon, dimension].map { $0.renamingTags([a: b]) }
+        #expect(nodesNamed(in: DrawingDocument(sheets: [DrawingSheet(name: "S", annotations: renamed)])) == [b])
+        let part2 = [part: part]
+        #expect(wrapped.renamingTags(part2) == wrapped, "the part is an Output, never renamed")
     }
 
     @Test func symbolsAreRenamed() {

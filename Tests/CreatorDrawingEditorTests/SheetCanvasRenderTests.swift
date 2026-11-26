@@ -196,5 +196,88 @@ struct SheetCanvasRenderTests {
         let image = try PixelImage(window: f.window.window)
         #expect(hasBlue(image, x: 78...122, y: 95...115), "the draft's cutting line is drawn in drawingHighlight")
     }
+
+    // MARK: DR-5: balloons and the logo
+
+    private func openAssembly(_ scene: AssemblyScene) async throws -> DrawingWindow {
+        let window = try await DrawingWindow.open { SheetCanvas(model: scene.h.model) }
+        window.redraw()
+        try await window.window.runUntilIdle()
+        return window
+    }
+
+    private func balloonScene() -> AssemblyScene {
+        let balloon: (NodeID, NodeID) -> DrawingAnnotation = { _, second in
+            AssemblyScene.balloonAnnotation(on: second, edge: 102, copy: 1, offset: Vector2(20, 20))
+        }
+        return AssemblyScene.make(annotations: [balloon])
+    }
+
+    /// The pixels under a balloon's number, as (dark, warning-coloured) counts.
+    private func numberPixels(_ scene: AssemblyScene, _ window: DrawingWindow) throws -> (dark: Int, warm: Int) {
+        let picture = try #require(scene.h.model.picture)
+        let id = try #require(scene.annotations.first).id
+        let text = try #require(picture.texts.first { $0.annotation == id }, "the number is drawn")
+        let low = scene.h.model.transform.screenPoint(text.origin)
+        let high = scene.h.model.transform.screenPoint(text.origin + Vector2(text.run.width, text.height))
+        let image = try PixelImage(window: window.window)
+        let colors = DrawingColors(nil)
+        let wr = Int((colors.warning.rgb >> 16) & 0xff), wg = Int((colors.warning.rgb >> 8) & 0xff), wb = Int(colors.warning.rgb & 0xff)
+        var dark = 0, warm = 0
+        for x in stride(from: min(low.x, high.x), through: max(low.x, high.x), by: 0.5) {
+            for y in stride(from: min(low.y, high.y), through: max(low.y, high.y), by: 0.5) {
+                let p = image.rgb(atPoint: x, y)
+                if p.r < 60 && p.g < 60 && p.b < 60 { dark += 1 }
+                if abs(p.r - wr) <= 40 && abs(p.g - wg) <= 40 && abs(p.b - wb) <= 40 { warm += 1 }
+            }
+        }
+        return (dark, warm)
+    }
+
+    @Test func aBalloonIsDrawnInInk() async throws {
+        let scene = balloonScene()
+        let window = try await openAssembly(scene)
+        let counts = try numberPixels(scene, window)
+        #expect(counts.dark > 0 && counts.warm == 0, "\(counts)")
+    }
+
+    @Test func aLostBalloonIsWarningColoured() async throws {
+        let scene = balloonScene()
+        let window = try await openAssembly(scene)  // held first, so its figure is remembered
+        var content = try #require(scene.h.model.contents[scene.view.id])
+        content.topology = Topology(faces: scene.topology.faces, edges: scene.topology.edges.filter { $0.id.rawValue != 1102 })
+        scene.h.model.contents[scene.view.id] = content
+        window.redraw()
+        try await window.window.runUntilIdle()
+        let picture = try #require(scene.h.model.picture)
+        #expect(picture.lostAnnotations == scene.annotations.map(\.id))
+        let counts = try numberPixels(scene, window)
+        #expect(counts.warm > 0 && counts.dark == 0, "\(counts)")
+    }
+
+    @Test func theLogoIsDrawnUnderTheInk() async throws {
+        let sheet = DrawingSheet(name: "Sheet 1", size: .a4, orientation: .landscape, titleBlock: TitleBlock(owner: "Acme"))
+        let harness = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id, contents: [:])
+        let window = try await DrawingWindow.open { SheetCanvas(model: harness.model) }
+        harness.model.transform = SheetTransform(offset: Vector2(20, 20 + 210 * 4), zoom: 4)
+        window.redraw()
+        try await window.window.runUntilIdle()
+        let none = try #require(harness.model.picture)
+        #expect(none.images.isEmpty)
+        let pixels = try #require(GreyPixels(key: "logo", width: 4, height: 3, bytes: [UInt8](repeating: 0, count: 12)))
+        harness.model.facts = TitleBlockFacts(logo: .picture(pixels))
+        window.redraw()
+        try await window.window.runUntilIdle()
+        let rect = try #require(harness.model.picture?.images.first?.rect)
+        let centre = harness.model.transform.screenPoint(rect.center)
+        let image = try PixelImage(window: window.window)
+        let inked = image.rgb(atPoint: centre.x, centre.y)
+        #expect(inked.r < 20 && inked.g < 20 && inked.b < 20, "the logo's black fills its rect: \(inked)")
+        // Inside the rect, away from its middle, a quarter in from the corner: still the logo, not paper.
+        let corner = harness.model.transform.screenPoint(
+            Vector2(rect.min.x + rect.width * 0.25, rect.min.y + rect.height * 0.25))
+        let near = image.rgb(atPoint: corner.x, corner.y)
+        #expect(near.r < 20, "\(near)")
+    }
 }
 #endif

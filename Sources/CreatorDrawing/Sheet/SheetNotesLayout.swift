@@ -4,7 +4,10 @@ import CreatorGeometry
 /// with "(", the basic symbol and ")" after it when the sheet has surface symbols, and above it the numbered notes, the edge break
 /// last. Sheet millimetres; everything on the text layer.
 public enum SheetNotesLayout {
-    public static func picture(for sheet: DrawingSheet, settings: DrawingSettings, format: NumberFormat) -> SheetPicture {
+    /// `base` is the y the notes stand on instead of the title block's top, when a parts list stands on the block (DR-5 R7).
+    public static func picture(
+        for sheet: DrawingSheet, settings: DrawingSettings, format: NumberFormat, base: Double? = nil
+    ) -> SheetPicture {
         var picture = SheetPicture(size: sheet.paperSize, standard: settings.standard)
         let notes = sheet.notes
         guard !notes.isEmpty else { return picture }
@@ -13,7 +16,7 @@ public enum SheetNotesLayout {
         let symbols = SymbolStyle.of(standard)
         let h = style.notesHeight(for: sheet.size)
         let origin = TitleBlockLayout.origin(for: sheet, standard: standard)
-        let top = origin.y + TitleBlockLayout.height
+        let top = base ?? origin.y + TitleBlockLayout.height
         let right = origin.x + TitleBlockLayout.width
         var ceiling = top
         if let surface = notes.surface {

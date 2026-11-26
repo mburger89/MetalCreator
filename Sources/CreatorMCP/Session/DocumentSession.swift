@@ -1,3 +1,4 @@
+import CreatorDrawing
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -38,4 +39,17 @@ public enum SessionOutcome: Sendable, Equatable {
     func save(to url: URL?, overwrite: Bool) -> SessionOutcome
     func export(_ kind: String, to url: URL, overwrite: Bool, progress: MCPCallContext) async -> SessionOutcome
     func setFile(_ url: URL, on node: NodeID, embed: Bool) async -> SessionOutcome
+    /// The sheet composed as an export composes it (DR-5 R19), after one wait over the evaluation and its projections; nil when the
+    /// session has no such sheet or no drawings.
+    func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot?
+    /// Writes a drawing export: `kind` is one of `DrawingTools.exportKinds`, `sheet` and `view` what it writes.
+    func exportDrawing(_ kind: String, sheet: SheetID?, view: ViewID?, to url: URL, overwrite: Bool) async -> SessionOutcome
+}
+
+extension DocumentSession {
+    public func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot? { nil }
+
+    public func exportDrawing(_ kind: String, sheet: SheetID?, view: ViewID?, to url: URL, overwrite: Bool) async -> SessionOutcome {
+        .refused("Drawings can't be exported from this session.")
+    }
 }

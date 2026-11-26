@@ -3,8 +3,8 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 
-/// The title block's mass (plan R16): the volume of the Output's closed solids, from the kernel off the main actor and cached by
-/// solid identity, times the sheet's density.
+/// The title block's facts (plan R16, DR-5 R5, R6, R11): the parts every sheet's balloons and parts list read, the mass of an
+/// assembly sheet (the kernel's volumes off the main actor, cached by solid identity, times the sheet's density) and the logo.
 extension DrawingSession {
     struct FactsKey: Hashable {
         var sheet: SheetID
@@ -15,20 +15,58 @@ extension DrawingSession {
 
     /// The facts of any sheet, not only the one shown (the export reads every sheet's).
     public func facts(for sheet: DrawingSheet) async -> TitleBlockFacts {
-        guard let density = sheet.titleBlock.density, density > 0, density.isFinite, let solids = massSolids(of: sheet) else {
-            return TitleBlockFacts()
-        }
-        let grams = await mass(of: solids, density: density)
-        return TitleBlockFacts(
-            massText: grams.map { TitleBlockFacts.massText(grams: $0, inches: document.units.length == .inches) })
+        var facts = TitleBlockFacts(parts: partFacts())
+        if let hash = sheet.titleBlock.logo { facts.logo = await logo(forHash: hash) }
+        facts.massText = await massText(of: sheet)
+        return facts
     }
 
-    /// The closed solids the sheet's views show, when they all show one Output with a result.
+    /// The mass field's text for `sheet`, or nil when it stays empty.
+    func massText(of sheet: DrawingSheet) async -> String? {
+        guard let density = sheet.titleBlock.density, density > 0, density.isFinite, let solids = massSolids(of: sheet) else {
+            return nil
+        }
+        let grams = await mass(of: solids, density: density)
+        return grams.map { TitleBlockFacts.massText(grams: $0, inches: document.units.length == .inches) }
+    }
+
+    /// Every part the drawing wants (R5): a live Output as its name and the number of solid values it holds (nil without a result),
+    /// a removed one as its remembered name ("?" with none), no quantity and `isRemoved`.
+    func partFacts() -> [NodeID: PartFacts] {
+        var result: [NodeID: PartFacts] = [:]
+        for part in PartItems.wanted(in: editor.document) {
+            let source = Self.content(of: part, in: document)
+            if case .removed = source.state {
+                result[part] = PartFacts(name: editor.rememberedPartNames[part] ?? "?", quantity: nil, isRemoved: true)
+                continue
+            }
+            var quantity: Int?
+            if case .ready(let solids, _, _) = source.state { quantity = solids.count }
+            result[part] = PartFacts(name: source.name, quantity: quantity, isRemoved: false)
+        }
+        return result
+    }
+
+    /// Hands the editor the parts as they are now and notes the live names (R5); nothing here is an edit.
+    func followParts() {
+        let parts = partFacts()
+        if editor.partFacts != parts { editor.partFacts = parts }
+        editor.rememberPartNames(parts.filter { !$0.value.isRemoved }.mapValues(\.name))
+    }
+
+    /// The closed solids of the Outputs the sheet shows, when one view's Outputs hold every Output any view of the sheet shows
+    /// (R6: an assembly sheet, or a sheet of one Output), each Output once and in that view's order; `nil` when an Output has no
+    /// result yet or the sheet shows unrelated parts.
     func massSolids(of sheet: DrawingSheet) -> [Solid]? {
-        let sources = Set(sheet.views.map(\.source))
-        guard sources.count == 1, let source = sources.first,
-              case .ready(let solids, _, _) = Self.content(of: source, in: document).state else { return nil }
-        return Self.closedSolids(in: solids)
+        let shown = sheet.views.reduce(into: Set<NodeID>()) { $0.formUnion($1.outputs) }
+        guard !shown.isEmpty, let lead = sheet.views.first(where: { shown.isSubset(of: Set($0.outputs)) }) else { return nil }
+        var seen: Set<NodeID> = []
+        var closed: [Solid] = []
+        for output in lead.outputs where seen.insert(output).inserted {
+            guard case .ready(let solids, _, _) = Self.content(of: output, in: document).state else { return nil }
+            closed += solids.filter(\.holdsClosedSolid)
+        }
+        return closed.isEmpty ? nil : closed
     }
 
     /// The values that hold a closed solid, or `nil`. A value that holds a sheet as well counts: the kernel's properties report only
@@ -74,48 +112,69 @@ extension DrawingSession {
     }
 
     func followFacts(of sheet: DrawingSheet) {
+        followParts()
         let solids = massSolids(of: sheet)
         let key = FactsKey(
             sheet: sheet.id, density: sheet.titleBlock.density, solids: (solids ?? []).map(ObjectIdentifier.init),
             inches: document.units.length == .inches)
-        guard key != factsKey else { return }
-        factsKey = key
-        factsTask?.cancel()
-        guard sheet.titleBlock.density != nil, solids != nil else {
-            factsTask = nil
-            if editor.facts != TitleBlockFacts() { editor.facts = TitleBlockFacts() }
-            return
+        if key != factsKey {
+            factsKey = key
+            factsTask?.cancel()
+            if sheet.titleBlock.density != nil, solids != nil {
+                factsTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let text = await self.massText(of: sheet)
+                    guard !Task.isCancelled, self.factsKey == key else { return }
+                    self.shownMass = text
+                    self.factsTask = nil
+                    self.publishFacts()
+                }
+            } else {
+                factsTask = nil
+                shownMass = nil
+            }
         }
-        factsTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let facts = await self.facts(for: sheet)
-            guard !Task.isCancelled, self.factsKey == key else { return }
-            self.editor.facts = facts
-            self.factsTask = nil
-        }
+        publishFacts()
     }
 
-    /// Every view of every sheet projected and every sheet's facts computed, for export: read by lookup only.
-    public func projectAll() async -> DrawingSnapshot {
+    /// The editor's facts for the shown sheet: the parts, the mass last measured and the logo as far as it is decoded (the rest is
+    /// asked for, and lands through here).
+    func publishFacts() {
+        guard let sheet = editor.currentSheet.flatMap({ editor.document.sheet($0) }) else { return }
+        var facts = TitleBlockFacts(massText: shownMass, parts: editor.partFacts)
+        if let hash = sheet.titleBlock.logo { facts.logo = decodedLogo(forHash: hash) }
+        if editor.facts != facts { editor.facts = facts }
+    }
+
+    /// Every view of the sheets (all of them without `only`) projected and every sheet's facts computed, for export: read by lookup only.
+    public func projectAll(of only: [SheetID]? = nil) async -> DrawingSnapshot {
         var contents: [ViewID: ViewContent] = [:]
         var facts: [SheetID: TitleBlockFacts] = [:]
-        let projector = DrawingProjector(cache: cache, kernel: kernel)
-        let drawings = editor.document
-        for sheet in drawings.sheets {
-            // Parents first: a detail is its parent's content cut to a circle, made here without a kernel call (R14).
-            for view in sheet.viewsParentsFirst {
-                if case .detail(let circle)? = view.derivation {
-                    contents[view.id] = DetailClip.content(of: contents[circle.parent], circle: circle)
-                    continue
-                }
-                let scale = (view.scale ?? sheet.scale).value
-                let source = Self.content(of: view.source, in: document)
-                contents[view.id] = await projector.content(
-                    for: view, scale: scale, source: source, previous: editor.contents[view.id])
-            }
+        for sheet in editor.document.sheets where only?.contains(sheet.id) ?? true {
+            await projectViews(of: sheet) { contents[$0] = $1 }
             facts[sheet.id] = await self.facts(for: sheet)
         }
         return DrawingSnapshot(contents: contents, facts: facts)
+    }
+
+    /// Projects each view of `sheet`, parents first (a detail is its parent's content cut to a circle, made here without a kernel
+    /// call, R14), handing each content to `store` as it lands.
+    func projectViews(of sheet: DrawingSheet, store: (ViewID, ViewContent) -> Void) async {
+        let projector = DrawingProjector(cache: cache, kernel: kernel)
+        var made: [ViewID: ViewContent] = [:]
+        for view in sheet.viewsParentsFirst {
+            if Task.isCancelled { return }
+            let content: ViewContent
+            if case .detail(let circle)? = view.derivation {
+                content = DetailClip.content(of: made[circle.parent], circle: circle)
+            } else {
+                content = await Self.projected(
+                    projector, view: view, scale: (view.scale ?? sheet.scale).value, sources: sources(of: view),
+                    previous: editor.contents[view.id])
+            }
+            made[view.id] = content
+            store(view.id, content)
+        }
     }
 }
 

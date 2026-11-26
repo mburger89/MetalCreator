@@ -11,7 +11,7 @@ struct AnchorResolverTests {
     private let front = StandardOrientation.front.frame
 
     private func resolve(_ target: AnchorTarget, _ topology: Topology, frame: ProjectionFrame? = nil) -> AnchorResolution {
-        DrawingAnchorResolver.resolve(target, in: topology, frame: frame ?? front)
+        DrawingAnchorResolver.resolve(target, in: topology, frame: frame ?? front, parts: [])
     }
 
     private func v(_ x: Double, _ y: Double, _ z: Double) -> Vector3 { Vector3(x, y, z) }
@@ -245,8 +245,9 @@ struct AnchorResolverTests {
     @Test func everyReasonHasItsSentence() {
         let table: [(LostReason, String)] = [
             (.missing, "What it was attached to is no longer in the part."),
-            (.several(3), "What it was attached to now fits 3 edges, and a dimension never guesses which."),
-            (.severalFaces(2), "What it was attached to now fits 2 faces, and a dimension never guesses which."),
+            (.several(3), "What it was attached to now fits 3 edges, and a drawing never guesses which."),
+            (.severalFaces(2), "What it was attached to now fits 2 faces, and a drawing never guesses which."),
+            (.partNotShown, "The part it was on isn't in this view any more."),
             (.notLineOrCircle, "What it measured is no longer a straight line or a circle."),
             (.cornerGone, "The two edges that met at its corner no longer meet at one point."),
             (.notCylinder, "The face it was attached to is no longer a cylinder."),

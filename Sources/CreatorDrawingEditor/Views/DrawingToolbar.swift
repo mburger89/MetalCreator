@@ -1,11 +1,12 @@
 import CreatorStyle
 import MetalUI
 
-/// The drawing toolbar, one row for the top bar: the seventeen tools (Base View to Surface Finish, a check while chosen), then the
-/// drag gap. DR-5 adds its tools after these. It is a `ViewThatFits` over `candidateCount` rows, as the sketch toolbar is: row k shows
-/// all but the last k tools as buttons and puts those k in a "More" menu, so tools leave the row from the end as the window
-/// narrows, and the first row that fits wins. The gap has the lowest layout priority, so the buttons are sized first and it
-/// takes what is left; it is a window drag handle, since the window is dragged by the bar's empty parts.
+/// The drawing toolbar, one row for the top bar: the twenty-one tools (Base View to Revision Table: Assembly View after Projected
+/// View, Balloon, Parts List and Revision Table after Surface Finish; a check while chosen), then the drag gap. It is a
+/// `ViewThatFits` over `candidateCount` rows, as the sketch toolbar is: row k shows all but the last k tools as buttons and puts
+/// those k in a "More" menu, so tools leave the row from the end as the window narrows, and the first row that fits wins. The gap
+/// has the lowest layout priority, so the buttons are sized first and it takes what is left; it is a window drag handle, since
+/// the window is dragged by the bar's empty parts.
 public struct DrawingToolbar: Component {
     let model: DrawingEditorModel
 

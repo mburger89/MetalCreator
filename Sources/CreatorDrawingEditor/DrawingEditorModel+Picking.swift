@@ -11,6 +11,8 @@ extension DrawingEditorModel {
         var frame: ProjectionFrame
         /// Whether the view is pictorial and so takes no dimensions (R11): the sheet's reading, not the frame's.
         var isPictorial: Bool
+        /// The view's part spans for an assembly view; nil for a single-Output view (anchors are then never wrapped).
+        var parts: [PartSpan]?
     }
 
     /// The view's pick context, or the sentence for why nothing can be picked on it (plan R25's states).
@@ -27,7 +29,8 @@ extension DrawingEditorModel {
             ?? ViewMapping(scale: scale, offset: centre)
         return .success(
             PickContext(
-                view: view, topology: topology, mapping: mapping, frame: view.orientation.frame, isPictorial: sheet.isPictorial(view)))
+                view: view, topology: topology, mapping: mapping, frame: view.orientation.frame, isPictorial: sheet.isPictorial(view),
+                parts: view.isAssembly ? content.parts : nil))
     }
 
     /// The view whose frame holds `point`, the topmost.
@@ -42,19 +45,19 @@ extension DrawingEditorModel {
         return DrawingPick.candidate(at: point, in: picture, view: view, tolerance: Self.hoverTolerancePoints / transform.zoom)
     }
 
-    private func freeCurveRefusal(at point: Vector2, in view: ViewID) -> DrawingRefusal? {
+    func freeCurveRefusal(at point: Vector2, in view: ViewID, purpose: PickPurpose? = nil) -> DrawingRefusal? {
         guard let picture else { return nil }
         return DrawingPick.refusal(
-            at: point, in: picture, view: view, tolerance: Self.hoverTolerancePoints / transform.zoom)
+            at: point, in: picture, view: view, tolerance: Self.hoverTolerancePoints / transform.zoom, purpose: purpose)
     }
 
     /// The hover under the pointer for an annotation tool: picks stay in their one view.
     func updateHover(at point: Vector2) {
-        guard tool.isAnnotationTool || addingLeader != nil else {
+        guard (tool.isAnnotationTool && tool != .partsList && tool != .revisionTable) || addingLeader != nil else {
             if hoverCandidate != nil { hoverCandidate = nil }
             return
         }
-        let view = symbolDraft?.view ?? (picks.isEmpty ? viewUnder(point) : pickView)
+        let view = symbolDraft?.view ?? balloonDraft?.view ?? (picks.isEmpty ? viewUnder(point) : pickView)
         let found = view.flatMap { candidate(at: point, in: $0) }
         if found != hoverCandidate { hoverCandidate = found }
     }
@@ -70,6 +73,10 @@ extension DrawingEditorModel {
             placeNote(at: point)
         } else if tool.isSymbolTool {
             symbolClick(at: point)
+        } else if tool == .balloon {
+            balloonClick(at: point)
+        } else if tool == .partsList || tool == .revisionTable {
+            tableClick(at: point)
         } else if tool.isAnnotationTool {
             pickClick(at: point, modifiers: modifiers)
         }
@@ -123,7 +130,8 @@ extension DrawingEditorModel {
         }
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: draft.purpose, topology: context.topology, frame: context.frame,
-            mapping: context.mapping, isIsometric: context.isPictorial)
+            mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):
@@ -170,7 +178,8 @@ extension DrawingEditorModel {
                 }
                 let result = DrawingPick.anchor(
                     for: found, click: point, purpose: .leader, topology: context.topology, frame: context.frame,
-                    mapping: context.mapping, isIsometric: context.isPictorial)
+                    mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
                 switch result {
                 case .failure(let refused):
                     refuse(refused.sentence)
@@ -255,12 +264,14 @@ extension DrawingEditorModel {
         guard targets.indices.contains(index) else { return }
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: Self.purpose(of: annotation.kind), topology: context.topology,
-            frame: context.frame, mapping: context.mapping, isIsometric: context.isPictorial)
+            frame: context.frame, mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):
-            guard anchor.target.caseName == targets[index].caseName else {
-                refuse(Self.sameKindSentence)
+            if let sentence = Self.reattachRefusal(
+                of: annotation.kind, picking: anchor.target, replacing: targets[index], in: context.view) {
+                refuse(sentence)
                 return
             }
             var updated = annotation
@@ -274,13 +285,26 @@ extension DrawingEditorModel {
             if othersHeld,
                let reason = AnnotationRefresh.lostReason(
                    of: updated, topology: context.topology, frame: context.frame,
-                   format: NumberFormat(units: units, settings: document.settings), standard: document.settings.standard) {
+                   format: NumberFormat(units: units, settings: document.settings), standard: document.settings.standard,
+                   parts: context.parts ?? [], isPictorial: context.isPictorial) {
                 refuse(reason.sentence)
                 return
             }
-            let name = annotation.symbolKind == nil ? DrawingStepName.reattachDimension : DrawingStepName.reattachSymbol
-            commitSheet(name) { $0.setAnnotation(updated) }
+            commitSheet(Self.reattachName(of: annotation)) { $0.setAnnotation(updated) }
         }
+    }
+
+    /// A balloon stays on its part (R4): the sentence when `target` lies on another.
+    private static func reattachRefusal(
+        of kind: AnnotationKind, picking target: AnchorTarget, replacing old: AnchorTarget, in view: DrawingView
+    ) -> String? {
+        if case .balloon(let balloon) = kind, (target.part ?? view.source) != balloon.part(in: view) { return balloonPartSentence }
+        return target.unwrapped.caseName == old.unwrapped.caseName ? nil : sameKindSentence
+    }
+
+    private static func reattachName(of annotation: DrawingAnnotation) -> String {
+        if case .balloon = annotation.kind { return DrawingStepName.reattachBalloon }
+        return annotation.symbolKind == nil ? DrawingStepName.reattachDimension : DrawingStepName.reattachSymbol
     }
 
     /// An annotation's anchors in the order `AnnotationReport.anchors` reports them.
@@ -295,6 +319,8 @@ extension DrawingEditorModel {
         case .datumFeature(let datum): Self.lineTargets(of: datum.attachment)
         case .featureControl(let frame): Self.lineTargets(of: frame.attachment)
         case .surfaceTexture(let texture): [texture.feature.target]
+        case .balloon(let balloon): [balloon.leader.target]
+        case .partsList, .revisionTable: []  // a table has no target
         }
     }
 
@@ -312,6 +338,8 @@ extension DrawingEditorModel {
         case .datumFeature: PickPurpose(symbol: .datum)
         case .featureControl: PickPurpose(symbol: .frame)
         case .surfaceTexture: PickPurpose(symbol: .surface)
+        case .balloon: .balloon
+        case .partsList, .revisionTable: .leader  // never asked: a table has no anchors
         }
     }
 
@@ -341,6 +369,11 @@ extension DrawingEditorModel {
         case .surfaceTexture(var texture):
             texture.feature = LeaderEnd(target: target, hint: hint)
             return .surfaceTexture(texture)
+        case .balloon(var balloon):
+            balloon.leader = LeaderEnd(target: target, hint: hint)
+            return .balloon(balloon)
+        case .partsList, .revisionTable:
+            return kind  // a table has no target
         }
     }
 }

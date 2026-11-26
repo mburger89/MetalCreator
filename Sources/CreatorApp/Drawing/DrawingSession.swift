@@ -25,11 +25,18 @@ public final class DrawingSession {
     @ObservationIgnored var sheetHandler: (@MainActor (SheetID?) -> Void)?
     /// Takes back the undo steps a cancelled drag had made (plan R18); set by the app.
     @ObservationIgnored var discardHandler: (@MainActor (String) -> Void)?
+    /// Carries out what the editor asks of the host: a template, a logo file (DR-5 R10, R16); set by the app.
+    @ObservationIgnored var requestHandler: (@MainActor (DrawingEditorRequest) -> Void)?
     /// Whether Drawing mode is up: projections are made only then.
     @ObservationIgnored public private(set) var isActive = false
 
     struct RequestKey: Hashable, Sendable {
         var state: Int
+        /// The Outputs the view shows, each one's state and how many solids and curves it holds (DR-5 R2): moving a solid from
+        /// one part to another, or a part failing, changes the request though the flat lists below might not.
+        var outputs: [NodeID] = []
+        var partStates: [Int] = []
+        var partCounts: [[Int]] = []
         var solids: [ObjectIdentifier]
         var curves: [ObjectIdentifier]
         var meshCount: Int
@@ -45,12 +52,17 @@ public final class DrawingSession {
         var retainedCurves: [Curve] = []
 
         static func == (lhs: RequestKey, rhs: RequestKey) -> Bool {
-            lhs.state == rhs.state && lhs.solids == rhs.solids && lhs.curves == rhs.curves && lhs.meshCount == rhs.meshCount
+            lhs.state == rhs.state && lhs.outputs == rhs.outputs && lhs.partStates == rhs.partStates
+                && lhs.partCounts == rhs.partCounts && lhs.solids == rhs.solids && lhs.curves == rhs.curves
+                && lhs.meshCount == rhs.meshCount
                 && lhs.failure == rhs.failure && lhs.frame == rhs.frame && lhs.scale == rhs.scale && lhs.cutter == rhs.cutter
         }
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(state)
+            hasher.combine(outputs)
+            hasher.combine(partStates)
+            hasher.combine(partCounts)
             hasher.combine(solids)
             hasher.combine(curves)
             hasher.combine(meshCount)
@@ -80,6 +92,12 @@ public final class DrawingSession {
     @ObservationIgnored var detailInputs: [ViewID: DetailInput] = [:]
     @ObservationIgnored var factsTask: Task<Void, Never>?
     @ObservationIgnored var factsKey: FactsKey?
+    /// The mass the last finished measurement gave the shown sheet.
+    @ObservationIgnored var shownMass: String?
+    /// Logos decoded or refused by the hash of their bytes (R11), and the decodes running.
+    @ObservationIgnored var logoCache: [String: LogoFact] = [:]
+    @ObservationIgnored var logoTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored var logoDecoder: LogoDecoder = DrawingSession.defaultLogoDecoder
     /// Volumes by solid identity; the entry keeps its solid alive so an identity can't be reused.
     @ObservationIgnored var volumes: [ObjectIdentifier: (solid: Solid, volume: Double?)] = [:]
     @ObservationIgnored private let relay: Relay
@@ -88,6 +106,8 @@ public final class DrawingSession {
     @ObservationIgnored var refreshing: [ViewID: RefreshKey] = [:]
     @ObservationIgnored var refreshTask: Task<Void, Never>?
     @ObservationIgnored var refreshGeneration = 0
+    /// A test hook: told the spans each refresh judged a view's anchors against (empty for a view of one Output).
+    @ObservationIgnored var refreshObserver: (@MainActor (ViewID, [PartSpan]) -> Void)?
 
     /// Hands the editor's events to the session, which doesn't exist yet when the editor is made.
     final class Relay {
@@ -108,7 +128,8 @@ public final class DrawingSession {
             events: DrawingEditorEvents(
                 committed: { commit in relay.session?.commitHandler?(commit) },
                 sheetChanged: { id in relay.session?.editorShowed(sheet: id) },
-                discarded: { key in relay.session?.discardHandler?(key) }))
+                discarded: { key in relay.session?.discardHandler?(key) },
+                requested: { request in relay.session?.requestHandler?(request) }))
         // Not shown yet: its contents are only as new as the last projection, so its pictures feed nothing (`activate()` turns it on).
         editor.feedsRemembered = false
         relay.session = self
@@ -129,6 +150,8 @@ public final class DrawingSession {
         flights = [:]
         factsTask?.cancel()
         factsTask = nil
+        for task in logoTasks.values { task.cancel() }
+        logoTasks = [:]
         refreshTask?.cancel()
         refreshTask = nil
         relay.session = nil
@@ -155,12 +178,13 @@ public final class DrawingSession {
     }
 
     /// Whether any projection or fact is still being made.
-    public var isProjecting: Bool { !flights.isEmpty || factsTask != nil || refreshTask != nil }
+    public var isProjecting: Bool { !flights.isEmpty || factsTask != nil || refreshTask != nil || !logoTasks.isEmpty }
 
     /// Waits until every projection and fact requested so far has landed.
     public func waitForProjections() async {
         while isProjecting {
             let tasks = flights.values.map(\.task) + (factsTask.map { [$0] } ?? []) + (refreshTask.map { [$0] } ?? [])
+                + Array(logoTasks.values)
             for task in tasks { await task.value }
         }
     }
@@ -176,6 +200,7 @@ public final class DrawingSession {
         resync()
         pruneGoneViews()
         if editor.units != document.units { editor.units = document.units }
+        followParts()
         refreshLastGood()
         updateFeedingViews()
         guard isActive else { return }
@@ -189,11 +214,10 @@ public final class DrawingSession {
 
     /// The request a view's projection must match: its Output's solids and curves, its frame, its scale and a section's line.
     func requestKey(for view: DrawingView, in sheet: DrawingSheet) -> RequestKey {
-        let source = Self.content(of: view.source, in: document)
         var cutter: SectionCutter?
         if case .section(let line)? = view.derivation { cutter = line.cutter }
         return Self.key(
-            of: source, frame: view.orientation.frame, scale: (view.scale ?? sheet.scale).value, cutter: cutter)
+            of: sources(of: view), frame: view.orientation.frame, scale: (view.scale ?? sheet.scale).value, cutter: cutter)
     }
 
     /// The views whose held projection is the one the model wants now: only these may feed the editor's remembered values. A
@@ -235,7 +259,7 @@ public final class DrawingSession {
         let projector = DrawingProjector(cache: cache, kernel: kernel)
         for view in views where view.kind != .detail {
             let scale = (view.scale ?? sheet.scale).value
-            let source = Self.content(of: view.source, in: document)
+            let parts = sources(of: view)
             let key = requestKey(for: view, in: sheet)
             wanted[view.id] = key
             if applied[view.id] == key || flights[view.id]?.key == key { continue }
@@ -247,7 +271,7 @@ public final class DrawingSession {
             let id = view.id
             let previous = editor.contents[id]
             let task = Task { @MainActor [weak self] in
-                let content = await projector.content(for: view, scale: scale, source: source, previous: previous)
+                let content = await Self.projected(projector, view: view, scale: scale, sources: parts, previous: previous)
                 self?.land(content, for: id, key: key)
             }
             flights[id] = Flight(key: key, task: task)
@@ -278,22 +302,6 @@ public final class DrawingSession {
     static func key(
         of source: DrawingSourceContent, frame: ProjectionFrame, scale: Double, cutter: SectionCutter? = nil
     ) -> RequestKey {
-        switch source.state {
-        case .removed:
-            RequestKey(state: 0, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale, cutter: cutter)
-        case .failed(let message):
-            RequestKey(
-                state: failedState, solids: [], curves: [], meshCount: 0, failure: message, frame: frame, scale: scale,
-                cutter: cutter)
-        case .evaluating:
-            RequestKey(
-                state: evaluatingState, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale,
-                cutter: cutter)
-        case .ready(let solids, let curves, let meshCount):
-            RequestKey(
-                state: 3, solids: solids.map(ObjectIdentifier.init), curves: curves.map(ObjectIdentifier.init),
-                meshCount: meshCount, failure: nil, frame: frame, scale: scale, cutter: cutter, retained: solids,
-                retainedCurves: curves)
-        }
+        key(of: [source], frame: frame, scale: scale, cutter: cutter)
     }
 }

@@ -17,6 +17,9 @@ extension DrawingPick {
     /// The sentence for a click on a free curve (plan R5).
     public static let freeCurveSentence = "This line is a free curve; dimensions attach to a part's edges."
 
+    /// The same for a balloon (DR-5 R16).
+    public static let balloonFreeCurveSentence = "This line is a free curve; balloons attach to a part's edges."
+
     /// The same for a symbol tool, which says symbol (R20).
     public static let symbolFreeCurveSentence = "This line is a free curve; symbols attach to a part's edges."
 
@@ -44,7 +47,7 @@ extension DrawingPick {
         }
         guard let index = SheetHitTest.line(near: point, in: picture, view: view, tolerance: tolerance),
               case .curve = picture.strokes[index].source else { return nil }
-        return DrawingRefusal(sentence: purpose?.isSymbol == true ? symbolFreeCurveSentence : freeCurveSentence)
+        return DrawingRefusal(sentence: freeCurveSentence(for: purpose))
     }
 
     /// Strokes of a view that are projected lines: no annotation's and no centre mark.

@@ -18,8 +18,9 @@ struct DrawingToolbarTests {
     }
 
     private static let everyTool = [
-        "Base View", "Projected View", "Section", "Detail", "Auxiliary", "Dimension", "Baseline", "Chain", "Ordinate", "Chamfer",
-        "Hole Callout", "Centre Mark", "Centre Line", "Note", "Datum", "Feature Control Frame", "Surface Finish",
+        "Base View", "Projected View", "Assembly View", "Section", "Detail", "Auxiliary", "Dimension", "Baseline", "Chain",
+        "Ordinate", "Chamfer", "Hole Callout", "Centre Mark", "Centre Line", "Note", "Datum", "Feature Control Frame", "Surface Finish",
+        "Balloon", "Parts List", "Revision Table",
     ]
 
     private func model() -> DrawingEditorModel {

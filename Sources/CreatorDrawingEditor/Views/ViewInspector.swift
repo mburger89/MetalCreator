@@ -2,7 +2,7 @@ import CreatorDrawing
 import Foundation
 import MetalUI
 
-/// The inspector with one view selected (plan R22): its source, orientation (base views), scale and display flags.
+/// The inspector with one view selected (plan R22): its source (an assembly view's parts, DR-5 R1), orientation (base views), scale and display flags.
 struct ViewInspector: Component {
     let model: DrawingEditorModel
     let sheet: DrawingSheet
@@ -59,7 +59,9 @@ struct ViewInspector: Component {
         let orientations = StandardOrientation.allCases
         VStack(alignment: .leading, spacing: Pixels(8)) {
             Text(Self.title(of: view)).font(.headline).foregroundStyle(colors.primary.color)
-            if !isDerived {
+            if view.isAssembly {
+                if !isDerived { PartsSection(model: model, view: view, colors: colors) }
+            } else if !isDerived {
                 DrawingRow("Source", colors: colors) {
                     DrawingMenu(options: model.sources.map(\.name), selected: model.sources.firstIndex { $0.id == view.source }) {
                         model.setSource(model.sources[$0].id, of: view.id)

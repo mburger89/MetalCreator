@@ -52,6 +52,9 @@ extension DrawingEditorModel {
     /// The editor's own document is not changed (plan R15).
     public func documentForSaving() -> DrawingDocument {
         var saved = document
+        let wanted = PartItems.wanted(in: document)
+        saved.partNames = wanted.compactMap { part in rememberedPartNames[part].map { PartName(part: part, name: $0) } }
+            .sorted { $0.part < $1.part }
         for index in saved.sheets.indices {
             for annotation in saved.sheets[index].annotations {
                 guard let good = remembered[annotation.id], annotation.last != good else { continue }
@@ -103,9 +106,21 @@ extension DrawingEditorModel {
                 seed.host = host
                 seed.tips = picture.annotationReports[host]?.dimensionLine
             }
+            // A table moves its corner: where it stands now, standing on the title block or the frame included (DR-5 R16).
+            seed.anchor = tableCorner(of: annotation.kind, in: sheet) ?? seed.anchor
             result.append(seed)
         }
         return result
+    }
+
+    /// Where a table stands now: its own corner, else the title block's or the frame's (DR-5 R16).
+    private func tableCorner(of kind: AnnotationKind, in sheet: DrawingSheet) -> Vector2? {
+        let standard = document.settings.standard
+        switch kind {
+        case .partsList(let list): return list.bottomRight ?? Self.blockTopRight(of: sheet, standard: standard)
+        case .revisionTable(let table): return table.topRight ?? SheetFrame.rect(for: sheet, standard: standard).max
+        default: return nil
+        }
     }
 
     private static func describe(_ figure: AnnotationFigure, with mapping: ViewMapping, in seed: inout AnnotationSeed) {
@@ -181,8 +196,27 @@ extension DrawingEditorModel {
                 texture.feature.hint += along * ((delta.x * along.x + delta.y * along.y) / seed.scale)
             }
             result.kind = .surfaceTexture(texture)
+        case .balloon, .partsList, .revisionTable:
+            result.kind = movedFurniture(annotation.kind, seed: seed, by: delta)
         }
         return result
+    }
+
+    /// A balloon moves its circle about its foot; a table moves its corner, so a standing one becomes free (DR-5 R16).
+    private static func movedFurniture(_ kind: AnnotationKind, seed: AnnotationSeed, by delta: Vector2) -> AnnotationKind {
+        switch kind {
+        case .balloon(var balloon):
+            balloon.offset += delta
+            return .balloon(balloon)
+        case .partsList(var list):
+            list.bottomRight = (seed.anchor ?? list.bottomRight ?? .zero) + delta
+            return .partsList(list)
+        case .revisionTable(var table):
+            table.topRight = (seed.anchor ?? table.topRight ?? .zero) + delta
+            return .revisionTable(table)
+        default:
+            return kind
+        }
     }
 
     /// A datum on a line slides its foot along it and changes its distance by the across part; on a dimension line it goes to the
@@ -252,30 +286,45 @@ extension DrawingEditorModel {
     func moveName(roots: [ViewID], seeds: [AnnotationSeed], in sheet: DrawingSheet) -> String {
         if !roots.isEmpty || seeds.isEmpty { return DrawingStepName.moveView }
         let kinds = seeds.compactMap { sheet.annotation($0.id)?.kind }
-        return Self.groupName(
-            of: kinds, dimension: DrawingStepName.moveDimension, note: DrawingStepName.moveNote,
-            symbol: DrawingStepName.moveSymbol, mixed: DrawingStepName.moveAnnotations)
+        return Self.groupName(of: kinds, names: .moving)
     }
 
-    /// One name for a set of annotations: all dimensions and callouts, all notes, all symbols, or anything else.
-    static func groupName(of kinds: [AnnotationKind], dimension: String, note: String, symbol: String, mixed: String) -> String {
-        let isDimension = kinds.allSatisfy {
-            switch $0 {
-            case .dimension, .holeCallout: true
-            default: false
+    /// The names one kind of annotation takes for a step; a mix takes `mixed`.
+    struct GroupNames {
+        var dimension: String
+        var note: String
+        var symbol: String
+        var balloon: String
+        var partsList: String
+        var revisionTable: String
+        var mixed: String
+
+        static let moving = GroupNames(
+            dimension: DrawingStepName.moveDimension, note: DrawingStepName.moveNote, symbol: DrawingStepName.moveSymbol,
+            balloon: DrawingStepName.moveBalloon, partsList: DrawingStepName.movePartsList,
+            revisionTable: DrawingStepName.moveRevisionTable, mixed: DrawingStepName.moveAnnotations)
+        static let deleting = GroupNames(
+            dimension: DrawingStepName.deleteDimension, note: DrawingStepName.deleteNote, symbol: DrawingStepName.deleteSymbol,
+            balloon: DrawingStepName.deleteBalloon, partsList: DrawingStepName.deletePartsList,
+            revisionTable: DrawingStepName.deleteRevisionTable, mixed: DrawingStepName.deleteAnnotations)
+    }
+
+    /// One name for a set of annotations: all of one kind (dimensions and callouts, notes, symbols, balloons, parts lists or revision
+    /// tables), or anything else.
+    static func groupName(of kinds: [AnnotationKind], names: GroupNames) -> String {
+        func name(of kind: AnnotationKind) -> String {
+            switch kind {
+            case .dimension, .holeCallout: names.dimension
+            case .note: names.note
+            case .datumFeature, .featureControl, .surfaceTexture: names.symbol
+            case .balloon: names.balloon
+            case .partsList: names.partsList
+            case .revisionTable: names.revisionTable
+            case .centreMark, .centreLine: names.mixed
             }
         }
-        let isNote = kinds.allSatisfy {
-            if case .note = $0 { true } else { false }
-        }
-        let isSymbol = kinds.allSatisfy {
-            switch $0 {
-            case .datumFeature, .featureControl, .surfaceTexture: true
-            default: false
-            }
-        }
-        if kinds.isEmpty { return mixed }
-        return isDimension ? dimension : isNote ? note : isSymbol ? symbol : mixed
+        guard let first = kinds.first.map(name(of:)), kinds.allSatisfy({ name(of: $0) == first }) else { return names.mixed }
+        return first
     }
 
     // MARK: Gestures
@@ -318,8 +367,6 @@ extension DrawingEditorModel {
     func deleteName(of ids: Set<AnnotationID>, withViews: Bool) -> String {
         if withViews { return DrawingStepName.deleteView }
         let kinds = (sheet?.annotations ?? []).filter { ids.contains($0.id) }.map(\.kind)
-        return Self.groupName(
-            of: kinds, dimension: DrawingStepName.deleteDimension, note: DrawingStepName.deleteNote,
-            symbol: DrawingStepName.deleteSymbol, mixed: DrawingStepName.deleteAnnotations)
+        return Self.groupName(of: kinds, names: .deleting)
     }
 }

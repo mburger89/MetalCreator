@@ -52,7 +52,8 @@ extension DrawingEditorModel {
     private func pickLine(_ found: PickCandidate, at point: Vector2, in view: ViewID, context: PickContext, kind: SymbolKind) {
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: PickPurpose(symbol: kind), topology: context.topology, frame: context.frame,
-            mapping: context.mapping, isIsometric: context.isPictorial)
+            mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):
@@ -117,7 +118,8 @@ extension DrawingEditorModel {
     private func onLine(
         _ draft: SymbolDraft, anchor: PickedAnchor, hint: Vector2, click: Vector2, context: PickContext
     ) -> Result<AnnotationKind, DrawingRefusal> {
-        guard case .held(let geometry, _, _) = DrawingAnchorResolver.resolve(anchor.target, in: context.topology, frame: context.frame),
+        guard case .held(let geometry, _, _) = DrawingAnchorResolver.resolve(anchor.target, in: context.topology, frame: context.frame,
+                parts: context.parts ?? []),
             case .success(let found) = SymbolFoot.of(geometry, hint: hint, frame: context.frame) else {
             return .failure(DrawingRefusal(sentence: LostReason.missing.sentence))
         }

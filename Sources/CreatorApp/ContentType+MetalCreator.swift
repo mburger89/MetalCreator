@@ -32,8 +32,18 @@ extension ContentType {
     public static let dxf = ContentType("com.autodesk.dxf", conformingTo: [.data], filenameExtensions: ["dxf"],
                                         localizedDescription: "DXF drawing")
 
+    /// A drawing sheet as an SVG picture.
+    public static let svg = ContentType("public.svg-image", conformingTo: [.data], filenameExtensions: ["svg"],
+                                        localizedDescription: "SVG image")
+
     /// The file type a drawing export writes.
-    public static func exported(_ kind: DrawingExportKind) -> ContentType { kind == .pdf ? .pdf : .dxf }
+    public static func exported(_ kind: DrawingExportKind) -> ContentType {
+        switch kind {
+        case .pdf, .pdfSheet: .pdf
+        case .svgSheet: .svg
+        case .dxfSheet, .dxfView, .dxfViewWithAnnotations: .dxf
+        }
+    }
 
     /// The file type an export format writes.
     public static func exported(_ kind: ExportKind) -> ContentType {

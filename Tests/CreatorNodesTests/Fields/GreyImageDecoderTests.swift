@@ -38,6 +38,21 @@ struct GreyImageDecoderTests {
         #expect(half.pixels.allSatisfy { abs(Int($0) - 32_896) <= 4 })
     }
 
+    @Test func decodingOverWhite() async throws {
+        let half = TestImages.colour(2, 2, red: 0, green: 0, blue: 0, alpha: 128)
+        let over = try await GreyImageDecoder.decode(half, background: .white)
+        #expect(over.pixels.allSatisfy { $0 == 32_639 }, "(255 - 128) x 257, the decoder's integer sum: \(over.pixels)")
+        let black = try await GreyImageDecoder.decode(half, background: .black)
+        #expect(black.pixels.allSatisfy { $0 == 0 }, "and exactly 0 over black")
+        let white = TestImages.colour(2, 2, red: 255, green: 255, blue: 255, alpha: 255)
+        for background in [GreyBackground.black, .white] {
+            let opaque = try await GreyImageDecoder.decode(white, background: background)
+            #expect(opaque.pixels.allSatisfy { $0 == 65_535 }, "an opaque white pixel on \(background)")
+        }
+        let clear = try await GreyImageDecoder.decode(TestImages.colour(2, 2, red: 0, green: 0, blue: 0, alpha: 0), background: .white)
+        #expect(clear.pixels.allSatisfy { $0 == 65_535 }, "a fully transparent pixel is paper")
+    }
+
     @Test func inspectReadsTheHeaderAndNamesTheFormat() throws {
         let info = try GreyImageDecoder.inspect(TestImages.flatGrey(30, 20, 9))
         #expect(info == GreyImageDecoder.Info(width: 30, height: 20, format: .png))

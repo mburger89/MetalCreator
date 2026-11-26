@@ -98,7 +98,7 @@ var targets: [Target] = [
     // the editor's views and the viewport's GPU colours read.
     .target(name: "CreatorStyle", dependencies: [metalUI]),
     // The MCP server's portable core (spec 2026-11-08): JSON, JSON-RPC and the tools an AI client drives the app with.
-    .target(name: "CreatorMCP", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+    .target(name: "CreatorMCP", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorDrawing"]),
     // The stdio bridge an AI client launches (MCP-1): small, and `CreatorMCP` is all it needs.
     .executableTarget(name: "MetalCreatorMCPBridge", dependencies: ["CreatorMCP"], path: "Sources/metalcreator-mcp"),
     // The viewport's model, camera and tools are portable; its Metal renderer is gated with `#if canImport(Metal)`.
@@ -157,7 +157,7 @@ var targets: [Target] = [
         ]
     ),
     .testTarget(name: "CreatorStyleTests", dependencies: ["CreatorStyle", metalUI]),
-    .testTarget(name: "CreatorMCPTests", dependencies: ["CreatorMCP", "CreatorNodes", "CreatorKernel"]),
+    .testTarget(name: "CreatorMCPTests", dependencies: ["CreatorMCP", "CreatorNodes", "CreatorKernel", "CreatorDrawing"]),
     .testTarget(
         name: "CreatorSketchEditorTests",
         dependencies: [
@@ -240,7 +240,7 @@ targets += [
         linkerSettings: occtLinkerFlags + occtLibraries.map { .linkedLibrary($0) }
     ),
     .target(name: "CreatorOCCT", dependencies: ["COCCT", "CreatorKernel", "CreatorGeometry"]),
-    .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
+    .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry", "CreatorDrawing"]),
 ]
 
 #if os(macOS)

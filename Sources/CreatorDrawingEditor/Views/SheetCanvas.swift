@@ -79,7 +79,8 @@ public struct SheetCanvas: Component {
             Rectangle().fill(colors.paper.color).frame(width: (paper.x * zoom).px, height: (paper.y * zoom).px)
             SheetFrameLayer(
                 strokes: picture.strokes.filter { $0.view == nil }, texts: picture.texts.filter { $0.view == nil },
-                fills: picture.fills.filter { $0.view == nil }, zoom: zoom, paperHeight: paper.y, colors: colors, style: style)
+                fills: picture.fills.filter { $0.view == nil }, images: picture.images, bitmaps: model.bitmaps, zoom: zoom,
+                paperHeight: paper.y, colors: colors, style: style)
                 .equatable()
             ForEach(shown, id: \.id) { view in
                 viewLayer(view, in: picture, hovered: hovered, zoom: zoom, colors: colors, style: style).equatable()

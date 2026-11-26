@@ -89,6 +89,11 @@ Files:
 - `save_document`: to the document's own file or an absolute path; will not overwrite a file unless `overwrite` is true.
 - `export`: the Output nodes' results as step, stl or 3mf. The nodes' warnings come back in the result's message; no alert is raised in the window.
 
+Drawings (reading works in every mode; an export is refused whenever edits are):
+- `list_drawings`: the drafting `standard` and each sheet's `id`, `name`, `size`, `orientation`, `scale`, `revision` and annotation count, with its views (`id`, `kind`, `letter`, `orientation` (a name or "custom"), `scale` and the `parts` it shows, each `{node, name}`).
+- `get_sheet`: one sheet, by `sheet` (its ID or unique name), composed as an export would be. `views` gives each view's `status` ("drawn", "pending" or "failed", with a `problem`), and `complete` is false while any view is pending. `annotations` (in sheet order) gives each one's `kind`, `label` and `status` ("held" or "lost", a lost one with its `reason`, and any `warnings`), `parts_list` the numbered items (`item`, `name`, `quantity`, `material`, `part_number`) whether or not a list is drawn, and `revisions` the revision table's rows. It waits up to 60 seconds for the evaluation and the sheet's projections together, then answers with what it has.
+- `export_drawing`: `kind` pdf (every sheet), pdf_sheet, dxf_sheet or svg_sheet (one `sheet`), or dxf_view or dxf_view_annotations (one `view` of a `sheet`, at 1:1), to an absolute `path`; a file is replaced only with `overwrite`. The warnings (lost annotations, left-out logo, replaced characters) come back in the message. A sheet whose views are still being drawn after the wait is refused with "MetalCreator is still drawing this sheet. Try again in a moment."
+
 Resources: `metalcreator://document` and `metalcreator://node-types`.
 
 ## Rules
@@ -98,5 +103,5 @@ Resources: `metalcreator://document` and `metalcreator://node-types`.
 - **Modes.** Edits and file tools are refused with a sentence while you are sketching, picking, using the model dimension tool, an alert is up, the export window is open, a file open/save panel is up, the app is checking a change, a slider or handle is being dragged, or something is being moved on the canvas. A pending typed value is committed first and counts as unsaved work. Reading tools always work.
 - **Undo is the client's own.** `undo` and `redo` only take back steps the client made (remembered in memory, not in the file); when the step on top is yours the client is told, naming it. Your own Undo takes back anything. A client's edits never merge into one another.
 - **Paths** must be absolute. No unsaved document is discarded and no file overwritten unless the call says so.
-- **No picks yet.** Edge and face picks are not settable; a client chooses edges with the selection-rule nodes (Edges by Direction, Edges by Tag). Drawing a sketch's entities is not offered.
+- **No picks yet.** Edge and face picks are not settable; a client chooses edges with the selection-rule nodes (Edges by Direction, Edges by Tag). Drawing a sketch's entities is not offered. Drawings are read and exported, not edited.
 - **Nothing is saved from MCP** in a `.mcgraph`; the file format is unchanged. The server runs only in the normal windowed launch, never under `--self-test`, `--smoke-test` or headless.

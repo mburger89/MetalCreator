@@ -17,13 +17,21 @@ public enum HoleReader {
     private static let onAxis = 1e-6
     private static let sameRadius = 1e-6
 
-    public static func read(_ target: AnchorTarget, in topology: Topology, frame: ProjectionFrame) -> HoleReading {
+    public static func read(
+        _ target: AnchorTarget, in whole: Topology, frame: ProjectionFrame, parts: [PartSpan]
+    ) -> HoleReading {
+        let scoped: (target: AnchorTarget, topology: Topology)
+        switch DrawingAnchorResolver.scope(of: target, in: whole, parts: parts) {
+        case .failure(let reason): return .lost(reason)
+        case .success(let found): scoped = found
+        }
+        let topology = scoped.topology
         let pick: EdgePick
-        switch target {
+        switch scoped.target {
         case .edge(let found), .centre(let found): pick = found
         default: return .notAHole
         }
-        switch DrawingAnchorResolver.resolve(.edge(pick), in: topology, frame: frame) {
+        switch DrawingAnchorResolver.resolve(.edge(pick), in: topology, frame: frame, parts: []) {
         case .lost(let reason): return .lost(reason)
         case .held(.circle(let center, let axis, let radius, _), let edges, _):
             guard abs(axis.dot(frame.direction)) >= axisParallel else { return .lost(.foreshortened) }

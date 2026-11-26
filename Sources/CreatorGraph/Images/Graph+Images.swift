@@ -24,6 +24,11 @@ extension Graph {
                 if case .embedded(let hash)? = value.fileReference { hashes.insert(hash) }
             }
         }
+        // A drawing's title block logos (DR-5 R11): the document's defaults and every sheet's.
+        let logos = [drawings.settings.titleBlockDefaults.logo] + drawings.sheets.map(\.titleBlock.logo)
+        for case let text? in logos {
+            if let hash = ImageHash(hex: text) { hashes.insert(hash) }
+        }
         return hashes
     }
 }

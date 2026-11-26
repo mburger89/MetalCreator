@@ -165,3 +165,88 @@ extension DrawingFixtures {
         return [modifiers, composite, flat, runout]
     }
 }
+
+extension DrawingFixtures {
+    /// The logo of the assembly sheet: 4 x 3, its top row black and the rest white.
+    static let logo: GreyPixels = {
+        var bytes = [UInt8](repeating: 255, count: 12)
+        for index in 0..<4 { bytes[index] = 0 }
+        return GreyPixels(key: String(repeating: "a", count: 64), width: 4, height: 3, bytes: bytes)!
+    }()
+
+    /// A3 with a two-part assembly view, three balloons, the parts list standing on its corner, a revision table of two rows and a
+    /// 4 x 3 logo, laid out by hand (no kernel, no `sin` or `cos` beyond the writers').
+    static func assemblySheet(standard: DrawingStandard = .iso) -> SheetPicture {
+        let style = DrawingStyle.of(standard)
+        let h = style.notesHeight(for: .a3)
+        var picture = SheetPicture(size: Vector2(420, 297), standard: standard)
+        picture.strokes.append(
+            SheetStroke(
+                segments: [.polyline([Vector2(20, 10), Vector2(410, 10), Vector2(410, 287), Vector2(20, 287), Vector2(20, 10)])],
+                width: style.frame, layer: .frame))
+        // Two parts: a base and a block on it, the block's hidden edge showing through.
+        picture.strokes.append(
+            SheetStroke(
+                segments: [
+                    .polyline([Vector2(60, 100), Vector2(160, 100), Vector2(160, 120), Vector2(60, 120), Vector2(60, 100)]),
+                    .polyline([Vector2(90, 120), Vector2(130, 120), Vector2(130, 150), Vector2(90, 150), Vector2(90, 120)]),
+                ], width: style.thick, layer: .visible))
+        picture.strokes.append(
+            SheetStroke(segments: [.line(Vector2(95, 105), Vector2(125, 105))], width: style.thin, pattern: .hidden, layer: .hidden))
+        picture.strokes.append(
+            SheetStroke(segments: [.line(Vector2(110, 95), Vector2(110, 155))], width: style.thin, pattern: .centre, layer: .center))
+        add(assemblyDrawings(standard: standard, h: h), to: &picture, style: style)
+        picture.images = [SheetImage(rect: Rect2D(min: Vector2(30, 20), max: Vector2(34, 23)), pixels: logo)]
+        return picture
+    }
+
+    /// The three balloons, the parts list and the revision table, in that order.
+    private static func assemblyDrawings(standard: DrawingStandard, h: Double) -> [AnnotationDrawing] {
+        let annotationStyle = AnnotationStyle.of(standard)
+        var drawings: [AnnotationDrawing] = []
+        for (index, x) in [70.0, 110.0, 150.0].enumerated() {
+            drawings.append(
+                BalloonLayout.draw(
+                    number: String(index + 1), center: Vector2(x, 180), foot: Vector2(x, x == 110 ? 150 : 120), h: h,
+                    style: annotationStyle))
+        }
+        let (part, other) = (NodeID(), NodeID())
+        let items = [
+            NumberedItem(part: part, number: 1, material: "Steel", partNumber: ""),
+            NumberedItem(part: other, number: 2, material: "Brass", partNumber: ""),
+        ]
+        let facts = [
+            part: PartFacts(name: "Base", quantity: 1, isRemoved: false), other: PartFacts(name: "Block", quantity: 2, isRemoved: false),
+        ]
+        drawings.append(
+            PartsListLayout.draw(items, facts: facts, bottomRight: Vector2(410, 40), standard: standard, h: h))
+        let table = RevisionTable(rows: [
+            RevisionRow(letter: "A", description: "First issue", date: "2026-01-02", approved: "MB"),
+            RevisionRow(letter: "B", description: "Hole <moved> & Ø20"),
+        ])
+        drawings.append(RevisionTableLayout.draw(table, topRight: Vector2(410, 287), standard: standard, h: h))
+        return drawings
+    }
+
+    /// Balloons (no header labels) go on DIMENSION; a table's lines and header on FRAME and its cells on TEXT.
+    private static func add(_ drawings: [AnnotationDrawing], to picture: inout SheetPicture, style: DrawingStyle) {
+        for drawing in drawings {
+            let isBalloon = drawing.labelCount == 0
+            for segment in drawing.segments {
+                picture.strokes.append(
+                    SheetStroke(segments: [segment], width: style.thin, layer: isBalloon ? .dimension : .frame))
+            }
+            for box in drawing.boxes {
+                picture.strokes.append(SheetStroke(segments: [.polyline(box)], width: style.thin, layer: .frame))
+            }
+            for fill in drawing.fills { picture.fills.append(SheetFill(points: fill, layer: .dimension)) }
+            for (index, text) in drawing.texts.enumerated() {
+                let layer: DrawingLayer = isBalloon ? .dimension : (index < drawing.labelCount ? .frame : .text)
+                picture.texts.append(
+                    SheetText(
+                        run: text.run, original: text.original, origin: text.origin, height: text.height, layer: layer,
+                        angle: text.angle))
+            }
+        }
+    }
+}

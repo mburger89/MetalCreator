@@ -74,7 +74,8 @@ extension SheetCanvasRenderTests {
         let colors = DrawingColors(nil)
         let window = try await DrawingWindow.open(scaleFactor: 1) {
             SheetFrameLayer(
-                strokes: [], texts: [], fills: [counter, clockwise], zoom: 4, paperHeight: 100, colors: colors, style: .iso)
+                strokes: [], texts: [], fills: [counter, clockwise], images: [], bitmaps: SheetBitmaps(), zoom: 4, paperHeight: 100,
+                colors: colors, style: .iso)
         }
         let image = try PixelImage(window: window.window)
         // The overlap's middle, (10, 6) mm: x 40 points, y (100 - 6) * 4.

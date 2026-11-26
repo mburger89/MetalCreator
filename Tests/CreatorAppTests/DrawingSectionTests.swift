@@ -73,16 +73,17 @@ struct DrawingSectionTests {
         }
         func job(cutter: SectionCutter?) -> DrawingSession.RefreshJob {
             DrawingSession.RefreshJob(
-                view: section, output: view.source, solids: solids,
+                view: section, output: view.source, isAssembly: false,
+                parts: [DrawingSession.RefreshPart(output: view.source, index: 0, solids: solids, curves: [])],
                 key: DrawingSession.RefreshKey(
                     solids: solids.map(ObjectIdentifier.init), frame: view.orientation.frame,
                     format: NumberFormat(units: app.document.units, settings: app.drawing.editor.document.settings),
                     annotations: sheet.annotations(of: section).filter { if case .note = $0.kind { false } else { true } },
                     cutter: cutter, tolerance: 0.01 / (view.scale ?? sheet.scale).value))
         }
-        let cut = await DrawingSession.lastGood(of: job(cutter: line.cutter), cache: app.drawing.cache, kernel: kernel)
+        let cut = await DrawingSession.lastGood(of: job(cutter: line.cutter), cache: app.drawing.cache, kernel: kernel).goods
         #expect(cut[id]?.values == [6], "the remainder's figure: \(String(describing: cut[id]))")
-        let whole = await DrawingSession.lastGood(of: job(cutter: nil), cache: app.drawing.cache, kernel: kernel)
+        let whole = await DrawingSession.lastGood(of: job(cutter: nil), cache: app.drawing.cache, kernel: kernel).goods
         #expect(whole[id]?.values == [20], "without the cutter it reads the part: \(String(describing: whole[id]))")
         let calls = await app.drawing.cache.cutCalls
         try app.document.perform(.setInput(box.rectangle.id, "width", .number(30)), name: "Change Width")

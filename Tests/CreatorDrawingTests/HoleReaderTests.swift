@@ -39,7 +39,7 @@ struct HoleReaderTests {
 
     private func read(_ topology: Topology, edge id: Int, frame: ProjectionFrame? = nil) -> HoleReading {
         let pick = Fixture.pick(topology, [id])
-        return HoleReader.read(.edge(pick), in: topology, frame: frame ?? top)
+        return HoleReader.read(.edge(pick), in: topology, frame: frame ?? top, parts: [])
     }
 
     private func shape(_ reading: HoleReading) -> HoleShape? {
@@ -242,6 +242,6 @@ struct HoleReaderTests {
         let topology = through
         let pick = Fixture.pick(topology, [0])
         let gone = Topology(faces: topology.faces, edges: [])
-        #expect(HoleReader.read(.edge(pick), in: gone, frame: top) == .lost(.missing))
+        #expect(HoleReader.read(.edge(pick), in: gone, frame: top, parts: []) == .lost(.missing))
     }
 }

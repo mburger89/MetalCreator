@@ -32,7 +32,7 @@ extension GreyImageDecoder {
 
     /// `decode(_:)` with the size of a band chosen, so a test can make a small picture take several bands.
     @concurrent
-    static func decode(_ data: Data, bandBytes: Int) async throws -> GreyImage {
+    static func decode(_ data: Data, bandBytes: Int, background: GreyBackground = .black) async throws -> GreyImage {
         try Task.checkCancellation()
         let info = try inspect(data)
         // The one step that cannot be interrupted: MetalUI decodes the whole picture to 8-bit straight-alpha RGBA.
@@ -40,14 +40,14 @@ extension GreyImageDecoder {
               decoded.orientedSize.width == info.width, decoded.orientedSize.height == info.height,
               let tag = Optional(decoded.orientation.exifValue), (1...8).contains(tag) else { throw ImageProblem.undecodable }
         try Task.checkCancellation()
-        let pixels = try greyPixels(of: decoded, tag: tag, bandBytes: bandBytes)
+        let pixels = try greyPixels(of: decoded, tag: tag, bandBytes: bandBytes, background: background)
         guard let grey = GreyImage(width: info.width, height: info.height, pixels: pixels) else { throw ImageProblem.undecodable }
         return grey
     }
 
     /// The upright grid's grey values, row 0 first, converted a band of rows at a time (the cancellation points). `decoded` is as
     /// stored; output pixel (x, y) is the stored pixel at `start(y) + x * step`, so no oriented copy of the RGBA is made.
-    private static func greyPixels(of decoded: DecodedImage, tag: Int, bandBytes: Int) throws -> [UInt16] {
+    private static func greyPixels(of decoded: DecodedImage, tag: Int, bandBytes: Int, background: GreyBackground) throws -> [UInt16] {
         let storedWidth = decoded.width, storedHeight = decoded.height
         let width = decoded.orientedSize.width, height = decoded.orientedSize.height
         let bandRows = max(1, min(height, bandBytes / (width * MemoryLayout<UInt16>.stride)))
@@ -69,7 +69,9 @@ extension GreyImageDecoder {
                             grid[y &* width &+ x] = alpha == 255
                                 ? UInt16(truncatingIfNeeded: min((red[Int(source[offset])] &+ green[Int(source[offset &+ 1])]
                                     &+ blue[Int(source[offset &+ 2])] &+ 5_000) / 10_000, 65_535))
-                                : grey(red: source[offset], green: source[offset &+ 1], blue: source[offset &+ 2], alpha: alpha)
+                                : grey(
+                                    red: source[offset], green: source[offset &+ 1], blue: source[offset &+ 2], alpha: alpha,
+                                    over: background)
                             offset &+= advance
                         }
                     }
@@ -97,9 +99,11 @@ extension GreyImageDecoder {
 
     /// Rec. 709 luminance (0.2126 R + 0.7152 G + 0.0722 B) of the colour premultiplied by its alpha, i.e. composited against
     /// black, on 16-bit values (an 8-bit sample `c` is `c * 257`), rounded. A grey pixel `v` with full alpha gives `v * 257`.
-    static func grey(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8) -> UInt16 {
+    static func grey(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8, over background: GreyBackground = .black) -> UInt16 {
+        // Over white, what the picture leaves uncovered is white: (255 - alpha) * 257 in each channel, which the weights sum to.
+        let uncovered = background == .white ? (255 - Int(alpha)) * 257 : 0
         func premultiplied(_ sample: UInt8) -> Int {
-            alpha == 255 ? Int(sample) * 257 : (Int(sample) * Int(alpha) * 257 + 127) / 255
+            (alpha == 255 ? Int(sample) * 257 : (Int(sample) * Int(alpha) * 257 + 127) / 255) + uncovered
         }
         let weighted = 2126 * premultiplied(red) + 7152 * premultiplied(green) + 722 * premultiplied(blue)
         return UInt16(min((weighted + 5000) / 10_000, 65_535))

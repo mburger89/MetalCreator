@@ -19,6 +19,8 @@ public final class DrawingEditorModel {
     /// The annotations chosen on the current sheet.
     public var selectedAnnotations: Set<AnnotationID> = []
     public internal(set) var tool: DrawingTool = .select
+    /// What ⌘C or ⌘X put aside (DR-5 R18): the editor's own, never the system pasteboard.
+    public internal(set) var clipboard: DrawingClipboard?
     public var transform = SheetTransform() {
         // A pan or a zoom is the person's: the sheet is no longer waiting to be fitted to the canvas's first real size.
         didSet { fitsOnNextSize = false }
@@ -49,6 +51,10 @@ public final class DrawingEditorModel {
     public internal(set) var pickView: ViewID?
     /// The symbol tool's target, named by its first click and waiting for the placing click (DR-4 R15); view state, never saved.
     public internal(set) var symbolDraft: SymbolDraft?
+    /// The balloon tool's target, named by its first click and waiting for the placing click (DR-5 R16); view state, never saved.
+    public internal(set) var balloonDraft: BalloonDraft?
+    /// The balloon draft's foot in the view's model plane, found once by composing it (never observed).
+    @ObservationIgnored var balloonFoot: (draft: BalloonDraft, foot: Vector2)?
     /// The last feature control frame and surface texture symbol placed in this session, which the next one copies (R15); never saved.
     public internal(set) var frameTemplate: FeatureControlFrame?
     public internal(set) var surfaceTemplate: SurfaceTexture?
@@ -81,6 +87,15 @@ public final class DrawingEditorModel {
     public var units: DocumentUnits {
         didSet { if units != oldValue { rebuildPicture() } }
     }
+    /// The templates the sheet inspector offers; set by the host (DR-5 R10).
+    public var templateChoices: [DrawingTemplateChoice] = []
+    /// Why the last template save or delete failed, shown under the template rows; set by the host, nil when the last change worked.
+    public var templateProblem: String?
+    /// What each wanted part is called, as the facts the composer reads say (DR-5 R5); set by the host from that same build, so the
+    /// order the editor pins is the order the balloons show.
+    public var partFacts: [NodeID: PartFacts] = [:]
+    /// The names of parts whose Outputs may be gone (DR-5 R5): in memory, never an edit; saved by `documentForSaving()`.
+    public internal(set) var rememberedPartNames: [NodeID: String] = [:]
     /// The tab being renamed in place; view state, committed as one "Rename Sheet" step.
     public internal(set) var renaming: SheetRename?
     public internal(set) var hoveredStroke: Int?
@@ -90,6 +105,9 @@ public final class DrawingEditorModel {
     var standardUnitsAreInches: Bool { units.length == .inches }
     let today: () -> String
     let events: DrawingEditorEvents
+
+    /// The bitmaps of the sheet's pictures, made once per image (DR-5 R12); not observed.
+    @ObservationIgnored let bitmaps = SheetBitmaps()
 
     // Gesture state; not observed.
     @ObservationIgnored var gesture: Gesture?
@@ -136,6 +154,7 @@ public final class DrawingEditorModel {
         self.units = units
         self.today = today
         self.events = events
+        for entry in document.partNames { rememberedPartNames[entry.part] = entry.name }
         rebuildPicture()
     }
 
@@ -173,6 +192,7 @@ public final class DrawingEditorModel {
     /// Undo and redo: takes the drawings the host restored, keeping the sheet and the selection that still exist.
     public func replaceDocument(_ new: DrawingDocument) {
         document = new
+        for entry in new.partNames where rememberedPartNames[entry.part] == nil { rememberedPartNames[entry.part] = entry.name }
         let kept = currentSheet.flatMap { new.sheet($0) != nil ? $0 : nil } ?? new.sheets.first?.id
         if kept != currentSheet {
             currentSheet = kept

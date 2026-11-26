@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorKernel
 import Testing
 
 @testable import CreatorDrawing
@@ -104,5 +105,32 @@ import Testing
         let document = DrawingDocument(sheets: [s])
         let composed = SheetComposer.compose(s, in: document, contents: [:], facts: TitleBlockFacts())
         #expect(composed.texts.contains { $0.original == "1. Deburr." })
+    }
+
+    // MARK: DR-5 Task 5
+
+    private func composed(_ list: PartsList) -> (SheetPicture, DrawingSheet) {
+        let part = NodeID()
+        let s = DrawingSheet(
+            name: "S", size: .a4, orientation: .portrait,
+            views: [DrawingView(kind: .base, source: part, orientation: .standard(.top), center: .zero)],
+            annotations: [DrawingAnnotation(view: nil, kind: .partsList(list))], notes: SheetNotes(lines: ["Deburr."]))
+        let facts = TitleBlockFacts(parts: [part: PartFacts(name: "Plate", quantity: 1, isRemoved: false)])
+        return (SheetComposer.compose(s, in: DrawingDocument(sheets: [s]), contents: [:], facts: facts), s)
+    }
+
+    @Test func notesStandAboveAStandingPartsList() {
+        let (picture, s) = composed(PartsList())
+        let (_, top) = blockTop(s)
+        let listTop = top + PartsListLayout.height(rows: 1)
+        let note = picture.texts.first { $0.original == "1. Deburr." }!
+        #expect(abs(note.origin.y - (listTop + SymbolStyle.of(.iso).notesGap)) < 1e-9)
+    }
+
+    @Test func aFreePartsListLeavesTheNotesOnTheBlock() {
+        let (picture, s) = composed(PartsList(bottomRight: Vector2(100, 100)))
+        let (_, top) = blockTop(s)
+        let note = picture.texts.first { $0.original == "1. Deburr." }!
+        #expect(abs(note.origin.y - (top + SymbolStyle.of(.iso).notesGap)) < 1e-9)
     }
 }

@@ -64,17 +64,17 @@ extension AnnotationComposer {
     }
 
     /// A leader end's status and, when it holds, its point in the note's own plane (the view's model plane, or the sheet).
-    private static func resolve(_ leader: LeaderEnd, context: AnnotationContext) -> (AnchorStatus, Vector2?) {
+    static func resolve(_ leader: LeaderEnd, context: AnnotationContext) -> (AnchorStatus, Vector2?) {
         switch leader.target {
         case .point(let point):
             // A view note's free end is sheet millimetres from the view's centre; stored in the model plane.
             let sheet = context.view == nil ? point : context.center + point
             return (.held, context.mapping.map { $0.model(sheet) } ?? sheet)
         default:
-            guard case .annotated(let topology, let frame) = context.state, let projection = context.projection else {
+            guard case .annotated(let topology, let frame, let parts) = context.state, let projection = context.projection else {
                 return (.held, nil)
             }
-            let resolution = DrawingAnchorResolver.resolve(leader.target, in: topology, frame: frame)
+            let resolution = DrawingAnchorResolver.resolve(leader.target, in: topology, frame: frame, parts: parts)
             switch resolution {
             case .lost(let reason): return (.lost(reason), nil)
             case .held(let geometry, let edges, _):
@@ -84,7 +84,7 @@ extension AnnotationComposer {
     }
 
     /// Where a leader ends on the sheet.
-    private static func tipOnSheet(of leader: LeaderEnd, model: Vector2?, fallback: Vector2, context: AnnotationContext) -> Vector2? {
+    static func tipOnSheet(of leader: LeaderEnd, model: Vector2?, fallback: Vector2, context: AnnotationContext) -> Vector2? {
         if case .point(let point) = leader.target { return context.view == nil ? point : context.center + point }
         guard let mapping = context.mapping else { return nil }
         return mapping.sheet(model ?? fallback)

@@ -29,6 +29,7 @@ struct PDFStructureReader {
     private(set) var offsets: [Int] = []
     private(set) var xrefBytes: [UInt8] = []
     private(set) var pages: [PDFPage] = []
+    private(set) var pageCount = 0
 
     init(data: Data) throws {
         bytes = [UInt8](data)
@@ -54,7 +55,8 @@ struct PDFStructureReader {
         let trailer = pdfText(entries[(count * 20)...])
         size = Self.integer(after: "/Size ", in: trailer) ?? -1
         root = Self.integer(after: "/Root ", in: trailer) ?? -1
-        pages = try readPages(objectCount: count - 1)
+        pageCount = Self.integer(after: "/Count ", in: objectText(2)) ?? 0
+        pages = try readPages(objectCount: 4 + 2 * pageCount)
     }
 
     private mutating func readEntries(count: Int) throws {

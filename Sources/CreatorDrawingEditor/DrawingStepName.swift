@@ -47,6 +47,26 @@ public enum DrawingStepName {
     public static let changeEdgeBreak = "Change Edge Break"
     public static let changeGeneralSurface = "Change General Surface"
 
+    public static let addBalloon = "Add Balloon"
+    public static let moveBalloon = "Move Balloon"
+    public static let deleteBalloon = "Delete Balloon"
+    public static let reattachBalloon = "Reattach Balloon"
+    public static let addPartsList = "Add Parts List"
+    public static let movePartsList = "Move Parts List"
+    public static let deletePartsList = "Delete Parts List"
+    public static let changeItem = "Change Item"
+    public static let moveItem = "Move Item"
+    public static let addRevisionTable = "Add Revision Table"
+    public static let moveRevisionTable = "Move Revision Table"
+    public static let deleteRevisionTable = "Delete Revision Table"
+    public static let addRevision = "Add Revision"
+    public static let changeRevision = "Change Revision"
+    public static let removeRevision = "Remove Revision"
+    public static let changeParts = "Change Parts"
+    public static let changeLogo = "Change Logo"
+    public static let paste = "Paste"
+    public static let cut = "Cut"
+
     public static let all: [String] = [
         addSheet, renameSheet, duplicateSheet, deleteSheet, moveSheet, changeSheetSize, editTitleBlock, changeStandard,
         addView, moveView, deleteView, changeScale, changeView, addDimension, addHoleCallout, addCentreMark, addCentreLine,
@@ -54,5 +74,8 @@ public enum DrawingStepName {
         deleteAnnotations, changeDimension, changeTolerance, editNote, changeNumberFormat, moveCuttingLine, moveDetailCircle,
         changeDetailCircle, addDatum, addFeatureControlFrame, addSurfaceSymbol, changeDatumLetter, changeFeatureControlFrame,
         changeSurfaceSymbol, moveSymbol, deleteSymbol, reattachSymbol, editNotes, changeEdgeBreak, changeGeneralSurface,
+        addBalloon, moveBalloon, deleteBalloon, reattachBalloon, addPartsList, movePartsList, deletePartsList, changeItem, moveItem,
+        addRevisionTable, moveRevisionTable, deleteRevisionTable, addRevision, changeRevision, removeRevision, changeParts,
+        changeLogo, paste, cut,
     ]
 }

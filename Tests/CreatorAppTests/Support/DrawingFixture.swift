@@ -30,8 +30,10 @@ struct DrawingBox {
 
 extension AppModel {
     /// The app showing `graph`, evaluated, in Drawing mode with one sheet.
-    static func inDrawing(_ graph: Graph, kernel: any Kernel = FakeKernel(), sheet: Bool = true) async -> AppModel {
-        let app = AppModel(kernel: kernel, file: GraphFile(graph: graph))
+    static func inDrawing(
+        _ graph: Graph, kernel: any Kernel = FakeKernel(), sheet: Bool = true, templates: DrawingTemplateStore = DrawingTemplateStore()
+    ) async -> AppModel {
+        let app = AppModel(kernel: kernel, file: GraphFile(graph: graph), templates: templates)
         await app.settle()
         app.setMode(.drawing)
         if sheet { app.drawing.editor.addSheet() }

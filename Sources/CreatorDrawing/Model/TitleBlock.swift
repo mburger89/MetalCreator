@@ -8,10 +8,12 @@ public struct TitleBlock: Hashable, Sendable, Codable {
     public var drawnBy: String
     public var date: String
     public var density: Double?
+    /// The 64 lowercase hex digits of the logo image's hash; its bytes live in the document's `images` table (DR-5 R11).
+    public var logo: String?
 
     public init(
         owner: String = "", title: String = "", drawingNumber: String = "", revision: String = "", material: String = "",
-        drawnBy: String = "", date: String = "", density: Double? = nil
+        drawnBy: String = "", date: String = "", density: Double? = nil, logo: String? = nil
     ) {
         self.owner = owner
         self.title = title
@@ -21,10 +23,11 @@ public struct TitleBlock: Hashable, Sendable, Codable {
         self.drawnBy = drawnBy
         self.date = date
         self.density = density
+        self.logo = logo
     }
 
     private enum CodingKeys: String, CodingKey {
-        case owner, title, drawingNumber, revision, material, drawnBy, date, density
+        case owner, title, drawingNumber, revision, material, drawnBy, date, density, logo
     }
 
     public init(from decoder: any Decoder) throws {
@@ -37,6 +40,9 @@ public struct TitleBlock: Hashable, Sendable, Codable {
         drawnBy = try c.decodeIfPresent(String.self, forKey: .drawnBy) ?? ""
         date = try c.decodeIfPresent(String.self, forKey: .date) ?? ""
         density = try c.decodeIfPresent(Double.self, forKey: .density)
+        // A damaged value reads nil: exactly 64 lowercase hexadecimal digits, as `ImageHash` has them.
+        let text = (try? c.decodeIfPresent(String.self, forKey: .logo)) ?? nil
+        logo = text.flatMap { Self.isHash($0) ? $0 : nil }
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -49,5 +55,10 @@ public struct TitleBlock: Hashable, Sendable, Codable {
         if !drawnBy.isEmpty { try c.encode(drawnBy, forKey: .drawnBy) }
         if !date.isEmpty { try c.encode(date, forKey: .date) }
         try c.encodeIfPresent(density, forKey: .density)
+        try c.encodeIfPresent(logo, forKey: .logo)
+    }
+
+    static func isHash(_ text: String) -> Bool {
+        text.utf8.count == 64 && text.utf8.allSatisfy { ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102) }
     }
 }

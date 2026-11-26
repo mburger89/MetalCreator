@@ -9,7 +9,26 @@ public enum DrawingAnchorResolver {
     /// Edges leaving a point within this many radians of opposite directions continue each other.
     public static let joinAngle = 0.01
 
-    public static func resolve(_ target: AnchorTarget, in topology: Topology, frame: ProjectionFrame) -> AnchorResolution {
+    /// The target a resolver works on and the topology it reads (DR-5 R3): a part's anchor is judged against its part's span of the
+    /// compound alone, so two copies of one part each hold their own edges; any other target reads the whole topology.
+    public static func scope(
+        of target: AnchorTarget, in topology: Topology, parts: [PartSpan]
+    ) -> Result<(target: AnchorTarget, topology: Topology), LostReason> {
+        guard case .onPart(let part, let inner) = target else { return .success((target, topology)) }
+        guard let span = parts.first(where: { $0.output == part }) else { return .failure(.partNotShown) }
+        return .success((inner, topology.restricted(toFaces: span.faces)))
+    }
+
+    public static func resolve(
+        _ target: AnchorTarget, in topology: Topology, frame: ProjectionFrame, parts: [PartSpan]
+    ) -> AnchorResolution {
+        switch scope(of: target, in: topology, parts: parts) {
+        case .failure(let reason): .lost(reason)
+        case .success(let scoped): resolveScoped(scoped.target, in: scoped.topology, frame: frame)
+        }
+    }
+
+    private static func resolveScoped(_ target: AnchorTarget, in topology: Topology, frame: ProjectionFrame) -> AnchorResolution {
         switch target {
         case .edge(let pick):
             switch heldEdges(pick, in: topology) {
@@ -21,6 +40,7 @@ public enum DrawingAnchorResolver {
         case .outline(let pick, let side): return cylinder(pick, side: side, in: topology, frame: frame)
         case .axis(let pick): return cylinder(pick, side: nil, in: topology, frame: frame)
         case .point: return .lost(.missing)
+        case .onPart(_, let inner): return resolveScoped(inner, in: topology, frame: frame)
         }
     }
 

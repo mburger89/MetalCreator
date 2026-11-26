@@ -32,6 +32,8 @@ public struct AnnotationDrawing: Hashable, Sendable {
     public var labelRect: Rect2D?
     /// A linear dimension's first run's two arrow tips in feet order, or an ISO diameter's two tips (plan R11); `nil` otherwise.
     public var dimensionLine: [Vector2]?
+    /// A table's header labels: the first `labelCount` texts (DR-5 R7); 0 for everything else.
+    public var labelCount = 0
 
     public init(
         segments: [SheetSegment] = [], boxes: [[Vector2]] = [], fills: [[Vector2]] = [], texts: [PlacedText] = [],

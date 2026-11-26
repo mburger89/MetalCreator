@@ -34,6 +34,26 @@ public enum TitleBlockLayout {
     static let inset = 1.5
     static let labelBaseline = 2.5
     static let symbolHeight = 2.5
+    /// The widest a logo is drawn (DR-5 R11).
+    public static let logoMaximumWidth = 40.0
+    /// The space between the owner label's lowest ink and the logo's band.
+    public static let logoLabelGap = 1.0
+
+    /// The band a logo fits in: from the bottom inset up to `labelBaseline + logoLabelGap` below the top, at the left inset.
+    public static func logoBand(in owner: Rect2D) -> Rect2D {
+        Rect2D(
+            min: Vector2(owner.min.x + inset, owner.min.y + inset),
+            max: Vector2(owner.min.x + inset + logoMaximumWidth, owner.max.y - labelBaseline - logoLabelGap))
+    }
+
+    /// Where a `width` × `height` pixel logo goes: fitted in the band with its aspect kept, left-aligned, centred vertically.
+    public static func logoRect(width: Int, height: Int, in owner: Rect2D) -> Rect2D {
+        let band = logoBand(in: owner)
+        let scale = Swift.min(band.width / Double(width), band.height / Double(height))
+        let (w, h) = (Double(width) * scale, Double(height) * scale)
+        let y = band.min.y + (band.height - h) / 2
+        return Rect2D(min: Vector2(band.min.x, y), max: Vector2(band.min.x + w, y + h))
+    }
 
     /// R15's table: rects from the block's bottom left, with each standard's labels.
     public static func fields(for standard: DrawingStandard) -> [TitleBlockField] {
@@ -99,6 +119,13 @@ public enum TitleBlockLayout {
                 picture.strokes.append(
                     contentsOf: DrawingSymbols.projectionSymbol(
                         firstAngle: standard.isFirstAngle, center: rect.center, h: symbolHeight, thin: style.thin))
+            } else if field.key == .owner, case .picture(let pixels)? = facts.logo {
+                let logo = logoRect(width: pixels.width, height: pixels.height, in: rect)
+                picture.images.append(SheetImage(rect: logo, pixels: pixels, layer: .frame))
+                let start = logo.max.x + inset
+                if let text = valueText(values.value(of: field.key), field: field, in: rect, left: start) {
+                    picture.texts.append(text)
+                }
             } else if let text = valueText(values.value(of: field.key), field: field, in: rect) {
                 picture.texts.append(text)
             }
@@ -112,11 +139,14 @@ public enum TitleBlockLayout {
             origin: Vector2(rect.min.x + inset, rect.max.y - labelBaseline), height: style.fieldLabelHeight, layer: .frame)
     }
 
-    private static func valueText(_ value: String, field: TitleBlockField, in rect: Rect2D) -> SheetText? {
+    private static func valueText(
+        _ value: String, field: TitleBlockField, in rect: Rect2D, left: Double? = nil
+    ) -> SheetText? {
         guard !value.isEmpty else { return nil }
-        let fit = DrawingText.fitted(value, height: field.valueHeight, width: rect.width - 2 * inset)
+        let start = left ?? rect.min.x + inset
+        let fit = DrawingText.fitted(value, height: field.valueHeight, width: rect.max.x - inset - start)
         return SheetText(
-            run: fit.run, original: value, origin: Vector2(rect.min.x + inset, rect.min.y + inset), height: fit.height,
+            run: fit.run, original: value, origin: Vector2(start, rect.min.y + inset), height: fit.height,
             layer: .text)
     }
 
@@ -140,7 +170,7 @@ public enum TitleBlockLayout {
             case .title: return block.title
             case .material: return block.material
             case .drawingNumber: return block.drawingNumber
-            case .revision: return block.revision
+            case .revision: return sheet.revisionShown
             default: return ""
             }
         }

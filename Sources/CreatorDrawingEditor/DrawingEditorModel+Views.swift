@@ -19,6 +19,8 @@ extension DrawingEditorModel {
             for target in [id] + Self.derivedDescendants(of: id, in: sheet, detailsOnly: false) {
                 guard var view = sheet.view(target) else { continue }
                 view.source = source
+                // One Output is a single-Output view again: an assembly's first part is its source (R1).
+                view.assembly = nil
                 sheet.setView(view)
             }
         }
@@ -76,9 +78,14 @@ extension DrawingEditorModel {
     }
 
     public func deleteSelection() {
+        removeSelection(named: nil)
+    }
+
+    /// Deletes the selection as one step: `name`, else the delete name its contents give.
+    func removeSelection(named chosen: String?) {
         guard let id = currentSheet, !selection.isEmpty || !selectedAnnotations.isEmpty else { return }
         let doomed = selection, doomedAnnotations = selectedAnnotations
-        let name = deleteName(of: doomedAnnotations, withViews: !doomed.isEmpty)
+        let name = chosen ?? deleteName(of: doomedAnnotations, withViews: !doomed.isEmpty)
         commitSheet(id, name) { sheet in
             for annotation in doomedAnnotations { sheet.removeAnnotation(annotation) }
             for view in sheet.views where doomed.contains(view.id) {
@@ -135,7 +142,7 @@ extension DrawingEditorModel {
         let view = DrawingView(
             kind: .projected, source: parent.source, orientation: .custom(rule.frame), scale: parent.scale, center: center,
             alignment: ViewAlignment(parent: parentID, axis: rule.axis), showsHidden: parent.showsHidden,
-            showsTangent: parent.showsTangent)
+            showsTangent: parent.showsTangent, assembly: parent.assembly)
         commitSheet(id, DrawingStepName.addView) { $0.setView(view) }
         selection = [view.id]
         tool = .select

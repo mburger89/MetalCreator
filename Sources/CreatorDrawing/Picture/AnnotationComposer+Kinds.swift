@@ -22,15 +22,17 @@ struct EvaluatedAnnotation {
 enum AnnotationEvaluator {
     /// `nil` for a note, whose leaders are resolved by the composer alone.
     static func evaluate(
-        _ annotation: DrawingAnnotation, topology: Topology, frame: ProjectionFrame, format: NumberFormat
+        _ annotation: DrawingAnnotation, topology: Topology, frame: ProjectionFrame, format: NumberFormat, parts: [PartSpan]
     ) -> EvaluatedAnnotation? {
         switch annotation.kind {
-        case .dimension(let dimension): dimensionResult(dimension, topology: topology, frame: frame, format: format)
-        case .holeCallout(let callout): hole(callout, topology: topology, frame: frame, format: format)
-        case .centreMark(let mark): centreMark(mark, topology: topology, frame: frame)
-        case .centreLine(let line): centreLine(line, topology: topology, frame: frame)
+        case .dimension(let dimension): dimensionResult(dimension, topology: topology, frame: frame, format: format, parts: parts)
+        case .holeCallout(let callout): hole(callout, topology: topology, frame: frame, format: format, parts: parts)
+        case .centreMark(let mark): centreMark(mark, topology: topology, frame: frame, parts: parts)
+        case .centreLine(let line): centreLine(line, topology: topology, frame: frame, parts: parts)
         case .note: nil
-        case .datumFeature, .featureControl, .surfaceTexture: symbol(annotation, topology: topology, frame: frame, format: format)
+        case .balloon, .partsList, .revisionTable: nil  // DR-5 Task 4 (balloon) and Task 5 (tables)
+        case .datumFeature, .featureControl, .surfaceTexture:
+            symbol(annotation, topology: topology, frame: frame, format: format, parts: parts)
         }
     }
 
@@ -56,9 +58,9 @@ enum AnnotationEvaluator {
     // MARK: Dimensions
 
     private static func dimensionResult(
-        _ dimension: DrawingDimension, topology: Topology, frame: ProjectionFrame, format: NumberFormat
+        _ dimension: DrawingDimension, topology: Topology, frame: ProjectionFrame, format: NumberFormat, parts: [PartSpan]
     ) -> EvaluatedAnnotation {
-        let resolutions = dimension.anchors.map { DrawingAnchorResolver.resolve($0, in: topology, frame: frame) }
+        let resolutions = dimension.anchors.map { DrawingAnchorResolver.resolve($0, in: topology, frame: frame, parts: parts) }
         var anchors: [AnchorStatus] = []
         var firstLost: LostReason?
         for resolution in resolutions {
@@ -130,9 +132,9 @@ enum AnnotationEvaluator {
     // MARK: Hole callouts
 
     private static func hole(
-        _ callout: HoleCallout, topology: Topology, frame: ProjectionFrame, format: NumberFormat
+        _ callout: HoleCallout, topology: Topology, frame: ProjectionFrame, format: NumberFormat, parts: [PartSpan]
     ) -> EvaluatedAnnotation {
-        switch HoleReader.read(callout.anchor, in: topology, frame: frame) {
+        switch HoleReader.read(callout.anchor, in: topology, frame: frame, parts: parts) {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
         case .notAHole: return lost(.notAHole, anchors: [.held])
         case .hole(let shape, let center, _, let radius):
@@ -145,8 +147,10 @@ enum AnnotationEvaluator {
 
     // MARK: Centre marks and lines
 
-    private static func centreMark(_ mark: CentreMark, topology: Topology, frame: ProjectionFrame) -> EvaluatedAnnotation {
-        switch DrawingAnchorResolver.resolve(mark.anchor, in: topology, frame: frame) {
+    private static func centreMark(
+        _ mark: CentreMark, topology: Topology, frame: ProjectionFrame, parts: [PartSpan]
+    ) -> EvaluatedAnnotation {
+        switch DrawingAnchorResolver.resolve(mark.anchor, in: topology, frame: frame, parts: parts) {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
         case .held(.circle(let center, let axis, let radius, _), _, _):
             guard abs(axis.dot(frame.direction)) >= 1 - 1e-9 else { return lost(.foreshortened, anchors: [.held]) }
@@ -158,9 +162,17 @@ enum AnnotationEvaluator {
         }
     }
 
-    private static func centreLine(_ line: CentreLine, topology: Topology, frame: ProjectionFrame) -> EvaluatedAnnotation {
-        guard case .axis(let pick) = line.anchor else { return lost(.notCylinder, anchors: [.held]) }
-        switch DrawingAnchorResolver.resolve(line.anchor, in: topology, frame: frame) {
+    private static func centreLine(
+        _ line: CentreLine, topology whole: Topology, frame: ProjectionFrame, parts: [PartSpan]
+    ) -> EvaluatedAnnotation {
+        let topology: Topology
+        let target: AnchorTarget
+        switch DrawingAnchorResolver.scope(of: line.anchor, in: whole, parts: parts) {
+        case .failure(let reason): return lost(reason, anchors: [status(of: reason)])
+        case .success(let found): (target, topology) = (found.target, found.topology)
+        }
+        guard case .axis(let pick) = target else { return lost(.notCylinder, anchors: [.held]) }
+        switch DrawingAnchorResolver.resolve(target, in: topology, frame: frame, parts: []) {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
         case .held(.cylinder(let axisPoint, let axis, _, _), _, _):
             guard abs(axis.dot(frame.direction)) <= 1e-9 else { return lost(.foreshortened, anchors: [.held]) }

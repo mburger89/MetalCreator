@@ -20,7 +20,7 @@ extension DrawingEditorModel {
             return
         }
         switch tool {
-        case .baseView:
+        case .baseView, .assemblyView:
             gesture = .placing
         case .projectedView:
             if let hit { gesture = .projecting(parent: hit, start: point) }
@@ -30,7 +30,7 @@ extension DrawingEditorModel {
         case .detail:
             detailDown(at: point, hit: hit, modifiers: modifiers)
         case .dimension, .baselineDimension, .chainDimension, .ordinateDimension, .chamferDimension, .holeCallout, .centreMark,
-            .centreLine, .note, .datum, .featureControlFrame, .surfaceFinish:
+            .centreLine, .note, .datum, .featureControlFrame, .surfaceFinish, .balloon, .partsList, .revisionTable:
             break
         case .select:
             selectDown(at: point, hit: hit, modifiers: modifiers, sheet: sheet)
@@ -92,7 +92,8 @@ extension DrawingEditorModel {
         gesture = nil
         let point = transform.sheetPoint(canvas)
         switch ended {
-        case .placing: placeBaseView(at: point)
+        case .placing:
+            if tool == .assemblyView { placeAssemblyView(at: point) } else { placeBaseView(at: point) }
         case let .projecting(parent, _): placeProjectedView(of: parent, dropAt: point)
         case .annotating(let modifiers): annotationClick(at: point, modifiers: modifiers)
         case .clicking(let modifiers): derivedClick(at: point, modifiers: modifiers)
@@ -121,7 +122,7 @@ extension DrawingEditorModel {
         let point = transform.sheetPoint(canvas)
         lastPointer = point
         updateHover(at: point)
-        if !picks.isEmpty || holdsToolDraft || symbolDraft != nil { updateDraft() }
+        if !picks.isEmpty || holdsToolDraft || symbolDraft != nil || balloonDraft != nil { updateDraft() }
         let tolerance = Self.hoverTolerancePoints / transform.zoom
         var found: Int?
         for view in sheet.views.reversed() {

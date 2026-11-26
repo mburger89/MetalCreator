@@ -6,10 +6,13 @@ import Foundation
 public struct DXFOutput: Sendable {
     public var data: Data
     public var replacedTexts: [String]
+    /// True when the sheet held a picture, which a DXF cannot: its rectangle is written instead (DR-5 R13).
+    public var leftOutImages: Bool
 
-    public init(data: Data, replacedTexts: [String]) {
+    public init(data: Data, replacedTexts: [String], leftOutImages: Bool = false) {
         self.data = data
         self.replacedTexts = replacedTexts
+        self.leftOutImages = leftOutImages
     }
 }
 
@@ -17,7 +20,8 @@ public struct DXFOutput: Sendable {
 /// input: handles are sequential, numbers go through `PDFNumber`, nothing iterates a dictionary.
 public enum DXFWriter {
     public static func write(
-        strokes: [SheetStroke], texts: [SheetText], fills: [SheetFill] = [], extent: Rect2D, style: DrawingStyle
+        strokes: [SheetStroke], texts: [SheetText], fills: [SheetFill] = [], images: [SheetImage] = [], extent: Rect2D,
+        style: DrawingStyle
     ) -> DXFOutput {
         var handles = DXFHandles()
         let set = DXFHandleSet(&handles)
@@ -26,6 +30,13 @@ public enum DXFWriter {
         entities.add(2, "ENTITIES")
         for stroke in strokes {
             for segment in stroke.segments { entity(segment, of: stroke, owner: set.modelRecord, handles: &handles, into: &entities) }
+        }
+        for image in images {
+            let (low, high) = (image.rect.min, image.rect.max)
+            let outline = [low, Vector2(high.x, low.y), high, Vector2(low.x, high.y), low]
+            entity(
+                .polyline(outline), of: SheetStroke(segments: [], width: style.thin, layer: .frame),
+                owner: set.modelRecord, handles: &handles, into: &entities)
         }
         for fill in fills { solids(fill, owner: set.modelRecord, handles: &handles, into: &entities) }
         for text in texts where !text.run.shown.isEmpty {
@@ -41,13 +52,14 @@ public enum DXFWriter {
         file.add(entities)
         file.add(DXFObjects.objects(set, extent: extent))
         file.add(0, "EOF")
-        return DXFOutput(data: Data(file.text.utf8), replacedTexts: ReplacedTexts.collect(texts))
+        return DXFOutput(
+            data: Data(file.text.utf8), replacedTexts: ReplacedTexts.collect(texts), leftOutImages: !images.isEmpty)
     }
 
     /// The open sheet, in sheet millimetres.
     public static func sheet(_ picture: SheetPicture, style: DrawingStyle) -> DXFOutput {
         write(
-            strokes: picture.strokes, texts: picture.texts, fills: picture.fills,
+            strokes: picture.strokes, texts: picture.texts, fills: picture.fills, images: picture.images,
             extent: Rect2D(min: .zero, max: picture.size), style: style)
     }
 

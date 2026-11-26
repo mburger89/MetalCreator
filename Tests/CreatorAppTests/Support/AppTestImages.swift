@@ -17,6 +17,20 @@ enum AppTestImages {
         return file
     }
 
+    /// A `width` × `height` 8-bit RGBA PNG of one colour and opacity.
+    static func rgbaPNG(_ width: Int = 2, _ height: Int = 2, red: UInt8 = 0, green: UInt8 = 0, blue: UInt8 = 0, alpha: UInt8) -> Data {
+        var raw: [UInt8] = []
+        for _ in 0..<height {
+            raw.append(0)
+            for _ in 0..<width { raw.append(contentsOf: [red, green, blue, alpha]) }
+        }
+        var file = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        file.append(chunk("IHDR", bigEndian(UInt32(width)) + bigEndian(UInt32(height)) + [8, 6, 0, 0, 0]))
+        file.append(chunk("IDAT", zlibStored(raw)))
+        file.append(chunk("IEND", []))
+        return file
+    }
+
     /// The start of a GIF: a picture format the Image Field refuses.
     static func gif() -> Data {
         Data(Array("GIF89a".utf8) + [8, 0, 8, 0, 0, 0, 0x3B])

@@ -76,7 +76,7 @@ extension DrawingPick.Picker {
         guard let pick = topology.facePick(for: id), topology.faces(matching: pick).count == 1 else {
             return .failure(refusal(wording.sharedCylinder))
         }
-        if purpose != .leader, abs(axis.dot(frame.direction)) > 1e-9 { return .failure(refusal(wording.cylinder)) }
+        if !takesLeaders, abs(axis.dot(frame.direction)) > 1e-9 { return .failure(refusal(wording.cylinder)) }
         let target: AnchorTarget = purpose == .centreLine
             ? .axis(pick) : .outline(pick, side: side(axisPoint: axisPoint, axis: axis))
         switch held(target) {

@@ -1,18 +1,16 @@
 import CreatorDrawing
 import CreatorGeometry
+import Foundation
 import MetalUI
 
 extension DrawingEditorModel {
     /// Adds a sheet after the last, named "Sheet N" with the smallest unused N, and shows it.
     public func addSheet() {
         let settings = document.settings
-        let used = Set(document.sheets.map(\.name))
-        var number = 1
-        while used.contains("Sheet \(number)") { number += 1 }
         var block = settings.titleBlockDefaults
         block.date = today()
         let sheet = DrawingSheet(
-            name: "Sheet \(number)", size: settings.standard == .asme ? .ansiB : .a3, orientation: .landscape,
+            name: nextSheetName(), size: settings.standard == .asme ? .ansiB : .a3, orientation: .landscape,
             titleBlock: block)
         commit(DrawingStepName.addSheet) { document in
             document.sheets.append(sheet)
@@ -24,59 +22,42 @@ extension DrawingEditorModel {
         show(sheet: sheet.id)
     }
 
+    /// "Sheet N" with the smallest unused N.
+    func nextSheetName() -> String {
+        let used = Set(document.sheets.map(\.name))
+        var number = 1
+        while used.contains("Sheet \(number)") { number += 1 }
+        return "Sheet \(number)"
+    }
+
+    /// Renames to the trimmed text; a blank name keeps the old one (DR-5 R21).
     public func renameSheet(_ id: SheetID, to name: String) {
-        guard !name.isEmpty else { return }
-        commitSheet(id, DrawingStepName.renameSheet) { $0.name = name }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        commitSheet(id, DrawingStepName.renameSheet) { $0.name = trimmed }
     }
 
     public func duplicateSheet(_ id: SheetID) {
         guard let index = document.sheets.firstIndex(where: { $0.id == id }) else { return }
         let original = document.sheets[index]
-        var views = original.views
-        var renamed: [ViewID: ViewID] = [:]
-        for view in views { renamed[view.id] = ViewID() }
-        for position in views.indices {
-            views[position].id = renamed[views[position].id] ?? views[position].id
-            if let alignment = views[position].alignment {
-                views[position].alignment = renamed[alignment.parent].map {
-                    ViewAlignment(parent: $0, axis: alignment.axis)
-                }
-            }
-            if let derivation = views[position].derivation, let parent = renamed[derivation.parent] {
-                views[position].derivation = derivation.withParent(parent)
-            }
-        }
-        var newIDs: [AnnotationID: AnnotationID] = [:]
-        for annotation in original.annotations { newIDs[annotation.id] = AnnotationID() }
-        let annotations = original.annotations.map { annotation -> DrawingAnnotation in
-            var copied = annotation
-            copied.id = newIDs[annotation.id] ?? AnnotationID()
-            copied.view = annotation.view.flatMap { renamed[$0] }
-            copied.kind = Self.remappingAttachment(of: annotation.kind, newIDs)
-            return copied
-        }
-        let copy = DrawingSheet(
-            name: original.name + " Copy", size: original.size, orientation: original.orientation, scale: original.scale,
-            titleBlock: original.titleBlock, views: views, annotations: annotations, notes: original.notes)
+        let blank = DrawingSheet(
+            name: uniqueCopyName(of: original.name), size: original.size, orientation: original.orientation, scale: original.scale,
+            titleBlock: original.titleBlock, notes: original.notes)
+        let copied = SheetCopy.copy(
+            views: original.views, annotations: original.annotations, onto: blank, offset: .zero, keepingLetters: true)
+        let copy = copied.sheet
         commit(DrawingStepName.duplicateSheet) { $0.sheets.insert(copy, at: index + 1) }
         show(sheet: copy.id)
     }
 
-    /// A copied symbol on a dimension names the copied dimension (plan R14).
-    private static func remappingAttachment(of kind: AnnotationKind, _ ids: [AnnotationID: AnnotationID]) -> AnnotationKind {
-        func remapped(_ attachment: SymbolAttachment) -> SymbolAttachment {
-            if case .dimension(let id) = attachment { return .dimension(ids[id] ?? id) }
-            return attachment
-        }
-        switch kind {
-        case .datumFeature(var datum):
-            datum.attachment = remapped(datum.attachment)
-            return .datumFeature(datum)
-        case .featureControl(var frame):
-            frame.attachment = remapped(frame.attachment)
-            return .featureControl(frame)
-        default: return kind
-        }
+    /// "\(name) Copy", then "\(name) Copy 2", "\(name) Copy 3"… (DR-5 R21).
+    private func uniqueCopyName(of name: String) -> String {
+        let used = Set(document.sheets.map(\.name))
+        let base = name + " Copy"
+        guard used.contains(base) else { return base }
+        var number = 2
+        while used.contains("\(base) \(number)") { number += 1 }
+        return "\(base) \(number)"
     }
 
     public func deleteSheet(_ id: SheetID) {

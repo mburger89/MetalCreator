@@ -7,14 +7,18 @@ public struct DrawingEditorEvents {
     /// A cancelled drag took back the steps it had committed under this coalescing key (plan R18): the host drops them from its
     /// undo stack.
     public var discarded: @MainActor (String) -> Void
+    /// A request only the host can carry out: a template, a logo file (DR-5 R16). The default does nothing.
+    public var requested: @MainActor (DrawingEditorRequest) -> Void
 
     public init(
         committed: @escaping @MainActor (DrawingCommit) -> Void,
         sheetChanged: @escaping @MainActor (SheetID?) -> Void = { _ in },
-        discarded: @escaping @MainActor (String) -> Void = { _ in }
+        discarded: @escaping @MainActor (String) -> Void = { _ in },
+        requested: @escaping @MainActor (DrawingEditorRequest) -> Void = { _ in }
     ) {
         self.committed = committed
         self.sheetChanged = sheetChanged
         self.discarded = discarded
+        self.requested = requested
     }
 }

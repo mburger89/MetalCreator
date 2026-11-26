@@ -216,7 +216,8 @@ extension DrawingEditorModel {
     /// Whether the line a symbol stands on runs horizontally on the sheet.
     private func isHorizontal(_ end: LeaderEnd, in id: AnnotationID) -> Bool {
         guard let view = sheet?.annotation(id)?.view, case .success(let context) = pickContext(of: view),
-            case .held(let geometry, _, _) = DrawingAnchorResolver.resolve(end.target, in: context.topology, frame: context.frame),
+            case .held(let geometry, _, _) = DrawingAnchorResolver.resolve(end.target, in: context.topology, frame: context.frame,
+                parts: context.parts ?? []),
             case .success(let found) = SymbolFoot.of(geometry, hint: end.hint, frame: context.frame),
             found.along.length > 1e-12 else { return false }
         return Swift.abs(found.along.y) <= 1e-9 * found.along.length
