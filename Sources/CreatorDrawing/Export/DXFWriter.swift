@@ -103,6 +103,9 @@ public enum DXFWriter {
         t.add(8, stroke.layer.rawValue)
         if stroke.pattern == .hidden && stroke.layer != .hidden { t.add(6, "DASHED") }
         if stroke.pattern == .centre && stroke.layer != .center { t.add(6, "CENTER") }
+        // A layer's own linetype is chained or dashed: a solid stroke on it (a cutting line's thick ends, a small centre
+        // mark) says so (DR-3 R6).
+        if stroke.pattern == .solid && (stroke.layer == .center || stroke.layer == .hidden) { t.add(6, "Continuous") }
         t.add(370, DXFTables.lineweight(stroke.width))
     }
 

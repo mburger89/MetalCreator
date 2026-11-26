@@ -73,4 +73,38 @@ struct SheetHitTestTests {
         #expect(SheetHitTest.annotation(at: Vector2(41.5, 15), in: drawn, order: order) == nil)
         #expect(SheetHitTest.annotation(at: Vector2(0, 0), in: drawn, order: order) == nil)
     }
+
+    @Test func hatchAndMarksAreNotLines() {
+        let section = ViewID()
+        let drawn = SheetPicture(
+            size: Vector2(100, 100),
+            strokes: [
+                SheetStroke(segments: [.line(Vector2(0, 0), Vector2(10, 0))], width: 0.25, layer: .hatch, view: a),
+                SheetStroke(
+                    segments: [.line(Vector2(0, 5), Vector2(10, 5))], width: 0.25, layer: .dimension, view: a, mark: section),
+                SheetStroke(segments: [.line(Vector2(0, 10), Vector2(10, 10))], width: 0.5, layer: .visible, view: a),
+            ])
+        #expect(SheetHitTest.line(near: Vector2(5, 0.5), in: drawn, view: a, tolerance: 1) == nil)
+        #expect(SheetHitTest.line(near: Vector2(5, 5.5), in: drawn, view: a, tolerance: 1) == nil)
+        #expect(SheetHitTest.line(near: Vector2(5, 10.5), in: drawn, view: a, tolerance: 1) == 2)
+    }
+
+    @Test func aMarkIsFoundByItsView() {
+        let first = ViewID()
+        let second = ViewID()
+        let drawn = SheetPicture(
+            size: Vector2(100, 100),
+            strokes: [
+                SheetStroke(
+                    segments: [.line(Vector2(0, 5), Vector2(10, 5))], width: 0.25, layer: .center, view: a, mark: first),
+                SheetStroke(
+                    segments: [.arc(center: Vector2(50, 50), radius: 10, start: 0, sweep: 2 * .pi)], width: 0.25,
+                    layer: .dimension, view: a, mark: second),
+                SheetStroke(segments: [.line(Vector2(0, 20), Vector2(10, 20))], width: 0.5, layer: .visible, view: a),
+            ])
+        #expect(SheetHitTest.mark(at: Vector2(5, 5.4), in: drawn, tolerance: 1) == first)
+        #expect(SheetHitTest.mark(at: Vector2(60.4, 50), in: drawn, tolerance: 1) == second)
+        #expect(SheetHitTest.mark(at: Vector2(5, 20.2), in: drawn, tolerance: 1) == nil, "a view's own line is no mark")
+        #expect(SheetHitTest.mark(at: Vector2(30, 30), in: drawn, tolerance: 1) == nil)
+    }
 }

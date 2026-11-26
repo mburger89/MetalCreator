@@ -184,4 +184,16 @@ import Testing
             .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
         #expect(digest == "507244790ae669f26399498b99046bbbf361714154dbd7bab0d8ae76f2dda2ee")
     }
+
+    @Test func hatchedPageDigest() {
+        for standard in [DrawingStandard.iso, .asme] {
+            let data = write([DrawingFixtures.hatchedSheet(standard: standard)], title: "Hatched").data
+            #expect(data == write([DrawingFixtures.hatchedSheet(standard: standard)], title: "Hatched").data)
+        }
+        let data = write([DrawingFixtures.hatchedSheet()], title: "Hatched").data
+        let digest = SHA256.hash(data)
+            .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
+        #expect(digest == "8dbed6de4a6f62d8fa24220b2f76281465eb2daef29fc254861b87ec3a1a4c8e")
+        #expect(pdfText(data).contains("(A)"))
+    }
 }

@@ -27,11 +27,31 @@ public enum SheetHitTest {
     public static func line(near point: Vector2, in picture: SheetPicture, view: ViewID, tolerance: Double) -> Int? {
         var best: (index: Int, distance: Double)?
         for (index, stroke) in picture.strokes.enumerated()
-            where stroke.view == view && stroke.annotation == nil && stroke.layer != .center {
+            where stroke.view == view && stroke.annotation == nil && stroke.mark == nil && stroke.layer != .center
+            && stroke.layer != .hatch {
             let distance = stroke.segments.map { distance(from: point, to: $0) }.min() ?? .infinity
             if distance <= tolerance, distance < (best?.distance ?? .infinity) { best = (index, distance) }
         }
         return best?.index
+    }
+
+    /// The view whose mark (cutting line, arrow, detail circle or letter) is nearest the point within `tolerance` (DR-3 R6).
+    public static func mark(at point: Vector2, in picture: SheetPicture, tolerance: Double) -> ViewID? {
+        var best: (view: ViewID, distance: Double)?
+        func consider(_ view: ViewID?, _ distance: Double) {
+            guard let view, distance <= tolerance, distance < (best?.distance ?? .infinity) else { return }
+            best = (view, distance)
+        }
+        for stroke in picture.strokes where stroke.mark != nil {
+            consider(stroke.mark, stroke.segments.map { distance(from: point, to: $0) }.min() ?? .infinity)
+        }
+        for text in picture.texts where text.mark != nil {
+            let box = Rect2D(min: text.origin, max: text.origin + Vector2(text.run.width, text.height))
+            let dx = max(box.min.x - point.x, 0, point.x - box.max.x)
+            let dy = max(box.min.y - point.y, 0, point.y - box.max.y)
+            consider(text.mark, (dx * dx + dy * dy).squareRoot())
+        }
+        return best?.view
     }
 
     private static func distance(from p: Vector2, to segment: SheetSegment) -> Double {

@@ -38,6 +38,8 @@ public enum SheetComposer {
             if content.projection != nil {
                 picture.strokes += ViewLinework.strokes(
                     for: content, view: view, center: center, scale: scale, style: style)
+                picture.strokes += hatch(
+                    for: view, content: content, center: center, scale: scale, sheet: sheet, style: style)
                 frame = ViewLinework.frame(for: content, center: center, scale: scale)
                     ?? Rect2D(min: center, max: center)
             } else {
@@ -48,24 +50,29 @@ public enum SheetComposer {
             picture.viewFrames[view.id] = frame
             annotations.compose(
                 view: view, center: center, scale: scale, content: content, frame: frame, into: &picture)
-            if view.showsLabel {
-                let label = ViewLabel.text(for: view, sheet: sheet, standard: standard)
-                let height = style.viewLabelHeight
-                let run = DrawingText.layout(label, height: height)
-                picture.texts.append(
-                    SheetText(
-                        run: run, original: label,
-                        origin: Vector2(center.x - run.width / 2, frame.min.y - 8 - height / 2), height: height,
-                        layer: .text, view: view.id))
-            }
+            appendLabel(to: &picture, view: view, center: center, frame: frame, sheet: sheet, style: style)
             if notices {
                 appendNotices(
                     to: &picture, placed: Placed(view: view, center: center, content: content), frame: frame, sheet: sheet,
                     style: style)
             }
         }
+        appendMarks(to: &picture, sheet: sheet, standard: standard, centers: centers, contents: contents)
         annotations.finish(&picture)
         return picture
+    }
+
+    private static func appendLabel(
+        to picture: inout SheetPicture, view: DrawingView, center: Vector2, frame: Rect2D, sheet: DrawingSheet, style: DrawingStyle
+    ) {
+        guard view.showsLabel else { return }
+        let label = ViewLabel.text(for: view, sheet: sheet, standard: style.standard)
+        let height = style.viewLabelHeight
+        let run = DrawingText.layout(label, height: height)
+        picture.texts.append(
+            SheetText(
+                run: run, original: label, origin: Vector2(center.x - run.width / 2, frame.min.y - 8 - height / 2),
+                height: height, layer: .text, view: view.id))
     }
 
     /// A view's problem (when its last projection is still drawn) and its warnings, under the frame and its label, in the
@@ -74,7 +81,7 @@ public enum SheetComposer {
         to picture: inout SheetPicture, placed: Placed, frame: Rect2D, sheet: DrawingSheet, style: DrawingStyle
     ) {
         let (view, center, content) = (placed.view, placed.center, placed.content)
-        var lines = content.warnings
+        var lines = DerivedViewNotices.notices(for: view, in: sheet) + content.warnings
         if content.projection != nil, let problem = content.problem, !problem.isEmpty { lines.insert(problem, at: 0) }
         guard !lines.isEmpty else { return }
         let height = style.notesHeight(for: sheet.size)
