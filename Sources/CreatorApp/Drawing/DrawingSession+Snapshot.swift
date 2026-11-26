@@ -19,6 +19,7 @@ extension DrawingSession {
     public func sheetSnapshot(
         _ id: SheetID, within limit: Duration
     ) async -> (picture: SheetPicture, facts: TitleBlockFacts, views: [ViewID: ViewStatus])? {
+        resync()  // the sheet as the document holds it now, in any mode
         guard let sheet = editor.document.sheet(id) else { return nil }
         let landed = Landed()
         let (stream, signal) = AsyncStream<Bool>.makeStream()

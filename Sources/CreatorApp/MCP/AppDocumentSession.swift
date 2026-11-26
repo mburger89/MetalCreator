@@ -1,3 +1,4 @@
+import CreatorDrawing
 import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
@@ -177,10 +178,53 @@ final class AppDocumentSession: DocumentSession {
         defer { watcher.cancel() }
         do {
             let warnings = try await model.exportReturningWarnings(exportKind, to: url)
-            guard !warnings.isEmpty else { return .done("Exported \(url.lastPathComponent).") }
-            let count = warnings.count.formatted(.number.locale(.messages))
-            let heading = "Exported \(url.lastPathComponent) with \(count) \(warnings.count == 1 ? "warning" : "warnings")"
-            return .done(([heading + ":"] + warnings).joined(separator: "\n"))
+            return exported(url, warnings: warnings)
+        } catch {
+            return .refused(error.message)
+        }
+    }
+
+    /// "Exported x.pdf." or, with warnings, a heading and one line each.
+    private func exported(_ url: URL, warnings: [String]) -> SessionOutcome {
+        guard !warnings.isEmpty else { return .done("Exported \(url.lastPathComponent).") }
+        let count = warnings.count.formatted(.number.locale(.messages))
+        let heading = "Exported \(url.lastPathComponent) with \(count) \(warnings.count == 1 ? "warning" : "warnings")"
+        return .done(([heading + ":"] + warnings).joined(separator: "\n"))
+    }
+
+    // MARK: Drawings (DR-5 R19)
+
+    /// How long a drawing read or export waits for the evaluation and the sheet's projections together; tests set it short.
+    var drawingSettleLimit: Duration = DrawingTools.settleLimit
+
+    func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot? {
+        guard let snapshot = await model.drawing.sheetSnapshot(id, within: drawingSettleLimit) else { return nil }
+        return DrawingSheetSnapshot(picture: snapshot.picture, facts: snapshot.facts, views: snapshot.views)
+    }
+
+    private static let drawingKinds: [String: DrawingExportKind] = [
+        "pdf": .pdf, "pdf_sheet": .pdfSheet, "dxf_sheet": .dxfSheet, "dxf_view": .dxfView,
+        "dxf_view_annotations": .dxfViewWithAnnotations, "svg_sheet": .svgSheet,
+    ]
+
+    func exportDrawing(_ kind: String, sheet: SheetID?, view: ViewID?, to url: URL, overwrite: Bool) async -> SessionOutcome {
+        if let refusal = askRefusal() { return .refused(refusal) }
+        guard let exportKind = Self.drawingKinds[kind] else {
+            return .refused("Drawing export kinds are \(DrawingTools.exportKinds.joined(separator: ", ")).")
+        }
+        if let refusal = overwriteRefusal(url, overwrite: overwrite, allowing: nil) { return .refused(refusal) }
+        do {
+            // One wait over the evaluation and every sheet the file holds; a view still being drawn at the limit refuses the export.
+            let plan = try model.drawingExportPlan(exportKind, sheet: sheet, view: view)
+            for planned in plan.sheets {
+                guard let snapshot = await drawingSheet(planned.id) else { return .refused("That sheet no longer exists.") }
+                if snapshot.views.values.contains(.pending) {
+                    return .refused("MetalCreator is still drawing this sheet. Try again in a moment.")
+                }
+            }
+            if let refusal = askRefusal() { return .refused(refusal) }
+            let warnings = try await model.exportDrawingReturningWarnings(exportKind, sheet: sheet, view: view, to: url)
+            return exported(url, warnings: warnings)
         } catch {
             return .refused(error.message)
         }

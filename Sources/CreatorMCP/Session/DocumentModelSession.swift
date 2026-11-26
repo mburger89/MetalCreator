@@ -1,3 +1,4 @@
+import CreatorDrawing
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -21,6 +22,10 @@ import Foundation
     public var refusal: (@MainActor () -> String?)?
     public var willPerform: (@MainActor () -> Void)?
     public var didChange: (@MainActor () -> Void)?
+
+    /// Hooks for the drawing tools (DR-5 R19): the sheet's snapshot and a drawing export. Without them drawings answer nothing.
+    public var drawingSheetProvider: (@MainActor (SheetID) async -> DrawingSheetSnapshot?)?
+    public var drawingExporter: (@MainActor (String, SheetID?, ViewID?, URL, Bool) async -> SessionOutcome)?
 
     public init(document: DocumentModel) {
         self.document = document
@@ -114,6 +119,13 @@ import Foundation
     }
 
     public func setFile(_ url: URL, on node: NodeID, embed: Bool) async -> SessionOutcome { .refused(Self.unavailable) }
+
+    public func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot? { await drawingSheetProvider?(id) }
+
+    public func exportDrawing(_ kind: String, sheet: SheetID?, view: ViewID?, to url: URL, overwrite: Bool) async -> SessionOutcome {
+        guard let drawingExporter else { return .refused("Drawings can't be exported from this session.") }
+        return await drawingExporter(kind, sheet, view, url, overwrite)
+    }
 }
 
 /// A short description of a value's kind and count.
