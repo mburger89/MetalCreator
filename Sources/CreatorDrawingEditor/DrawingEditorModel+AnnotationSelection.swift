@@ -113,8 +113,8 @@ extension DrawingEditorModel {
             seed.anchor = mapping.sheet(vertex)
         case .chamfer(let start, let end):
             seed.anchor = mapping.sheet((start + end) * 0.5)
-        case .centreMark, .centreLine, .leaders:
-            break
+        case .centreMark, .centreLine, .leaders, .attachment:
+            break  // DR-4 Task 7 for .attachment
         }
     }
 
@@ -154,6 +154,8 @@ extension DrawingEditorModel {
             result.kind = .holeCallout(callout)
         case .centreMark, .centreLine:
             break
+        case .datumFeature, .featureControl, .surfaceTexture:
+            break  // DR-4 Task 7: not movable yet
         }
         return result
     }

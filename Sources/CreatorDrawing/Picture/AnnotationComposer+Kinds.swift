@@ -28,6 +28,7 @@ enum AnnotationEvaluator {
         case .centreMark(let mark): centreMark(mark, topology: topology, frame: frame)
         case .centreLine(let line): centreLine(line, topology: topology, frame: frame)
         case .note: nil
+        case .datumFeature, .featureControl, .surfaceTexture: nil  // DR-4 Task 5
         }
     }
 

@@ -41,7 +41,7 @@ public enum SheetDimensionLayout {
         case let .chamfer(start, end):
             let a = mapping.sheet(start), b = mapping.sheet(end)
             builder.leaderDimension(tip: (a + b) * 0.5, radius: 0, label: labels[0], placement: placement)
-        case .hole, .centreMark, .centreLine, .leaders:
+        case .hole, .centreMark, .centreLine, .leaders, .attachment:
             break
         }
         return builder.finish()

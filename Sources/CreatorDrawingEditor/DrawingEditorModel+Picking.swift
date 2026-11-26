@@ -279,6 +279,8 @@ extension DrawingEditorModel {
         case .centreMark(let mark): [mark.anchor]
         case .centreLine(let line): [line.anchor]
         case .note(let note): note.leaders.map(\.target)
+        // DR-4 Task 7: symbols on lines report their one anchor; the picking purposes come with Task 3.
+        case .datumFeature, .featureControl, .surfaceTexture: []
         }
     }
 
@@ -289,6 +291,7 @@ extension DrawingEditorModel {
         case .centreMark: .centreMark
         case .centreLine: .centreLine
         case .note: .leader
+        case .datumFeature, .featureControl, .surfaceTexture: .leader  // DR-4 Task 7
         }
     }
 
@@ -309,6 +312,8 @@ extension DrawingEditorModel {
         case .note(var note):
             note.leaders[index] = LeaderEnd(target: target, hint: hint)
             return .note(note)
+        case .datumFeature, .featureControl, .surfaceTexture:
+            return kind  // DR-4 Task 7
         }
     }
 }

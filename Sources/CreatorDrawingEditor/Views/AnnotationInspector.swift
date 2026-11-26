@@ -37,6 +37,12 @@ struct AnnotationInspector: Component {
             deletePage("Centre mark")
         case .centreLine:
             deletePage("Centre line")
+        case .datumFeature:
+            deletePage("Datum symbol")  // DR-4 Task 9
+        case .featureControl:
+            deletePage("Tolerance frame")  // DR-4 Task 9
+        case .surfaceTexture:
+            deletePage("Surface symbol")  // DR-4 Task 9
         }
     }
 

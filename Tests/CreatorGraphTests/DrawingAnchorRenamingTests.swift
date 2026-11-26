@@ -59,9 +59,32 @@ struct DrawingAnchorRenamingTests {
             case .holeCallout(let c): take(c.anchor)
             case .centreMark(let m): take(m.anchor)
             case .centreLine(let l): take(l.anchor)
+            case .datumFeature, .featureControl, .surfaceTexture:
+                if case .feature(let end)? = annotation.symbolAttachment { take(end.target) }
             }
         }
         return found
+    }
+
+    @Test func symbolsAreRenamed() {
+        let a = NodeID(), b = NodeID()
+        let end = LeaderEnd(target: .edge(edgePick(a)), hint: Vector2(1, 1))
+        let datum = DrawingAnnotation(
+            view: nil, kind: .datumFeature(DatumFeature(letter: "A", attachment: .feature(end))))
+        let frame = DrawingAnnotation(
+            view: nil,
+            kind: .featureControl(
+                FeatureControlFrame(characteristic: .flatness, rows: [ToleranceRow(value: 0.1)], attachment: .feature(end))))
+        let surface = DrawingAnnotation(
+            view: nil, kind: .surfaceTexture(SurfaceTexture(requirement: SurfaceRequirement(), feature: end)))
+        let renamedEnd = LeaderEnd(target: .edge(edgePick(b)), hint: Vector2(1, 1))
+        for annotation in [datum, frame, surface] {
+            #expect(annotation.renamingTags([a: b]).symbolAttachment == .feature(renamedEnd))
+        }
+        let size = AnnotationID()
+        let onSize = DrawingAnnotation(
+            view: nil, kind: .datumFeature(DatumFeature(letter: "B", attachment: .dimension(size))))
+        #expect(onSize.renamingTags([a: b]) == onSize)
     }
 
     @Test func groupingKeepsADimensionHeld() throws {

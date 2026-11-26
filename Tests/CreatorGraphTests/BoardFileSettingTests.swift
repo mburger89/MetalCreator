@@ -37,11 +37,11 @@ struct BoardFileSettingTests {
     func reopened(_ data: Data) throws -> GraphFile { try GraphFileIO.decode(data, registry: Self.registry) }
 
     @Test func aBoardFileSettingRoundTripsAtFormat13() throws {
-        #expect(GraphFile.currentFormatVersion == 19)
+        #expect(GraphFile.currentFormatVersion == 20)
         let reference = ImageReference.linked(relativePath: "a/board.kicad_pcb", absolutePath: "/x/a/board.kicad_pcb")
         let node = probe(reference)
         let file = try reopened(try document([node]).fileData())
-        #expect(file.formatVersion == 19)
+        #expect(file.formatVersion == 20)
         #expect(file.graph.nodes[node.id]?.inputValues[NodeSetting.pcbFile] == .pcbFile(reference))
         #expect(!NodeSetting.reservedForSockets.contains(NodeSetting.pcbFile))
         #expect(NodeSetting.all.contains(NodeSetting.pcbFile))
@@ -69,7 +69,7 @@ struct BoardFileSettingTests {
         let old = try reopened(Data(Self.formatTwelve.utf8))
         #expect(old.formatVersion == 12 && old.graph.nodes.count == 1)
         let today = try reopened(try document(Array(old.graph.nodes.values)).fileData())
-        #expect(today.formatVersion == 19 && today.graph == old.graph)
+        #expect(today.formatVersion == 20 && today.graph == old.graph)
     }
 
     @Test func savingElsewhereRewritesARelativePath() throws {

@@ -11,13 +11,15 @@ public enum AnnotationFigure: Hashable, Sendable {
     case centreMark(center: Vector2, radius: Double)
     case centreLine(start: Vector2, end: Vector2)
     case leaders([Vector2])
+    case attachment(foot: Vector2, along: Vector2)
 }
 
 extension AnnotationFigure: Codable {
     private enum CodingKeys: String, CodingKey {
-        case type, points, direction, origin, center, radius, isDiameter, vertex, first, second, start, end
+        case type, points, direction, origin, center, radius, isDiameter, vertex, first, second, start, end, foot, along
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         switch try c.decode(String.self, forKey: .type) {
@@ -44,6 +46,8 @@ extension AnnotationFigure: Codable {
         case "centreLine":
             self = .centreLine(start: try c.decode(Vector2.self, forKey: .start), end: try c.decode(Vector2.self, forKey: .end))
         case "leaders": self = .leaders(try c.decode([Vector2].self, forKey: .points))
+        case "attachment":
+            self = .attachment(foot: try c.decode(Vector2.self, forKey: .foot), along: try c.decode(Vector2.self, forKey: .along))
         default: throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "Unknown figure type.")
         }
     }
@@ -89,6 +93,10 @@ extension AnnotationFigure: Codable {
         case .leaders(let points):
             try c.encode("leaders", forKey: .type)
             try c.encode(points, forKey: .points)
+        case .attachment(let foot, let along):
+            try c.encode("attachment", forKey: .type)
+            try c.encode(foot, forKey: .foot)
+            try c.encode(along, forKey: .along)
         }
     }
 }
