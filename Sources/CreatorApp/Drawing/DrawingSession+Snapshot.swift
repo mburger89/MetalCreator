@@ -13,17 +13,8 @@ extension DrawingSession {
         var facts: TitleBlockFacts?
     }
 
-    /// The sheet `id` composed as it stands once the model has evaluated and its views are projected, or as it stands after `limit`:
-    /// a view whose projection hasn't landed is the previous lines drawn as a pending view is, its annotations judged against the
-    /// topology they had (DR-2 R25). Notices are off. `nil` when there is no such sheet.
-    public func sheetSnapshot(
-        _ id: SheetID, within limit: Duration
-    ) async -> (picture: SheetPicture, facts: TitleBlockFacts, views: [ViewID: ViewStatus])? {
-        // A read never touches the editor: in Drawing mode the editor may hold a live drag, so it composes from the committed
-        // document; otherwise the editor is brought to the document first, as nothing of the person's is in it.
-        if !isActive { resync() }
-        let drawings = isActive ? document.drawings : editor.document
-        guard let sheet = drawings.sheet(id) else { return nil }
+    /// Waits for the model to evaluate and the sheet's views to project, for at most `limit`; what had landed by then.
+    private func land(_ sheet: DrawingSheet, within limit: Duration) async -> Landed {
         let landed = Landed()
         let (stream, signal) = AsyncStream<Bool>.makeStream()
         let work = Task { @MainActor [weak self] in
@@ -46,6 +37,32 @@ extension DrawingSession {
         }
         timer.cancel()
         if !finished { work.cancel() }
+        return landed
+    }
+
+    /// The drawing a read sees: a read never touches the editor (in Drawing mode it may hold a live drag), so it takes the committed
+    /// document; otherwise the editor is brought to the document first, as nothing of the person's is in it.
+    private func drawingsForRead() -> DrawingDocument {
+        if !isActive { resync() }
+        return isActive ? document.drawings : editor.document
+    }
+
+    /// Whether any view of sheet `id` hasn't landed after waiting up to `limit` (nothing is composed); `nil` when there is no such sheet.
+    public func sheetHasPendingViews(_ id: SheetID, within limit: Duration) async -> Bool? {
+        guard let sheet = drawingsForRead().sheet(id) else { return nil }
+        let landed = await land(sheet, within: limit)
+        return sheet.views.contains { landed.contents[$0.id] == nil }
+    }
+
+    /// The sheet `id` composed as it stands once the model has evaluated and its views are projected, or as it stands after `limit`:
+    /// a view whose projection hasn't landed is the previous lines drawn as a pending view is, its annotations judged against the
+    /// topology they had (DR-2 R25). Notices are off. `nil` when there is no such sheet.
+    public func sheetSnapshot(
+        _ id: SheetID, within limit: Duration
+    ) async -> (picture: SheetPicture, facts: TitleBlockFacts, views: [ViewID: ViewStatus])? {
+        let drawings = drawingsForRead()
+        guard let sheet = drawings.sheet(id) else { return nil }
+        let landed = await land(sheet, within: limit)
         var contents: [ViewID: ViewContent] = [:]
         var statuses: [ViewID: ViewStatus] = [:]
         for view in sheet.views {
@@ -55,6 +72,7 @@ extension DrawingSession {
             statuses[view.id] = ViewStatus(content)
         }
         let facts = landed.facts ?? TitleBlockFacts(parts: partFacts())
+        exportComposeCount += 1
         let picture = SheetComposer.compose(
             sheet, in: drawings, contents: contents, facts: facts, notices: false, units: document.units,
             remembered: editor.remembered)

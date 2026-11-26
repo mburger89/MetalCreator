@@ -42,11 +42,15 @@ public enum SessionOutcome: Sendable, Equatable {
     /// The sheet composed as an export composes it (DR-5 R19), after one wait over the evaluation and its projections; nil when the
     /// session has no such sheet or no drawings.
     func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot?
+    /// The names the drawing editor remembers for parts whose Output has gone (what a sheet still shows for them).
+    var rememberedPartNames: [NodeID: String] { get }
     /// Writes a drawing export: `kind` is one of `DrawingTools.exportKinds`, `sheet` and `view` what it writes.
     func exportDrawing(_ kind: String, sheet: SheetID?, view: ViewID?, to url: URL, overwrite: Bool) async -> SessionOutcome
 }
 
 extension DocumentSession {
+    public var rememberedPartNames: [NodeID: String] { [:] }
+
     public func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot? { nil }
 
     public func exportDrawing(_ kind: String, sheet: SheetID?, view: ViewID?, to url: URL, overwrite: Bool) async -> SessionOutcome {

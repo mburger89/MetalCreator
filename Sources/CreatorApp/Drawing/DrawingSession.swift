@@ -29,6 +29,8 @@ public final class DrawingSession {
     @ObservationIgnored var requestHandler: (@MainActor (DrawingEditorRequest) -> Void)?
     /// Whether Drawing mode is up: projections are made only then.
     @ObservationIgnored public private(set) var isActive = false
+    /// How many sheet pictures an export or an AI client's read has composed (drawings minors R14: one per sheet per export); a test seam.
+    @ObservationIgnored var exportComposeCount = 0
 
     struct RequestKey: Hashable, Sendable {
         var state: Int

@@ -197,6 +197,8 @@ final class AppDocumentSession: DocumentSession {
     /// How long a drawing read or export waits for the evaluation and the sheet's projections together; tests set it short.
     var drawingSettleLimit: Duration = DrawingTools.settleLimit
 
+    var rememberedPartNames: [NodeID: String] { model.drawing.editor.rememberedPartNames }
+
     func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot? { await drawingSheet(id, within: drawingSettleLimit) }
 
     private func drawingSheet(_ id: SheetID, within limit: Duration) async -> DrawingSheetSnapshot? {
@@ -222,8 +224,10 @@ final class AppDocumentSession: DocumentSession {
             let deadline = ContinuousClock.now.advanced(by: drawingSettleLimit)
             for planned in plan.sheets {
                 let left = max(.zero, ContinuousClock.now.duration(to: deadline))
-                guard let snapshot = await drawingSheet(planned.id, within: left) else { return .refused("That sheet no longer exists.") }
-                if snapshot.views.values.contains(.pending) {
+                guard let pending = await model.drawing.sheetHasPendingViews(planned.id, within: left) else {
+                    return .refused("That sheet no longer exists.")
+                }
+                if pending {
                     return .refused("MetalCreator is still drawing this sheet. Try again in a moment.")
                 }
             }
