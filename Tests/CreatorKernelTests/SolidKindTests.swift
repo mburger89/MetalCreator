@@ -43,6 +43,9 @@ struct SolidKindTests {
         await expectRefused("splitting solids", "Splitting solids isn't supported by this kernel yet.") {
             _ = try await kernel.splitSolid(body, by: [], tag: tag)
         }
+        await expectRefused("separating solids", "Separating solids isn't supported by this kernel yet.") {
+            _ = try await kernel.separated(body, tag: tag)
+        }
     }
 
     func expectRefused(_ phrase: String, _ message: String, _ call: () async throws -> Void) async {

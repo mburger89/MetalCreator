@@ -859,6 +859,25 @@ void occt_split_solid_result_free(occt_split_solid_result *result);
 occt_shape *occt_split_solid(const occt_shape *solid, const occt_shape *const *tools, int tool_count, const occt_cancel *cancel,
                              occt_split_solid_result *out, occt_status *status);
 
+/// What taking a value apart made (NURBS gaps, R3). `kinds[p]` is 1 for a closed solid and 0 for an open piece (an open shell, a loose
+/// face, a closed shell that made no valid solid, a solid with an open shell); the pieces are the children of the returned compound, in
+/// the shape's order. Faces (and edges) are listed piece by piece, each piece's in the order of its own map; `*_source` is the 1-based
+/// face (edge) of the input they are.
+typedef struct {
+    int *kinds;
+    int piece_count;
+    int *face_piece;
+    int *face_source;
+    int face_count;
+    int *edge_piece;
+    int *edge_source;
+    int edge_count;
+} occt_separate_result;
+void occt_separate_result_free(occt_separate_result *result);
+/// `value` taken apart into a compound of its closed solids and open pieces (compounds opened), each the same shapes as in `value`.
+/// Refuses "This value has no solids or surfaces to separate." for a value with neither.
+occt_shape *occt_separate(const occt_shape *value, occt_separate_result *out, occt_status *status);
+
 /// Sews the faces of `bodies` (sheets and solids alike, in order) at `tolerance` (NS-5, R6). A face that coincides with an earlier face is
 /// not sewn and stays loose in the result. Each closed shell becomes a solid; the rest stay sheets. `history` is OCCT_FROM_FACE per result face
 /// (operand = the body's position, index its 1-based face); `edges` says which input edges (1-based) each result edge was made from.

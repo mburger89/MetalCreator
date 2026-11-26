@@ -2534,6 +2534,7 @@ the Output selected so the part is shown.
 ## Group NS-G — NURBS gaps
 
 - [ ] **NSG-1 Measure a thickened hole.** Make a Planar Surface plate with a round hole, wire it to Thicken (2 mm, try Front, Back and Both), then Measure the hole's wall: it shows the hole's diameter, as a cylinder does. **Observed:**
+- [ ] **NSG-2 Separate Solids and Split Solid.** Sew a box's surfaces (or Thicken a plate) together with a loose Planar Surface so one value holds a solid and a sheet. Wire it to Split Solid: it refuses, "Split Solid takes a closed solid; “solid” also holds a surface. Use Separate Solids to take the solid out first." Wire it to Separate Solids instead (library: Surfaces ▸ Solids): the `solids` output lists the solid and `surfaces` the sheet, with their picks intact. Wire `solids` item 0 into Split Solid with a plane as its tool: it splits. **Observed:**
 
 ## Group DR-1 — Drawings: sheets, views and PDF
 
