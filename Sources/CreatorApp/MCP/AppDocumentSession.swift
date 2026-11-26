@@ -197,6 +197,10 @@ final class AppDocumentSession: DocumentSession {
     /// How long a drawing read or export waits for the evaluation and the sheet's projections together; tests set it short.
     var drawingSettleLimit: Duration = DrawingTools.settleLimit
 
+    /// The clock an export's one deadline reads, and the time each sheet was given to land; tests set and read them.
+    var drawingNow: @MainActor () -> ContinuousClock.Instant = { ContinuousClock.now }
+    var drawingWaits: [Duration] = []
+
     var rememberedPartNames: [NodeID: String] { model.drawing.editor.rememberedPartNames }
 
     func drawingSheet(_ id: SheetID) async -> DrawingSheetSnapshot? { await drawingSheet(id, within: drawingSettleLimit) }
@@ -221,9 +225,10 @@ final class AppDocumentSession: DocumentSession {
             // One wait over the evaluation and every sheet the file holds; a view still being drawn at the limit refuses the export.
             let plan = try model.drawingExportPlan(exportKind, sheet: sheet, view: view)
             // One deadline for the whole plan (R19): each sheet gets only the time that is left, never a fresh limit.
-            let deadline = ContinuousClock.now.advanced(by: drawingSettleLimit)
+            let deadline = drawingNow().advanced(by: drawingSettleLimit)
             for planned in plan.sheets {
-                let left = max(.zero, ContinuousClock.now.duration(to: deadline))
+                let left = max(.zero, drawingNow().duration(to: deadline))
+                drawingWaits.append(left)
                 guard let pending = await model.drawing.sheetHasPendingViews(planned.id, within: left) else {
                     return .refused("That sheet no longer exists.")
                 }

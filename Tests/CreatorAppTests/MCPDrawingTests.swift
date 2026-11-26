@@ -243,26 +243,42 @@ struct MCPDrawingTests {
         let (_, core) = rig(app)
         let url = temporaryURL("once.pdf")
         defer { try? FileManager.default.removeItem(at: url) }
-        app.drawing.exportComposeCount = 0
+        app.drawing.composeCount = 0
         let (_, isError) = try await call(core, "export_drawing", .object(["kind": .string("pdf"), "path": .string(url.path)]))
         #expect(!isError)
-        #expect(app.drawing.exportComposeCount == 2)
+        #expect(app.drawing.composeCount == 2)
     }
 
     @Test func oneDeadlineCoversEverySheetOfAnExport() async throws {
         let kernel = FakeKernel()
         let (app, box) = try await twoSheets(kernel: kernel)
         let (session, core) = rig(app)
-        session.drawingSettleLimit = .milliseconds(300)
-        // Each projection takes 200 ms without holding a thread: the first sheet leaves the second only 100 ms.
-        await kernel.setProjectionHook { try await Task.sleep(for: .milliseconds(200)) }
+        // A clock the test moves: no timing margin. The limit is ten seconds; the first sheet's projection uses up 9.9 of them.
+        let offset = Mutex<Duration>(.zero)
+        let start = ContinuousClock.now
+        session.drawingNow = { start.advanced(by: offset.withLock { $0 }) }
+        session.drawingSettleLimit = .seconds(10)
+        let gate = HookGate()
+        defer { gate.open() }
+        let calls = Mutex(0)
+        await kernel.setProjectionHook {
+            if calls.withLock({ $0 += 1; return $0 }) == 1 {
+                offset.withLock { $0 = .milliseconds(9_900) }
+            } else {
+                await gate.hold()
+            }
+        }
         try app.document.perform(.setInput(box.rectangle.id, "width", .number(60)), name: "Wider")
         await app.document.waitForEvaluation()
         let url = temporaryURL("late.pdf")
         defer { try? FileManager.default.removeItem(at: url) }
+        // The second sheet's projection stays held until the tool has answered, so only its (shortened) wait can end.
         let refused = try await call(core, "export_drawing", .object(["kind": .string("pdf"), "path": .string(url.path)]))
         #expect(refused.isError)
         #expect(refused.result.string == "MetalCreator is still drawing this sheet. Try again in a moment.")
         #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(session.drawingWaits.count == 2)
+        #expect(session.drawingWaits[0] == .seconds(10))
+        #expect(session.drawingWaits[1] <= .milliseconds(100), "the second sheet gets what the first left, not a fresh limit")
     }
 }

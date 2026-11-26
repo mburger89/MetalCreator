@@ -187,7 +187,7 @@ extension AppModel {
         let style = DrawingStyle.of(drawings.settings.standard)
         let (units, remembered) = (document.units, drawing.editor.remembered)
         func picture(of sheet: DrawingSheet) -> SheetPicture {
-            drawing.exportComposeCount += 1
+            drawing.composeCount += 1
             return SheetComposer.compose(
                 sheet, in: drawings, contents: snapshot.contents, facts: snapshot.facts[sheet.id] ?? TitleBlockFacts(), notices: false,
                 units: units, remembered: remembered)

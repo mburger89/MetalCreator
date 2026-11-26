@@ -51,7 +51,7 @@ extension DrawingSession {
     public func sheetHasPendingViews(_ id: SheetID, within limit: Duration) async -> Bool? {
         guard let sheet = drawingsForRead().sheet(id) else { return nil }
         let landed = await land(sheet, within: limit)
-        return sheet.views.contains { landed.contents[$0.id] == nil }
+        return sheet.views.contains { landed.contents[$0.id]?.isPending ?? true }
     }
 
     /// The sheet `id` composed as it stands once the model has evaluated and its views are projected, or as it stands after `limit`:
@@ -72,7 +72,7 @@ extension DrawingSession {
             statuses[view.id] = ViewStatus(content)
         }
         let facts = landed.facts ?? TitleBlockFacts(parts: partFacts())
-        exportComposeCount += 1
+        composeCount += 1
         let picture = SheetComposer.compose(
             sheet, in: drawings, contents: contents, facts: facts, notices: false, units: document.units,
             remembered: editor.remembered)
