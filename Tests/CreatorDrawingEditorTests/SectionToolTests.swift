@@ -70,6 +70,41 @@ struct SectionToolTests {
         #expect(abs(points[1].y - end.y) < 1e-6)
     }
 
+    /// The end of the previewed chain that lies furthest right.
+    private func previewEnd(_ o: OpenedView) throws -> Vector2 {
+        let picture = try #require(o.h.model.draftPicture)
+        let chain = picture.strokes.filter { $0.mark == o.h.model.draftViewID && $0.layer == .center }
+        let ends = chain.flatMap { stroke in
+            stroke.segments.flatMap { segment -> [Vector2] in
+                switch segment {
+                case let .line(a, b): [a, b]
+                case let .polyline(points): points
+                default: []
+                }
+            }
+        }
+        return try #require(ends.max { $0.x < $1.x })
+    }
+
+    @Test func thePreviewSnapsLikeTheClick() throws {
+        let o = open()
+        o.h.model.press(.section)
+        o.click(o.at(5, 10))
+        // 4 degrees off the horizontal: the click snaps it, so does the preview, which moves the pointer without pressing.
+        let end = Vector2(35, 10 + 30 * tan(4 * .pi / 180))
+        o.h.model.pointerMoved(to: o.h.canvas(o.at(end.x, end.y).x, o.at(end.x, end.y).y))
+        let previewed = try previewEnd(o)
+        #expect(abs(previewed.y - o.at(5, 10).y) < 1e-6, "the first segment snaps to the horizontal within 5 degrees")
+        o.h.model.modifiersChanged(.shift)
+        #expect(abs(try previewEnd(o).y - o.at(end.x, end.y).y) < 1e-6, "Shift keeps the slant in the preview too")
+        o.h.model.modifiersChanged([])
+        // The plate's corner at (40, 0) is within the snap reach: the preview ends on it, as a click would.
+        let near = o.at(40, 0) + Vector2(0.3, 0.2)
+        o.h.model.pointerMoved(to: o.h.canvas(near.x, near.y))
+        let cornered = try previewEnd(o)
+        #expect((cornered - o.at(40, 0)).length < 1e-6, "the preview ends on the corner: \(cornered) against \(o.at(40, 0))")
+    }
+
     @Test func laterPointsAreConstrained() throws {
         let o = open()
         o.h.model.press(.section)

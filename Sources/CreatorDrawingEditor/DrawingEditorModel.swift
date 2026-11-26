@@ -138,6 +138,8 @@ public final class DrawingEditorModel {
 
     /// Where the pointer last was, in sheet millimetres: the draft follows it.
     @ObservationIgnored var lastPointer: Vector2?
+    /// The modifiers held over a still pointer (Shift keeps a cutting line's slant in its preview, as it does for a click).
+    @ObservationIgnored public internal(set) var heldModifiers: SheetModifiers = []
     /// The draft's id, one per model: a draft is composed under it and never saved.
     @ObservationIgnored let draftID = AnnotationID()
     /// The id the draft picture's annotation is composed under: a symbol draft's own, else the model's one draft id.

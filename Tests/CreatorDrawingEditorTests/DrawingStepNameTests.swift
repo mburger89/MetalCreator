@@ -201,6 +201,31 @@ struct DrawingStepNameTests {
         #expect(h.model.refusal == "A detail's radius is a length greater than 0.")
     }
 
+    /// "1,234" is 1.234 where the comma is the document's decimal sign; under the point sign it could be a thousands separator, so it
+    /// is refused, and "2,5" (not a grouping) is still the decimal comma.
+    @Test func aCommaThatCouldBeThousandsIsReadOnlyWithTheCommaSign() throws {
+        func radius(_ h: EditorHarness, _ id: ViewID) -> Double? {
+            guard case .detail(let circle)? = h.model.document.sheets[0].view(id)?.derivation else { return nil }
+            return circle.radius
+        }
+        var commaSettings = DrawingSettings()
+        commaSettings.decimalSign = .comma
+        let (h, detail) = detailFixture()
+        h.model.document.settings = commaSettings
+        h.model.setDetailRadius(text: "1,234", of: detail.id)
+        #expect(h.model.refusal == nil)
+        #expect(radius(h, detail.id).map { abs($0 - 1.234) < 1e-9 } == true, "\(String(describing: radius(h, detail.id)))")
+
+        let (point, other) = detailFixture()
+        point.model.setDetailRadius(text: "1,234", of: other.id)
+        #expect(point.log.commits.isEmpty, "the point sign refuses it")
+        #expect(point.model.refusal == "A detail's radius is a length such as 12, 12 mm or 0.5 in.")
+        point.model.setDetailRadius(text: "1.234", of: other.id)
+        #expect(radius(point, other.id).map { abs($0 - 1.234) < 1e-9 } == true)
+        point.model.setDetailRadius(text: "2,5", of: other.id)
+        #expect(radius(point, other.id).map { abs($0 - 2.5) < 1e-9 } == true)
+    }
+
     @Test func aDetailRadiusThatIsUnchangedCommitsNothing() throws {
         let (h, detail) = detailFixture()
         h.model.setDetailRadius(5, of: detail.id)

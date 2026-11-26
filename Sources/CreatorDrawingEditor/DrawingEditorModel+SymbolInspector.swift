@@ -225,13 +225,27 @@ extension DrawingEditorModel {
 
     /// A length from what was typed, in millimetres: the fields show the document's decimal sign, so a comma is a point.
     func lengthValue(_ text: String) -> Double? {
-        units.parse(text.replacingOccurrences(of: ",", with: "."), quantity: .length)
+        decimalText(text).flatMap { units.parse($0, quantity: .length) }
+    }
+
+    /// `text` with a decimal comma read as a point, or `nil` when it can't be read as one number. A comma is the document's decimal
+    /// sign in an ISO drawing set to commas, so "1,234" is 1.234 there; under the point sign a comma followed by exactly three digits
+    /// could as well be a thousands separator ("1,234" for 1234), so it is refused rather than guessed, while a shorter one ("2,5")
+    /// is still read as the decimal comma it can only be.
+    func decimalText(_ text: String) -> String? {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.contains(".") else { return typed }
+        let parts = typed.split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return parts.count > 2 ? nil : typed }
+        let usesComma = document.settings.standard == .iso && document.settings.decimalSign == .comma
+        let digitsAfter = parts[1].prefix { $0.isNumber }.count
+        if !usesComma, digitsAfter == 3, !parts[0].isEmpty, parts[0].allSatisfy(\.isNumber) { return nil }
+        return typed.replacingOccurrences(of: ",", with: ".")
     }
 
     /// Micrometres from what was typed: µm in a millimetre document, µin in an inch one; a comma is a point.
     func roughness(_ text: String) -> Double? {
-        let typed = text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value = Double(typed), value.isFinite, value > 0 else { return nil }
+        guard let typed = decimalText(text), let value = Double(typed), value.isFinite, value > 0 else { return nil }
         return standardUnitsAreInches ? value * GDTNumber.micrometresPerMicroinch : value
     }
 
