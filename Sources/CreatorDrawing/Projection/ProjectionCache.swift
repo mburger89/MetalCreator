@@ -97,6 +97,10 @@ public actor ProjectionCache {
     /// Cuts made (not served from the cache).
     public private(set) var cutCalls = 0
     public var count: Int { entries.count }
+    /// Cuts held in the cache (finished, not in flight); for tests.
+    var cachedCutCount: Int { cuts.count }
+    /// Callers currently waiting on cuts in flight, summed over flights; for tests.
+    var cutWaiterCount: Int { cutFlights.values.reduce(0) { $0 + $1.waiters } }
 
     public init(limit: Int = 512 * 1024 * 1024) {
         self.limit = limit

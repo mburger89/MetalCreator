@@ -83,8 +83,7 @@ struct ProjectionCacheCutTests {
         _ = await older.result
         #expect(await observed.sawCancellation, "the kernel's cut for the abandoned line was cancelled")
         #expect(await cache.cutCalls == 2)
-        let all = await cache.count
-        #expect(all == 0)
+        #expect(await cache.cachedCutCount == 1, "the abandoned cut was never cached")
         _ = try await cache.sectionCut(of: solid, index: 0, cutter: second, tolerance: 0.01, kernel: kernel)
         #expect(await cache.cutCalls == 2, "only the second cut was cached")
     }
@@ -102,6 +101,12 @@ struct ProjectionCacheCutTests {
         let one = Task { try await cache.sectionCut(of: solid, index: 0, cutter: Self.cutter, tolerance: 0.01, kernel: kernel) }
         while await !observed.entered { await Task.yield() }
         let two = Task { try await cache.sectionCut(of: solid, index: 0, cutter: Self.cutter, tolerance: 0.01, kernel: kernel) }
+        // Cancel only once the second caller has provably joined the flight, or `one`'s leaving could win the race.
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await cache.cutWaiterCount < 2 {
+            try #require(ContinuousClock.now < deadline, "the second caller never joined the cut")
+            await Task.yield()
+        }
         one.cancel()
         _ = try await two.value
         #expect(await cache.cutCalls == 1)
