@@ -30,6 +30,8 @@ public struct DrawingTemplateFolder: Hashable, Sendable {
     /// holds none.
     public func load() -> (templates: [DrawingTemplate], problems: [String]) {
         let files: [URL]
+        // A folder that isn't there is empty on every platform; the error codes for it differ (Cocoa, POSIX, Windows).
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return ([], []) }
         do {
             files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
         } catch CocoaError.fileReadNoSuchFile {
@@ -39,7 +41,8 @@ public struct DrawingTemplateFolder: Hashable, Sendable {
         }
         var templates: [DrawingTemplate] = []
         var problems: [String] = []
-        let candidates = files.filter { $0.pathExtension == "mctemplate" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let candidates = files.filter { $0.pathExtension.lowercased() == "mctemplate" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
         for file in candidates {
             let id = file.deletingPathExtension().lastPathComponent
             let skipped = "“\(file.lastPathComponent)” was skipped:"

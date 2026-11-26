@@ -41,7 +41,9 @@ enum SheetCanvasInput {
     private static let clipboardLetters: [Character: DrawingKey] = ["c": .copy, "x": .cut, "v": .paste]
 
     private static func clipboardKey(_ key: KeyEquivalent, modifiers: EventModifiers) -> DrawingKey? {
-        guard modifiers.contains(.primary), !modifiers.contains(.option), !modifiers.contains(.shift) else { return nil }
+        var others = modifiers
+        others.remove(.primary)
+        guard modifiers.contains(.primary), others.isDisjoint(with: [.option, .shift, .control, .command]) else { return nil }
         return key.character.lowercased().first.flatMap { clipboardLetters[$0] }
     }
 

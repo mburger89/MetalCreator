@@ -25,6 +25,7 @@ decision 4: isometric views take balloons). DR-1 to DR-4's plans (`docs/superpow
 plan builds on; CLAUDE.md's "Drawings, DR-1" to "Drawings, DR-4" paragraphs say what exists.
 
 **Errata (drawings minors, 2026-11-26):** R15's "TEXT on TEXT" for a balloon's number in a view's DXF is wrong; the number is on DIMENSION, as R4 says. The code was right; this line corrects the plan.
+The two sentences "The picture isn't in this document." and "The decoding was cancelled." are in the code and not in R11's list; they stay (unplanned, kept on purpose).
 
 ## Global Constraints
 

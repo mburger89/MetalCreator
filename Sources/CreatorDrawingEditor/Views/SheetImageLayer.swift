@@ -10,6 +10,11 @@ final class SheetBitmaps: Equatable {
     /// How many bitmaps are kept.
     var count: Int { made.count }
 
+    /// Drops the bitmaps of pictures whose key is not in `keys`.
+    func prune(keeping keys: Set<String>) {
+        made = made.filter { keys.contains(String($0.key.prefix { $0 != ":" })) }
+    }
+
     func bitmap(for pixels: GreyPixels) -> ImageBitmap {
         let key = "\(pixels.key):\(pixels.width)x\(pixels.height)"
         if let kept = made[key] { return kept }

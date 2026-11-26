@@ -195,6 +195,8 @@ public final class DrawingEditorModel {
     /// Undo and redo: takes the drawings the host restored, keeping the sheet and the selection that still exist.
     public func replaceDocument(_ new: DrawingDocument) {
         document = new
+        balloonFoot = nil
+        pruneBitmaps()
         for entry in new.partNames where rememberedPartNames[entry.part] == nil { rememberedPartNames[entry.part] = entry.name }
         let kept = currentSheet.flatMap { new.sheet($0) != nil ? $0 : nil } ?? new.sheets.first?.id
         if kept != currentSheet {
@@ -226,6 +228,7 @@ public final class DrawingEditorModel {
         guard next != document else { return false }
         document = next
         refusal = nil
+        pruneBitmaps()
         events.committed(DrawingCommit(document: next, name: name, coalescingKey: key))
         return true
     }
@@ -244,6 +247,11 @@ public final class DrawingEditorModel {
             guard let index = document.sheets.firstIndex(where: { $0.id == id }) else { return }
             change(&document.sheets[index])
         }
+    }
+
+    /// Keeps the bitmaps of the logos the document still uses.
+    func pruneBitmaps() {
+        bitmaps.prune(keeping: Set(document.sheets.compactMap(\.titleBlock.logo)))
     }
 
     func refuse(_ sentence: String) {

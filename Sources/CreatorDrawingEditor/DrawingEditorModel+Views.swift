@@ -12,15 +12,19 @@ extension DrawingEditorModel {
         dropToolDrafts()
     }
 
+    static let assemblySourceSentence = "This view shows an assembly; change its parts in the Parts section."
+
     /// Sets the view's source and every derived view's under it (R8, R10): a section's or auxiliary view's source is not editable
     /// and its marks would otherwise sit over a part it no longer shows.
     public func setSource(_ source: NodeID, of id: ViewID) {
+        if sheet?.view(id)?.assembly != nil {
+            refuse(Self.assemblySourceSentence)
+            return
+        }
         commitSheet(DrawingStepName.changeView) { sheet in
             for target in [id] + Self.derivedDescendants(of: id, in: sheet, detailsOnly: false) {
                 guard var view = sheet.view(target) else { continue }
                 view.source = source
-                // One Output is a single-Output view again: an assembly's first part is its source (R1).
-                view.assembly = nil
                 sheet.setView(view)
             }
         }

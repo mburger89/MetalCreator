@@ -63,10 +63,10 @@ enum SheetCopy {
         var skipped: [String] = []
         var newIDs: [AnnotationID: AnnotationID] = [:]
         var made: [AnnotationID] = []
-        let offered = Set(annotations.map(\.id))
+        let pasted = pastedHosts(annotations, renamed: renamed, onto: result, from: sheet)
         for annotation in annotations {
             let placed: (view: ViewID?, delta: Vector2)
-            if let sentence = refusal(of: annotation, offered: offered, in: result) {
+            if let sentence = refusal(of: annotation, hosts: pasted, in: result) {
                 if !skipped.contains(sentence) { skipped.append(sentence) }
                 continue
             }
@@ -85,7 +85,9 @@ enum SheetCopy {
             var copy = annotation
             copy.id = AnnotationID()
             copy.view = placed.view
-            copy.kind = shifted(annotation.kind, by: placed.delta)
+            // A symbol on a dimension follows it, so only the dimension is moved.
+            let follows: Bool = if case .dimension? = annotation.symbolAttachment { true } else { false }
+            copy.kind = follows ? annotation.kind : shifted(annotation.kind, by: placed.delta)
             newIDs[annotation.id] = copy.id
             result.setAnnotation(copy)
             made.append(copy.id)
@@ -102,9 +104,21 @@ enum SheetCopy {
         return (made, skipped)
     }
 
+    /// A symbol's host counts only when it is itself pasted: the annotations that pass every rule but a symbol's own.
+    private static func pastedHosts(
+        _ annotations: [DrawingAnnotation], renamed: [ViewID: ViewID], onto result: DrawingSheet, from sheet: DrawingSheet
+    ) -> Set<AnnotationID> {
+        Set(
+            annotations.filter {
+                if case .dimension? = $0.symbolAttachment { return false }
+                guard refusal(of: $0, hosts: nil, in: result) == nil else { return false }
+                return $0.view.map { renamed[$0] != nil || sheet.view($0) != nil } ?? true
+            }.map(\.id))
+    }
+
     /// Why this annotation can't be pasted on `sheet`, if it can't.
-    private static func refusal(of annotation: DrawingAnnotation, offered: Set<AnnotationID>, in sheet: DrawingSheet) -> String? {
-        if case .dimension(let host)? = annotation.symbolAttachment, !offered.contains(host) { return symbolSentence }
+    private static func refusal(of annotation: DrawingAnnotation, hosts: Set<AnnotationID>?, in sheet: DrawingSheet) -> String? {
+        if let hosts, case .dimension(let host)? = annotation.symbolAttachment, !hosts.contains(host) { return symbolSentence }
         switch annotation.kind {
         case .partsList where sheet.partsList != nil: return partsListSentence
         case .revisionTable where sheet.revisionTable != nil: return revisionTableSentence

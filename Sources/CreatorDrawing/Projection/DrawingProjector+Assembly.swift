@@ -107,7 +107,7 @@ extension DrawingProjector {
             warnings.append(Self.sharedSolidSentence(name: names[pair.part] ?? "", other: names[pair.other] ?? ""))
         }
         if case .section(let line)? = view.derivation {
-            if sources.contains(where: { !$0.curves.isEmpty }) { warnings.append(Self.curvesLeftOutSentence) }
+            if sources.contains(where: { !$0.curves.isEmpty }) { warnings.append(Self.assemblyCurvesLeftOutSentence) }
             let request = SectionRequest(
                 line: line, scale: scale, view: view, sources: sources, indices: shown.map(\.index), warnings: warnings)
             return await assemblySection(request, previous: previous)
