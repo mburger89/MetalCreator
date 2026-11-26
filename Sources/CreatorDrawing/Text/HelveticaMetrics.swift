@@ -27,6 +27,12 @@ public enum HelveticaMetrics {
         }
     }
 
+    /// The Unicode scalar a WinAnsi byte stands for, or `nil` for the bytes WinAnsi leaves undefined (DR-5 R14: the SVG writes
+    /// a run's bytes back as text).
+    public static func unicode(forWinAnsi byte: UInt8) -> Unicode.Scalar? {
+        character(of: byte)?.unicodeScalars.first
+    }
+
     /// The advance of a WinAnsi byte in 1/1000 em (0 for a byte with no glyph).
     public static func advance(of byte: UInt8) -> Int {
         byte >= 32 ? advances[Int(byte) - 32] : 0

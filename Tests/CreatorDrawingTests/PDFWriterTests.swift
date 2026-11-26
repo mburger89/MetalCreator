@@ -197,21 +197,21 @@ import Testing
         #expect(pdfText(data).contains("(A)"))
     }
 
-    private func digest(_ data: Data) -> String {
+    private func hexDigest(_ data: Data) -> String {
         SHA256.hash(data).map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
     }
 
     @Test func symbolsPageDigest() {
         let data = write([DrawingFixtures.symbolsSheet()], title: "Symbols").data
         #expect(data == write([DrawingFixtures.symbolsSheet()], title: "Symbols").data)
-        #expect(digest(data) == "f05cc611acd0c1fcab6d1c01cf422a29455c032143c0b3f7e48a7f384f0942ba")
+        #expect(hexDigest(data) == "f05cc611acd0c1fcab6d1c01cf422a29455c032143c0b3f7e48a7f384f0942ba")
         #expect(pdfText(data).contains("(1. Deburr.)"))
     }
 
     @Test func symbolsPageDigestASME() {
         let data = write([DrawingFixtures.symbolsSheet(standard: .asme)], title: "Symbols").data
         #expect(data == write([DrawingFixtures.symbolsSheet(standard: .asme)], title: "Symbols").data)
-        #expect(digest(data) == "8fb361760db6aaf7da678343931dddbd25b234b92164991b16b27670b71ab5eb")
+        #expect(hexDigest(data) == "8fb361760db6aaf7da678343931dddbd25b234b92164991b16b27670b71ab5eb")
     }
 
     @Test func theSymbolsPageHasNoTextOutsideWinAnsi() throws {
@@ -224,5 +224,43 @@ import Testing
             let body = data.drop { $0 != 0x0A }.dropFirst().drop { $0 != 0x0A }
             #expect(body.allSatisfy { $0 < 0x80 })
         }
+    }
+
+    // MARK: Images and assemblies (DR-5 Task 6)
+
+    @Test func assemblyPageDigest() {
+        let data = write([DrawingFixtures.assemblySheet()], title: "Assembly").data
+        #expect(data == write([DrawingFixtures.assemblySheet()], title: "Assembly").data)
+        #expect(hexDigest(data) == "e995ea3695f352eb0385d74082e502c69e9cb8737977c4b4916ad0376f55098c")
+    }
+
+    @Test func imagesFollowThePages() throws {
+        let output = write([DrawingFixtures.assemblySheet()], title: "Assembly")
+        let reader = try PDFStructureReader(data: output.data)
+        #expect(reader.pages.count == 1 && reader.objectCount == 4 + 2 + 1)
+        let page = reader.objectText(5)
+        #expect(page.contains("/XObject << /Im1 7 0 R >>"))
+        let image = reader.objectText(7)
+        #expect(image.contains("/Subtype /Image") && image.contains("/Width 4 /Height 3"))
+        #expect(image.contains("/ColorSpace /DeviceGray /BitsPerComponent 8 /Length 12"))
+        let body = try #require(image.range(of: "stream\n"))
+        let bytes = Array(image[body.upperBound...].prefix(12).unicodeScalars.map { UInt8($0.value) })
+        #expect(bytes == DrawingFixtures.logo.bytes)
+        let content = reader.pages[0].operators
+        #expect(content.first { $0.name == "Do" }?.operands == ["/Im1"])
+        #expect(content.firstIndex { $0.name == "Do" } ?? 99 < content.firstIndex { $0.name == "S" } ?? 0, "under the ink")
+    }
+
+    @Test func aLogoOnTwoPagesIsOneObject() throws {
+        let output = write([DrawingFixtures.assemblySheet(), DrawingFixtures.assemblySheet()], title: "Two")
+        let reader = try PDFStructureReader(data: output.data)
+        #expect(reader.pages.count == 2 && reader.objectCount == 4 + 4 + 1)
+        #expect(reader.objectText(5).contains("/Im1 9 0 R") && reader.objectText(7).contains("/Im1 9 0 R"))
+    }
+
+    @Test func noImagesNoChange() throws {
+        let data = write([DrawingFixtures.a4Sheet()], title: "Fixture Ø").data
+        #expect(hexDigest(data) == "abeb0954616adb795e7fe4749772aeac4853bb48ba4e9d2b0948ea1cab65228a")
+        #expect(!pdfText(data).contains("XObject"))
     }
 }
