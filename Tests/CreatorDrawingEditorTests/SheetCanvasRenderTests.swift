@@ -75,6 +75,19 @@ struct SheetCanvasRenderTests {
         #expect(thick > thin)
     }
 
+    @Test func noLineIsThinnerThanOnePointAtASmallZoom() async throws {
+        // At zoom 1 a thin line (0.25 mm) is a quarter of a point and a thick one (0.5 mm) half of one: both are drawn 1 point wide (R12).
+        let f = try await open(
+            lines: [line(Vector2(-40, 10), Vector2(40, 10)), line(Vector2(-40, -10), Vector2(40, -10), .smooth)], zoom: 1)
+        let image = try PixelImage(window: f.window.window)
+        let x = 20 + 148.0
+        let thickY = 20 + (210 - 115.0), thinY = 20 + (210 - 95.0)
+        let thick = image.darkLength(column: x, from: thickY - 6, to: thickY + 6)
+        let thin = image.darkLength(column: x, from: thinY - 6, to: thinY + 6)
+        #expect(abs(thick - 1) <= 0.5, "thick: \(thick) points")
+        #expect(abs(thin - 1) <= 0.5, "thin: \(thin) points")
+    }
+
     @Test func aHiddenLineIsDashed() async throws {
         let f = try await open(
             lines: [

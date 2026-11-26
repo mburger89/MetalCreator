@@ -30,11 +30,27 @@ extension DrawingEditorModel {
         return "Sheet \(number)"
     }
 
-    /// Renames to the trimmed text; a blank name keeps the old one (DR-5 R21).
+    /// The sentence for a blank sheet name.
+    static let blankSheetNameSentence = "A sheet needs a name."
+    /// The sentence for a name another sheet has.
+    static let duplicateSheetNameSentence = "Another sheet already has that name."
+
+    /// Renames to the trimmed text; a blank name or one another sheet has is refused in words and makes no step (R11).
     public func renameSheet(_ id: SheetID, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else {
+            refuse(Self.blankSheetNameSentence)
+            return
+        }
+        guard !document.sheets.contains(where: { $0.id != id && Self.trimmed($0.name) == trimmed }) else {
+            refuse(Self.duplicateSheetNameSentence)
+            return
+        }
         commitSheet(id, DrawingStepName.renameSheet) { $0.name = trimmed }
+    }
+
+    private static func trimmed(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public func duplicateSheet(_ id: SheetID) {
@@ -50,10 +66,10 @@ extension DrawingEditorModel {
         show(sheet: copy.id)
     }
 
-    /// "\(name) Copy", then "\(name) Copy 2", "\(name) Copy 3"… (DR-5 R21).
+    /// "\(name) copy", then "\(name) copy 2", "\(name) copy 3"…: the first free one, names compared trimmed and exactly (R11).
     private func uniqueCopyName(of name: String) -> String {
-        let used = Set(document.sheets.map(\.name))
-        let base = name + " Copy"
+        let used = Set(document.sheets.map { Self.trimmed($0.name) })
+        let base = Self.trimmed(name) + " copy"
         guard used.contains(base) else { return base }
         var number = 2
         while used.contains("\(base) \(number)") { number += 1 }

@@ -29,9 +29,10 @@ public final class DrawingEditorModel {
     /// The part of the canvas that shows, in canvas points; set by the host.
     public var visibleRect = Rect2D(min: .zero, max: Vector2(1000, 700)) {
         didSet {
-            if fitsOnNextSize, visibleRect != oldValue {
-                fit()
+            // The first layout pass after a request settles it, whether or not the size changed.
+            if fitsOnNextSize {
                 fitsOnNextSize = false
+                if visibleRect != oldValue { fit() }
             }
         }
     }
@@ -255,6 +256,8 @@ public final class DrawingEditorModel {
         selection = []
         selectedAnnotations = []
         hoveredStroke = nil
+        addingLeader = nil
+        hoverCandidate = nil
         dropPicks()
         dropToolDrafts()
         events.sheetChanged(id)

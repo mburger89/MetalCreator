@@ -117,7 +117,7 @@ extension DrawingEditorModel {
     public func modifiersChanged(_ modifiers: SheetModifiers) {
         guard modifiers != heldModifiers else { return }
         heldModifiers = modifiers
-        if sectionDraft != nil { updateDraft() }
+        if sectionDraft != nil || !picks.isEmpty { updateDraft() }
     }
 
     /// Hover: the nearest stroke within 4 points at the current zoom.

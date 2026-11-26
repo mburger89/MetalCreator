@@ -222,7 +222,15 @@ struct SheetNameTests {
         let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
         h.model.duplicateSheet(sheet.id)
         h.model.duplicateSheet(sheet.id)
-        #expect(h.model.document.sheets.map(\.name).sorted() == ["Plate", "Plate Copy", "Plate Copy 2"])
+        h.model.duplicateSheet(sheet.id)
+        #expect(h.model.document.sheets.map(\.name).sorted() == ["Plate", "Plate copy", "Plate copy 2", "Plate copy 3"])
+    }
+
+    @Test func aCopyNameFillsTheFirstGap() throws {
+        let sheets = ["Plate", "Plate copy", "Plate copy 3"].map { DrawingSheet(name: $0) }
+        let h = EditorHarness(document: EditorDocuments.document(sheets), sheet: sheets[0].id)
+        h.model.duplicateSheet(sheets[0].id)
+        #expect(h.model.document.sheets.map(\.name).contains("Plate copy 2"))
     }
 
     @Test func renamingTrims() throws {
@@ -230,8 +238,50 @@ struct SheetNameTests {
         let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
         h.model.renameSheet(sheet.id, to: "  Assembly  ")
         #expect(h.model.document.sheets[0].name == "Assembly")
-        h.model.renameSheet(sheet.id, to: "   ")
-        #expect(h.model.document.sheets[0].name == "Assembly")
         #expect(h.log.commits.count == 1)
+    }
+
+    @Test func aBlankNameIsRefusedWithNoStep() throws {
+        let sheet = DrawingSheet(name: "Plate")
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.renameSheet(sheet.id, to: "   ")
+        #expect(h.model.refusal == "A sheet needs a name.")
+        #expect(h.model.document.sheets[0].name == "Plate")
+        #expect(h.log.commits.isEmpty)
+    }
+
+    @Test func aNameAnotherSheetHasIsRefusedWithNoStep() throws {
+        let sheets = [DrawingSheet(name: "Plate"), DrawingSheet(name: "Cover")]
+        let h = EditorHarness(document: EditorDocuments.document(sheets), sheet: sheets[0].id)
+        h.model.renameSheet(sheets[1].id, to: " Plate ")
+        #expect(h.model.refusal == "Another sheet already has that name.")
+        #expect(h.model.document.sheets[1].name == "Cover")
+        #expect(h.log.commits.isEmpty)
+        h.model.renameSheet(sheets[0].id, to: "Plate")
+        #expect(h.log.commits.isEmpty, "a sheet's own name is no clash, and no change")
+        h.model.renameSheet(sheets[1].id, to: "PLATE")
+        #expect(h.model.document.sheets[1].name == "PLATE", "names compare exactly after trimming")
+        h.model.renameSheet(sheets[0].id, to: "ß")
+        h.model.renameSheet(sheets[1].id, to: "SS")
+        #expect(h.model.document.sheets.map(\.name) == ["ß", "SS"])
+    }
+
+    @Test func switchingSheetsDropsALeaderAndTheHover() throws {
+        let sheets = [DrawingSheet(name: "A"), DrawingSheet(name: "B")]
+        let h = EditorHarness(document: EditorDocuments.document(sheets), sheet: sheets[0].id)
+        h.model.addingLeader = AnnotationID()
+        h.model.selectSheet(sheets[1].id)
+        #expect(h.model.addingLeader == nil)
+        #expect(h.model.hoverCandidate == nil)
+    }
+
+    @Test func aLayoutPassWithTheSameSizeStillSettlesTheFit() throws {
+        let sheet = DrawingSheet(name: "A")
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.requestFit()
+        h.model.visibleRect = h.model.visibleRect
+        let fitted = h.model.transform
+        h.model.visibleRect = Rect2D(min: .zero, max: Vector2(500, 300))
+        #expect(h.model.transform == fitted, "a later size no longer refits")
     }
 }

@@ -79,7 +79,8 @@ extension DrawingEditorModel {
             return
         }
         let draft = AnnotationDraft(tool: tool, picks: picks)
-        guard draft.isComplete, case .success(let kind) = draft.kind(placing: point, aligned: false, mapping: context.mapping) else {
+        let aligned = heldModifiers.contains(.shift)
+        guard draft.isComplete, case .success(let kind) = draft.kind(placing: point, aligned: aligned, mapping: context.mapping) else {
             draftPicture = nil
             return
         }
