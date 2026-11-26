@@ -51,7 +51,7 @@ struct AnchorResolverTests {
         second.curve = .circle(center: v(0, 0, 0), axis: v(0, 0, 1), radius: 3, start: first.curve?.ends[1] ?? v(0, 0, 0), sweep: half)
         let topology = Fixture.plate(edges: [first, second])
         let result = resolve(.edge(EdgePick(key: topology.key(of: first)!, matchCount: 2, runCount: 1)), topology)
-        guard case .held(.circle(let center, _, let radius, let sweep), _, let isRun) = result else {
+        guard case .held(.circle(let center, _, let radius, _, let sweep), _, let isRun) = result else {
             Issue.record("expected a held circle")
             return
         }

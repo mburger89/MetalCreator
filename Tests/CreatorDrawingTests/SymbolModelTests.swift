@@ -110,7 +110,7 @@ struct SymbolModelTests {
     }
 
     @Test func theAttachmentFigureRoundTrips() throws {
-        let figure = AnnotationFigure.attachment(foot: Vector2(1, 2), along: Vector2(0, 1))
+        let figure = AnnotationFigure.attachment(foot: Vector2(1, 2), along: Vector2(0, 1), ends: [])
         let text = try jsonText(figure)
         #expect(text.contains("\"type\":\"attachment\""))
         #expect(text.contains("\"foot\"") && text.contains("\"along\""))
@@ -312,7 +312,7 @@ struct DatumDistanceTests {
     }
 
     @Test func aDistanceUnderTheLeastIsRaisedOnDecodeKeepingItsSide() throws {
-        let least = DatumLayout.minimumDistance(h: 2.5)
+        let least = DatumLayout.minimumDistance(h: 2.5, standard: .iso)
         let near = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: 0.5))
         #expect(near.distance >= least - 1e-9 && near.distance > 0)
         let other = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: -0.5))
@@ -322,7 +322,7 @@ struct DatumDistanceTests {
     }
 
     @Test func aNegativeDistanceOnADimensionKeepsItsSignOnDecode() throws {
-        let least = DatumLayout.minimumDistance(h: 2.5)
+        let least = DatumLayout.minimumDistance(h: 2.5, standard: .iso)
         let host = AnnotationID()
         let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
         func decoded(_ distance: Double) throws -> Double {
@@ -359,8 +359,8 @@ struct DatumDistanceTests {
     @Test func clampedDistanceMatchesWhatIsDrawn() {
         let h = 3.5
         let datum = DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 1)
-        #expect(datum.clampedDistance(h: h) == DatumLayout.minimumDistance(h: h))
-        #expect(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: .nan).clampedDistance(h: h)
-            == DatumLayout.minimumDistance(h: h))
+        #expect(datum.clampedDistance(h: h, standard: .iso) == DatumLayout.minimumDistance(h: h, standard: .iso))
+        #expect(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: .nan).clampedDistance(h: h, standard: .iso)
+            == DatumLayout.minimumDistance(h: h, standard: .iso))
     }
 }

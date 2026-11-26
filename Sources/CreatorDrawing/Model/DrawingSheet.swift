@@ -76,7 +76,7 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         guard let h = heights.min() else { return }
         for index in annotations.indices {
             guard case .datumFeature(var datum) = annotations[index].kind else { continue }
-            let clamped = datum.clampedDistance(h: h)
+            let clamped = datum.clampedDistance(h: h, standard: standard ?? .iso)
             guard clamped != datum.distance else { continue }
             datum.distance = clamped
             annotations[index].kind = .datumFeature(datum)

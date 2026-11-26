@@ -68,6 +68,8 @@ public enum SheetNotesLayout {
         let (apexY, right, h, style, format) = (stand.apexY, stand.right, stand.h, stand.style, stand.format)
         let symbols = SymbolStyle.of(style.standard)
         let gap = symbols.surfaceTextGap * h
+        // The parentheses stand with their middle (half the cap height up) at the middle of the symbol's legs.
+        let textY = apexY + symbols.surfaceLong * h / 2 - h / 2
         var edge = right
         var texts: [(String, Double)] = []
         var strokes: [[SheetSegment]] = []
@@ -75,7 +77,8 @@ public enum SheetNotesLayout {
             let close = DrawingText.layout(")", height: h), open = DrawingText.layout("(", height: h)
             texts.append((")", edge - close.width))
             edge -= close.width + gap
-            var basic = AnnotationDrawing(segments: DrawingSymbols.surface(.any, apex: Vector2(0, apexY), h: h, extension: nil))
+            var basic = AnnotationDrawing(
+                segments: DrawingSymbols.surface(.any, apex: Vector2(0, apexY), h: h, extension: nil, standard: style.standard))
             basic.fitFrame()
             let shift = edge - basic.frame.max.x
             strokes.append(basic.segments.map { $0.transformed(scale: 1, offset: Vector2(shift, 0)) })
@@ -83,15 +86,15 @@ public enum SheetNotesLayout {
             texts.append(("(", edge - open.width))
             edge -= open.width + gap
         }
-        var main = SurfaceLayout.requirement(surface, apex: Vector2(0, apexY), h: h, format: format)
+        var main = SurfaceLayout.requirement(surface, apex: Vector2(0, apexY), h: h, format: format, standard: style.standard)
         let shift = edge - main.frame.max.x
         main.segments = main.segments.map { $0.transformed(scale: 1, offset: Vector2(shift, 0)) }
         for index in main.texts.indices { main.texts[index].origin.x += shift }
         var topY = main.frame.max.y
         for (text, x) in texts {
             picture.texts.append(
-                SheetText(run: DrawingText.layout(text, height: h), original: text, origin: Vector2(x, apexY), height: h, layer: .text))
-            topY = Swift.max(topY, apexY + h)
+                SheetText(run: DrawingText.layout(text, height: h), original: text, origin: Vector2(x, textY), height: h, layer: .text))
+            topY = Swift.max(topY, textY + h)
         }
         for group in strokes + [main.segments] {
             for segment in group {

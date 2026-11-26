@@ -3,8 +3,10 @@ import CreatorGeometry
 extension DrawingSymbols {
     /// The surface texture symbol from its apex (plan R6): legs at 60 degrees to the surface, the bar for removal required, the
     /// inscribed circle for removal prohibited, and with `extension` (the length past the long leg) the horizontal line.
-    public static func surface(_ process: SurfaceProcess, apex: Vector2, h: Double, extension: Double?) -> [SheetSegment] {
-        let style = SymbolStyle.of(.iso)
+    public static func surface(
+        _ process: SurfaceProcess, apex: Vector2, h: Double, extension: Double?, standard: DrawingStandard
+    ) -> [SheetSegment] {
+        let style = SymbolStyle.of(standard)
         let short = style.surfaceShort * h, long = style.surfaceLong * h
         func point(_ x: Double, _ y: Double) -> Vector2 { Vector2(apex.x + x, apex.y + y) }
         let shortTop = point(-short * slant, short)

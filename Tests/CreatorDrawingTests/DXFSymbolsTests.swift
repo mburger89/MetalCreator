@@ -17,7 +17,8 @@ import Testing
         let parts = DrawingFixtures.symbolsSheetParts()
         let symbols = try read(symbolsOutput(parts.symbols)).records("ENTITIES")
         #expect(symbols.count > 50)
-        #expect(Set(symbols.map(\.type)).isSuperset(of: ["LINE", "TEXT"]))
+        // Every kind the symbols use: strokes (LINE, LWPOLYLINE), the circled modifiers (CIRCLE), the datum triangles (SOLID), text.
+        #expect(Set(symbols.map(\.type)).isSuperset(of: ["LINE", "LWPOLYLINE", "CIRCLE", "SOLID", "TEXT"]), "\(Set(symbols.map(\.type)))")
         #expect(symbols.allSatisfy { $0.layer == "DIMENSION" })
         let notes = try read(symbolsOutput(parts.notes)).records("ENTITIES")
         #expect(notes.count > 5)
@@ -35,6 +36,6 @@ import Testing
         }
         let digest = SHA256.hash(symbolsOutput(DrawingFixtures.symbolsSheet()).data)
             .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
-        #expect(digest == "5a4326ce0caa589c30e4522edff200ee83145f6659afac1c073c5146454a3301")
+        #expect(digest == "2510bdf362e555a6d66a4d239e6e393f867aefa1dd15e265c61393e4d314ae29")
     }
 }

@@ -147,7 +147,7 @@ import Testing
 
     @Test func circledLetterIsCentred() {
         let center = Vector2(30, 40)
-        let (segments, text) = DrawingSymbols.circled("M", center: center, h: h)
+        let (segments, text) = DrawingSymbols.circled("M", center: center, h: h, standard: .iso)
         guard case let .arc(c, radius, _, sweep) = segments[0] else {
             Issue.record("expected an arc")
             return
@@ -160,7 +160,7 @@ import Testing
 
     @Test func noTextIsOutsideWinAnsi() {
         for letter in ["M", "L", "F", "T", "P", "Ø"] {
-            #expect(!DrawingSymbols.circled(letter, center: .zero, h: h).text.run.hasReplacements)
+            #expect(!DrawingSymbols.circled(letter, center: .zero, h: h, standard: .iso).text.run.hasReplacements)
         }
     }
 }

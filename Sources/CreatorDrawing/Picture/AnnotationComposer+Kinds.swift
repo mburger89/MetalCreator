@@ -156,7 +156,7 @@ enum AnnotationEvaluator {
     ) -> EvaluatedAnnotation {
         switch DrawingAnchorResolver.resolve(mark.anchor, in: topology, frame: frame, parts: parts) {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
-        case .held(.circle(let center, let axis, let radius, _), _, _):
+        case .held(.circle(let center, let axis, let radius, _, _), _, _):
             guard abs(axis.dot(frame.direction)) >= 1 - 1e-9 else { return lost(.foreshortened, anchors: [.held]) }
             return held(
                 [.held], labels: [], values: [radius], figure: .centreMark(center: frame.place(center), radius: radius), label: nil)

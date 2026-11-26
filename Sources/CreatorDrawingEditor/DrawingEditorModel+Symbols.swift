@@ -9,7 +9,6 @@ extension DrawingEditorModel {
     static let datumSizeSentence = "A datum symbol goes on a size: a linear dimension, a diameter or a hole callout."
     static let frameSizeSentence = "A tolerance frame goes on a size: a linear dimension, a radius, a diameter or a hole callout."
     static let symbolOnDimensionSentence = "This symbol hangs on a dimension; reattach the dimension and the symbol follows it."
-    static let nothingDrawnSentence = "This dimension has nothing drawn to hang a symbol on."
 
     // MARK: Clicks
 
@@ -151,10 +150,10 @@ extension DrawingEditorModel {
 
     private func onDimension(_ draft: SymbolDraft, id: AnnotationID, click: Vector2) -> Result<AnnotationKind, DrawingRefusal> {
         guard let picture, let report = picture.annotationReports[id] else {
-            return .failure(DrawingRefusal(sentence: Self.nothingDrawnSentence))
+            return .failure(DrawingRefusal(sentence: LostReason.noPart.sentence))
         }
         if case .lost(let reason) = report.status { return .failure(DrawingRefusal(sentence: reason.sentence)) }
-        guard let rect = report.labelRect else { return .failure(DrawingRefusal(sentence: Self.nothingDrawnSentence)) }
+        guard let rect = report.labelRect else { return .failure(DrawingRefusal(sentence: LostReason.noPart.sentence)) }
         let host = SymbolPlacing.Host(
             labelRect: rect, tips: report.dimensionLine, stackBottom: stackBottom(on: id, before: draft),
             gap: AnnotationStyle.of(document.settings.standard).textGap)

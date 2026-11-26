@@ -44,8 +44,8 @@ import Testing
     @Test func theDistanceIsClamped() {
         let drawing = DatumLayout.onLine(
             letter: "A", foot: Vector2(0, 0), along: Vector2(1, 0), distance: 1, edgeEnds: nil, h: h, style: style)
-        #expect(abs((squareCentre(drawing)?.y ?? 0) - DatumLayout.minimumDistance(h: h)) <= 1e-12)
-        #expect(abs(DatumLayout.minimumDistance(h: h) - (triangleHeight + h + h)) <= 1e-12)
+        #expect(abs((squareCentre(drawing)?.y ?? 0) - DatumLayout.minimumDistance(h: h, standard: .iso)) <= 1e-12)
+        #expect(abs(DatumLayout.minimumDistance(h: h, standard: .iso) - (triangleHeight + h + h)) <= 1e-12)
     }
 
     @Test func onAnExtensionLine() {

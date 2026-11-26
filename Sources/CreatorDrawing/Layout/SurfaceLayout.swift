@@ -20,11 +20,11 @@ public enum SurfaceLayout {
                 builder.line(foot, apex)
             }
         }
-        var drawing = requirement(texture.requirement, apex: apex, h: h, format: format)
+        var drawing = requirement(texture.requirement, apex: apex, h: h, format: format, standard: style.standard)
         if let lay = texture.lay {
             let origin = apex + symbolStyle.layOrigin * h
             if lay == .perpendicular {
-                drawing.segments += DrawingSymbols.layPerpendicular(origin: origin, h: h)
+                drawing.segments += DrawingSymbols.layPerpendicular(origin: origin, h: h, standard: style.standard)
             } else {
                 let text = layText(lay)
                 let run = DrawingText.layout(text, height: h)
@@ -38,20 +38,21 @@ public enum SurfaceLayout {
 
     /// The standing symbol alone, from its apex: the legs, the process mark, and the parameter and value under a line.
     public static func requirement(
-        _ requirement: SurfaceRequirement, apex: Vector2, h: Double, format: NumberFormat
+        _ requirement: SurfaceRequirement, apex: Vector2, h: Double, format: NumberFormat, standard: DrawingStandard
     ) -> AnnotationDrawing {
-        let style = SymbolStyle.of(.iso)
+        let style = SymbolStyle.of(standard)
         var drawing = AnnotationDrawing()
         var parts: [String] = []
         if let parameter = requirement.parameter { parts.append(parameter.title) }
         if let value = requirement.value { parts.append(GDTNumber.roughness(value, format: format)) }
         let text = parts.joined(separator: " ")
         if text.isEmpty {
-            drawing.segments = DrawingSymbols.surface(requirement.process, apex: apex, h: h, extension: nil)
+            drawing.segments = DrawingSymbols.surface(requirement.process, apex: apex, h: h, extension: nil, standard: standard)
         } else {
             let run = DrawingText.layout(text, height: h)
             let gap = style.surfaceTextGap * h
-            drawing.segments = DrawingSymbols.surface(requirement.process, apex: apex, h: h, extension: gap + run.width + gap)
+            drawing.segments = DrawingSymbols.surface(
+                requirement.process, apex: apex, h: h, extension: gap + run.width + gap, standard: standard)
             let origin = Vector2(
                 apex.x + style.surfaceLong * h * DrawingSymbols.slant + gap, apex.y + style.surfaceLong * h - h - gap)
             drawing.texts.append(PlacedText(run: run, original: text, origin: origin, height: h, angle: 0))

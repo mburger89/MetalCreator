@@ -8,18 +8,18 @@ import Testing
     let k = DrawingSymbols.slant
 
     @Test func theBasicSymbolHasTwoLegsAt60Degrees() {
-        let segments = DrawingSymbols.surface(.any, apex: .zero, h: h, extension: nil)
+        let segments = DrawingSymbols.surface(.any, apex: .zero, h: h, extension: nil, standard: .iso)
         #expect(segments == [.line(.zero, Vector2(-1.4 * h * k, 1.4 * h)), .line(.zero, Vector2(3 * h * k, 3 * h))])
     }
 
     @Test func removalRequiredAddsTheBar() {
-        let segments = DrawingSymbols.surface(.removalRequired, apex: .zero, h: h, extension: nil)
+        let segments = DrawingSymbols.surface(.removalRequired, apex: .zero, h: h, extension: nil, standard: .iso)
         #expect(segments.count == 3)
         #expect(segments[2] == .line(Vector2(-1.4 * h * k, 1.4 * h), Vector2(1.4 * h * k, 1.4 * h)))
     }
 
     @Test func removalProhibitedAddsTheInscribedCircle() {
-        let segments = DrawingSymbols.surface(.removalProhibited, apex: .zero, h: h, extension: nil)
+        let segments = DrawingSymbols.surface(.removalProhibited, apex: .zero, h: h, extension: nil, standard: .iso)
         guard segments.count == 3, case let .arc(center, radius, _, sweep) = segments[2] else {
             Issue.record("expected the circle")
             return
@@ -38,7 +38,7 @@ import Testing
     }
 
     @Test func aParameterAddsTheExtension() {
-        let segments = DrawingSymbols.surface(.any, apex: Vector2(1, 2), h: h, extension: 8)
+        let segments = DrawingSymbols.surface(.any, apex: Vector2(1, 2), h: h, extension: 8, standard: .iso)
         #expect(segments.count == 3)
         let top = Vector2(1 + 3 * h * k, 2 + 3 * h)
         #expect(segments[2] == .line(top, Vector2(top.x + 8, top.y)))
@@ -47,7 +47,7 @@ import Testing
     @Test func layPerpendicularIsTheGlyph() {
         let origin = Vector2(3, 4)
         #expect(
-            DrawingSymbols.layPerpendicular(origin: origin, h: h)
+            DrawingSymbols.layPerpendicular(origin: origin, h: h, standard: .iso)
                 == DrawingSymbols.characteristic(.perpendicularity, origin: origin, h: 0.8 * h))
     }
 }

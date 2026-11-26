@@ -47,7 +47,7 @@ public enum DrawingAnchorResolver {
     private static func centre(_ pick: EdgePick, in topology: Topology, frame: ProjectionFrame) -> AnchorResolution {
         let found = heldEdges(pick, in: topology)
         guard case .success(let held) = found else { return lost(found) }
-        guard case .circle(let center, let axis, _, _) = geometry(of: held.edges) else { return .lost(.notLineOrCircle) }
+        guard case .circle(let center, let axis, _, _, _) = geometry(of: held.edges) else { return .lost(.notLineOrCircle) }
         // R5: a centre obeys the circle rule, so a hole a model edit tilts loses its centre dimension.
         guard abs(axis.dot(frame.direction)) >= 1 - 1e-9 else { return .lost(.foreshortened) }
         return .held(.point(center), edges: held.edges.map(\.id), isRun: held.isRun)
@@ -95,13 +95,21 @@ public enum DrawingAnchorResolver {
             let ends = runEnds(of: edges)
             guard ends.count == 2 else { return .other(midpoint: edges[0].midpoint) }
             return .segment(ends[0], ends[1])
-        case .circle(let center, let axis, let radius, _, _):
+        case .circle(let center, let axis, let radius, let firstStart, _):
             var sweep = 0.0
-            for curve in curves {
-                guard case .circle(_, _, _, _, let part) = curve else { return .other(midpoint: edges[0].midpoint) }
+            var starts: [(piece: Int, point: Vector3)] = []
+            for (index, curve) in curves.enumerated() {
+                guard case .circle(_, _, _, let start, let part) = curve else { return .other(midpoint: edges[0].midpoint) }
                 sweep += part
+                starts.append((index, start))
             }
-            return .circle(center: center, axis: axis.normalized ?? axis, radius: radius, sweep: sweep)
+            // A run's start is the piece start no other piece ends on (a single piece's own start, a full circle's any point).
+            let start = starts.first { candidate in
+                !curves.indices.contains { other in
+                    other != candidate.piece && (curves[other].ends.last.map { ($0 - candidate.point).length <= joinTolerance } ?? false)
+                }
+            }?.point ?? firstStart
+            return .circle(center: center, axis: axis.normalized ?? axis, radius: radius, start: start, sweep: sweep)
         }
     }
 

@@ -33,7 +33,7 @@ public enum HoleReader {
         }
         switch DrawingAnchorResolver.resolve(.edge(pick), in: topology, frame: frame, parts: []) {
         case .lost(let reason): return .lost(reason)
-        case .held(.circle(let center, let axis, let radius, _), let edges, _):
+        case .held(.circle(let center, let axis, let radius, _, _), let edges, _):
             guard abs(axis.dot(frame.direction)) >= axisParallel else { return .lost(.foreshortened) }
             guard let first = edges.first.flatMap({ topology.edge($0) }) else { return .lost(.missing) }
             guard let shape = Reader(topology: topology, axis: axis, origin: center).shape(startingAt: first, radius: radius) else {

@@ -78,6 +78,11 @@ import Testing
         #expect(open != nil && close != nil)
         if let open, let close {
             #expect(open.origin.x < close.origin.x)
+            // Both stand with their middle at the middle of the symbol's legs, not with their baseline on its apex.
+            let (_, top) = blockTop(sheet(SheetNotes()))
+            let apexY = top + SymbolStyle.of(.iso).notesGap
+            let middle = apexY + SymbolStyle.of(.iso).surfaceLong * open.height / 2
+            for paren in [open, close] { #expect(abs(paren.origin.y + paren.height / 2 - middle) < 1e-9) }
             let (origin, _) = blockTop(sheet(SheetNotes()))
             #expect(abs(close.origin.x + close.run.width - (origin.x + TitleBlockLayout.width)) < 1e-9)
         }
