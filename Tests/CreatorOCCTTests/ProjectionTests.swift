@@ -186,6 +186,16 @@ struct ProjectionTests {
         #expect(!shown.isEmpty)
     }
 
+    @Test func aLaterPieceOfACurveNamesItsPiece() async throws {
+        let solid = try await cornerBox()
+        let polyline = try await kernel.makeCurve(
+            [.line(Vector3(2, -10, 15), Vector3(8, -10, 15)), .line(Vector3(8, -10, 15), Vector3(8, -10, 25))], tag: tag)
+        let projection = try await kernel.projection(of: solid, curves: [polyline], frame: Self.front, options: ProjectionOptions())
+        let sources = projection.lines.filter { $0.lineClass == .curve }.map(\.source)
+        #expect(sources.contains(.curve(index: 0, piece: 0)))
+        #expect(sources.contains(.curve(index: 0, piece: 1)))
+    }
+
     @Test func severalSolidsHideEachOther() async throws {
         let near = try await cornerBox()
         let far = try await cornerBox(origin: Vector3(5, 40, 10), tag: NodeTag(node: NodeID(), item: 1))

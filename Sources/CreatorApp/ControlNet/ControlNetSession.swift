@@ -205,6 +205,13 @@ final class ControlNetSession: ViewportTool {
     /// Poles within `SurfaceNet.coincidence` of one another, grouped transitively: poles are bucketed by `floor(coordinate / coincidence)`
     /// per axis, each is compared with the poles of the 27 buckets around it, and the connected sets (union-find) are the groups.
     private static func coincidentPoles(in net: ControlNetGrid) -> [PoleIndex: Set<PoleIndex>] {
+        var candidates = 0
+        return coincidentPoles(in: net, candidates: &candidates)
+    }
+
+    /// `coincidentPoles(in:)`, adding to `candidates` each pole's neighbours found in the 27 buckets around it (the grouping's work,
+    /// which a test bounds instead of the clock).
+    static func coincidentPoles(in net: ControlNetGrid, candidates: inout Int) -> [PoleIndex: Set<PoleIndex>] {
         guard net.poles.count == net.uCount * net.vCount, net.poles.count > 1 else { return [:] }
         let tolerance = SurfaceNet.coincidence
         func cell(_ value: Double) -> Int {
@@ -231,6 +238,7 @@ final class ControlNetSession: ViewportTool {
         }
         for (position, pole) in net.poles.enumerated() {
             let near = neighbours(of: keys[position], in: buckets)
+            candidates += near.count
             for other in near where other > position && (net.poles[other] - pole).length <= tolerance {
                 let a = root(position)
                 let b = root(other)
