@@ -882,8 +882,9 @@ int occt_touching_pieces(const occt_shape *sheet, int *touching, occt_status *st
 /// +distance, 1 puts the start face at -distance and the sheet at the end, 2 puts them at -/+ distance / 2. `history` has OCCT_FROM_FACE
 /// (operand 0, the source face) with OCCT_FROM_START_CAP (the face looking against the normal) or OCCT_FROM_END_CAP on each side face, and
 /// OCCT_FROM_EDGE (operand 0, the source boundary edge) on each wall. The result is valid, closed, with tolerances within 0.01 mm and
-/// positive volumes. Refuses "The distance must be greater than 0.", "The offset couldn't be built." and "The offset changed the
-/// surface's open edges, so it can't be offset.". `cancel` may be NULL.
+/// positive volumes. A wall between two coaxial circles lies on a cylinder, a plane or a cone (NS-G, R1). Refuses "The distance must be
+/// greater than 0.", "The offset couldn't be built." and "The thickened sides don't keep the surface's open edges, so it can't be
+/// thickened." (NS-G, R2). `cancel` may be NULL.
 occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, const occt_cancel *cancel, occt_history *history,
                          occt_status *status);
 /// One source edge of a cap's outer loop (NS-5, R12): `face` is the cap's 1-based face in the result, `edge` the input's 1-based edge.

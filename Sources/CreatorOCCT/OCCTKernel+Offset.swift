@@ -45,6 +45,8 @@ extension OCCTKernel {
     static let foldedSentence = "The surface folds over itself, so it can't be offset; move its control points apart first."
     static let touchingSentence = "Parts of the surface touch but aren't joined; Sew them first."
     static let openEdgesSentence = "The offset changed the surface's open edges, so it can't be offset."
+    /// Thicken's own sentence for the same refusal (NS-G R2).
+    static let thickenOpenEdgesSentence = "The thickened sides don't keep the surface's open edges, so it can't be thickened."
 
     /// How one try at an offset distance ended.
     enum OffsetTry {

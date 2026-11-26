@@ -2531,6 +2531,10 @@ the Output selected so the part is shown.
 - [ ] **NS5-7 Boolean points to Split Solid.** Wire a sheet into a Boolean's tools: the sentence says to use Split Solid (or Thicken or Sew it first). **Observed:**
 - [ ] **NS5-8 A fold refusal after a control point drag.** Edit Control Points on a sheet and drag one point across the surface so it folds, then wire it to Thicken: it is refused for the fold, not built; a steep but smooth spike (one pole raised) is not called a fold. **Observed:**
 
+## Group NS-G — NURBS gaps
+
+- [ ] **NSG-1 Measure a thickened hole.** Make a Planar Surface plate with a round hole, wire it to Thicken (2 mm, try Front, Back and Both), then Measure the hole's wall: it shows the hole's diameter, as a cylinder does. **Observed:**
+
 ## Group DR-1 — Drawings: sheets, views and PDF
 
 - [ ] **DR1-1 Enter Drawing and place views.** Switch to Drawing (the top bar's switch, then ⌘⇧D back and forth), add a sheet, place a base view and drag out right, above and below views in first angle, then switch to ASME and see them mirror. **Observed:**

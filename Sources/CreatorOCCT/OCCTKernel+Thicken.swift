@@ -80,7 +80,7 @@ extension OCCTKernel {
             return .built(built.shape, built.history)
         } catch let error as OCCTError {
             if error.message == OCCTCancelFlag.message { throw CancellationError() }
-            return .failed(reason: error.message == Self.openEdgesSentence ? error.message : nil)
+            return .failed(reason: error.message == Self.thickenOpenEdgesSentence ? error.message : nil)
         }
     }
 
