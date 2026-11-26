@@ -1,0 +1,1 @@
+@../CreatorMCP/CLAUDE.md

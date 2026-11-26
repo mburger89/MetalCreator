@@ -1,0 +1,1 @@
+@../../Sources/CreatorKernel/CLAUDE.md

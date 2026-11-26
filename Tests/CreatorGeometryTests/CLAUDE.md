@@ -1,0 +1,1 @@
+@../../Sources/CreatorGeometry/CLAUDE.md

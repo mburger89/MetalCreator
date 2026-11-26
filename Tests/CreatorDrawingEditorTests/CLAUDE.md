@@ -1,0 +1,1 @@
+@../../Sources/CreatorDrawingEditor/CLAUDE.md
