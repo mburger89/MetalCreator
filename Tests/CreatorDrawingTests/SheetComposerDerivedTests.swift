@@ -137,4 +137,31 @@ struct SheetComposerDerivedTests {
         }
         #expect(extents.height > frameBox.height, "the arrows reach past the view")
     }
+
+    @Test func aParentWithNothingDrawnGivesANotice() {
+        let f = fixture()
+        let contents = [f.section.id: hatchContent()]
+        let picture = SheetComposer.compose(f.sheet, in: f.document, contents: contents, facts: TitleBlockFacts(), notices: true)
+        let sentences = picture.texts.filter { $0.isNotice && $0.view == f.section.id }.map(\.original)
+        #expect(sentences == [DerivedViewNotices.sectionParentEmpty])
+        #expect(DerivedViewNotices.sectionParentEmpty
+            == "The view this section was cut from has nothing drawn yet, so its cutting line isn't shown.")
+        #expect(picture.strokes.allSatisfy { $0.mark != f.section.id })
+
+        let parent = DrawingView(kind: .base, source: node, orientation: .standard(.front), center: Vector2(100, 150))
+        let arrow = AuxiliaryArrow(parent: parent.id, parentFrame: frame, at: .zero, viewing: Vector2(0, 1))
+        let auxiliary = DrawingView(
+            kind: .auxiliary, source: node, orientation: .custom(frame), center: Vector2(100, 80), showsLabel: true,
+            derivation: .auxiliary(arrow), letter: "B")
+        let sheet = DrawingSheet(name: "S", views: [parent, auxiliary])
+        let drawn = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [auxiliary.id: ViewContent(projection: projection)],
+            facts: TitleBlockFacts(), notices: true)
+        #expect(
+            drawn.texts.filter { $0.isNotice && $0.view == auxiliary.id }.map(\.original)
+                == [DerivedViewNotices.auxiliaryParentEmpty])
+        #expect(drawn.strokes.allSatisfy { $0.mark != auxiliary.id })
+        #expect(DerivedViewNotices.auxiliaryParentEmpty
+            == "The view this auxiliary view was projected from has nothing drawn yet, so its arrow isn't shown.")
+    }
 }

@@ -79,3 +79,89 @@ extension DrawingFixtures {
         return picture
     }
 }
+
+extension DrawingFixtures {
+    /// A4 with every kind of symbol, laid out by hand (no kernel, no `sin` or `cos`): a frame of every modifier, a composite frame, a
+    /// datum on a line and on a dimension, two surface symbols and the sheet's notes with an edge break and a general surface.
+    static func symbolsSheet(standard: DrawingStandard = .iso) -> SheetPicture {
+        let parts = symbolsSheetParts(standard: standard)
+        var picture = parts.symbols
+        picture.append(parts.notes)
+        return picture
+    }
+
+    /// The symbols of `symbolsSheet` and its sheet notes, apart.
+    static func symbolsSheetParts(standard: DrawingStandard = .iso) -> (symbols: SheetPicture, notes: SheetPicture) {
+        let style = DrawingStyle.of(standard)
+        let h = style.notesHeight(for: .a4)
+        let format = NumberFormat(units: .millimetres, standard: standard, decimalSign: .point)
+        let annotationStyle = AnnotationStyle.of(standard)
+        var picture = SheetPicture(size: Vector2(210, 297), standard: standard)
+        func add(_ drawing: AnnotationDrawing) {
+            for segment in drawing.segments {
+                picture.strokes.append(SheetStroke(segments: [segment], width: style.thin, layer: .dimension))
+            }
+            for box in drawing.boxes {
+                picture.strokes.append(SheetStroke(segments: [.polyline(box)], width: style.thin, layer: .dimension))
+            }
+            for fill in drawing.fills { picture.fills.append(SheetFill(points: fill, layer: .dimension)) }
+            for text in drawing.texts {
+                picture.texts.append(
+                    SheetText(
+                        run: text.run, original: text.original, origin: text.origin, height: text.height, layer: .dimension,
+                        angle: text.angle))
+            }
+        }
+        let frames = symbolFrames()
+        for (index, frame) in frames.enumerated() {
+            add(FrameLayout.draw(
+                frame, topLeft: Vector2(30, 260 - Double(index) * 20), h: h, format: format, standard: standard))
+        }
+        add(DatumLayout.onLine(
+            letter: "A", foot: Vector2(40, 150), along: Vector2(1, 0), distance: 8, edgeEnds: nil, h: h, style: annotationStyle))
+        add(DatumLayout.onDimensionLine(
+            letter: "B", end: Vector2(120, 150), other: Vector2(80, 150), distance: 8, h: h, style: annotationStyle))
+        let feature = LeaderEnd(target: .point(Vector2(0, 0)), hint: Vector2(0, 0))
+        let ground = SurfaceTexture(
+            requirement: SurfaceRequirement(process: .removalRequired, parameter: .ra, value: 1.6), lay: .perpendicular,
+            feature: feature)
+        let raw = SurfaceTexture(
+            requirement: SurfaceRequirement(process: .removalProhibited), feature: feature, offset: Vector2(6, 8))
+        add(SurfaceLayout.draw(ground, foot: Vector2(40, 100), along: Vector2(1, 0), h: h, format: format, style: annotationStyle))
+        add(SurfaceLayout.draw(raw, foot: Vector2(100, 100), along: Vector2(1, 0), h: h, format: format, style: annotationStyle))
+        let surface = DrawingAnnotation(view: nil, kind: .surfaceTexture(ground))
+        let sheet = DrawingSheet(
+            name: "S", size: .a4, orientation: .portrait,
+            annotations: [surface],
+            notes: SheetNotes(
+                lines: ["Deburr.", "Material per drawing."], edgeBreak: EdgeBreak(minimum: 0.2, maximum: 0.5),
+                surface: SurfaceRequirement(process: .removalRequired, parameter: .ra, value: 3.2)))
+        let notes = SheetNotesLayout.picture(for: sheet, settings: DrawingSettings(standard: standard), format: format)
+        return (picture, notes)
+    }
+
+    /// A frame of every modifier, a composite one, and two plain ones.
+    private static func symbolFrames() -> [FeatureControlFrame] {
+        let attachment = SymbolAttachment.feature(LeaderEnd(target: .point(Vector2(0, 0)), hint: Vector2(0, 0)))
+        let modifiers = FeatureControlFrame(
+            characteristic: .position,
+            rows: [
+                ToleranceRow(
+                    zone: .diameter, value: 0.1, material: .maximum, freeState: true, tangentPlane: true,
+                    projected: ProjectedZone(length: 20),
+                    datums: [DatumReference(letter: "A", material: .least), DatumReference(letter: "B", material: .maximum)]),
+            ], attachment: attachment)
+        let composite = FeatureControlFrame(
+            characteristic: .surfaceProfile,
+            rows: [
+                ToleranceRow(value: 0.5, datums: [DatumReference(letter: "A")]),
+                ToleranceRow(value: 0.2, datums: [DatumReference(letter: "A")]),
+            ], attachment: attachment)
+        let flat = FeatureControlFrame(
+            characteristic: .flatness, rows: [ToleranceRow(value: 0.05)], attachment: attachment)
+        let runout = FeatureControlFrame(
+            characteristic: .totalRunout, rows: [ToleranceRow(value: 0.1, datums: [DatumReference(letter: "A")])],
+            attachment: attachment)
+        return [modifiers, composite, flat, runout]
+    }
+}

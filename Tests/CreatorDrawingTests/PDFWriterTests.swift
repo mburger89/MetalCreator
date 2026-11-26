@@ -196,4 +196,33 @@ import Testing
         #expect(digest == "8dbed6de4a6f62d8fa24220b2f76281465eb2daef29fc254861b87ec3a1a4c8e")
         #expect(pdfText(data).contains("(A)"))
     }
+
+    private func digest(_ data: Data) -> String {
+        SHA256.hash(data).map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
+    }
+
+    @Test func symbolsPageDigest() {
+        let data = write([DrawingFixtures.symbolsSheet()], title: "Symbols").data
+        #expect(data == write([DrawingFixtures.symbolsSheet()], title: "Symbols").data)
+        #expect(digest(data) == "f05cc611acd0c1fcab6d1c01cf422a29455c032143c0b3f7e48a7f384f0942ba")
+        #expect(pdfText(data).contains("(1. Deburr.)"))
+    }
+
+    @Test func symbolsPageDigestASME() {
+        let data = write([DrawingFixtures.symbolsSheet(standard: .asme)], title: "Symbols").data
+        #expect(data == write([DrawingFixtures.symbolsSheet(standard: .asme)], title: "Symbols").data)
+        #expect(digest(data) == "8fb361760db6aaf7da678343931dddbd25b234b92164991b16b27670b71ab5eb")
+    }
+
+    @Test func theSymbolsPageHasNoTextOutsideWinAnsi() throws {
+        for standard in [DrawingStandard.iso, .asme] {
+            let picture = DrawingFixtures.symbolsSheet(standard: standard)
+            #expect(!picture.texts.isEmpty)
+            #expect(picture.texts.allSatisfy { !$0.run.hasReplacements })
+            // The header's binary comment aside, the writer escapes every byte outside ASCII.
+            let data = write([picture], title: "Symbols").data
+            let body = data.drop { $0 != 0x0A }.dropFirst().drop { $0 != 0x0A }
+            #expect(body.allSatisfy { $0 < 0x80 })
+        }
+    }
 }

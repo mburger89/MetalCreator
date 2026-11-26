@@ -25,6 +25,9 @@ public enum SheetComposer {
         picture.append(
             TitleBlockLayout.picture(
                 sheet: sheet, settings: settings, facts: facts, sheetIndex: index, sheetCount: document.sheets.count))
+        picture.append(
+            SheetNotesLayout.picture(
+                for: sheet, settings: settings, format: NumberFormat(units: units, settings: settings)))
 
         let centers = ViewPlacement.centers(in: sheet)
         let annotations = AnnotationPass(
@@ -54,7 +57,7 @@ public enum SheetComposer {
             if notices {
                 appendNotices(
                     to: &picture, placed: Placed(view: view, center: center, content: content), frame: frame, sheet: sheet,
-                    style: style)
+                    style: style, contents: contents)
             }
         }
         appendMarks(to: &picture, sheet: sheet, standard: standard, centers: centers, contents: contents)
@@ -78,10 +81,11 @@ public enum SheetComposer {
     /// A view's problem (when its last projection is still drawn) and its warnings, under the frame and its label, in the
     /// warning colour. On screen only: `notices` is false for a file.
     private static func appendNotices(
-        to picture: inout SheetPicture, placed: Placed, frame: Rect2D, sheet: DrawingSheet, style: DrawingStyle
+        to picture: inout SheetPicture, placed: Placed, frame: Rect2D, sheet: DrawingSheet, style: DrawingStyle,
+        contents: [ViewID: ViewContent]
     ) {
         let (view, center, content) = (placed.view, placed.center, placed.content)
-        var lines = DerivedViewNotices.notices(for: view, in: sheet) + content.warnings
+        var lines = DerivedViewNotices.notices(for: view, in: sheet, contents: contents) + content.warnings
         if content.projection != nil, let problem = content.problem, !problem.isEmpty { lines.insert(problem, at: 0) }
         guard !lines.isEmpty else { return }
         let height = style.notesHeight(for: sheet.size)

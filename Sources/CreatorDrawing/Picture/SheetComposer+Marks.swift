@@ -35,11 +35,11 @@ extension SheetComposer {
             let pieces: SectionMarks.Pieces
             switch derivation {
             case .section(let line):
-                guard DerivedViewNotices.marksAreShown(for: view, in: sheet) else { continue }
+                guard DerivedViewNotices.marksAreShown(for: view, in: sheet, contents: contents) else { continue }
                 pieces = SectionMarks.cuttingLine(
                     line.cutter, letter: letter, mapping: mapping, parent: parent.id, mark: view.id, standard: standard)
             case .auxiliary(let arrow):
-                guard DerivedViewNotices.marksAreShown(for: view, in: sheet) else { continue }
+                guard DerivedViewNotices.marksAreShown(for: view, in: sheet, contents: contents) else { continue }
                 pieces = SectionMarks.auxiliaryArrow(
                     arrow, letter: letter, mapping: mapping, parent: parent.id, mark: view.id, standard: standard)
             case .detail(let circle):
