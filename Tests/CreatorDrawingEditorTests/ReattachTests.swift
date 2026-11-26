@@ -20,7 +20,8 @@ struct ReattachTests {
 
     /// A horizontal dimension between the edges `anchors` of the full part, shown against `content`.
     private func open(
-        _ content: ViewContent, orientation: StandardOrientation = .top, anchors: [Int], kind: DrawingDimensionKind = .linear(.horizontal)
+        _ content: ViewContent, orientation: StandardOrientation = .top, anchors: [Int], kind: DrawingDimensionKind = .linear(.horizontal),
+        mappedFrom mapped: ViewContent? = nil
     ) -> Opened {
         let full = Fixtures.topology()
         let annotation = DrawingAnnotation(
@@ -36,7 +37,7 @@ struct ReattachTests {
         let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id, contents: [view.id: content])
         h.model.transform = SheetTransform(offset: Vector2(0, 297 * 4), zoom: 4)
         h.model.selectedAnnotations = [placed.id]
-        return Opened(h: h, view: view, mapping: Fixtures.mapping(content), id: placed.id)
+        return Opened(h: h, view: view, mapping: Fixtures.mapping(mapped ?? content), id: placed.id)
     }
 
     private func click(_ o: Opened, _ x: Double, _ y: Double) {
@@ -117,6 +118,17 @@ struct ReattachTests {
         #expect(o.h.model.refusal == "Its view has no part to attach it to.")
         #expect(o.h.log.commits.isEmpty)
         #expect(o.h.model.selectedAnnotations == [o.id])
+    }
+
+    @Test func aRemovedSourceWithNoLinesSaysSo() throws {
+        let content = ViewContent(problem: DrawingProjector.removedSentence, lastSize: Vector2(60, 40))
+        let o = open(content, anchors: [100, 103], mappedFrom: Fixtures.top())
+        let report = try #require(o.h.model.picture?.annotationReports[o.id])
+        #expect(report.isLost && report.anchors.isEmpty, "\(report)")
+        click(o, 30, 15)
+        #expect(o.h.model.refusal == "Its view has no part to attach it to.", "\(o.h.model.refusal ?? "")")
+        #expect(o.h.log.commits.isEmpty)
+        #expect(o.h.model.selectedAnnotations == [o.id], "the lost annotation stays selected")
     }
 
     // MARK: Symbols (DR-4)

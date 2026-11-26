@@ -211,18 +211,22 @@ extension DrawingEditorModel {
         guard tool == .select, selectedAnnotations.count == 1, let id = selectedAnnotations.first, let sheet, let picture,
               let annotation = sheet.annotation(id), let viewID = annotation.view,
               let report = picture.annotationReports[id], report.isLost, viewUnder(point) == viewID else { return false }
+        // A view with no part has no lines to click, so this is refused before the line guard below.
+        // (A symbol hung on a dimension has no anchors of its own; its refusal is below, behind the line guard.)
+        var onDimension = false
+        if case .dimension? = annotation.symbolAttachment { onDimension = true }
+        if report.anchors.isEmpty, !onDimension {
+            refuse(Self.noPartSentence)
+            return true
+        }
         let found = candidate(at: point, in: viewID)
         let tolerance = Self.hoverTolerancePoints / transform.zoom
         // Only a click on a line is refused: any other click selects or drags as usual.
         guard found != nil || SheetHitTest.line(near: point, in: picture, view: viewID, tolerance: tolerance) != nil else {
             return false
         }
-        if case .dimension? = annotation.symbolAttachment {
+        if onDimension {
             refuse(Self.symbolOnDimensionSentence)
-            return true
-        }
-        if report.anchors.isEmpty {
-            refuse(Self.noPartSentence)
             return true
         }
         guard let index = report.firstLostAnchor else {
