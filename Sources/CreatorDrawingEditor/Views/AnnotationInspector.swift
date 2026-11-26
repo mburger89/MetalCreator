@@ -43,6 +43,8 @@ struct AnnotationInspector: Component {
             FrameInspector(model: model, id: annotation.id, frame: frame, report: report, colors: colors)
         case .surfaceTexture(let texture):
             SurfaceInspector(model: model, id: annotation.id, texture: texture, report: report, colors: colors)
+        case .balloon, .partsList, .revisionTable:
+            deletePage("Annotation")  // DR-5 Task 10
         }
     }
 

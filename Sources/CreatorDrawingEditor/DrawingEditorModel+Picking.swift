@@ -295,6 +295,8 @@ extension DrawingEditorModel {
         case .datumFeature(let datum): Self.lineTargets(of: datum.attachment)
         case .featureControl(let frame): Self.lineTargets(of: frame.attachment)
         case .surfaceTexture(let texture): [texture.feature.target]
+        case .balloon(let balloon): [balloon.leader.target]
+        case .partsList, .revisionTable: []  // DR-5 Task 8
         }
     }
 
@@ -312,6 +314,7 @@ extension DrawingEditorModel {
         case .datumFeature: PickPurpose(symbol: .datum)
         case .featureControl: PickPurpose(symbol: .frame)
         case .surfaceTexture: PickPurpose(symbol: .surface)
+        case .balloon, .partsList, .revisionTable: .leader  // DR-5 Task 3: PickPurpose.balloon
         }
     }
 
@@ -341,6 +344,11 @@ extension DrawingEditorModel {
         case .surfaceTexture(var texture):
             texture.feature = LeaderEnd(target: target, hint: hint)
             return .surfaceTexture(texture)
+        case .balloon(var balloon):
+            balloon.leader = LeaderEnd(target: target, hint: hint)
+            return .balloon(balloon)
+        case .partsList, .revisionTable:
+            return kind  // DR-5 Task 8: a table has no target
         }
     }
 }

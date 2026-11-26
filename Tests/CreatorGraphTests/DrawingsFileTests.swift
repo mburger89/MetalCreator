@@ -25,8 +25,8 @@ struct DrawingsFileTests {
         DocumentModel(file: GraphFile(), registry: testRegistry, kernel: FakeKernel())
     }
 
-    @Test func theFormatIs20() {
-        #expect(GraphFile.currentFormatVersion == 20)
+    @Test func theFormatIs21() {
+        #expect(GraphFile.currentFormatVersion == 21)
     }
 
     @Test func aDocumentWithoutDrawingsHasNoKey() throws {
@@ -42,7 +42,7 @@ struct DrawingsFileTests {
         let back = try reopened(file)
         #expect(back == file)
         #expect(back.graph.drawings.sheets.map(\.name) == ["Plate", "Cover"])
-        #expect(back.formatVersion == 20)
+        #expect(back.formatVersion == 21)
     }
 
     @Test func aFormat16FileOpens() throws {
@@ -50,10 +50,10 @@ struct DrawingsFileTests {
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 16)
         #expect(file.graph.drawings.isEmpty)
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 21)
     }
 
-    @Test func aFormat17FileOpensAndIsWrittenAs20() throws {
+    @Test func aFormat17FileOpensAndIsWrittenAs21() throws {
         let text = #"""
         {"formatVersion": 17, "graph": {"nodes": [], "links": [], "parameters": [],
          "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
@@ -61,17 +61,17 @@ struct DrawingsFileTests {
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 17)
         #expect(file.graph.drawings.settings.generalTolerance == .iso2768(.m, .K))
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 21)
     }
 
-    @Test func aFormat18FileOpensAndIsWrittenAs20() throws {
+    @Test func aFormat18FileOpensAndIsWrittenAs21() throws {
         let text = #"""
         {"formatVersion": 18, "graph": {"nodes": [], "links": [], "parameters": [],
          "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
         """#
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 18)
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 21)
     }
 
     @Test func derivedViewsRoundTrip() throws {
@@ -92,8 +92,18 @@ struct DrawingsFileTests {
         #expect(back.graph.drawings.sheets[0].views.count == 3)
     }
 
+    @Test func aFormat20FileOpensAndIsWrittenAs21() throws {
+        let text = #"""
+        {"formatVersion": 20, "graph": {"nodes": [], "links": [], "parameters": [],
+         "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
+        """#
+        let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
+        #expect(file.formatVersion == 20)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 21)
+    }
+
     @Test func aNewerFileIsRefused() throws {
-        let text = #"{"formatVersion": 21, "graph": {"nodes": [], "links": [], "parameters": []}}"#
+        let text = #"{"formatVersion": 22, "graph": {"nodes": [], "links": [], "parameters": []}}"#
         #expect(throws: (any Error).self) { try GraphFileIO.decode(Data(text.utf8), registry: testRegistry) }
     }
 
@@ -119,14 +129,14 @@ struct DrawingsFileTests {
         #expect(back.graph.drawings.settings.decimalSign == .comma)
     }
 
-    @Test func aFormat19FileOpensAndIsWrittenAs20() throws {
+    @Test func aFormat19FileOpensAndIsWrittenAs21() throws {
         let text = #"""
         {"formatVersion": 19, "graph": {"nodes": [], "links": [], "parameters": [],
          "drawings": {"settings": {"standard": "iso", "generalTolerance": "ISO 2768-mK", "titleBlockDefaults": {}}, "sheets": []}}}
         """#
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 19)
-        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 20)
+        #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 21)
     }
 
     @Test func symbolsRoundTrip() throws {
@@ -234,5 +244,56 @@ struct DrawingsFileTests {
         #expect(UndoName.drawing("  ") == "Edit Drawing")
         #expect(UndoName.drawing("") == UndoName.editDrawing)
         #expect(UndoName.drawing("Add Sheet") == "Add Sheet")
+    }
+}
+
+/// DR-5 Task 1: the assembly model survives a file (format 21).
+@MainActor
+struct DR5FileTests {
+    private func reopened(_ file: GraphFile) throws -> GraphFile {
+        try GraphFileIO.decode(try GraphFileIO.encode(file), registry: testRegistry)
+    }
+
+    @Test func dr5RoundTrips() throws {
+        let part = NodeID(), other = NodeID()
+        let tag = TopoTag(node: part, item: 0, role: .startCap)
+        let pick = EdgePick(key: EdgeKey([tag], [TopoTag(node: part, item: 0, role: .endCap)]), matchCount: 1)
+        let view = DrawingView(
+            kind: .base, source: part, orientation: .standard(.front), center: Vector2(100, 100), assembly: [part, other])
+        let dimension = DrawingAnnotation(
+            view: view.id,
+            kind: .dimension(
+                DrawingDimension(
+                    kind: .linear(.horizontal), anchors: [.onPart(part, .edge(pick)), .onPart(other, .edge(pick))],
+                    placement: DimensionPlacement(offset: 8, angle: 0, textShift: nil))))
+        let balloon = DrawingAnnotation(
+            view: view.id,
+            kind: .balloon(Balloon(leader: LeaderEnd(target: .onPart(other, .edge(pick)), hint: Vector2(3, 4)), offset: Vector2(9, 9))))
+        let list = DrawingAnnotation(view: nil, kind: .partsList(PartsList(bottomRight: Vector2(200, 40))))
+        let table = DrawingAnnotation(
+            view: nil,
+            kind: .revisionTable(RevisionTable(rows: [RevisionRow(letter: "A", description: "First", date: "d", approved: "MB")])))
+        var block = TitleBlock(owner: "Acme")
+        block.logo = ImageHash(of: Data("logo".utf8)).hex
+        let sheet = DrawingSheet(name: "A", titleBlock: block, views: [view], annotations: [dimension, balloon, list, table])
+        let document = DrawingDocument(
+            sheets: [sheet], items: [PartItem(part: other, material: "Steel", partNumber: "P-1")],
+            partNames: [PartName(part: part, name: "Plate"), PartName(part: other, name: "Bolt")])
+        let file = GraphFile(graph: Graph(drawings: document))
+        let back = try reopened(file)
+        #expect(back == file)
+        #expect(back.formatVersion == 21)
+        #expect(back.graph.drawings == document)
+    }
+
+    @Test func aLogoKeepsItsImage() throws {
+        let used = Data("used logo".utf8), unused = Data("unused".utf8)
+        let usedHash = ImageHash(of: used), unusedHash = ImageHash(of: unused)
+        let sheet = DrawingSheet(name: "A", titleBlock: TitleBlock(logo: usedHash.hex))
+        let file = GraphFile(graph: Graph(drawings: DrawingDocument(sheets: [sheet])), images: [usedHash: used, unusedHash: unused])
+        let model = DocumentModel(file: file, registry: testRegistry, kernel: FakeKernel())
+        let written = try GraphFileIO.decode(try model.fileData(), registry: testRegistry)
+        #expect(written.images[usedHash] == used)
+        #expect(written.images[unusedHash] == nil)
     }
 }

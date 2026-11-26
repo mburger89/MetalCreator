@@ -7,6 +7,9 @@ public enum AnnotationKind: Hashable, Sendable {
     case datumFeature(DatumFeature)
     case featureControl(FeatureControlFrame)
     case surfaceTexture(SurfaceTexture)
+    case balloon(Balloon)
+    case partsList(PartsList)
+    case revisionTable(RevisionTable)
 }
 
 /// One annotation of a sheet (plan R2): on a view (`view`), or free on the sheet when nil.

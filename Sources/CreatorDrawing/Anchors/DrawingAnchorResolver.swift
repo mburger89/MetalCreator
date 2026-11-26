@@ -21,6 +21,8 @@ public enum DrawingAnchorResolver {
         case .outline(let pick, let side): return cylinder(pick, side: side, in: topology, frame: frame)
         case .axis(let pick): return cylinder(pick, side: nil, in: topology, frame: frame)
         case .point: return .lost(.missing)
+        // DR-5 Task 3: scoped to the part's span; until then the whole topology.
+        case .onPart(_, let inner): return resolve(inner, in: topology, frame: frame)
         }
     }
 

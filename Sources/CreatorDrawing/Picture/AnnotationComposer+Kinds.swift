@@ -30,6 +30,7 @@ enum AnnotationEvaluator {
         case .centreMark(let mark): centreMark(mark, topology: topology, frame: frame)
         case .centreLine(let line): centreLine(line, topology: topology, frame: frame)
         case .note: nil
+        case .balloon, .partsList, .revisionTable: nil  // DR-5 Task 4 (balloon) and Task 5 (tables)
         case .datumFeature, .featureControl, .surfaceTexture: symbol(annotation, topology: topology, frame: frame, format: format)
         }
     }

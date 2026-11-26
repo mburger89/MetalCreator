@@ -79,6 +79,28 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         annotations.filter { $0.symbolAttachment == .dimension(dimension) }
     }
 
+    /// The sheet's parts list, if it has one (DR-5 R7); at most one.
+    public var partsList: (id: AnnotationID, list: PartsList)? {
+        for annotation in annotations {
+            if case .partsList(let list) = annotation.kind { return (annotation.id, list) }
+        }
+        return nil
+    }
+
+    /// The sheet's revision table, if it has one (DR-5 R9); at most one.
+    public var revisionTable: (id: AnnotationID, table: RevisionTable)? {
+        for annotation in annotations {
+            if case .revisionTable(let table) = annotation.kind { return (annotation.id, table) }
+        }
+        return nil
+    }
+
+    /// What the title block's revision field shows: the table's last letter, else the typed revision (DR-5 R9).
+    public var revisionShown: String {
+        if let last = revisionTable?.table.rows.last { return last.letter }
+        return titleBlock.revision
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, name, size, orientation, scale, titleBlock, views, annotations, notes
     }
@@ -99,7 +121,8 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         let present = Set(views.map(\.id))
         let decodedAnnotations = try c.decodeIfPresent([DrawingAnnotation].self, forKey: .annotations) ?? []
         annotations = Self.repairingSymbols(
-            decodedAnnotations.filter { $0.view.map(present.contains) ?? true }.sorted { $0.id < $1.id })
+            Self.repairingTables(
+                decodedAnnotations.map(Self.freeingTables).filter { $0.view.map(present.contains) ?? true }.sorted { $0.id < $1.id }))
         notes = try c.decodeIfPresent(SheetNotes.self, forKey: .notes) ?? SheetNotes()
     }
 
@@ -135,6 +158,35 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
             }
         }
         return result
+    }
+
+    /// A parts list or revision table is free on the sheet: one that names a view reads as free (DR-5 R17).
+    private static func freeingTables(_ annotation: DrawingAnnotation) -> DrawingAnnotation {
+        switch annotation.kind {
+        case .partsList, .revisionTable:
+            var freed = annotation
+            freed.view = nil
+            return freed
+        default: return annotation
+        }
+    }
+
+    /// A balloon with no view is dropped, and so is a second parts list or revision table, the first by id kept (DR-5 R17).
+    private static func repairingTables(_ sorted: [DrawingAnnotation]) -> [DrawingAnnotation] {
+        var haveList = false
+        var haveTable = false
+        return sorted.filter { annotation in
+            switch annotation.kind {
+            case .balloon: return annotation.view != nil
+            case .partsList:
+                defer { haveList = true }
+                return !haveList
+            case .revisionTable:
+                defer { haveTable = true }
+                return !haveTable
+            default: return true
+            }
+        }
     }
 
     /// Plan R14: a symbol with no view, or on a dimension that is missing, of another view or of a kind it cannot take, is

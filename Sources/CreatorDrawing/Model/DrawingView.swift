@@ -43,12 +43,18 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
     public var derivation: ViewDerivation?
     /// A derived view's letter (R7).
     public var letter: String?
+    /// The Outputs an assembly view shows, in order (DR-5 R1); nil for a view of its `source` alone. When set, `source` is its first.
+    public var assembly: [NodeID]?
+
+    /// What this view shows: its assembly, else its source.
+    public var outputs: [NodeID] { assembly ?? [source] }
+    public var isAssembly: Bool { assembly != nil }
 
     public init(
         id: ViewID = ViewID(), kind: ViewKind, source: NodeID, orientation: ViewOrientation, scale: DrawingScale? = nil,
         center: Vector2, alignment: ViewAlignment? = nil, showsHidden: Bool = false, showsTangent: Bool = true,
         showsLabel: Bool = false, showsCentreMarks: Bool = true,
-        derivation: ViewDerivation? = nil, letter: String? = nil
+        derivation: ViewDerivation? = nil, letter: String? = nil, assembly: [NodeID]? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -63,18 +69,19 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         self.showsCentreMarks = showsCentreMarks
         self.derivation = derivation
         self.letter = letter
+        self.assembly = assembly
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, source, orientation, scale, center, alignment, showsHidden, showsTangent, showsLabel, showsCentreMarks
-        case derivation, letter
+        case derivation, letter, assembly
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(ViewID.self, forKey: .id)
         kind = try c.decode(ViewKind.self, forKey: .kind)
-        source = try c.decode(NodeID.self, forKey: .source)
+        var decodedSource = try c.decode(NodeID.self, forKey: .source)
         orientation = try c.decode(ViewOrientation.self, forKey: .orientation)
         // A damaged override is dropped, so the view follows its sheet's scale.
         scale = try c.decodeIfPresent(DrawingScale.self, forKey: .scale).flatMap { $0.isValid ? $0 : nil }
@@ -87,5 +94,33 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         // A derivation of an unknown shape reads as missing; the sheet then drops a derived view that lacks one.
         derivation = (try? c.decodeIfPresent(ViewDerivation.self, forKey: .derivation)) ?? nil
         letter = try c.decodeIfPresent(String.self, forKey: .letter)
+        // An empty list reads nil, a repeated part is dropped keeping the first, and `source` is the first (DR-5 R1/R17).
+        var seen: Set<NodeID> = []
+        let listed = (try c.decodeIfPresent([NodeID].self, forKey: .assembly) ?? []).filter { seen.insert($0).inserted }
+        if let first = listed.first {
+            assembly = listed
+            decodedSource = first
+        } else {
+            assembly = nil
+        }
+        source = decodedSource
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(source, forKey: .source)
+        try c.encode(orientation, forKey: .orientation)
+        try c.encodeIfPresent(scale, forKey: .scale)
+        try c.encode(center, forKey: .center)
+        try c.encodeIfPresent(alignment, forKey: .alignment)
+        try c.encode(showsHidden, forKey: .showsHidden)
+        try c.encode(showsTangent, forKey: .showsTangent)
+        try c.encode(showsLabel, forKey: .showsLabel)
+        try c.encode(showsCentreMarks, forKey: .showsCentreMarks)
+        try c.encodeIfPresent(derivation, forKey: .derivation)
+        try c.encodeIfPresent(letter, forKey: .letter)
+        try c.encodeIfPresent(assembly, forKey: .assembly)
     }
 }

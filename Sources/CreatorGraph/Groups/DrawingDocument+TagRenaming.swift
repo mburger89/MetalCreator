@@ -46,6 +46,10 @@ extension DrawingAnnotation {
         case .surfaceTexture(var texture):
             texture.feature = LeaderEnd(target: texture.feature.target.renamingTags(names), hint: texture.feature.hint)
             renamed.kind = .surfaceTexture(texture)
+        case .balloon(var balloon):
+            balloon.leader = LeaderEnd(target: balloon.leader.target.renamingTags(names), hint: balloon.leader.hint)
+            renamed.kind = .balloon(balloon)
+        case .partsList, .revisionTable: break
         }
         return renamed
     }
@@ -60,6 +64,7 @@ extension AnchorTarget {
         case .outline(let face, let side): .outline(TagRenaming.renaming(face, names), side: side)
         case .axis(let face): .axis(TagRenaming.renaming(face, names))
         case .point: self
+        case .onPart(let part, let target): .onPart(part, target.renamingTags(names))
         }
     }
 }

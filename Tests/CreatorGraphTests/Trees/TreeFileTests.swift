@@ -11,7 +11,7 @@ struct TreeFileTests {
     }
 
     @Test func savedFilesAreTheCurrentFormat() throws {
-        #expect(GraphFile.currentFormatVersion == 20)
+        #expect(GraphFile.currentFormatVersion == 21)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
         #expect(text.contains(#""formatVersion" : \#(GraphFile.currentFormatVersion)"#))
     }
@@ -67,8 +67,8 @@ struct TreeFileTests {
     }
 
     @Test func aNewerFileIsStillRefusedWithItsVersion() {
-        #expect(throws: GraphFileError.newerFormat(21)) {
-            try decode(#"{"formatVersion": 21, "graph": {"nodes": []}}"#)
+        #expect(throws: GraphFileError.newerFormat(22)) {
+            try decode(#"{"formatVersion": 22, "graph": {"nodes": []}}"#)
         }
     }
 

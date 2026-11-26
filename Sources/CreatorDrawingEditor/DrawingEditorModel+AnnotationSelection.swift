@@ -181,6 +181,8 @@ extension DrawingEditorModel {
                 texture.feature.hint += along * ((delta.x * along.x + delta.y * along.y) / seed.scale)
             }
             result.kind = .surfaceTexture(texture)
+        case .balloon, .partsList, .revisionTable:
+            break  // DR-5 Task 8: not movable yet
         }
         return result
     }
