@@ -6,8 +6,10 @@ public enum DrawingKey: Hashable, Sendable {
     case delete
     case nudge(Vector2, isRepeat: Bool)
     case escape
-    /// A tool's letter: D, H, M, L or N.
+    /// A tool's letter: D, H, M, L, N, S, E or U.
     case tool(DrawingTool)
+    /// Return: finishes a cutting line.
+    case finish
 }
 
 /// The modifiers the editor reads; graph-free, as `CanvasModifiers` is for the graph. The views map MetalUI's into it.

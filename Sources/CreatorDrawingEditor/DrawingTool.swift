@@ -3,6 +3,9 @@ public enum DrawingTool: Hashable, Sendable, CaseIterable {
     case select
     case baseView
     case projectedView
+    case section
+    case detail
+    case auxiliaryView
     case dimension
     case baselineDimension
     case chainDimension
@@ -21,6 +24,9 @@ extension DrawingTool {
         case .select: nil
         case .baseView: "Base View"
         case .projectedView: "Projected View"
+        case .section: "Section"
+        case .detail: "Detail"
+        case .auxiliaryView: "Auxiliary"
         case .dimension: "Dimension"
         case .baselineDimension: "Baseline"
         case .chainDimension: "Chain"
@@ -36,7 +42,7 @@ extension DrawingTool {
     /// Whether the tool picks things on a view's lines or places a note (plan R17).
     public var isAnnotationTool: Bool {
         switch self {
-        case .select, .baseView, .projectedView: false
+        case .select, .baseView, .projectedView, .section, .detail, .auxiliaryView: false
         default: true
         }
     }

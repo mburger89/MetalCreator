@@ -19,27 +19,35 @@ extension DrawingEditorModel {
         case .tool(let tool):
             press(tool)
             return true
+        case .finish:
+            return finishSectionDraft()
         case .escape:
-            if gesture != nil {
-                pointerCancelled()
-                return true
-            }
-            if holdsAnnotationInput {
-                cancelAnnotationInput()
-                return true
-            }
-            if tool != .select {
-                tool = .select
-                refusal = nil
-                return true
-            }
-            if !selection.isEmpty || !selectedAnnotations.isEmpty {
-                selection = []
-                selectedAnnotations = []
-                return true
-            }
-            return false
+            return escapePressed()
         }
+    }
+
+    /// Esc: cancels a drag, then drops a draft, the annotation input, the tool and finally the selection.
+    private func escapePressed() -> Bool {
+        if gesture != nil {
+            pointerCancelled()
+            return true
+        }
+        if dropToolDrafts() { return true }
+        if holdsAnnotationInput {
+            cancelAnnotationInput()
+            return true
+        }
+        if tool != .select {
+            tool = .select
+            refusal = nil
+            return true
+        }
+        if !selection.isEmpty || !selectedAnnotations.isEmpty {
+            selection = []
+            selectedAnnotations = []
+            return true
+        }
+        return false
     }
 
     private func nudge(by delta: Vector2, isRepeat: Bool) -> Bool {
@@ -65,11 +73,15 @@ extension DrawingEditorModel {
     static func roots(of chosen: Set<ViewID>, in sheet: DrawingSheet) -> [ViewID] {
         sheet.views.map(\.id).filter { id in
             guard chosen.contains(id) else { return false }
+            // A chosen aligned or derived ancestor carries this view along (a visited set ends any cycle).
             var seen: Set<ViewID> = [id]
-            var next = sheet.view(id)?.alignment?.parent
-            while let parent = next, seen.insert(parent).inserted {
-                if chosen.contains(parent) { return false }
-                next = sheet.view(parent)?.alignment?.parent
+            var frontier = [id]
+            while let current = frontier.popLast() {
+                guard let view = sheet.view(current) else { continue }
+                for parent in [view.alignment?.parent, view.derivation?.parent].compactMap({ $0 }) where seen.insert(parent).inserted {
+                    if chosen.contains(parent) { return false }
+                    frontier.append(parent)
+                }
             }
             return true
         }

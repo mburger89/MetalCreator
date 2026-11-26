@@ -51,6 +51,17 @@ public final class DrawingEditorModel {
     public internal(set) var draftPicture: SheetPicture?
     /// The note whose next click is a leader end (plan R14).
     public internal(set) var addingLeader: AnnotationID?
+    /// The cutting line being drawn, the detail circle being dragged out and the auxiliary edge picked (DR-3 R13); view state, never
+    /// saved. Each is drawn into `draftPicture` and dropped by Esc, a tool change, a sheet change or an undo that removes its parent.
+    public internal(set) var sectionDraft: SectionDraft? {
+        didSet { if sectionDraft != oldValue { updateDraft() } }
+    }
+    public internal(set) var detailDraft: DetailDraft? {
+        didSet { if detailDraft != oldValue { updateDraft() } }
+    }
+    public internal(set) var auxiliaryDraft: AuxiliaryDraft? {
+        didSet { if auxiliaryDraft != oldValue { updateDraft() } }
+    }
     /// The newest held figures of every annotation seen, for drawing a lost one from its last good value (plan R15). View state:
     /// never an edit, and never fed by a draft.
     @ObservationIgnored public internal(set) var remembered: [AnnotationID: LastGood] = [:]
@@ -94,12 +105,20 @@ public final class DrawingEditorModel {
         case placing
         /// A press with an annotation tool, or a leader end; the click acts on release, with the modifiers of the press.
         case annotating(SheetModifiers)
+        /// A press with the Section or Auxiliary tool, or the click that places a detail; the click acts on release.
+        case clicking(SheetModifiers)
+        /// A detail circle being dragged out from `centerSheet` over a parent mapped at `scale`.
+        case detailing(centerSheet: Vector2, scale: Double)
+        /// A cutting line or detail circle being dragged on its parent.
+        case movingMark(MarkMove)
     }
 
     /// Where the pointer last was, in sheet millimetres: the draft follows it.
     @ObservationIgnored var lastPointer: Vector2?
     /// The draft's id, one per model: a draft is composed under it and never saved.
     @ObservationIgnored let draftID = AnnotationID()
+    /// The id a derived view's draft marks are drawn under.
+    @ObservationIgnored let draftViewID = ViewID()
 
     public init(
         document: DrawingDocument, sheet: SheetID?, units: DocumentUnits = .millimetres, today: @escaping () -> String,
@@ -154,10 +173,12 @@ public final class DrawingEditorModel {
             // What was being made on another sheet is gone with it (plan R27).
             dropPicks()
             hoverCandidate = nil
+            dropToolDrafts()
         }
         let existing = Set(sheet?.views.map(\.id) ?? [])
         selection = selection.intersection(existing)
         pruneAnnotationState()
+        pruneToolDrafts()
         gesture = nil
     }
 
@@ -202,6 +223,7 @@ public final class DrawingEditorModel {
         selectedAnnotations = []
         hoveredStroke = nil
         dropPicks()
+        dropToolDrafts()
         events.sheetChanged(id)
     }
 }

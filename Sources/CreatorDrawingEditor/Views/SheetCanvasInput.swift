@@ -17,24 +17,31 @@ enum SheetCanvasInput {
 
     /// The letters that choose an annotation tool (plan R17), each with its capital.
     private static let toolLetters: [Character: DrawingTool] = [
-        "d": .dimension, "h": .holeCallout, "m": .centreMark, "l": .centreLine, "n": .note,
+        "d": .dimension, "h": .holeCallout, "m": .centreMark, "l": .centreLine, "n": .note, "s": .section, "e": .detail,
+        "u": .auxiliaryView,
     ]
 
-    /// The drawing key a press stands for: F, the tool letters D, H, M, L and N, Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
+    /// The drawing key a press stands for: F, the tool letters D, H, M, L, N, S, E and U, Return (finishes a cutting line), Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
     static func key(_ key: KeyEquivalent, modifiers: EventModifiers, isRepeat: Bool = false) -> DrawingKey? {
         // A chord with ⌘ (Ctrl elsewhere) or ⌥ belongs to the menus.
         if modifiers.contains(.primary) || modifiers.contains(.control) || modifiers.contains(.option) { return nil }
         if let letter = key.character.lowercased().first, let tool = toolLetters[letter] { return .tool(tool) }
-        let step = modifiers.contains(.shift) ? 10.0 : 1.0
         switch key {
         case "f", "F": return .fit
+        case .return: return .finish
         case .delete, .deleteForward: return .delete
         case .escape: return .escape
-        case .leftArrow: return .nudge(Vector2(-step, 0), isRepeat: isRepeat)
-        case .rightArrow: return .nudge(Vector2(step, 0), isRepeat: isRepeat)
-        case .upArrow: return .nudge(Vector2(0, step), isRepeat: isRepeat)
-        case .downArrow: return .nudge(Vector2(0, -step), isRepeat: isRepeat)
-        default: return nil
+        default: return arrow(key, step: modifiers.contains(.shift) ? 10.0 : 1.0, isRepeat: isRepeat)
+        }
+    }
+
+    private static func arrow(_ key: KeyEquivalent, step: Double, isRepeat: Bool) -> DrawingKey? {
+        switch key {
+        case .leftArrow: .nudge(Vector2(-step, 0), isRepeat: isRepeat)
+        case .rightArrow: .nudge(Vector2(step, 0), isRepeat: isRepeat)
+        case .upArrow: .nudge(Vector2(0, step), isRepeat: isRepeat)
+        case .downArrow: .nudge(Vector2(0, -step), isRepeat: isRepeat)
+        default: nil
         }
     }
 

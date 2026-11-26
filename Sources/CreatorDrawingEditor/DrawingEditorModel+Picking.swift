@@ -9,7 +9,8 @@ extension DrawingEditorModel {
         var topology: Topology
         var mapping: ViewMapping
         var frame: ProjectionFrame
-        var isIsometric: Bool { view.orientation.isIsometric }
+        /// Whether the view is pictorial and so takes no dimensions (R11): the sheet's reading, not the frame's.
+        var isPictorial: Bool
     }
 
     /// The view's pick context, or the sentence for why nothing can be picked on it (plan R25's states).
@@ -24,7 +25,9 @@ extension DrawingEditorModel {
         let scale = (view.scale ?? sheet.scale).value
         let mapping = ViewMapping.of(content: content, center: centre, scale: scale)
             ?? ViewMapping(scale: scale, offset: centre)
-        return .success(PickContext(view: view, topology: topology, mapping: mapping, frame: view.orientation.frame))
+        return .success(
+            PickContext(
+                view: view, topology: topology, mapping: mapping, frame: view.orientation.frame, isPictorial: sheet.isPictorial(view)))
     }
 
     /// The view whose frame holds `point`, the topmost.
@@ -91,7 +94,7 @@ extension DrawingEditorModel {
             return
         case .success(let found): context = found
         }
-        if context.isIsometric {
+        if context.isPictorial {
             refuse(DrawingPick.isometricSentence)
             return
         }
@@ -118,7 +121,7 @@ extension DrawingEditorModel {
         }
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: draft.purpose, topology: context.topology, frame: context.frame,
-            mapping: context.mapping, isIsometric: context.isIsometric)
+            mapping: context.mapping, isIsometric: context.isPictorial)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):
@@ -165,7 +168,7 @@ extension DrawingEditorModel {
                 }
                 let result = DrawingPick.anchor(
                     for: found, click: point, purpose: .leader, topology: context.topology, frame: context.frame,
-                    mapping: context.mapping, isIsometric: context.isIsometric)
+                    mapping: context.mapping, isIsometric: context.isPictorial)
                 switch result {
                 case .failure(let refused):
                     refuse(refused.sentence)
@@ -241,7 +244,7 @@ extension DrawingEditorModel {
         guard targets.indices.contains(index) else { return }
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: Self.purpose(of: annotation.kind), topology: context.topology,
-            frame: context.frame, mapping: context.mapping, isIsometric: context.isIsometric)
+            frame: context.frame, mapping: context.mapping, isIsometric: context.isPictorial)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):

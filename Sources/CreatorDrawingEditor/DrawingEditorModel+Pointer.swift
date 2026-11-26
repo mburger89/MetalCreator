@@ -24,6 +24,11 @@ extension DrawingEditorModel {
             gesture = .placing
         case .projectedView:
             if let hit { gesture = .projecting(parent: hit, start: point) }
+        case .section, .auxiliaryView:
+            lastPointer = point
+            gesture = .clicking(modifiers)
+        case .detail:
+            detailDown(at: point, hit: hit, modifiers: modifiers)
         case .dimension, .baselineDimension, .chainDimension, .ordinateDimension, .chamferDimension, .holeCallout, .centreMark,
             .centreLine, .note:
             break
@@ -50,6 +55,11 @@ extension DrawingEditorModel {
             beginMove(at: point, sheet: sheet, onLabelOf: annotation)
             return
         }
+        if let picture, let mark = SheetHitTest.mark(at: point, in: picture, tolerance: Self.hoverTolerancePoints / transform.zoom),
+            sheet.view(mark) != nil {
+            markDown(mark, at: point, modifiers: modifiers, sheet: sheet)
+            return
+        }
         guard let hit else {
             if !modifiers.contains(.shift) {
                 selection = []
@@ -68,8 +78,13 @@ extension DrawingEditorModel {
     }
 
     public func pointerDragged(to canvas: Vector2) {
-        guard case .moving(let move) = gesture else { return }
-        continueMove(move, to: transform.sheetPoint(canvas))
+        let point = transform.sheetPoint(canvas)
+        switch gesture {
+        case .moving(let move): continueMove(move, to: point)
+        case .movingMark(let move): continueMarkMove(move, to: point)
+        case .detailing(let centerSheet, let scale): continueDetail(from: centerSheet, scale: scale, to: point)
+        default: break
+        }
     }
 
     public func pointerUp(at canvas: Vector2) {
@@ -80,14 +95,21 @@ extension DrawingEditorModel {
         case .placing: placeBaseView(at: point)
         case let .projecting(parent, _): placeProjectedView(of: parent, dropAt: point)
         case .annotating(let modifiers): annotationClick(at: point, modifiers: modifiers)
-        case .moving, nil: break
+        case .clicking(let modifiers): derivedClick(at: point, modifiers: modifiers)
+        case .detailing(let centerSheet, let scale): endDetail(from: centerSheet, scale: scale, at: point)
+        case .moving, .movingMark, nil: break
         }
     }
 
     public func pointerCancelled() {
         let ended = gesture
         gesture = nil
-        if case .moving(let move)? = ended { cancelMove(move) }
+        switch ended {
+        case .moving(let move)?: cancelMove(move)
+        case .movingMark(let move)?: cancelMarkMove(move)
+        case .detailing?: detailDraft = nil
+        default: break
+        }
     }
 
     /// Hover: the nearest stroke within 4 points at the current zoom.
@@ -99,7 +121,7 @@ extension DrawingEditorModel {
         let point = transform.sheetPoint(canvas)
         lastPointer = point
         updateHover(at: point)
-        if !picks.isEmpty { updateDraft() }
+        if !picks.isEmpty || holdsToolDraft { updateDraft() }
         let tolerance = Self.hoverTolerancePoints / transform.zoom
         var found: Int?
         for view in sheet.views.reversed() {

@@ -56,6 +56,10 @@ extension DrawingEditorModel {
     /// The picture with the annotation under construction composed in at the pointer, or none (plan R17). It is composed under the
     /// model's one draft id and never feeds `remembered`: its figures are nobody's last values.
     func updateDraft() {
+        if holdsToolDraft {
+            draftPicture = derivedDraftPicture()
+            return
+        }
         guard !picks.isEmpty, let sheet, let pickView, let point = lastPointer,
               case .success(let context) = pickContext(of: pickView) else {
             draftPicture = nil

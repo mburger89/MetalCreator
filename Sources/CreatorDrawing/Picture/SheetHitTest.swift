@@ -42,7 +42,8 @@ public enum SheetHitTest {
             guard let view, distance <= tolerance, distance < (best?.distance ?? .infinity) else { return }
             best = (view, distance)
         }
-        for stroke in picture.strokes where stroke.mark != nil {
+        // A detail's own boundary (its mark is itself) is part of the view, not a mark on a parent.
+        for stroke in picture.strokes where stroke.mark != nil && stroke.mark != stroke.view {
             consider(stroke.mark, stroke.segments.map { distance(from: point, to: $0) }.min() ?? .infinity)
         }
         for text in picture.texts where text.mark != nil {
