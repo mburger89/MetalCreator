@@ -14,7 +14,8 @@ inspector), M6 (app shell), M7 (measure and record) and every later sub-project 
 
 Each module's notes are in a `CLAUDE.md` in its folder, which Claude Code loads only when it reads a file there; the test
 targets' folders import their module's. Read the one you need before working across modules (from `Tests/`, a script or
-a doc), or when a question is about a module you have not opened yet:
+a doc), or when a question is about a module you have not opened yet. A new sub-project writes its notes into the module's
+`CLAUDE.md` (a new folder may get its own), never into this file, which holds only what applies across modules:
 
 - `CreatorGeometry` (`Sources/CreatorGeometry/CLAUDE.md`): value types (vectors, planes, profiles, bounds), millimetres.
 - `CreatorSketch` (`Sources/CreatorSketch/CLAUDE.md`): the constraint sketch and its solver; imports only `CreatorGeometry` and Foundation.
