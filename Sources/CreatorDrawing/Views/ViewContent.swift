@@ -17,12 +17,15 @@ public struct ViewContent: Hashable, Sendable {
     public var hatchClips: [HatchClip]
     /// The model-plane box the view centres on (a detail's circle, R10); `nil` centres on the projection's bounds.
     public var framing: Rect2D?
+    /// Where each part of an assembly view lies in `topology` and the projection's curve sources (DR-5 R2); empty for a view of one Output.
+    public var parts: [PartSpan]
 
     public init(
         projection: Projection2D? = nil, topology: Topology? = nil, isPending: Bool = false, problem: String? = nil,
         warnings: [String] = [], lastSize: Vector2? = nil, hatch: [HatchRegion] = [], hatchClips: [HatchClip] = [],
-        framing: Rect2D? = nil
+        framing: Rect2D? = nil, parts: [PartSpan] = []
     ) {
+        self.parts = parts
         self.hatch = hatch
         self.hatchClips = hatchClips
         self.framing = framing

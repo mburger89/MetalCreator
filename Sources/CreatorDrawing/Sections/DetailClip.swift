@@ -35,7 +35,7 @@ public enum DetailClip {
         return ViewContent(
             projection: parent.projection.map { Self.clip($0, to: cut) }, topology: parent.topology, isPending: parent.isPending,
             problem: parent.problem, warnings: parent.warnings, lastSize: nil, hatch: parent.hatch,
-            hatchClips: parent.hatchClips + [cut], framing: square)
+            hatchClips: parent.hatchClips + [cut], framing: square, parts: parent.parts)
     }
 
     // MARK: Pieces

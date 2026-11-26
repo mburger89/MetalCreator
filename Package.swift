@@ -240,7 +240,7 @@ targets += [
         linkerSettings: occtLinkerFlags + occtLibraries.map { .linkedLibrary($0) }
     ),
     .target(name: "CreatorOCCT", dependencies: ["COCCT", "CreatorKernel", "CreatorGeometry"]),
-    .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
+    .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry", "CreatorDrawing"]),
 ]
 
 #if os(macOS)

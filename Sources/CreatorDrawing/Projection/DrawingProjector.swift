@@ -59,11 +59,11 @@ public struct DrawingProjector: Sendable {
     }
 
     /// What a failed or pending request keeps of the last good content: the drawing travels with its projection (DR-2 R25).
-    private func kept(_ previous: ViewContent?, problem: String?, warnings: [String] = []) -> ViewContent {
+    func kept(_ previous: ViewContent?, problem: String?, warnings: [String] = []) -> ViewContent {
         ViewContent(
             projection: previous?.projection, topology: previous?.topology, problem: problem, warnings: warnings,
             lastSize: previous?.lastSize, hatch: previous?.hatch ?? [], hatchClips: previous?.hatchClips ?? [],
-            framing: previous?.framing)
+            framing: previous?.framing, parts: previous?.parts ?? [])
     }
 
     public static let curvesLeftOutSentence =
