@@ -28,7 +28,7 @@ struct DrawingToolbarTests {
 
     @Test func theRowsMoveToolsIntoMoreFromTheEnd() async throws {
         let model = model()
-        let wide = try await labels(width: 1600, model: model)
+        let wide = try await labels(width: 2400, model: model)
         #expect(wide == Self.everyTool)
         let middle = try await labels(width: 200, model: model)
         #expect(middle == ["Base View", "More"], "the last tool moved first: \(middle)")
@@ -39,7 +39,7 @@ struct DrawingToolbarTests {
     @Test func theChosenToolIsMarked() async throws {
         let model = model()
         model.press(.projectedView)
-        let wide = try await labels(width: 1600, model: model)
+        let wide = try await labels(width: 2400, model: model)
         #expect(wide == Self.everyTool.map { $0 == "Projected View" ? "Projected View ✓" : $0 })
         let middle = try await labels(width: 200, model: model)
         #expect(middle == ["Base View", "More ✓"])

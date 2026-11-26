@@ -2577,3 +2577,17 @@ the Output selected so the part is shown.
 - [ ] **DR3-9 Keys.** S, E, U and Return over the sheet. **Observed:**
 - [ ] **DR3-10 PDF and DXF.** Export both of the sheet: hatch on the HATCH layer, cutting lines on CENTER, letters on TEXT, opening in Preview, Acrobat, LibreCAD and AutoCAD or TrueView with no audit prompt. **Observed:**
 - [ ] **DR3-11 Linux and Windows.** The hatched page's PDF SHA-256 equals the Mac's. **Observed:**
+
+## Group DR-4 — Drawings: GD&T and manufacturing symbols
+
+- [ ] **DR4-1 The glyphs.** The fourteen characteristic glyphs side by side against ISO 1101's table, and Ⓜ Ⓛ Ⓟ Ⓕ Ⓣ, on screen and in the PDF at 400 %. **Observed:**
+- [ ] **DR4-2 Datum symbols.** Datum A on a line, on an extension line and on a dimension line, in ISO and ASME. **Observed:**
+- [ ] **DR4-3 Position frames.** A position frame on a hole's Ø with A | B | C and Ⓜ; a composite position frame in ISO (two frames) and in ASME (one spanning symbol). **Observed:**
+- [ ] **DR4-4 Surface symbols.** A surface symbol standing on a top line and on a leader, removal required and prohibited, Ra 1.6 and lay ⊥, in a millimetre and an inch document (µin). **Observed:**
+- [ ] **DR4-5 The rules.** Flatness with a datum, perpendicularity without, position without basic dimensions, an undefined letter, a duplicated letter, concentricity after switching to ASME: each in the inspector, the CHECKS list and the export's warnings. **Observed:**
+- [ ] **DR4-6 Model edits.** Change the part's width: every symbol follows. Delete the edge a datum stands on: "?" in the warning colour, listed; reattach it by a click. **Observed:**
+- [ ] **DR4-7 Moving symbols.** Drag and nudge symbols, with and without their dimension; delete a dimension with a frame on it, then undo. **Observed:**
+- [ ] **DR4-8 Sheet notes.** Notes, an edge break and a general surface requirement above the title block, ISO and ASME. **Observed:**
+- [ ] **DR4-9 Keys.** A, G and R over the sheet pick their tools. **Observed:**
+- [ ] **DR4-10 PDF and DXF.** Export both: symbols on DIMENSION, notes on TEXT, opening in Preview, Acrobat, LibreCAD and AutoCAD or TrueView with no audit prompt. **Observed:**
+- [ ] **DR4-11 Linux and Windows.** The symbols page's PDF SHA-256 equals the Mac's. **Observed:**

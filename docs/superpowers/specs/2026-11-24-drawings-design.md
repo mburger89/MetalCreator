@@ -1,6 +1,6 @@
 # Engineering drawings — design
 
-Status: approved for planning (2026-11-24). Sub-projects DR-1 to DR-5, built in that order. DR-1 done (2026-11-25; human checks group DR-1 pending; R10: primary path, HLRBRep_Data read per edge, no HLRBRep_HLRToShape fallback). DR-2 done (2026-11-25; human checks group DR-2 pending; R1: a sheet-millimetre layout beside the viewport's). DR-3 done (2026-11-25; human checks group DR-3 pending; R1: the cut composed from OCCT's extrude and boolean, no new C++).
+Status: approved for planning (2026-11-24). Sub-projects DR-1 to DR-5, built in that order. DR-1 done (2026-11-25; human checks group DR-1 pending; R10: primary path, HLRBRep_Data read per edge, no HLRBRep_HLRToShape fallback). DR-2 done (2026-11-25; human checks group DR-2 pending; R1: a sheet-millimetre layout beside the viewport's). DR-3 done (2026-11-25; human checks group DR-3 pending; R1: the cut composed from OCCT's extrude and boolean, no new C++). DR-4 done (2026-11-25; human checks group DR-4 pending; R3: every GD&T and surface glyph drawn as strokes, never a font character; R12: the general surface requirement and notes stand above the title block, not in it).
 
 ## Intent
 
@@ -282,6 +282,8 @@ screen, PDF and DXF.
 - **Edge-break and general notes.**
 
 Every symbol is vector geometry in `DrawingSymbols`, pinned by tests that check its strokes.
+
+Erratum (DR-4, plan R12): the general surface requirement is drawn above the title block, right-aligned to it, not in the block: ISO 7200's block has no free field for it and ISO 21920-1 shows the general requirement beside the block. The sheet's notes and edge-break note stand above it.
 
 ### DR-5: Assemblies, revisions and the rest
 
