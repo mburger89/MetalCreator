@@ -189,6 +189,34 @@ struct DrawingAssemblyTests {
         #expect(app.texts(of: dimension).contains("50"), "the compose shows what the refresh read: \(app.texts(of: dimension))")
     }
 
+    @Test func refreshOfACutAssemblyViewReadsTheRemaindersSpans() async throws {
+        let parts = AssemblyParts()
+        let (app, kernel) = await AppModel.inAssembly(parts)
+        // The view lists its parts in Outputs' ID order. The cut takes the first of them away entirely; the others stay whole.
+        let order = parts.ids.sorted()
+        let measured = try #require(order.last)
+        let rectangle = try #require(zip(parts.ids, parts.rectangles).first { $0.0 == measured }?.1)
+        let cutAway = try #require(app.solid(of: order[0]))
+        await kernel.setSectionCutHook { part, _, _ in part === cutAway ? nil : part }
+        let seen = SpanLog()
+        app.drawing.refreshObserver = { view, spans in seen.spans[view] = spans }
+        let base = try #require(await app.placeAssemblyView())
+        let section = try #require(await app.addSection(on: base))
+        let dimension = try app.addDimension(on: measured, in: section)
+        await app.settle()
+        let projected = try #require(app.drawing.editor.contents[section]?.parts)
+        #expect(projected.count == 3 && projected[0].faces.isEmpty && projected[0].output == order[0], "\(projected)")
+        #expect(projected[1].faces.lowerBound == 0 && !projected[1].faces.isEmpty, "the spans start over the remainders: \(projected)")
+        #expect(seen.spans[section] == projected, "the refresh laid the cut parts out as the projector did")
+        let before = app.texts(of: dimension)
+        #expect(before.count == 1 && before != ["50"], "\(before)")
+        app.setMode(.model)
+        try app.document.perform(.setInput(rectangle.id, "width", .number(50)), name: "Width")
+        await app.settle()
+        #expect(app.drawing.editor.remembered[dimension]?.values == [50], "read from the cut remainder with no compose")
+        #expect(seen.spans[section]?.map(\.faces) == projected.map(\.faces))
+    }
+
     @Test func refreshSpansEqualProjectedSpans() async throws {
         var parts = AssemblyParts()
         // The second part shows the first's solid: its Output takes the first's Extrude.

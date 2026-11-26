@@ -137,6 +137,29 @@ struct BalloonComposerTests {
         #expect(abs(low.y) < 1e-9 && abs(high.y - 5) < 1e-9)
     }
 
+    @Test func aBalloonsCentreIsItsSheetFootPlusItsOffset() throws {
+        let v = view()
+        let sheet = DrawingSheet(name: "Sheet 1", views: [v])
+        let content = ViewContent(projection: projection(), topology: assembly(), parts: spans)
+        let mapping = try #require(ViewMapping.of(content: content, center: v.center, scale: sheet.scale.value))
+        for n in 0...1 {
+            let a = balloon(v, part: n)
+            guard case .balloon(let made) = a.kind else { throw Failure.notABalloon }
+            let report = try #require(compose(v, [a]).annotationReports[a.id])
+            // The foot is the pick's nearest point to the hint: (20, 0) on copy 0's edge, (120, 0) on copy 1's.
+            let foot = mapping.sheet(Vector2(20 + 100 * Double(n), 0))
+            let centre = try #require(report.textCenter)
+            #expect(LayoutSupport.close(centre, foot + made.offset, 1e-9), "copy \(n): \(centre) against \(foot + made.offset)")
+        }
+        // A lost balloon is drawn at the same place from its last foot.
+        let a = balloon(v, part: 0)
+        let last = LastGood(values: [], lines: ["1"], figure: .leaders([Vector2(20, 0)]))
+        let lost = try #require(compose(v, [a], parts: [spans[1]], remembered: [a.id: last]).annotationReports[a.id])
+        #expect(LayoutSupport.close(try #require(lost.textCenter), mapping.sheet(Vector2(20, 0)) + Vector2(8, -12), 1e-9))
+    }
+
+    private enum Failure: Error { case notABalloon }
+
     @Test func aLostBalloonKeepsItsNumber() throws {
         let v = view()
         let a = balloon(v, part: 0), b = balloon(v, part: 1)

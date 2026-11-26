@@ -82,6 +82,21 @@ struct DrawingBenchFixturesTests {
         #expect((content.projection?.lines.count ?? 0) > 0)
     }
 
+    @Test func theAssemblyDocumentEvaluatesToTenSolids() async throws {
+        let (document, outputs) = try DrawingBenchFixtures.assemblyDocument(parts: 10)
+        await document.waitForEvaluation()
+        #expect(outputs.count == 10)
+        for id in outputs {
+            let result = try #require(document.results[id], "no result for an Output")
+            #expect(result.state.isSuccess, "\(result.state)")
+            if case .ready(let solids, _, _) = DrawingSession.content(of: id, in: document).state {
+                #expect(solids.count == 1 && solids[0].topology.faces.count > 6, "a box with a hole through it: \(solids.count)")
+            } else {
+                Issue.record("the Output holds no solid")
+            }
+        }
+    }
+
     @Test func theAssemblyFixtureHasTenParts() async throws {
         let (document, outputs) = try DrawingBenchFixtures.assemblyDocument(parts: 10)
         #expect(outputs.count == 10)
