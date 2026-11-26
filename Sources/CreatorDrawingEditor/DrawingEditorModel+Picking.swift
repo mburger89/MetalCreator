@@ -11,6 +11,8 @@ extension DrawingEditorModel {
         var frame: ProjectionFrame
         /// Whether the view is pictorial and so takes no dimensions (R11): the sheet's reading, not the frame's.
         var isPictorial: Bool
+        /// The view's part spans for an assembly view; nil for a single-Output view (anchors are then never wrapped).
+        var parts: [PartSpan]?
     }
 
     /// The view's pick context, or the sentence for why nothing can be picked on it (plan R25's states).
@@ -27,7 +29,8 @@ extension DrawingEditorModel {
             ?? ViewMapping(scale: scale, offset: centre)
         return .success(
             PickContext(
-                view: view, topology: topology, mapping: mapping, frame: view.orientation.frame, isPictorial: sheet.isPictorial(view)))
+                view: view, topology: topology, mapping: mapping, frame: view.orientation.frame, isPictorial: sheet.isPictorial(view),
+                parts: view.isAssembly ? content.parts : nil))
     }
 
     /// The view whose frame holds `point`, the topmost.
@@ -123,7 +126,8 @@ extension DrawingEditorModel {
         }
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: draft.purpose, topology: context.topology, frame: context.frame,
-            mapping: context.mapping, isIsometric: context.isPictorial)
+            mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):
@@ -170,7 +174,8 @@ extension DrawingEditorModel {
                 }
                 let result = DrawingPick.anchor(
                     for: found, click: point, purpose: .leader, topology: context.topology, frame: context.frame,
-                    mapping: context.mapping, isIsometric: context.isPictorial)
+                    mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
                 switch result {
                 case .failure(let refused):
                     refuse(refused.sentence)
@@ -255,11 +260,12 @@ extension DrawingEditorModel {
         guard targets.indices.contains(index) else { return }
         let result = DrawingPick.anchor(
             for: found, click: point, purpose: Self.purpose(of: annotation.kind), topology: context.topology,
-            frame: context.frame, mapping: context.mapping, isIsometric: context.isPictorial)
+            frame: context.frame, mapping: context.mapping, isIsometric: context.isPictorial,
+            parts: context.parts)
         switch result {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let anchor):
-            guard anchor.target.caseName == targets[index].caseName else {
+            guard anchor.target.unwrapped.caseName == targets[index].unwrapped.caseName else {
                 refuse(Self.sameKindSentence)
                 return
             }
@@ -274,7 +280,8 @@ extension DrawingEditorModel {
             if othersHeld,
                let reason = AnnotationRefresh.lostReason(
                    of: updated, topology: context.topology, frame: context.frame,
-                   format: NumberFormat(units: units, settings: document.settings), standard: document.settings.standard) {
+                   format: NumberFormat(units: units, settings: document.settings), standard: document.settings.standard,
+                   parts: context.parts ?? [], isPictorial: context.isPictorial) {
                 refuse(reason.sentence)
                 return
             }
@@ -314,7 +321,8 @@ extension DrawingEditorModel {
         case .datumFeature: PickPurpose(symbol: .datum)
         case .featureControl: PickPurpose(symbol: .frame)
         case .surfaceTexture: PickPurpose(symbol: .surface)
-        case .balloon, .partsList, .revisionTable: .leader  // DR-5 Task 3: PickPurpose.balloon
+        case .balloon: .balloon
+        case .partsList, .revisionTable: .leader  // DR-5 Task 8
         }
     }
 

@@ -20,7 +20,7 @@ struct AnnotationPieces {
 /// What a view lets its annotations do (plan R25).
 enum AnnotationViewState {
     /// Resolve and measure against this topology.
-    case annotated(Topology, ProjectionFrame)
+    case annotated(Topology, ProjectionFrame, parts: [PartSpan])
     /// A projection is still drawn but its annotations are lost: drawn from their last values (a failed view, no topology).
     case failed(LostReason)
     /// No projection: the annotations are listed and not drawn.
@@ -40,7 +40,7 @@ enum AnnotationViewState {
         guard content.projection != nil else { return .unlisted(reason(for: content.problem)) }
         if let problem = content.problem, !problem.isEmpty { return .failed(reason(for: problem)) }
         guard let topology = content.topology else { return .failed(.noPart) }
-        return .annotated(topology, frame)
+        return .annotated(topology, frame, parts: content.parts)
     }
 }
 
@@ -61,6 +61,11 @@ struct AnnotationContext {
     var height: Double
     /// The view takes no dimensions and no symbols on its lines (R17).
     var isPictorial = false
+
+    /// The spans of the view's parts (empty for a single-Output view).
+    var parts: [PartSpan] {
+        if case .annotated(_, _, let spans) = state { spans } else { [] }
+    }
 }
 
 /// Composes one annotation: resolve, measure, label, lay out and tag (plan R15, R25).
@@ -83,8 +88,10 @@ enum AnnotationComposer {
         case .failed(let reason):
             return lostDrawn(
                 annotation, reason: reason, anchors: [], context: context, format: format, last: remembered ?? annotation.last)
-        case .annotated(let topology, let frame):
-            guard let evaluated = AnnotationEvaluator.evaluate(annotation, topology: topology, frame: frame, format: format) else {
+        case .annotated(let topology, let frame, let parts):
+            guard let evaluated = AnnotationEvaluator.evaluate(
+                annotation, topology: topology, frame: frame, format: format, parts: parts)
+            else {
                 return (AnnotationReport(status: .lost(.noPart)), AnnotationPieces())
             }
             switch evaluated.outcome {

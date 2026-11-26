@@ -5,6 +5,8 @@ import Foundation
 /// What a pick is for: the tool that takes it decides which things it accepts (plan R5).
 public enum PickPurpose: Sendable {
     case dimension, holeCallout, centreMark, centreLine, leader
+    /// DR-5's balloon (plan R4, R16): takes what a leader takes, in any view, worded for balloons.
+    case balloon
     /// DR-4's symbols (plan R2): a datum feature symbol, a feature control frame and a surface texture symbol.
     case datum, frame, surface
 
@@ -43,7 +45,15 @@ struct PickWording {
         noCylinderName: DrawingPick.symbolNoCylinderNameSentence, sharedCylinder: DrawingPick.symbolSharedCylinderSentence,
         cylinder: DrawingPick.symbolCylinderSentence)
 
-    static func of(_ purpose: PickPurpose) -> PickWording { purpose.isSymbol ? .symbols : .dimensions }
+    static let balloons = PickWording(
+        noEdgeName: DrawingPick.balloonNoEdgeNameSentence, sharedEdge: DrawingPick.balloonSharedEdgeSentence,
+        noCylinderName: DrawingPick.balloonNoCylinderNameSentence, sharedCylinder: DrawingPick.balloonSharedCylinderSentence,
+        cylinder: DrawingPick.cylinderSentence)
+
+    static func of(_ purpose: PickPurpose) -> PickWording {
+        if purpose == .balloon { return .balloons }
+        return purpose.isSymbol ? .symbols : .dimensions
+    }
 }
 
 /// The model-plane shape a pick contributes to a dimension (model millimetres in the view plane).
@@ -104,17 +114,50 @@ public enum DrawingPick {
         "This circle isn't seen face on here; point the frame at it in a view that looks along its axis."
     public static let symbolCurveSentence = "This edge isn't a straight line or a circle, so a symbol can't stand on it here."
 
+    // DR-5 (plan R16).
+    public static let balloonNoEdgeNameSentence = "This edge has no lasting name, so a balloon can't hold on to it."
+    public static let balloonSharedEdgeSentence = "This line's edge shares its name with other edges, so a balloon can't hold on to it."
+    public static let balloonNoCylinderNameSentence = "This cylinder has no lasting name, so a balloon can't hold on to it."
+    public static let balloonSharedCylinderSentence = "This cylinder shares its name with other faces, so a balloon can't hold on to it."
+
     // The brief fixes this signature: the click, the tool, the part's topology and the view's frame, mapping and kind.
     // swiftlint:disable:next function_parameter_count
     public static func anchor(
         for candidate: PickCandidate, click: Vector2, purpose: PickPurpose, topology: Topology, frame: ProjectionFrame,
-        mapping: ViewMapping, isIsometric: Bool
+        mapping: ViewMapping, isIsometric: Bool, parts: [PartSpan]?
     ) -> Result<PickedAnchor, DrawingRefusal> {
-        if isIsometric, purpose != .leader {
+        if isIsometric, purpose != .leader, purpose != .balloon {
             return .failure(DrawingRefusal(sentence: purpose.isSymbol ? symbolIsometricSentence : isometricSentence))
         }
-        let picker = Picker(topology: topology, frame: frame, mapping: mapping, purpose: purpose, click: click)
-        return picker.anchor(for: candidate)
+        guard let parts else {
+            return Picker(topology: topology, frame: frame, mapping: mapping, purpose: purpose, click: click).anchor(for: candidate)
+        }
+        // An assembly view (R3): the pick is named and judged inside the part its line lies on, then wrapped with that part.
+        guard let span = span(of: candidate, in: topology, parts: parts) else {
+            return .failure(DrawingRefusal(sentence: freeCurveSentence(for: purpose)))
+        }
+        let scoped = topology.restricted(toFaces: span.faces)
+        let picker = Picker(topology: scoped, frame: frame, mapping: mapping, purpose: purpose, click: click)
+        return picker.anchor(for: candidate).map { PickedAnchor(target: .onPart(span.output, $0.target), shape: $0.shape) }
+    }
+
+    /// The span holding the face the candidate's line lies on, or nil for a line on no part (a curve).
+    private static func span(of candidate: PickCandidate, in topology: Topology, parts: [PartSpan]) -> PartSpan? {
+        let face: FaceID?
+        switch candidate {
+        case .edge(let id, _), .corner(let id, _), .centre(let id, _): face = topology.edge(id)?.faces.first
+        case .outline(let id, _): face = id
+        }
+        guard let face, let position = topology.faces.firstIndex(where: { $0.id == face }) else { return nil }
+        return parts.span(containingFace: position)
+    }
+
+    static func freeCurveSentence(for purpose: PickPurpose?) -> String {
+        switch purpose {
+        case .balloon?: balloonFreeCurveSentence
+        case let found? where found.isSymbol: symbolFreeCurveSentence
+        default: DrawingPick.freeCurveSentence
+        }
     }
 
     /// Whether a line with model direction `along` is seen end on in a view looking along `direction` (plan R2): the one test
@@ -139,17 +182,20 @@ extension DrawingPick {
 
         var wording: PickWording { PickWording.of(purpose) }
 
+        /// A note's leader and a balloon take any lasting edge, a corner's edge, a circle or a cylinder's outline.
+        var takesLeaders: Bool { purpose == .leader || purpose == .balloon }
+
         func anchor(for candidate: PickCandidate) -> Result<PickedAnchor, DrawingRefusal> {
             switch candidate {
             case .edge(let id, _): return topology.edge(id).map(edge) ?? .failure(refusal(wording.noEdgeName))
             case .corner(let id, let point):
                 // A symbol picks the corner's edge, as DR-3's auxiliary views do.
                 if purpose.isSymbol { return topology.edge(id).map(edge) ?? .failure(refusal(wording.noEdgeName)) }
-                guard purpose == .dimension || purpose == .leader else { return .failure(wrong()) }
+                guard purpose == .dimension || takesLeaders else { return .failure(wrong()) }
                 return topology.edge(id).map { corner($0, at: point) } ?? .failure(refusal(wording.noEdgeName))
             case .centre(let id, _):
                 guard let edge = topology.edge(id) else { return .failure(refusal(wording.noEdgeName)) }
-                return purpose == .dimension || purpose == .leader ? centre(edge) : self.edge(edge)
+                return purpose == .dimension || takesLeaders ? centre(edge) : self.edge(edge)
             case .outline(let id, _): return outline(id)
             }
         }
@@ -162,7 +208,7 @@ extension DrawingPick {
             case .holeCallout: refusal(holeCircleSentence)
             case .centreMark: refusal(centreMarkSentence)
             case .centreLine: refusal(centreLineSentence)
-            case .dimension, .leader: refusal(outlineOnlySentence)
+            case .dimension, .leader, .balloon: refusal(outlineOnlySentence)
             case .datum: refusal(datumCircleSentence)
             case .surface: refusal(surfaceCircleSentence)
             case .frame: refusal(symbolCurveSentence)
@@ -183,7 +229,7 @@ extension DrawingPick {
         }
 
         func held(_ target: AnchorTarget) -> Result<AnchorGeometry, DrawingRefusal> {
-            switch DrawingAnchorResolver.resolve(target, in: topology, frame: frame) {
+            switch DrawingAnchorResolver.resolve(target, in: topology, frame: frame, parts: []) {
             case .held(let geometry, _, _): return .success(geometry)
             case .lost(let reason): return .failure(refusal(reason.sentence))
             }
@@ -201,7 +247,7 @@ extension DrawingPick {
             case .failure(let refused): return .failure(refused)
             case .success(let found): geometry = found
             }
-            if purpose == .leader { return .success(PickedAnchor(target: target, shape: shape(of: geometry))) }
+            if takesLeaders { return .success(PickedAnchor(target: target, shape: shape(of: geometry))) }
             if purpose.isSymbol {
                 if let refused = refuseSymbol(geometry) { return .failure(refused) }
                 return .success(PickedAnchor(target: target, shape: shape(of: geometry)))
@@ -252,7 +298,7 @@ extension DrawingPick {
         func isFaceOn(_ axis: Vector3) -> Bool { abs(axis.dot(frame.direction)) >= 1 - 1e-9 }
 
         private func readHole(_ target: AnchorTarget) -> Result<Void, DrawingRefusal> {
-            switch HoleReader.read(target, in: topology, frame: frame) {
+            switch HoleReader.read(target, in: topology, frame: frame, parts: []) {
             case .hole: return .success(())
             case .notAHole: return .failure(refusal(holeSentence))
             case .lost(let reason): return .failure(refusal(reason.sentence))

@@ -18,7 +18,7 @@ struct SymbolPickTests {
     ) -> Result<PickedAnchor, DrawingRefusal> {
         DrawingPick.anchor(
             for: candidate, click: Vector2(120, 60), purpose: purpose, topology: topology, frame: top, mapping: mapping,
-            isIsometric: isometric)
+            isIsometric: isometric, parts: nil)
     }
 
     private func refused(_ result: Result<PickedAnchor, DrawingRefusal>) -> String? {

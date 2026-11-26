@@ -71,10 +71,10 @@ extension AnnotationComposer {
             let sheet = context.view == nil ? point : context.center + point
             return (.held, context.mapping.map { $0.model(sheet) } ?? sheet)
         default:
-            guard case .annotated(let topology, let frame) = context.state, let projection = context.projection else {
+            guard case .annotated(let topology, let frame, let parts) = context.state, let projection = context.projection else {
                 return (.held, nil)
             }
-            let resolution = DrawingAnchorResolver.resolve(leader.target, in: topology, frame: frame)
+            let resolution = DrawingAnchorResolver.resolve(leader.target, in: topology, frame: frame, parts: parts)
             switch resolution {
             case .lost(let reason): return (.lost(reason), nil)
             case .held(let geometry, let edges, _):

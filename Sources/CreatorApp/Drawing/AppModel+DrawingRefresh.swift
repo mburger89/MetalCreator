@@ -120,7 +120,8 @@ extension DrawingSession {
         var goods: [AnnotationID: LastGood] = [:]
         for annotation in job.key.annotations {
             let good = AnnotationRefresh.lastGood(
-                for: annotation, topology: found, frame: job.key.frame, format: job.key.format, standard: job.key.format.standard)
+                for: annotation, topology: found, frame: job.key.frame, format: job.key.format, standard: job.key.format.standard,
+                parts: [], isPictorial: false)  // DR-5 Task 12: the job carries the spans and the view's kind
             if let good { goods[annotation.id] = good }
         }
         return goods

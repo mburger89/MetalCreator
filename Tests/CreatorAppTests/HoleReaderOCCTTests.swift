@@ -47,7 +47,7 @@ struct HoleReaderOCCTTests {
             return abs(found - radius) < 1e-6 && abs(center.z - z) < 1e-6
         })
         let pick = try #require(topology.picks(for: [circle.id]).first)
-        return HoleReader.read(.edge(pick), in: topology, frame: top)
+        return HoleReader.read(.edge(pick), in: topology, frame: top, parts: [])
     }
 
     private func expect(_ reading: HoleReading, diameter: Double, depth: Double?, counterbore: (Double, Double)? = nil,

@@ -17,13 +17,14 @@ public enum LostReason: Error, Hashable, Sendable {
     case sourceRemoved
     case viewFailed(String)
     case noPart
+    case partNotShown
     case refused(String)
 
     public var sentence: String {
         switch self {
         case .missing: "What it was attached to is no longer in the part."
-        case .several(let count): "What it was attached to now fits \(Self.number(count)) edges, and a dimension never guesses which."
-        case .severalFaces(let count): "What it was attached to now fits \(Self.number(count)) faces, and a dimension never guesses which."
+        case .several(let count): "What it was attached to now fits \(Self.number(count)) edges, and a drawing never guesses which."
+        case .severalFaces(let count): "What it was attached to now fits \(Self.number(count)) faces, and a drawing never guesses which."
         case .notLineOrCircle: "What it measured is no longer a straight line or a circle."
         case .cornerGone: "The two edges that met at its corner no longer meet at one point."
         case .notCylinder: "The face it was attached to is no longer a cylinder."
@@ -35,6 +36,7 @@ public enum LostReason: Error, Hashable, Sendable {
         case .sourceRemoved: DrawingProjector.removedSentence
         case .viewFailed(let message): message
         case .noPart: "This view has no part to measure."
+        case .partNotShown: "The part it was on isn't in this view any more."
         case .refused(let sentence): sentence
         }
     }

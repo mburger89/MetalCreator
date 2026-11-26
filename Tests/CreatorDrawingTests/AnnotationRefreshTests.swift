@@ -39,7 +39,8 @@ struct AnnotationRefreshTests {
         for annotation in all {
             let report = try #require(picture.annotationReports[annotation.id])
             let refreshed = AnnotationRefresh.lastGood(
-                for: annotation, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso)
+                for: annotation, topology: topology, frame: StandardOrientation.top.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false)
             #expect(report.current != nil, "\(annotation.kind) holds")
             #expect(refreshed == report.current)
         }
@@ -51,7 +52,8 @@ struct AnnotationRefreshTests {
         let line = DrawingAnnotation(view: view.id, kind: .centreLine(CentreLine(anchor: .axis(face))))
         let picture = Fixtures.compose(view, [line], content: Fixtures.content())
         let refreshed = AnnotationRefresh.lastGood(
-            for: line, topology: topology, frame: StandardOrientation.front.frame, format: format(), standard: .iso)
+            for: line, topology: topology, frame: StandardOrientation.front.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false)
         #expect(refreshed != nil && refreshed == picture.annotationReports[line.id]?.current)
     }
 
@@ -61,14 +63,16 @@ struct AnnotationRefreshTests {
         let gone = Fixtures.topology(removing: [102])
         #expect(
             AnnotationRefresh.lastGood(
-                for: dimension, topology: gone, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+                for: dimension, topology: gone, frame: StandardOrientation.top.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false) == nil)
     }
 
     @Test func notesAreNotRefreshed() {
         let note = Fixtures.note(nil, "Note", at: .zero)
         #expect(
             AnnotationRefresh.lastGood(
-                for: note, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+                for: note, topology: topology, frame: StandardOrientation.top.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false) == nil)
     }
 
     // MARK: Symbols (DR-4)
@@ -80,7 +84,8 @@ struct AnnotationRefreshTests {
             kind: .datumFeature(
                 DatumFeature(letter: "A", attachment: .feature(LeaderEnd(target: pick(102), hint: Vector2(20, 0))), distance: 8)))
         let refreshed = AnnotationRefresh.lastGood(
-            for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso)
+            for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false)
         #expect(refreshed?.figure == .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
         #expect(refreshed?.lines == ["Datum A"])
         let picture = Fixtures.compose(view, [symbol], content: Fixtures.content())
@@ -94,9 +99,61 @@ struct AnnotationRefreshTests {
             view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(host.id), distance: 8)))
         #expect(
             AnnotationRefresh.lastGood(
-                for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+                for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false) == nil)
         #expect(
             AnnotationRefresh.lostReason(
-                of: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+                of: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false) == nil)
+    }
+
+    // MARK: Assemblies and pictorial views (DR-5)
+
+    @Test func pictorialViewsRefreshNoDimensionsOrSymbols() {
+        let view = Fixtures.makeView()
+        let dimension = Fixtures.dimension(view.id, .linear(.horizontal), [pick(102)])
+        let datum = DrawingAnnotation(
+            view: view.id,
+            kind: .datumFeature(
+                DatumFeature(letter: "A", attachment: .feature(LeaderEnd(target: pick(102), hint: Vector2(20, 0))), distance: 8)))
+        let frame = StandardOrientation.top.frame
+        for annotation in [dimension, datum] {
+            #expect(
+                AnnotationRefresh.lastGood(
+                    for: annotation, topology: topology, frame: frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false)
+                    != nil)
+            #expect(
+                AnnotationRefresh.lastGood(
+                    for: annotation, topology: topology, frame: frame, format: format(),
+                standard: .iso, parts: [], isPictorial: true)
+                    == nil)
+            #expect(
+                AnnotationRefresh.lostReason(
+                    of: annotation, topology: Fixtures.topology(removing: [102]), frame: frame, format: format(), standard: .iso,
+                    parts: [], isPictorial: true) == nil)
+        }
+    }
+
+    @Test func aPartAnchorRefreshes() throws {
+        let part = NodeID()
+        let count = topology.faces.count
+        let spans = [PartSpan(output: part, faces: 0..<count, curves: 0..<0)]
+        let view = Fixtures.makeView()
+        let wrapped = Fixtures.dimension(view.id, .linear(.horizontal), [.onPart(part, pick(102))])
+        let bare = Fixtures.dimension(view.id, .linear(.horizontal), [pick(102)])
+        let frame = StandardOrientation.top.frame
+        let refreshed = try #require(
+            AnnotationRefresh.lastGood(
+                for: wrapped, topology: topology, frame: frame, format: format(), standard: .iso, parts: spans, isPictorial: false))
+        let expected = AnnotationRefresh.lastGood(
+            for: bare, topology: topology, frame: frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false)
+        #expect(refreshed == expected)
+        #expect(
+            AnnotationRefresh.lostReason(
+                of: wrapped, topology: topology, frame: frame, format: format(),
+                standard: .iso, parts: [], isPictorial: false)
+                == .partNotShown)
     }
 }

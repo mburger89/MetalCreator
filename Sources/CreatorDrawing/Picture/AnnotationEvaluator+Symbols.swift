@@ -5,13 +5,13 @@ extension AnnotationEvaluator {
     /// A symbol on a line of its view (plan R2, R11): the line resolved, judged for the symbol and its foot found. `nil` for a
     /// symbol on a dimension, which the second composing pass hangs on its dimension's drawing, and for any other kind.
     static func symbol(
-        _ annotation: DrawingAnnotation, topology: Topology, frame: ProjectionFrame, format: NumberFormat
+        _ annotation: DrawingAnnotation, topology: Topology, frame: ProjectionFrame, format: NumberFormat, parts: [PartSpan]
     ) -> EvaluatedAnnotation? {
         guard case .feature(let end)? = annotation.symbolAttachment, let kind = annotation.symbolKind else { return nil }
         func lost(_ reason: LostReason) -> EvaluatedAnnotation {
             EvaluatedAnnotation(anchors: [.lost(reason)], outcome: .failure(reason))
         }
-        switch DrawingAnchorResolver.resolve(end.target, in: topology, frame: frame) {
+        switch DrawingAnchorResolver.resolve(end.target, in: topology, frame: frame, parts: parts) {
         case .lost(let reason): return lost(reason)
         case .held(let geometry, _, _):
             if let reason = unsuitable(geometry, for: kind, frame: frame) { return lost(reason) }
