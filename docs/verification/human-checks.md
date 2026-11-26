@@ -2563,3 +2563,17 @@ the Output selected so the part is shown.
 - [ ] **DR2-12 Grouping.** Group the feature under a dimension: it stays held. **Observed:**
 - [ ] **DR2-13 Linux and Windows.** The PDF's SHA-256 equals the Mac's for the same annotated document. **Observed:**
 - [ ] **DR2-14 Tool keys.** D, H, M, L and N over the sheet pick their tools. **Observed:**
+
+## Group DR-3 — Drawings: sections, details and auxiliary views
+
+- [ ] **DR3-1 A straight section.** Through a plate's holes, in ISO and in ASME: the cutting line (thin chain with thick ends in ISO, thick in ASME), arrows the right way, "SECTION A-A" with its scale, the view on the side the standard puts it, hatch at 45 degrees and the holes empty. **Observed:**
+- [ ] **DR3-2 A stepped section.** Through two holes at different heights: no line at the step, the hatch continuous across it. **Observed:**
+- [ ] **DR3-3 Several parts and a sheet.** A section of a two-solid Output (two hatch angles) and of a sheet (its cut edge, no hatch). **Observed:**
+- [ ] **DR3-4 A detail.** Of a fillet at 5 : 1: "DETAIL B (5 : 1)", the circle and letter on the parent, arcs smooth; a detail of a section clips the hatch. **Observed:**
+- [ ] **DR3-5 An auxiliary view.** Of an inclined face: "VIEW C", its arrow, the face true size, a dimension on it reading true, a hole drilled square to the face reading its true diameter there and refused in Front, and a detail of the auxiliary view taking dimensions too. **Observed:**
+- [ ] **DR3-6 Dimensions on a cut.** Dimension a cut edge and change the width: it follows. On a stepped section dimension an edge of its last cut, then drag the cutting line until that cut leaves the part: "?" in the warning colour, listed, never moved onto another cut's edge; undo holds it again. **Observed:**
+- [ ] **DR3-7 Moving marks and parents.** Drag the cutting line and the detail circle; move the parent and the derived views come along; delete the parent and read the notices, then undo. **Observed:**
+- [ ] **DR3-8 Standard switch.** Switch the standard: aligned sections move to the other side, arrows unchanged. **Observed:**
+- [ ] **DR3-9 Keys.** S, E, U and Return over the sheet. **Observed:**
+- [ ] **DR3-10 PDF and DXF.** Export both of the sheet: hatch on the HATCH layer, cutting lines on CENTER, letters on TEXT, opening in Preview, Acrobat, LibreCAD and AutoCAD or TrueView with no audit prompt. **Observed:**
+- [ ] **DR3-11 Linux and Windows.** The hatched page's PDF SHA-256 equals the Mac's. **Observed:**
