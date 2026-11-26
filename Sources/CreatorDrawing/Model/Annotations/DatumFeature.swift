@@ -24,12 +24,11 @@ public struct DatumFeature: Hashable, Codable, Sendable {
         dimensionEnd = Swift.min(Swift.max(try c.decodeIfPresent(Int.self, forKey: .dimensionEnd) ?? 0, 0), 1)
     }
 
-    /// The distance as it is drawn: at least `DatumLayout.minimumDistance(h:)` in size, the sign (the side) kept for a symbol on a
-    /// line and positive on a dimension; a non-finite one reads as the least.
+    /// The distance as it is drawn: its size at least `DatumLayout.minimumDistance(h:)`, the sign kept; a non-finite one reads as
+    /// the least.
     public func clampedDistance(h: Double) -> Double {
         let least = DatumLayout.minimumDistance(h: h)
         guard distance.isFinite else { return least }
-        if case .dimension = attachment { return Swift.max(distance, least) }
         return distance < 0 ? -Swift.max(-distance, least) : Swift.max(distance, least)
     }
 }

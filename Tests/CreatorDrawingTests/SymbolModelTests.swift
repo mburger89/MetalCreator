@@ -321,6 +321,41 @@ struct DatumDistanceTests {
         #expect(far.distance == 30)
     }
 
+    @Test func aNegativeDistanceOnADimensionKeepsItsSignOnDecode() throws {
+        let least = DatumLayout.minimumDistance(h: 2.5)
+        let host = AnnotationID()
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
+        func decoded(_ distance: Double) throws -> Double {
+            let dimension = DrawingAnnotation(
+                id: host, view: view.id,
+                kind: .dimension(
+                    DrawingDimension(
+                        kind: .linear(.horizontal), anchors: [.point(Vector2(0, 0)), .point(Vector2(9, 0))],
+                        placement: DimensionPlacement(offset: 5, angle: 0))))
+            let datum = DrawingAnnotation(
+                view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(host), distance: distance)))
+            let sheet = DrawingSheet(name: "S", views: [view], annotations: [dimension, datum])
+            let back = try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+            guard let found = back.annotations.compactMap({ annotation -> Double? in
+                if case .datumFeature(let value) = annotation.kind { return value.distance }
+                return nil
+            }).first else { throw CancellationError() }
+            return found
+        }
+        #expect(try decoded(-0.5) == -least)
+        #expect(try decoded(-30) == -30)
+        #expect(try decoded(30) == 30)
+    }
+
+    @Test func aBalloonWithNoViewIsDroppedOnDecode() throws {
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
+        let balloon = DrawingAnnotation(
+            view: nil, kind: .balloon(Balloon(leader: LeaderEnd(target: .point(Vector2(0, 0)), hint: .zero), offset: Vector2(5, 5))))
+        let sheet = DrawingSheet(name: "S", views: [view], annotations: [balloon])
+        let back = try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+        #expect(back.annotations.isEmpty)
+    }
+
     @Test func clampedDistanceMatchesWhatIsDrawn() {
         let h = 3.5
         let datum = DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 1)
