@@ -1,3 +1,4 @@
+import CreatorGeometry
 import Foundation
 
 /// Finds the bytes behind an `ImageReference` (fields spec §5): the embedded images the document holds, and, for a linked
@@ -90,58 +91,20 @@ public struct ImageResolver: Sendable {
         return data
     }
 
-    /// Opens `url` for reading and checks what was opened: the path was checked a moment ago by `stamp(of:)`, but a path can
-    /// be swapped for something else between that check and this open, so the file is opened without blocking (a named pipe
-    /// would otherwise hold the caller until someone wrote to it) and its descriptor must be a regular file, whatever the path
-    /// was, of at most `limit` bytes. Shared by image reads and mesh file reads (`meshFileBytes`); the caller closes the handle.
+    /// Opens `url` for reading and checks what was opened (`RegularFile.opened`: without blocking, the descriptor a regular file
+    /// of at most `limit` bytes), the problems said as image problems. Shared by image reads and mesh file reads (`meshFileBytes`);
+    /// the caller closes the handle.
     static func openedRegularFile(_ url: URL, name: String, limit: Int) throws(ImageProblem) -> (handle: FileHandle, size: Int) {
-        let handle: FileHandle
-        #if os(Windows)
-        // No POSIX descriptors here: the attributes say whether it is a regular file, then it is opened for reading. Unlike the
-        // descriptor check below, this is NOT race-free: the path can be swapped between the attributes and the open (the size
-        // is still bounded by the caller's read). A symlink reports `.typeSymbolicLink`, not `.typeRegular`, so the caller resolves
-        // symlinks first (`URL.resolvingSymlinksInPath`, in `bytes(of:)`), which makes this answer as POSIX `open` does: it follows them.
-        let attributes: [FileAttributeKey: Any]
-        let size: Int
-        do {
-            attributes = try FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))
-            guard attributes[.type] as? FileAttributeType == .typeRegular else { throw ImageProblem.notAFile(name: name) }
-            size = (attributes[.size] as? NSNumber)?.intValue ?? 0
-            if size > limit { throw ImageProblem.tooManyBytes(size) }
-            handle = try FileHandle(forReadingFrom: url)
-        } catch let problem as ImageProblem {
-            throw problem
+        do throws(RegularFileProblem) {
+            return try RegularFile.opened(url, limit: limit)
         } catch {
-            throw .unreadable(name: name, reason: error.localizedDescription)
+            switch error {
+            case .notAFile: throw .notAFile(name: name)
+            case .tooLarge(let size): throw .tooManyBytes(size)
+            case .unreadable(let reason): throw .unreadable(name: name, reason: reason)
+            }
         }
-        #else
-        let descriptor = open(url.path(percentEncoded: false), O_RDONLY | O_NONBLOCK | O_CLOEXEC)
-        guard descriptor >= 0 else { throw .unreadable(name: name, reason: Self.message(forErrno: errno)) }
-        handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        var status = stat()
-        guard fstat(descriptor, &status) == 0 else {
-            try? handle.close()
-            throw .unreadable(name: name, reason: Self.message(forErrno: errno))
-        }
-        guard status.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else {
-            try? handle.close()
-            throw .notAFile(name: name)
-        }
-        let size = Int(status.st_size)
-        guard size <= limit else {
-            try? handle.close()
-            throw .tooManyBytes(size)
-        }
-        #endif
-        return (handle, size)
     }
-
-    #if !os(Windows)
-    /// The system's message for an `errno` value, with a full stop, as the problem text wants.
-    private static func message(forErrno code: Int32) -> String {
-        String(cString: strerror(code)) + "."
-    }
-    #endif
 
     /// The bytes of the file at `url` as an image to choose or embed, with the same bounds as `bytes(of:)`.
     public static func bytes(ofFileAt url: URL) throws(ImageProblem) -> Data {
