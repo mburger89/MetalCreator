@@ -490,7 +490,7 @@ DR-1, DR-2 and DR-3 item in `.superpowers/sdd/2026-11-26-dr-4-gdt-symbols/backlo
     (standing or on a leader by R6) and `SurfaceLayout.requirement(_ requirement: SurfaceRequirement, apex: Vector2, h: Double, format: NumberFormat) -> AnnotationDrawing`
     (the standing symbol alone, for R12).
   - `GDTNumber.tolerance(_ mm: Double, format: NumberFormat) -> String`, `GDTNumber.roughness(_ micrometres: Double, format: NumberFormat) -> String`.
-  - `FeatureControlFrame.plainText`, `DatumFeature.plainText`, `SurfaceTexture.plainText` (R11's texts; they need `GDTNumber`, so they live here).
+  - `FeatureControlFrame.plainText(format:)`, `DatumFeature.plainText`, `SurfaceTexture.plainText(format:)` (R11's texts; they need `GDTNumber`, so they live here). Erratum (Task 3 fix 1): the two number-bearing texts take the sheet's `NumberFormat`, so the list and warnings read as the drawn symbol does (inch, ASME, comma); Tasks 5 and 6 must pass it.
 
 - [ ] **Step 1: Tests.**
   - `GDTNumberTests`: `tolerancesTakeTheDecimalsTheyNeed` (0.05 in a 1-decimal mm document reads "0.05"; 0.1 reads "0.1"; 0.12345 reads "0.1235");

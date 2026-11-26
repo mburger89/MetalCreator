@@ -11,6 +11,9 @@ public enum DatumLayout {
         letter: String, foot: Vector2, along: Vector2, distance: Double, edgeEnds: (Vector2, Vector2)?, h: Double,
         style: AnnotationStyle
     ) -> AnnotationDrawing {
+        let length = along.length
+        guard length > 1e-12 else { return AnnotationDrawing() }
+        let along = along * (1 / length)
         let normal = Vector2(-along.y, along.x)
         let side = distance < 0 ? -1.0 : 1.0
         var builder = DrawingBuilder(style: style, height: h)

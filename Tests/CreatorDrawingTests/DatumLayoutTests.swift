@@ -25,6 +25,15 @@ import Testing
         #expect(drawing.texts.first?.original == "A")
     }
 
+    @Test func aScaledDirectionDrawsTheSame() {
+        let unit = DatumLayout.onLine(
+            letter: "A", foot: Vector2(100, 50), along: Vector2(1, 0), distance: 10, edgeEnds: nil, h: h, style: style)
+        let scaled = DatumLayout.onLine(
+            letter: "A", foot: Vector2(100, 50), along: Vector2(2, 0), distance: 10, edgeEnds: nil, h: h, style: style)
+        #expect(scaled.fills == unit.fills)
+        #expect(squareCentre(scaled) == Vector2(100, 60))
+    }
+
     @Test func belowALine() {
         let drawing = DatumLayout.onLine(
             letter: "A", foot: Vector2(100, 50), along: Vector2(1, 0), distance: -10, edgeEnds: nil, h: h, style: style)

@@ -127,15 +127,28 @@ import Testing
                 zone: .diameter, value: 0.1, material: .maximum,
                 datums: [DatumReference(letter: "A"), DatumReference(letter: "B", material: .maximum)]),
         ]
-        #expect(frame(.position, rows: rows).plainText == "Position Ø0.1 (M) | A | B (M)")
+        #expect(frame(.position, rows: rows).plainText(format: format) == "Position Ø0.1 (M) | A | B (M)")
         let composite = frame(.position, rows: rows + [ToleranceRow(zone: .diameter, value: 0.05)])
-        #expect(composite.plainText == "Position Ø0.1 (M) | A | B (M) / Ø0.05")
+        #expect(composite.plainText(format: format) == "Position Ø0.1 (M) | A | B (M) / Ø0.05")
         let projected = ToleranceRow(value: 0.1, projected: ProjectedZone(length: 20))
-        #expect(frame(.parallelism, rows: [projected]).plainText == "Parallelism 0.1 (P) 20")
+        #expect(frame(.parallelism, rows: [projected]).plainText(format: format) == "Parallelism 0.1 (P) 20")
         #expect(DatumFeature(letter: "A", attachment: attachment).plainText == "Datum A")
         let texture = SurfaceTexture(
             requirement: SurfaceRequirement(parameter: .ra, value: 1.6), lay: .crossed,
             feature: LeaderEnd(target: .point(Vector2(0, 0)), hint: .zero))
-        #expect(texture.plainText == "Surface texture Ra 1.6 lay X")
+        #expect(texture.plainText(format: format) == "Surface texture Ra 1.6 lay X")
+    }
+
+    @Test func plainTextsFollowTheSheetsFormat() {
+        let inches = DimensionNumberTests.format(.inches, .asme, precision: 3)
+        let comma = NumberFormat(units: .millimetres, standard: .iso, decimalSign: .comma)
+        let flat = frame(.flatness, rows: [ToleranceRow(value: 0.127)])
+        #expect(flat.plainText(format: inches) == "Flatness .005")
+        #expect(flat.plainText(format: comma) == "Flatness 0,127")
+        let texture = SurfaceTexture(
+            requirement: SurfaceRequirement(parameter: .ra, value: 1.6), lay: nil,
+            feature: LeaderEnd(target: .point(Vector2(0, 0)), hint: .zero))
+        #expect(texture.plainText(format: comma) == "Surface texture Ra 1,6")
+        #expect(texture.plainText(format: inches).contains("Ra 63"))
     }
 }

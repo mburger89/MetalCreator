@@ -81,8 +81,7 @@ extension DatumFeature {
 
 extension SurfaceTexture {
     /// A text for lists and warnings, never drawn: "Surface texture Ra 1.6 lay X".
-    public var plainText: String {
-        let format = NumberFormat(units: .millimetres, standard: .iso, decimalSign: .point)
+    public func plainText(format: NumberFormat) -> String {
         var text = "Surface texture"
         if let parameter = requirement.parameter { text += " " + parameter.title }
         if let value = requirement.value { text += " " + GDTNumber.roughness(value, format: format) }

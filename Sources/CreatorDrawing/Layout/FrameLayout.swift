@@ -173,9 +173,8 @@ public enum FrameLayout {
 }
 
 extension FeatureControlFrame {
-    /// A text for lists and warnings, never drawn (plan R11): "Position Ø0.1 (M) | A | B (M)", rows joined " / ".
-    public var plainText: String {
-        let format = NumberFormat(units: .millimetres, standard: .iso, decimalSign: .point)
+    /// A text for lists and warnings, never drawn (plan R11, in the sheet's number format): "Position Ø0.1 (M) | A | B (M)", rows joined " / ".
+    public func plainText(format: NumberFormat) -> String {
         func modifier(_ condition: MaterialCondition?) -> String {
             switch condition {
             case .maximum: " (M)"
