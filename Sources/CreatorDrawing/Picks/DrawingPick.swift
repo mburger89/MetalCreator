@@ -260,7 +260,10 @@ extension DrawingPick {
             }
             if let refused = refuse(geometry) { return .failure(refused) }
             if purpose == .holeCallout, case .failure(let refused) = readHole(target) { return .failure(refused) }
-            return .success(PickedAnchor(target: target, shape: shape(of: geometry)))
+            // A line square to the view lies at one depth all along (plan R8).
+            var depth: Double?
+            if case .segment(let start, _) = geometry { depth = start.dot(frame.direction) }
+            return .success(PickedAnchor(target: target, shape: shape(of: geometry), depth: depth))
         }
 
         /// R5's rules and each tool's own, for a dimensioned, called out or marked edge.

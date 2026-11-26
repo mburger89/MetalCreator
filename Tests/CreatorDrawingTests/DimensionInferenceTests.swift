@@ -133,6 +133,16 @@ struct DimensionInferenceTests {
         #expect(alignedRefusal([point(1, Vector2(0, 0)), point(2, Vector2(10, 4))]) == nil)
     }
 
+    @Test func anAlignedDimensionFromAPointToALineAtAnotherDepthIsRefusedAtThePick() {
+        func deepLine(_ depth: Double) -> PickedAnchor {
+            PickedAnchor(target: .edge(pick(9)), shape: .line(Vector2(0, 0), Vector2(10, 4)), depth: depth)
+        }
+        let corner = deepPoint(1, Vector2(3, 8), depth: 0)
+        #expect(alignedRefusal([corner, deepLine(5)]) == DimensionInference.depthSentence)
+        #expect(alignedRefusal([deepLine(5), corner]) == DimensionInference.depthSentence)
+        #expect(alignedRefusal([corner, deepLine(0)]) == nil)
+    }
+
     @Test func anAlignedDimensionToAnOutlineIsRefusedAtThePick() {
         let face = FacePick(tags: Fixture.tags(.side(segment: 4)))
         let outline = PickedAnchor(

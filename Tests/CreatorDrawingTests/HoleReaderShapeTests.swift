@@ -67,6 +67,24 @@ extension HoleReaderTests {
         #expect(shape(read(steppedBlind(floor: false), edge: 0)) == expected)
     }
 
+    @Test func aSplitCircleWithAClockwiseArcIsOneHole() {
+        // The lower half runs the other way round (negative sweep), meeting the upper half at both ends.
+        func halves(_ id: Int, z: Double, _ a: Int, _ b: Int) -> [EdgeInfo] {
+            let center = v(z)
+            let start = center + Vector3(3, 0, 0)
+            return [Double.pi, -Double.pi].enumerated().map { index, sweep in
+                EdgeInfo(
+                    id: EdgeID(id + index), kind: .circle, direction: up, length: 3 * .pi, midpoint: center, convexity: .convex,
+                    faces: [FaceID(a), FaceID(b)], curve: .circle(center: center, axis: up, radius: 3, start: start, sweep: sweep))
+            }
+        }
+        let topology = part(
+            faces: [face(2, .cylinder, normal: up, z: -10, radius: 3)],
+            edges: halves(10, z: 0, 2, 0) + halves(20, z: -20, 2, 1))
+        #expect(shape(read(topology, edge: 10)) == HoleShape(diameter: 6))
+        #expect(shape(read(topology, edge: 11)) == HoleShape(diameter: 6))
+    }
+
     @Test func aHoleWithNoFiniteSizeIsLostInItsCallout() throws {
         // A bore whose diameter overflows: the callout is lost in words, never drawn as "Ø0" or "Ø inf".
         let topology = part(

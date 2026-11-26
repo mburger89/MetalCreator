@@ -59,12 +59,24 @@ public enum DimensionInference {
             guard made.kind == .linear(.aligned) else { return .success(made) }
             let outline = picks.contains { if case .outline = $0.target.unwrapped { true } else { false } }
             if outline { return .failure(DrawingRefusal(sentence: outlineAlignedSentence)) }
-            if picks.count == 2, case .point(let a) = picks[0].shape, case .point(let b) = picks[1].shape,
-                let first = picks[0].depth, let second = picks[1].depth {
+            if picks.count == 2, let first = picks[0].depth, let second = picks[1].depth,
+                let planar = planarDistance(picks[0].shape, picks[1].shape) {
                 let apart = abs(first - second)
-                if apart > 1e-9 * (b - a).length.hypotenuse(with: apart) { return .failure(DrawingRefusal(sentence: depthSentence)) }
+                if apart > 1e-9 * planar.hypotenuse(with: apart) { return .failure(DrawingRefusal(sentence: depthSentence)) }
             }
             return .success(made)
+        }
+    }
+
+    /// The distance in the view plane between a point and a point, or between a point and a line (its nearest point); nil otherwise.
+    private static func planarDistance(_ first: PickShape, _ second: PickShape) -> Double? {
+        switch (first, second) {
+        case (.point(let a), .point(let b)): return (b - a).length
+        case (.point(let p), .line(let a, let b)), (.line(let a, let b), .point(let p)):
+            guard let along = unit(b - a) else { return nil }
+            let foot = a + along * dot(p - a, along)
+            return (p - foot).length
+        default: return nil
         }
     }
 

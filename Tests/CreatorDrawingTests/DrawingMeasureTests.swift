@@ -138,10 +138,11 @@ struct DrawingMeasureTests {
         expectValues(measure(.angle, lines, angle: -75 * .pi / 180), [150 * .pi / 180])
     }
 
-    @Test func aBaselineOrChainNeedsThreeAnchors() {
+    @Test func aStoredTwoAnchorSeriesStillMeasures() {
+        // The pick refuses two anchors now, but a file saved before that holds them: held, never lost.
         let two = [point(v(0, 0, 0)), point(v(10, 0, 0))]
-        #expect(measure(.baseline(.horizontal), two) == .failure(.notLineOrCircle))
-        #expect(measure(.chain(.horizontal), two) == .failure(.notLineOrCircle))
+        expectValues(measure(.baseline(.horizontal), two), [10])
+        expectValues(measure(.chain(.horizontal), two), [10])
     }
 
     @Test func anOutlineAnchorTakesItsSideFromTheSign() {
