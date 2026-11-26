@@ -190,4 +190,34 @@ struct ReattachTests {
         #expect(o.h.log.commits.isEmpty)
         #expect(o.h.model.selectedAnnotations == [o.id])
     }
+
+    // MARK: Balloons (DR-5 R4)
+
+    private func lostBalloon() -> AssemblyScene {
+        let s = AssemblyScene.make(
+            annotations: [{ _, second in AssemblyScene.balloonAnnotation(on: second, edge: 102, copy: 1, offset: Vector2(8, -12)) }],
+            missingInSecond: [102])
+        s.h.model.selectedAnnotations = [s.annotations[0].id]
+        return s
+    }
+
+    @Test func aLostBalloonReattachesOnItsPart() throws {
+        let s = lostBalloon()
+        let report = try #require(s.h.model.picture?.annotationReports[s.annotations[0].id])
+        #expect(report.isLost, "\(report.status)")
+        s.click(s.at(120, 5))
+        #expect(s.h.log.commits.map(\.name) == ["Reattach Balloon"], "\(s.h.model.refusal ?? "")")
+        guard case .balloon(let balloon)? = s.annotations.first?.kind else {
+            Issue.record("not a balloon")
+            return
+        }
+        #expect(balloon.leader.target == s.pick(1100, copy: 1))
+    }
+
+    @Test func aBalloonRefusesAnotherPart() throws {
+        let s = lostBalloon()
+        s.click(s.at(20, 5))
+        #expect(s.h.model.refusal == "A balloon stays on its part; add a new balloon for another part.")
+        #expect(s.h.log.commits.isEmpty)
+    }
 }

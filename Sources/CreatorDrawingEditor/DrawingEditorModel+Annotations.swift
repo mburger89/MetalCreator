@@ -41,6 +41,7 @@ extension DrawingEditorModel {
         picks = []
         pickView = nil
         symbolDraft = nil
+        balloonDraft = nil
         draftPicture = nil
     }
 
@@ -52,7 +53,9 @@ extension DrawingEditorModel {
     }
 
     /// Whether Esc has picks, a draft or a leader to drop.
-    var holdsAnnotationInput: Bool { !picks.isEmpty || draftPicture != nil || addingLeader != nil || symbolDraft != nil }
+    var holdsAnnotationInput: Bool {
+        !picks.isEmpty || draftPicture != nil || addingLeader != nil || symbolDraft != nil || balloonDraft != nil
+    }
 
     /// The picture with the annotation under construction composed in at the pointer, or none (plan R17). It is composed under the
     /// model's one draft id and never feeds `remembered`: its figures are nobody's last values.
@@ -63,6 +66,10 @@ extension DrawingEditorModel {
         }
         if symbolDraft != nil {
             draftPicture = symbolDraftPicture()
+            return
+        }
+        if balloonDraft != nil {
+            draftPicture = balloonDraftPicture()
             return
         }
         guard !picks.isEmpty, let sheet, let pickView, let point = lastPointer,
@@ -91,6 +98,7 @@ extension DrawingEditorModel {
         }
         if let note = addingLeader, !present.contains(note) { addingLeader = nil }
         pruneSymbolDraft()
+        pruneBalloonDraft()
     }
 
     // MARK: Committing

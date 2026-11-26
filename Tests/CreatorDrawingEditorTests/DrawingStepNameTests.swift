@@ -20,8 +20,12 @@ struct DrawingStepNameTests {
                 "Add Datum", "Add Feature Control Frame", "Add Surface Symbol", "Change Datum Letter",
                 "Change Feature Control Frame", "Change Surface Symbol", "Move Symbol", "Delete Symbol", "Reattach Symbol",
                 "Edit Notes", "Change Edge Break", "Change General Surface",
+                "Add Balloon", "Move Balloon", "Delete Balloon", "Reattach Balloon", "Add Parts List", "Move Parts List",
+                "Delete Parts List", "Change Item", "Move Item", "Add Revision Table", "Move Revision Table",
+                "Delete Revision Table", "Add Revision", "Change Revision", "Remove Revision", "Change Parts", "Change Logo",
+                "Paste", "Cut",
             ])
-        #expect(DrawingStepName.all.count == 46)
+        #expect(DrawingStepName.all.count == 65)
         for name in DrawingStepName.all { #expect(!name.contains { $0.isNumber }, "\(name)") }
     }
 

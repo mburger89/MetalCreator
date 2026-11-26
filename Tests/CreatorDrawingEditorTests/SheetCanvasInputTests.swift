@@ -52,4 +52,12 @@ struct SheetCanvasInputTests {
         }
         #expect(SheetCanvasInput.key("a", modifiers: .primary) == nil, "a chord belongs to the menus")
     }
+
+    @Test func theLettersBAndPChooseTools() {
+        for (key, tool) in [(KeyEquivalent("b"), DrawingTool.balloon), (KeyEquivalent("p"), .partsList)] {
+            #expect(SheetCanvasInput.key(key, modifiers: []) == .tool(tool))
+            #expect(SheetCanvasInput.key(KeyEquivalent(Character(key.character.uppercased())), modifiers: []) == .tool(tool))
+        }
+        #expect(SheetCanvasInput.key("b", modifiers: .primary) == nil)
+    }
 }

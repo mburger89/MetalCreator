@@ -214,7 +214,8 @@ extension DrawingEditorModel {
             kind: .section, source: parent.source, orientation: .custom(SectionFrame.frame(for: cutter)), scale: parent.scale,
             center: center, alignment: alignment.map { ViewAlignment(parent: parent.id, axis: $0) },
             showsHidden: parent.showsHidden, showsTangent: parent.showsTangent, showsLabel: true,
-            derivation: .section(SectionLine(parent: parent.id, cutter: cutter)), letter: ViewLetters.next(on: sheet))
+            derivation: .section(SectionLine(parent: parent.id, cutter: cutter)), letter: ViewLetters.next(on: sheet),
+            assembly: parent.assembly)
         finishPlacing(view, on: id)
         sectionDraft = nil
     }
@@ -261,7 +262,7 @@ extension DrawingEditorModel {
             kind: .detail, source: parent.source, orientation: parent.orientation, scale: scale, center: point,
             showsHidden: parent.showsHidden, showsTangent: parent.showsTangent, showsLabel: true,
             derivation: .detail(DetailCircle(parent: parent.id, center: draft.center, radius: draft.radius)),
-            letter: ViewLetters.next(on: sheet))
+            letter: ViewLetters.next(on: sheet), assembly: parent.assembly)
         finishPlacing(view, on: id)
         detailDraft = nil
     }
@@ -303,7 +304,7 @@ extension DrawingEditorModel {
         let view = DrawingView(
             kind: .auxiliary, source: parent.source, orientation: .custom(frame), scale: parent.scale, center: point,
             showsHidden: parent.showsHidden, showsTangent: parent.showsTangent, showsLabel: true, derivation: .auxiliary(arrow),
-            letter: ViewLetters.next(on: sheet))
+            letter: ViewLetters.next(on: sheet), assembly: parent.assembly)
         finishPlacing(view, on: id)
         auxiliaryDraft = nil
     }

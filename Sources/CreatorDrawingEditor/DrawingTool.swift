@@ -3,6 +3,7 @@ public enum DrawingTool: Hashable, Sendable, CaseIterable {
     case select
     case baseView
     case projectedView
+    case assemblyView
     case section
     case detail
     case auxiliaryView
@@ -18,6 +19,9 @@ public enum DrawingTool: Hashable, Sendable, CaseIterable {
     case datum
     case featureControlFrame
     case surfaceFinish
+    case balloon
+    case partsList
+    case revisionTable
 }
 
 extension DrawingTool {
@@ -27,6 +31,7 @@ extension DrawingTool {
         case .select: nil
         case .baseView: "Base View"
         case .projectedView: "Projected View"
+        case .assemblyView: "Assembly View"
         case .section: "Section"
         case .detail: "Detail"
         case .auxiliaryView: "Auxiliary"
@@ -42,6 +47,9 @@ extension DrawingTool {
         case .datum: "Datum"
         case .featureControlFrame: "Feature Control Frame"
         case .surfaceFinish: "Surface Finish"
+        case .balloon: "Balloon"
+        case .partsList: "Parts List"
+        case .revisionTable: "Revision Table"
         }
     }
 
@@ -56,7 +64,7 @@ extension DrawingTool {
     /// Whether the tool picks things on a view's lines or places a note (plan R17).
     public var isAnnotationTool: Bool {
         switch self {
-        case .select, .baseView, .projectedView, .section, .detail, .auxiliaryView: false
+        case .select, .baseView, .projectedView, .assemblyView, .section, .detail, .auxiliaryView: false
         default: true
         }
     }

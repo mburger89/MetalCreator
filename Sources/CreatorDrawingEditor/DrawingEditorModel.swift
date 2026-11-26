@@ -49,6 +49,10 @@ public final class DrawingEditorModel {
     public internal(set) var pickView: ViewID?
     /// The symbol tool's target, named by its first click and waiting for the placing click (DR-4 R15); view state, never saved.
     public internal(set) var symbolDraft: SymbolDraft?
+    /// The balloon tool's target, named by its first click and waiting for the placing click (DR-5 R16); view state, never saved.
+    public internal(set) var balloonDraft: BalloonDraft?
+    /// The balloon draft's foot in the view's model plane, found once by composing it (never observed).
+    @ObservationIgnored var balloonFoot: (draft: BalloonDraft, foot: Vector2)?
     /// The last feature control frame and surface texture symbol placed in this session, which the next one copies (R15); never saved.
     public internal(set) var frameTemplate: FeatureControlFrame?
     public internal(set) var surfaceTemplate: SurfaceTexture?
