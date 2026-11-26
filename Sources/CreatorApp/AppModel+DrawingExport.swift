@@ -130,6 +130,7 @@ extension AppModel {
         var replaced: [String]
         var lost: [String]
         var leftOutLogo = false
+        var leftOutNotANumber = false
     }
 
     /// DXF R13: said once per file.
@@ -164,6 +165,9 @@ extension AppModel {
         // The not-a-number sentence is one per export however many sheets had such lines (drawings minors R3).
         for sentence in file.lost where sentence != SheetPicture.notANumberSentence || !warnings.contains(sentence) {
             warnings.append(sentence)
+        }
+        if file.leftOutNotANumber, !warnings.contains(SheetPicture.notANumberSentence) {
+            warnings.append(SheetPicture.notANumberSentence)
         }
         if file.leftOutLogo { warnings.append(Self.dxfLogoSentence) }
         var seen: Set<String> = []
@@ -215,7 +219,7 @@ extension AppModel {
             let output = DXFWriter.sheet(page, style: style)
             return DrawingFile(
                 data: output.data, replaced: output.replacedTexts, lost: warnings(of: sheet, in: page, view: nil),
-                leftOutLogo: output.leftOutImages)
+                leftOutLogo: output.leftOutImages, leftOutNotANumber: output.leftOutNotANumber > 0)
         case .dxfView, .dxfViewWithAnnotations:
             return try viewFile(kind, plan, snapshot, picture: picture(of:), warnings: warnings(of:in:view:))
         }
@@ -234,14 +238,17 @@ extension AppModel {
         }
         guard kind == .dxfViewWithAnnotations, let sheet = plan.openSheet else {
             let output = DXFWriter.view(projection, view: view, style: style)
-            return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: [])
+            return DrawingFile(
+                data: output.data, replaced: output.replacedTexts, lost: [], leftOutNotANumber: output.leftOutNotANumber > 0)
         }
         let page = picture(sheet)
         let scale = (view.scale ?? sheet.scale).value
         let center = ViewPlacement.centers(in: sheet)[view.id] ?? view.center
         let mapping = ViewMapping.of(content: content, center: center, scale: scale) ?? ViewMapping(scale: scale, offset: center)
         let output = DXFWriter.view(projection, view: view, style: style, annotations: (page, mapping))
-        return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: warnings(sheet, page, view.id))
+        return DrawingFile(
+            data: output.data, replaced: output.replacedTexts, lost: warnings(sheet, page, view.id),
+            leftOutNotANumber: output.leftOutNotANumber > 0)
     }
 
     /// At most this many lost annotations are listed one by one per sheet (plan R15).

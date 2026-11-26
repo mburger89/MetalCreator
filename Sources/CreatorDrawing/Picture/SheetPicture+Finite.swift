@@ -24,6 +24,7 @@ extension SheetPicture {
     /// How many strokes, fills and texts have a coordinate, width or height that isn't a number.
     public var nonFiniteCount: Int {
         strokes.filter { !$0.isFinite }.count + fills.filter { !$0.isFinite }.count + texts.filter { !$0.isFinite }.count
+            + images.filter { !$0.isFinite }.count
     }
 
     /// The picture without those items: what every writer writes, so a NaN never reaches a file (drawings minors R3).
@@ -33,6 +34,7 @@ extension SheetPicture {
         page.strokes = strokes.filter(\.isFinite)
         page.fills = fills.filter(\.isFinite)
         page.texts = texts.filter(\.isFinite)
+        page.images = images.filter(\.isFinite)
         return page
     }
 
@@ -55,4 +57,8 @@ extension SheetFill {
 
 extension SheetText {
     var isFinite: Bool { origin.x.isFinite && origin.y.isFinite && height.isFinite && angle.isFinite && run.width.isFinite }
+}
+
+extension SheetImage {
+    var isFinite: Bool { [rect.min.x, rect.min.y, rect.max.x, rect.max.y].allSatisfy(\.isFinite) }
 }

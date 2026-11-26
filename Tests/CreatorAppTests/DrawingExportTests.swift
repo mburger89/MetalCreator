@@ -126,6 +126,7 @@ struct DrawingExportTests {
             Issue.record("the export should have been refused")
         } catch {
             #expect(error.message == DrawingProjector.onlyMeshesSentence)
+            #expect(error.title == "“\(editor.document.sheets[0].name)” couldn't be exported", "names the sheet: \(error.title)")
         }
     }
 

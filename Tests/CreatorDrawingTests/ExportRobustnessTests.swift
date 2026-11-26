@@ -65,4 +65,29 @@ struct ExportRobustnessTests {
         let corner = Vector2(frame.min.x + 2, frame.min.y + 2)
         #expect(!picture.texts.contains { $0.isNotice && $0.origin == corner })
     }
+
+    @Test func aNonFinitePictureIsLeftOutOfEveryExport() throws {
+        var page = SheetPicture(size: Vector2(210, 297))
+        page.images = [
+            SheetImage(rect: Rect2D(min: Vector2(.nan, 0), max: Vector2(4, 3)), pixels: DrawingFixtures.logo),
+            SheetImage(rect: Rect2D(min: Vector2(10, 20), max: Vector2(14, 23)), pixels: DrawingFixtures.logo),
+        ]
+        #expect(page.nonFiniteCount == 1 && page.fileWarnings() == [SheetPicture.notANumberSentence])
+        #expect(try SVGStructureReader(data: SVGWriter.write(page, title: "T").data).elements(named: "image").count == 1)
+        #expect(pdfText(PDFWriter.write([page], title: "T").data).components(separatedBy: " Do Q").count == 2)
+        #expect(DXFWriter.sheet(page, style: .iso).leftOutNotANumber == 1)
+    }
+
+    @Test func theViewDXFGoesThroughTheSameFilter() throws {
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: Vector2(150, 150))
+        let lines = [
+            ProjectedLine(visibility: .visible, lineClass: .sharp, curve: .line(Vector2(0, 0), Vector2(10, 0)), source: nil),
+            ProjectedLine(visibility: .visible, lineClass: .sharp, curve: .line(Vector2(0, 0), Vector2(.nan, 5)), source: nil),
+        ]
+        let output = DXFWriter.view(Projection2D(lines: lines), view: view, style: .iso)
+        #expect(output.leftOutNotANumber >= 1)
+        let reader = try DXFReader(data: output.data)
+        #expect(!String(decoding: output.data, as: UTF8.self).lowercased().contains("nan"))
+        #expect(reader.entities.filter { $0.type == "LINE" }.count == 1)
+    }
 }
