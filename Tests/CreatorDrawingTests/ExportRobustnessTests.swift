@@ -87,7 +87,7 @@ struct ExportRobustnessTests {
         let output = DXFWriter.view(Projection2D(lines: lines), view: view, style: .iso)
         #expect(output.leftOutNotANumber >= 1)
         let reader = try DXFReader(data: output.data)
-        #expect(!String(decoding: output.data, as: UTF8.self).lowercased().contains("nan"))
+        #expect(!(String(bytes: output.data, encoding: .utf8) ?? "").lowercased().contains("nan"))
         #expect(reader.entities.filter { $0.type == "LINE" }.count == 1)
     }
 }
