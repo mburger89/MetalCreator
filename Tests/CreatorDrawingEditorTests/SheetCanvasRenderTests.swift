@@ -115,5 +115,86 @@ struct SheetCanvasRenderTests {
         for dx in -2...2 where isBlue(before.rgb(atPoint: leftX + Double(dx) * 0.5, midY)) { wasBlue = true }
         #expect(!wasBlue)
     }
+
+    // MARK: Sections
+
+    private func isBlue(_ p: (r: Int, g: Int, b: Int)) -> Bool { p.b > 180 && p.r < 90 && p.g > 70 && p.g < 160 }
+
+    /// Whether any pixel of the sheet rectangle (millimetres) is the highlight blue, sampled every half point.
+    private func hasBlue(_ image: PixelImage, x: ClosedRange<Double>, y: ClosedRange<Double>, zoom: Double = 4) -> Bool {
+        for px in stride(from: 20 + x.lowerBound * zoom, through: 20 + x.upperBound * zoom, by: 0.5) {
+            for py in stride(from: 20 + (210 - y.upperBound) * zoom, through: 20 + (210 - y.lowerBound) * zoom, by: 0.5)
+            where isBlue(image.rgb(atPoint: px, py)) { return true }
+        }
+        return false
+    }
+
+    private struct SectionFixture {
+        var harness: EditorHarness
+        var window: DrawingWindow
+        var section: DrawingView
+        var parent: DrawingView
+    }
+
+    private static let plate = Rect2D(min: .zero, max: Vector2(40, 20))
+
+    private func openSection() async throws -> SectionFixture {
+        let parent = DrawingView(
+            kind: .base, source: NodeID(), orientation: .standard(.top), center: Vector2(100, 105), showsCentreMarks: false)
+        let cutter = SectionCutter(
+            frame: StandardOrientation.top.frame, points: [Vector2(5, 10), Vector2(35, 10)], viewing: Vector2(0, 1))
+        let section = DrawingView(
+            kind: .section, source: parent.source, orientation: .custom(SectionFrame.frame(for: cutter)), center: Vector2(220, 105),
+            derivation: .section(SectionLine(parent: parent.id, cutter: cutter)), letter: "A")
+        let outline = [
+            line(Vector2(0, 0), Vector2(40, 0)), line(Vector2(40, 0), Vector2(40, 20)), line(Vector2(40, 20), Vector2(0, 20)),
+            line(Vector2(0, 20), Vector2(0, 0)),
+        ]
+        let sheet = DrawingSheet(name: "Sheet 1", size: .a4, orientation: .landscape, views: [parent, section])
+        let hatch = HatchRegion(part: 0, edges: [[.zero, Vector2(40, 0), Vector2(40, 20), Vector2(0, 20)]])
+        let harness = EditorHarness(
+            document: EditorDocuments.document([sheet]), sheet: sheet.id,
+            contents: [
+                parent.id: ViewContent(projection: Projection2D(lines: outline)),
+                section.id: ViewContent(projection: Projection2D(lines: outline), hatch: [hatch], framing: Self.plate),
+            ])
+        let window = try await DrawingWindow.open { SheetCanvas(model: harness.model) }
+        harness.model.transform = SheetTransform(offset: Vector2(20, 20 + 210 * 4.0), zoom: 4)
+        window.redraw()
+        try await window.window.runUntilIdle()
+        return SectionFixture(harness: harness, window: window, section: section, parent: parent)
+    }
+
+    @Test func hatchIsDrawnInInk() async throws {
+        let f = try await openSection()
+        let image = try PixelImage(window: f.window.window)
+        // Across the section's 40 x 20 mm plate at its centre row; the hatch lines cross it every few millimetres.
+        let y = 20 + (210 - 108) * 4.0
+        let runs = image.darkRuns(row: y, from: 20 + 204 * 4.0, to: 20 + 236 * 4.0)
+        #expect(runs >= 3, "\(runs) hatch lines")
+    }
+
+    @Test func aSelectedSectionHighlightsItsCuttingLine() async throws {
+        let f = try await openSection()
+        let before = try PixelImage(window: f.window.window)
+        #expect(!hasBlue(before, x: 78...122, y: 95...115))
+        f.harness.model.selection = [f.section.id]
+        f.window.redraw()
+        try await f.window.window.runUntilIdle()
+        let after = try PixelImage(window: f.window.window)
+        #expect(hasBlue(after, x: 78...122, y: 95...115), "the cutting line on the parent is drawn in drawingHighlight")
+    }
+
+    @Test func theSectionDraftIsDrawn() async throws {
+        let f = try await openSection()
+        f.harness.model.press(.section)
+        f.harness.click(85, 105)
+        f.harness.click(115, 105)
+        f.window.redraw()
+        try await f.window.window.runUntilIdle()
+        #expect(f.harness.model.sectionDraft?.points.count == 2)
+        let image = try PixelImage(window: f.window.window)
+        #expect(hasBlue(image, x: 78...122, y: 95...115), "the draft's cutting line is drawn in drawingHighlight")
+    }
 }
 #endif

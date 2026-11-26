@@ -7,6 +7,22 @@ public enum ViewLinework {
         for projection: Projection2D, view: DrawingView, center: Vector2, scale: Double, style: DrawingStyle
     ) -> [SheetStroke] {
         guard let mapping = ViewMapping.of(projection: projection, center: center, scale: scale) else { return [] }
+        return strokes(for: projection, mapping: mapping, view: view, style: style)
+    }
+
+    /// The strokes of a view's content, mapped by its framing (R10).
+    public static func strokes(
+        for content: ViewContent, view: DrawingView, center: Vector2, scale: Double, style: DrawingStyle
+    ) -> [SheetStroke] {
+        guard let projection = content.projection,
+            let mapping = ViewMapping.of(content: content, center: center, scale: scale)
+        else { return [] }
+        return strokes(for: projection, mapping: mapping, view: view, style: style)
+    }
+
+    private static func strokes(
+        for projection: Projection2D, mapping: ViewMapping, view: DrawingView, style: DrawingStyle
+    ) -> [SheetStroke] {
         var result: [SheetStroke] = []
         for line in projection.lines {
             guard let look = look(of: line, view: view, style: style) else { continue }
@@ -22,6 +38,13 @@ public enum ViewLinework {
     public static func frame(for projection: Projection2D, center: Vector2, scale: Double) -> Rect2D? {
         guard let bounds = projection.bounds else { return nil }
         let half = Vector2(bounds.width * scale / 2, bounds.height * scale / 2)
+        return Rect2D(min: center - half, max: center + half)
+    }
+
+    /// The box a view's content fills on the sheet (its framing, else the projection's bounds), `nil` with neither.
+    public static func frame(for content: ViewContent, center: Vector2, scale: Double) -> Rect2D? {
+        guard let box = content.framing ?? content.projection?.bounds else { return nil }
+        let half = Vector2(box.width * scale / 2, box.height * scale / 2)
         return Rect2D(min: center - half, max: center + half)
     }
 

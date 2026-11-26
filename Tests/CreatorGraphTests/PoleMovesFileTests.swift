@@ -25,7 +25,7 @@ struct PoleMovesFileTests {
         let json = #"{"formatVersion": 14, "graph": {"nodes": []}}"#
         let file = try GraphFileIO.decode(Data(json.utf8), registry: testRegistry)
         #expect(file.graph == Graph())
-        #expect(GraphFile.currentFormatVersion == 18)
+        #expect(GraphFile.currentFormatVersion == 19)
     }
 
     @Test func nonFiniteOffsetsAreRejected() {

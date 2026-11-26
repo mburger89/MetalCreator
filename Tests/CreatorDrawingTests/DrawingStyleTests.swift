@@ -18,4 +18,11 @@ struct DrawingStyleTests {
         #expect(asme.titleHeight == 6 && asme.viewLabelHeight == 6)
         #expect(DrawingStyle.of(.iso) == iso && DrawingStyle.of(.asme) == asme)
     }
+
+    @Test func hatchSpacingBySize() {
+        for style in [DrawingStyle.iso, .asme] {
+            #expect(style.hatchSpacing(for: .a4) == 2.5 && style.hatchSpacing(for: .ansiA) == 2.5)
+            #expect(style.hatchSpacing(for: .a2) == 4 && style.hatchSpacing(for: .ansiD) == 4)
+        }
+    }
 }

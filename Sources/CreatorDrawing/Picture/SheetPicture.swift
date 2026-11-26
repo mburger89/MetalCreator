@@ -32,11 +32,14 @@ public struct SheetStroke: Hashable, Sendable {
     public var isLost: Bool
     /// The projected line this stroke draws, when it draws one.
     public var source: ProjectionSource?
+    /// The derived view whose cutting line, arrow or detail circle this stroke is (DR-3 R6), `nil` for everything else.
+    public var mark: ViewID?
 
     public init(
         segments: [SheetSegment], width: Double, pattern: StrokePattern = .solid, layer: DrawingLayer, view: ViewID? = nil,
-        annotation: AnnotationID? = nil, isLost: Bool = false, source: ProjectionSource? = nil
+        annotation: AnnotationID? = nil, isLost: Bool = false, source: ProjectionSource? = nil, mark: ViewID? = nil
     ) {
+        self.mark = mark
         self.annotation = annotation
         self.isLost = isLost
         self.source = source
@@ -70,11 +73,14 @@ public struct SheetText: Hashable, Sendable {
     public var angle: Double
     public var annotation: AnnotationID?
     public var isLost: Bool
+    /// The derived view whose letter this is (DR-3 R6), `nil` for everything else.
+    public var mark: ViewID?
 
     public init(
         run: TextRun, original: String, origin: Vector2, height: Double, layer: DrawingLayer = .text, view: ViewID? = nil,
-        isNotice: Bool = false, angle: Double = 0, annotation: AnnotationID? = nil, isLost: Bool = false
+        isNotice: Bool = false, angle: Double = 0, annotation: AnnotationID? = nil, isLost: Bool = false, mark: ViewID? = nil
     ) {
+        self.mark = mark
         self.angle = angle
         self.annotation = annotation
         self.isLost = isLost

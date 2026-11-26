@@ -67,20 +67,22 @@ public enum DXFWriter {
         var extent = bounds
         if let (picture, mapping) = annotations {
             let (back, shift) = (1 / mapping.scale, mapping.offset * (-1 / mapping.scale))
-            // The view's automatic centre marks carry no annotation but sit alone on the centre layer among a view's own strokes.
-            for stroke in picture.strokes where stroke.view == view.id && (stroke.annotation != nil || stroke.layer == .center) {
+            // The view's automatic centre marks carry no annotation but sit alone on the centre layer among a view's own strokes; a
+            // section's hatch, a detail's boundary and the marks of the views made from this one are the view's too (DR-3 R15).
+            for stroke in picture.strokes where stroke.view == view.id
+                && (stroke.annotation != nil || stroke.layer == .center || stroke.layer == .hatch || stroke.mark != nil) {
                 var moved = stroke
                 moved.segments = stroke.segments.map { $0.transformed(scale: back, offset: shift) }
                 extent = extent.union(moved.bounds)
                 strokes.append(moved)
             }
-            for fill in picture.fills where fill.view == view.id && fill.annotation != nil {
+            for fill in picture.fills where fill.view == view.id && (fill.annotation != nil || fill.mark != nil) {
                 var moved = fill
                 moved.points = fill.points.map { mapping.model($0) }
                 if let box = Rect2D(points: moved.points) { extent = extent.union(box) }
                 fills.append(moved)
             }
-            for text in picture.texts where text.view == view.id && text.annotation != nil && !text.isNotice {
+            for text in picture.texts where text.view == view.id && (text.annotation != nil || text.mark != nil) && !text.isNotice {
                 var moved = text
                 moved.origin = mapping.model(text.origin)
                 moved.height = text.height * back
@@ -103,6 +105,9 @@ public enum DXFWriter {
         t.add(8, stroke.layer.rawValue)
         if stroke.pattern == .hidden && stroke.layer != .hidden { t.add(6, "DASHED") }
         if stroke.pattern == .centre && stroke.layer != .center { t.add(6, "CENTER") }
+        // A layer's own linetype is chained or dashed: a solid stroke on it (a cutting line's thick ends, a small centre
+        // mark) says so (DR-3 R6).
+        if stroke.pattern == .solid && (stroke.layer == .center || stroke.layer == .hidden) { t.add(6, "Continuous") }
         t.add(370, DXFTables.lineweight(stroke.width))
     }
 

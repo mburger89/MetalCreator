@@ -18,6 +18,9 @@ public struct DrawingStyle: Hashable, Sendable {
 
     public func notesHeight(for size: SheetSize) -> Double { size.isLarge ? largeNotes : smallNotes }
 
+    /// The distance between hatch lines (R5): 2.5 mm on A4, A3, ANSI A and B, 4 mm on the larger sheets, in both standards.
+    public func hatchSpacing(for size: SheetSize) -> Double { size.isLarge ? 4 : 2.5 }
+
     public static let iso = DrawingStyle(
         standard: .iso, thick: 0.5, thin: 0.25, frame: 0.7, zone: 0.35, hiddenDash: 3, hiddenGap: 1.5,
         centreDash: [6, 0.75, 0.25, 0.75], titleHeight: 7,

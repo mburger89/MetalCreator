@@ -1,0 +1,47 @@
+import CreatorGeometry
+import CreatorKernel
+
+/// The sentences a derived view shows when its parent no longer fits its marks (DR-3 R6): sections and auxiliary views keep working
+/// from their stored data, and say why the cutting line or arrow isn't drawn.
+public enum DerivedViewNotices {
+    public static let sectionParentDeleted = "The view this section was cut from was deleted, so its cutting line isn't shown."
+    public static let sectionParentTurned = "The view this section was cut from now looks another way, so its cutting line isn't shown."
+    public static let auxiliaryParentDeleted =
+        "The view this auxiliary view was projected from was deleted, so its arrow isn't shown."
+    public static let auxiliaryParentTurned =
+        "The view this auxiliary view was projected from now looks another way, so its arrow isn't shown."
+
+    public static func notices(for view: DrawingView, in sheet: DrawingSheet) -> [String] {
+        switch view.derivation {
+        case .section(let line):
+            return notice(
+                parent: line.parent, stored: line.cutter.frame, in: sheet, deleted: sectionParentDeleted,
+                turned: sectionParentTurned)
+        case .auxiliary(let arrow):
+            return notice(
+                parent: arrow.parent, stored: arrow.parentFrame, in: sheet, deleted: auxiliaryParentDeleted,
+                turned: auxiliaryParentTurned)
+        case .detail, nil:
+            return []
+        }
+    }
+
+    /// Whether a section's or auxiliary view's marks are drawn: its parent is on the sheet and looks as it did.
+    public static func marksAreShown(for view: DrawingView, in sheet: DrawingSheet) -> Bool {
+        switch view.derivation {
+        case .section, .auxiliary: notices(for: view, in: sheet).isEmpty
+        case .detail, nil: false
+        }
+    }
+
+    private static func notice(
+        parent: ViewID, stored: ProjectionFrame, in sheet: DrawingSheet, deleted: String, turned: String
+    ) -> [String] {
+        guard let parent = sheet.view(parent) else { return [deleted] }
+        return matches(parent.orientation.frame, stored) ? [] : [turned]
+    }
+
+    private static func matches(_ a: ProjectionFrame, _ b: ProjectionFrame) -> Bool {
+        (a.direction - b.direction).length <= 1e-9 && (a.up - b.up).length <= 1e-9
+    }
+}

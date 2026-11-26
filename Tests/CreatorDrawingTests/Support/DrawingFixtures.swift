@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorKernel
 
 @testable import CreatorDrawing
 
@@ -44,6 +45,37 @@ enum DrawingFixtures {
         picture.texts.append(text("Ω-Bracket →", at: Vector2(25, 20), height: style.titleHeight))
         picture.texts.append(text(titleBlockText, at: Vector2(25, 40), height: style.notesHeight(for: .a4)))
         picture.texts.append(text("a(b)c\\d", at: Vector2(25, 50), height: style.notesHeight(for: .a4)))
+        return picture
+    }
+}
+
+extension DrawingFixtures {
+    /// A4 with a hatched rectangle, a stepped cutting line with its arrows and letters, and a detail circle. Built from the
+    /// marks and hatch alone (no `sin` or `cos`), so its bytes are the same on every platform.
+    static func hatchedSheet(standard: DrawingStandard = .iso) -> SheetPicture {
+        let style = DrawingStyle.of(standard)
+        let (parent, section) = (ViewID(), ViewID())
+        var picture = SheetPicture(size: Vector2(210, 297), standard: standard)
+        let region = HatchRegion(
+            part: 0, edges: [[Vector2(40, 100), Vector2(120, 100), Vector2(120, 140), Vector2(40, 140)]])
+        picture.strokes += HatchPattern.strokes(
+            [region], mapping: ViewMapping(scale: 1, offset: .zero), clips: [], spacing: style.hatchSpacing(for: .a4),
+            width: style.thin, view: section)
+        let frame = StandardOrientation.front.frame
+        let cutter = SectionCutter(
+            frame: frame, points: [Vector2(30, 200), Vector2(70, 200), Vector2(70, 215), Vector2(110, 215)],
+            viewing: Vector2(0, 1))
+        let marks = SectionMarks.cuttingLine(
+            cutter, letter: "A", mapping: ViewMapping(scale: 1, offset: .zero), parent: parent, mark: section,
+            standard: standard)
+        let circle = SectionMarks.detailCircle(
+            DetailCircle(parent: parent, center: Vector2(150, 220), radius: 10), letter: "B",
+            mapping: ViewMapping(scale: 1, offset: .zero), parent: parent, mark: section, standard: standard)
+        for pieces in [marks, circle] {
+            picture.strokes += pieces.strokes
+            picture.fills += pieces.fills
+            picture.texts += pieces.texts
+        }
         return picture
     }
 }

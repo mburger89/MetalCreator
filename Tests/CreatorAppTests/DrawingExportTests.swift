@@ -255,4 +255,103 @@ struct DrawingExportTests {
         #expect(tjOperands(reader.pages[1]).contains("(2.7 g)"))
         #expect(!tjOperands(reader.pages[0]).contains { $0.hasSuffix(" g)") })
     }
+
+}
+
+/// Hatch and marks in the exports (DR-3 R15).
+@MainActor
+extension DrawingExportTests {
+    func tj(_ page: PDFPage) -> [String] { tjOperands(page) }
+
+    /// A box with a base view and a section of it, over a FakeKernel that cuts nothing away.
+    func sectioned() async throws -> (AppModel, ViewID, ViewID) {
+        let kernel = FakeKernel()
+        await kernel.setSectionCutHook { part, _, _ in part }
+        let app = await AppModel.inDrawing(DrawingBox(width: 20).graph, kernel: kernel)
+        let base = try #require(await app.placeBaseView())
+        let section = try #require(await app.addSection(on: base))
+        return (app, base, section)
+    }
+
+    @Test func thePDFCarriesHatchAndMarks() async throws {
+        let (app, _, section) = try await sectioned()
+        let hatch = app.drawing.editor.picture?.strokes.filter { $0.layer == .hatch && $0.view == section }.count ?? 0
+        #expect(hatch > 0)
+        let url = temporaryURL("section.pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try await app.exportDrawingReturningWarnings(.pdf, to: url)
+        let reader = try PDFStructureReader(data: Data(contentsOf: url))
+        let page = try #require(reader.pages.first)
+        let lines = page.operators.filter { $0.name == "l" }.count
+        // The sheet's border, zones and title block draw many lines of their own, so the hatch is what the section adds: the same
+        // drawing without the section view is exported too and the difference must hold at least the hatch's lines.
+        app.drawing.editor.selection = [section]
+        app.drawing.editor.deleteSelection()
+        await app.settle()
+        let plain = temporaryURL("plain.pdf")
+        defer { try? FileManager.default.removeItem(at: plain) }
+        _ = try await app.exportDrawingReturningWarnings(.pdf, to: plain)
+        let without = try #require(PDFStructureReader(data: Data(contentsOf: plain)).pages.first)
+        let baseline = without.operators.filter { $0.name == "l" }.count
+        #expect(lines - baseline >= hatch, "the section adds at least the hatch's \(hatch) lines: \(lines) against \(baseline)")
+        #expect(tj(page).contains("(A)"), "the arrows' letters are on the page: \(tj(page))")
+    }
+
+    @Test func theSheetDXFHasHatch() async throws {
+        let (app, _, _) = try await sectioned()
+        let url = temporaryURL("section.dxf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try await app.exportDrawingReturningWarnings(.dxfSheet, to: url)
+        let reader = try DXFReader(data: Data(contentsOf: url))
+        #expect(reader.entities.contains { $0.layer == "HATCH" && $0.type == "LINE" })
+        #expect(reader.entities.contains { $0.layer == "CENTER" }, "the cutting line is on CENTER")
+    }
+
+    @Test func aViewDXFHasNoHatch() async throws {
+        let (app, _, section) = try await sectioned()
+        app.drawing.editor.selection = [section]
+        let url = temporaryURL("view.dxf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try await app.exportDrawingReturningWarnings(.dxfView, to: url)
+        let reader = try DXFReader(data: Data(contentsOf: url))
+        #expect(reader.entities.allSatisfy { $0.layer != "HATCH" })
+    }
+
+    @Test func aViewDXFWithAnnotationsHasItsHatch() async throws {
+        let (app, _, section) = try await sectioned()
+        try await app.editView(section) { $0.scale = DrawingScale(numerator: 1, denominator: 2) }
+        app.drawing.editor.selection = [section]
+        let url = temporaryURL("annotated.dxf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try await app.exportDrawingReturningWarnings(.dxfViewWithAnnotations, to: url)
+        let reader = try DXFReader(data: Data(contentsOf: url))
+        let hatch = reader.entities.filter { $0.layer == "HATCH" && $0.type == "LINE" }
+        #expect(!hatch.isEmpty)
+        // Hatch runs at 45 degrees; its lines' offsets across it are 2.5 sheet mm apart, so 2.5 x 2 = 5 model mm at 1 : 2.
+        var offsets: [Double] = []
+        for entity in hatch {
+            guard let x1 = entity.number(10), let y1 = entity.number(20), let x2 = entity.number(11), let y2 = entity.number(21)
+            else { continue }
+            let (dx, dy) = (x2 - x1, y2 - y1)
+            let length = (dx * dx + dy * dy).squareRoot()
+            guard length > 1e-9 else { continue }
+            offsets.append((x1 * -dy + y1 * dx) / length)
+        }
+        let sorted = offsets.sorted()
+        let gaps = zip(sorted, sorted.dropFirst()).map { $1 - $0 }.filter { $0 > 1e-6 }
+        let spacing = try #require(gaps.min())
+        #expect(abs(spacing - 5) < 1e-6, "the hatch's spacing in model millimetres: \(spacing)")
+    }
+
+    @Test func aParentsDXFWithAnnotationsCarriesItsCuttingLine() async throws {
+        let (app, base, _) = try await sectioned()
+        app.drawing.editor.selection = [base]
+        let url = temporaryURL("parent.dxf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try await app.exportDrawingReturningWarnings(.dxfViewWithAnnotations, to: url)
+        let reader = try DXFReader(data: Data(contentsOf: url))
+        #expect(reader.entities.contains { $0.layer == "CENTER" }, "the chain line")
+        #expect(reader.entities.filter { $0.type == "TEXT" }.count == 2, "both arrows' letters")
+        #expect(reader.entities.allSatisfy { $0.layer != "HATCH" })
+    }
 }

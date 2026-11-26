@@ -5,7 +5,7 @@ import CreatorGeometry
 import Testing
 @testable import CreatorApp
 
-/// Drawings spec benchmarks, release, idle Mac; prints `BENCH drawing-1`, `drawing-2-warm`, `drawing-3` and `drawing-3-warm` lines. Recorded, not gated.
+/// Drawings spec benchmarks, release, idle Mac; prints `BENCH drawing-1`, `drawing-2-warm`, `drawing-3`, `drawing-3-warm` and `drawing-4` lines. Recorded, not gated.
 /// drawing-1: the bracket's four projections (Front, Right, Top, Isometric) from the edit that adds them to the last landing, cache
 /// emptied each run. drawing-2: panning and zooming that sheet's canvas in a warm window.
 @MainActor
@@ -145,6 +145,50 @@ struct DrawingBench {
             if step >= 5 { cpu.append(milliseconds) }
         }
         print(cpu.line(budget: Bench.frameBudget))
+    }
+
+    /// drawing-4: a straight section of the bracket's Top view through a row of holes, from the edit that adds it (the four base
+    /// views already drawn) to its landing, projection cache emptied, 10 runs. Each round gives the section a new view ID, so the
+    /// session cuts and projects again.
+    @Test func aSectionLands() async throws {
+        guard Bench.requireRelease() else { return }
+        let (app, _) = try await makeBracketBenchApp()
+        app.setMode(.drawing)
+        app.drawing.editor.addSheet()
+        await app.settle()
+        let withSection = try await DrawingBenchFixtures.sectionedBracketSheet(app)
+        var base = withSection
+        let section = try #require(withSection.sheets[0].views.first { $0.kind == .section })
+        base.sheets[0].removeView(section.id)
+        try app.document.perform(.setDrawings(base), name: "Test")
+        app.refreshDrawing()
+        await app.settle()
+        var samples = BenchSamples("drawing-4 bracket, a straight section through the holes (cache emptied)")
+        let clock = ContinuousClock()
+        var lastID = section.id
+        for round in 0...Self.runs {
+            try app.document.perform(.setDrawings(base), name: "Test")
+            app.refreshDrawing()
+            await app.settle()
+            await app.projectionCache.removeAll()
+            let before = await app.projectionCache.cutCalls
+            var copy = section
+            copy.id = ViewID()
+            lastID = copy.id
+            var next = base
+            next.sheets[0].setView(copy)
+            let start = clock.now
+            try app.document.perform(.setDrawings(next), name: "Test")
+            app.refreshDrawing()
+            await app.settle()
+            let end = clock.now
+            #expect(await app.projectionCache.cutCalls > before, "round \(round) cut the part again")
+            guard round > 0 else { continue }
+            samples.append(from: start, to: end)
+        }
+        let content = try #require(app.drawing.editor.contents[lastID])
+        #expect(content.problem == nil && !content.hatch.isEmpty && (content.projection?.lines.count ?? 0) > 0)
+        print(samples.line(budget: 1000))
     }
 }
 #endif

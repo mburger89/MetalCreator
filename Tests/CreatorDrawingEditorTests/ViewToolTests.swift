@@ -113,4 +113,69 @@ struct ViewToolTests {
         #expect(h.model.tool == .select)
         #expect(!h.model.keyPressed(.escape))
     }
+
+    // MARK: Projected views of derived views (plan R11)
+
+    private func derivedParent(_ kind: ViewKind, _ derivation: (ViewID) -> ViewDerivation, orientation: ViewOrientation) -> (
+        EditorHarness, DrawingView
+    ) {
+        let base = EditorDocuments.view(at: Vector2(60, 150))
+        let parent = DrawingView(
+            kind: kind, source: base.source, orientation: orientation, center: Vector2(150, 150), derivation: derivation(base.id),
+            letter: "A")
+        let sheet = DrawingSheet(name: "Sheet 1", views: [base, parent])
+        return (EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id), parent)
+    }
+
+    @Test func aProjectedViewOfADetailIsRefused() throws {
+        let (h, parent) = derivedParent(
+            .detail, { .detail(DetailCircle(parent: $0, center: .zero, radius: 5)) }, orientation: .standard(.front))
+        drop(h, parent: parent, by: Vector2(100, 0))
+        #expect(h.model.refusal == "A projected view comes from a whole view, not a detail.")
+        #expect(h.log.commits.isEmpty)
+    }
+
+    @Test func aProjectedViewOfAnAuxiliaryViewIsRefused() throws {
+        let frame = ProjectionFrame.make(direction: Vector3(0.6, 0.8, 0), up: Vector3(0, 0, 1))!
+        let (h, parent) = derivedParent(
+            .auxiliary,
+            { .auxiliary(AuxiliaryArrow(parent: $0, parentFrame: StandardOrientation.top.frame, at: .zero, viewing: Vector2(0.6, 0.8))) },
+            orientation: .custom(frame))
+        drop(h, parent: parent, by: Vector2(100, 0))
+        #expect(
+            h.model.refusal
+                == "A projected view comes from a view that looks along an axis, not from an auxiliary view or a slanted section.")
+        #expect(h.log.commits.isEmpty)
+    }
+
+    private func section(slanted: Bool) -> (EditorHarness, DrawingView) {
+        let base = EditorDocuments.view(at: Vector2(60, 150), orientation: .top)
+        let end = slanted ? Vector2(10, 5) : Vector2(10, 0)
+        let t = end * (1 / end.length)
+        let cutter = SectionCutter(
+            frame: base.orientation.frame, points: [.zero, end], viewing: Vector2(-t.y, t.x))
+        let parent = DrawingView(
+            kind: .section, source: base.source, orientation: .custom(SectionFrame.frame(for: cutter)), center: Vector2(150, 150),
+            derivation: .section(SectionLine(parent: base.id, cutter: cutter)), letter: "A")
+        let sheet = DrawingSheet(name: "Sheet 1", views: [base, parent])
+        return (EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id), parent)
+    }
+
+    @Test func aProjectedViewOfASlantedSectionIsRefused() throws {
+        let (h, parent) = section(slanted: true)
+        drop(h, parent: parent, by: Vector2(100, 0))
+        #expect(
+            h.model.refusal
+                == "A projected view comes from a view that looks along an axis, not from an auxiliary view or a slanted section.")
+        #expect(h.log.commits.isEmpty)
+    }
+
+    @Test func aProjectedViewOfAStraightSectionIsAllowed() throws {
+        let (h, parent) = section(slanted: false)
+        drop(h, parent: parent, by: Vector2(100, 0))
+        #expect(h.log.commits.map(\.name) == ["Add View"])
+        let made = try #require(h.model.document.sheets[0].views.first { $0.kind == .projected })
+        #expect(made.alignment?.parent == parent.id)
+        #expect(!h.model.document.sheets[0].isPictorial(made))
+    }
 }

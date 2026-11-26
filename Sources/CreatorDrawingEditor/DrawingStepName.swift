@@ -31,11 +31,15 @@ public enum DrawingStepName {
     public static let changeTolerance = "Change Tolerance"
     public static let editNote = "Edit Note"
     public static let changeNumberFormat = "Change Number Format"
+    public static let moveCuttingLine = "Move Cutting Line"
+    public static let moveDetailCircle = "Move Detail Circle"
+    public static let changeDetailCircle = "Change Detail Circle"
 
     public static let all: [String] = [
         addSheet, renameSheet, duplicateSheet, deleteSheet, moveSheet, changeSheetSize, editTitleBlock, changeStandard,
         addView, moveView, deleteView, changeScale, changeView, addDimension, addHoleCallout, addCentreMark, addCentreLine,
         addNote, addLeader, reattachDimension, removeLeader, moveDimension, moveNote, moveAnnotations, deleteDimension, deleteNote,
-        deleteAnnotations, changeDimension, changeTolerance, editNote, changeNumberFormat,
+        deleteAnnotations, changeDimension, changeTolerance, editNote, changeNumberFormat, moveCuttingLine, moveDetailCircle,
+        changeDetailCircle,
     ]
 }

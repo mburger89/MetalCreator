@@ -149,7 +149,7 @@ extension AppModel {
                 data: output.data, replaced: output.replacedTexts, lost: Self.lostWarnings(on: sheet, in: page, view: nil))
         case .dxfView, .dxfViewWithAnnotations:
             guard let view = plan.view else { throw AppProblem("Select one view", "Select one view to export it at 1:1.") }
-            guard let projection = snapshot.contents[view.id]?.projection else {
+            guard let content = snapshot.contents[view.id], let projection = content.projection else {
                 let reason = snapshot.contents[view.id]?.problem ?? DrawingProjector.nothingYetSentence
                 throw AppProblem("The view can't be drawn", reason)
             }
@@ -160,7 +160,7 @@ extension AppModel {
             let page = picture(of: sheet)
             let scale = (view.scale ?? sheet.scale).value
             let center = ViewPlacement.centers(in: sheet)[view.id] ?? view.center
-            let mapping = ViewMapping.of(projection: projection, center: center, scale: scale)
+            let mapping = ViewMapping.of(content: content, center: center, scale: scale)
                 ?? ViewMapping(scale: scale, offset: center)
             let output = DXFWriter.view(projection, view: view, style: style, annotations: (page, mapping))
             return DrawingFile(

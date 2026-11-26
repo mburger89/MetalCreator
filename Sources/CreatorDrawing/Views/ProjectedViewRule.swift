@@ -26,9 +26,19 @@ public enum ProjectedViewRule {
             : (ProjectionFrame(direction: u, up: flip(d)), .vertical)
     }
 
-    /// The sentence that refuses an isometric parent, or `nil`.
+    public static let detailSentence = "A projected view comes from a whole view, not a detail."
+    public static let axisSentence =
+        "A projected view comes from a view that looks along an axis, not from an auxiliary view or a slanted section."
+
+    /// The sentence that refuses a parent (R11): a detail, a section or auxiliary view whose frame runs along no axis, or a base or
+    /// projected view that is isometric; `nil` when a projected view may come from it.
     public static func refusal(for parent: DrawingView) -> String? {
-        parent.orientation.isIsometric
-            ? "A projected view comes from a front, side, top or bottom view, not an isometric one." : nil
+        switch parent.kind {
+        case .detail: detailSentence
+        case .section, .auxiliary: parent.orientation.isIsometric ? axisSentence : nil
+        case .base, .projected:
+            parent.orientation.isIsometric
+                ? "A projected view comes from a front, side, top or bottom view, not an isometric one." : nil
+        }
     }
 }

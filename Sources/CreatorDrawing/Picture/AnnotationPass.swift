@@ -18,8 +18,8 @@ struct AnnotationPass {
     ) {
         var extents = frame
         var mapping: ViewMapping?
-        if let projection = content.projection {
-            mapping = ViewMapping.of(projection: projection, center: center, scale: scale) ?? ViewMapping(scale: scale, offset: center)
+        if content.projection != nil {
+            mapping = ViewMapping.of(content: content, center: center, scale: scale) ?? ViewMapping(scale: scale, offset: center)
         }
         if view.showsCentreMarks, let projection = content.projection, let mapping {
             let marks = CentreMarkComposer.automatic(

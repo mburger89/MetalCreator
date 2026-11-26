@@ -16,8 +16,9 @@ struct DrawingStepNameTests {
                 "Add Dimension", "Add Hole Callout", "Add Centre Mark", "Add Centre Line", "Add Note", "Add Leader",
                 "Reattach Dimension", "Remove Leader", "Move Dimension", "Move Note", "Move Annotations", "Delete Dimension",
                 "Delete Note", "Delete Annotations", "Change Dimension", "Change Tolerance", "Edit Note", "Change Number Format",
+                "Move Cutting Line", "Move Detail Circle", "Change Detail Circle",
             ])
-        #expect(DrawingStepName.all.count == 31)
+        #expect(DrawingStepName.all.count == 34)
         for name in DrawingStepName.all { #expect(!name.contains { $0.isNumber }, "\(name)") }
     }
 
@@ -157,6 +158,45 @@ struct DrawingStepNameTests {
         m.setGeneralTolerance(m.document.settings.generalTolerance)
         m.setDecimalSign(m.document.settings.decimalSign)
         m.removeLeader(at: 9, of: note.id)
+        #expect(h.log.commits.isEmpty)
+    }
+
+    private func detailFixture() -> (EditorHarness, DrawingView) {
+        let base = EditorDocuments.view(at: Vector2(100, 150))
+        let detail = DrawingView(
+            kind: .detail, source: base.source, orientation: base.orientation, center: Vector2(200, 150),
+            derivation: .detail(DetailCircle(parent: base.id, center: .zero, radius: 5)), letter: "A")
+        let sheet = DrawingSheet(name: "Sheet 1", views: [base, detail])
+        return (EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id), detail)
+    }
+
+    @Test func theDerivedStepsAreMadeByTheirMethods() throws {
+        let (h, detail) = detailFixture()
+        h.model.setDetailRadius(7, of: detail.id)
+        #expect(h.log.commits.map(\.name) == ["Change Detail Circle"])
+        #expect(DrawingStepName.all.contains("Move Cutting Line"))
+        #expect(DrawingStepName.all.contains("Move Detail Circle"))
+    }
+
+    @Test func aDetailRadiusTakesUnitsAndACommaAndRefusesWords() throws {
+        let (h, detail) = detailFixture()
+        h.model.setDetailRadius(text: "12 mm", of: detail.id)
+        #expect(h.log.commits.count == 1)
+        #expect(h.model.refusal == nil)
+        h.model.setDetailRadius(text: "2,5", of: detail.id)
+        #expect(h.log.commits.count == 2)
+        h.model.setDetailRadius(text: "0.5 in", of: detail.id)
+        #expect(h.log.commits.count == 3)
+        h.model.setDetailRadius(text: "abc", of: detail.id)
+        #expect(h.log.commits.count == 3)
+        #expect(h.model.refusal == "A detail's radius is a length such as 12, 12 mm or 0.5 in.")
+        h.model.setDetailRadius(text: "0", of: detail.id)
+        #expect(h.model.refusal == "A detail's radius is a length greater than 0.")
+    }
+
+    @Test func aDetailRadiusThatIsUnchangedCommitsNothing() throws {
+        let (h, detail) = detailFixture()
+        h.model.setDetailRadius(5, of: detail.id)
         #expect(h.log.commits.isEmpty)
     }
 }

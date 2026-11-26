@@ -36,7 +36,9 @@ public enum ViewPlacement {
         var found: [ViewID] = []
         var frontier = [id]
         while let current = frontier.popLast() {
-            for view in sheet.views where view.alignment?.parent == current && !found.contains(view.id) && view.id != id {
+            for view in sheet.views
+                where (view.alignment?.parent == current || view.derivation?.parent == current) && !found.contains(view.id)
+                && view.id != id {
                 found.append(view.id)
                 frontier.append(view.id)
             }
@@ -44,7 +46,7 @@ public enum ViewPlacement {
         return found
     }
 
-    /// Moves a view by `delta`, its aligned descendants with it; an aligned view moves along its free axis only.
+    /// Moves a view by `delta`, its aligned and derived descendants with it (a visited set ends any cycle); an aligned view moves along its free axis only.
     public static func moving(_ id: ViewID, by delta: Vector2, in sheet: DrawingSheet) -> DrawingSheet {
         guard let view = sheet.view(id) else { return sheet }
         var applied = delta

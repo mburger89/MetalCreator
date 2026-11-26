@@ -102,7 +102,12 @@ extension DrawingSession {
         let projector = DrawingProjector(cache: cache, kernel: kernel)
         let drawings = editor.document
         for sheet in drawings.sheets {
-            for view in sheet.views {
+            // Parents first: a detail is its parent's content cut to a circle, made here without a kernel call (R14).
+            for view in sheet.viewsParentsFirst {
+                if case .detail(let circle)? = view.derivation {
+                    contents[view.id] = DetailClip.content(of: contents[circle.parent], circle: circle)
+                    continue
+                }
                 let scale = (view.scale ?? sheet.scale).value
                 let source = Self.content(of: view.source, in: document)
                 contents[view.id] = await projector.content(

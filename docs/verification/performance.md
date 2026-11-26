@@ -1580,3 +1580,20 @@ BENCH load after: 7.95 8.50 8.22
 ```
 
 `drawing-3`'s 4 ms budget is the R24 trigger, not a gate. The drag steps go through `setDrawings` (a whole-document edit) rather than the editor's pointer drag, so each step also pays the app's refresh.
+
+### Sections (DR-3, Task 10)
+
+Plan `docs/superpowers/plans/2026-11-26-dr-3-sections-details.md`, Task 10; the same suite. The sheet is the bracket's four base views plus a straight section of the Top view: a horizontal cutting line 8 mm from the plate's middle, through a row of its holes, looking toward +y. The Mac was loaded (load average 3.6 to 9.6 over one minute, 12 cores), so the numbers are recorded as saturated, never as a verdict.
+
+| Row | Time | Budget |
+|---|---|---|
+| `drawing-4` the section, from the edit that adds it (the four base views already drawn) to its landing (projection cache emptied, 10 runs) | median 12.37 ms, p95 12.74 ms, max 12.74 ms | under 1 s: met |
+
+```text
+BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
+BENCH load before: 3.64 9.05 8.48
+BENCH drawing-4 bracket, a straight section through the holes (cache emptied): median 12.37 ms, p95 12.74 ms, max 12.74 ms (n 10); budget 1000.00 ms: met
+BENCH load after: 9.28 9.59 8.91
+```
+
+Each round gives the section a new view ID, so the session cuts and projects again; the benchmark checks that `ProjectionCache.cutCalls` grew every round. The same run re-measured the earlier rows (`drawing-1` median 7.65 ms, `drawing-2-warm` 11.78 ms, `drawing-3` 0.70 ms, `drawing-3-warm` 11.63 ms), all within their budgets.

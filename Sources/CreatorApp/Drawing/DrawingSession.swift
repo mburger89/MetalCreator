@@ -36,13 +36,17 @@ public final class DrawingSession {
         var failure: String?
         var frame: ProjectionFrame
         var scale: Double
+        /// A section view's cutting line (R14): moving it asks again, and nothing else about the key changes.
+        var cutter: SectionCutter?
         /// The solids themselves, kept alive so that an identity in `solids` can't be reused by a later solid at the same address
         /// (the cache evicting one and an edit allocating the next there would otherwise look like no change). Not part of equality.
         var retained: [Solid] = []
+        /// The curves, kept alive for the same reason (R14). Not part of equality.
+        var retainedCurves: [Curve] = []
 
         static func == (lhs: RequestKey, rhs: RequestKey) -> Bool {
             lhs.state == rhs.state && lhs.solids == rhs.solids && lhs.curves == rhs.curves && lhs.meshCount == rhs.meshCount
-                && lhs.failure == rhs.failure && lhs.frame == rhs.frame && lhs.scale == rhs.scale
+                && lhs.failure == rhs.failure && lhs.frame == rhs.frame && lhs.scale == rhs.scale && lhs.cutter == rhs.cutter
         }
 
         func hash(into hasher: inout Hasher) {
@@ -53,7 +57,14 @@ public final class DrawingSession {
             hasher.combine(failure)
             hasher.combine(frame)
             hasher.combine(scale)
+            hasher.combine(cutter)
         }
+    }
+
+    /// What a detail's content was last made from (R14): its parent's content generation and its circle.
+    struct DetailInput: Hashable {
+        var parentGeneration: Int
+        var circle: DetailCircle
     }
 
     struct Flight {
@@ -64,6 +75,9 @@ public final class DrawingSession {
     @ObservationIgnored var wanted: [ViewID: RequestKey] = [:]
     @ObservationIgnored var applied: [ViewID: RequestKey] = [:]
     @ObservationIgnored var flights: [ViewID: Flight] = [:]
+    /// Counts the contents a view has been given, so a detail knows when its parent's changed (R14).
+    @ObservationIgnored var generations: [ViewID: Int] = [:]
+    @ObservationIgnored var detailInputs: [ViewID: DetailInput] = [:]
     @ObservationIgnored var factsTask: Task<Void, Never>?
     @ObservationIgnored var factsKey: FactsKey?
     /// Volumes by solid identity; the entry keeps its solid alive so an identity can't be reused.
@@ -160,6 +174,7 @@ public final class DrawingSession {
     /// Follows the document: the editor's drawings, its sources, and (in Drawing mode) the projections and the facts.
     func update() {
         resync()
+        pruneGoneViews()
         if editor.units != document.units { editor.units = document.units }
         refreshLastGood()
         updateFeedingViews()
@@ -168,22 +183,41 @@ public final class DrawingSession {
         let options = outputs.compactMap { id in options(for: id) }
         if editor.sources != options { editor.sources = options }
         guard let sheet = editor.document.sheet(editor.currentSheet ?? SheetID()) else { return }
-        request(views: sheet.views, in: sheet)
+        request(views: sheet.viewsParentsFirst, in: sheet)
         followFacts(of: sheet)
     }
 
-    /// The views whose held projection is the one the model wants now: only these may feed the editor's remembered values.
+    /// The request a view's projection must match: its Output's solids and curves, its frame, its scale and a section's line.
+    func requestKey(for view: DrawingView, in sheet: DrawingSheet) -> RequestKey {
+        let source = Self.content(of: view.source, in: document)
+        var cutter: SectionCutter?
+        if case .section(let line)? = view.derivation { cutter = line.cutter }
+        return Self.key(
+            of: source, frame: view.orientation.frame, scale: (view.scale ?? sheet.scale).value, cutter: cutter)
+    }
+
+    /// The views whose held projection is the one the model wants now: only these may feed the editor's remembered values. A
+    /// detail is trusted when its parent is and its content was made from the parent's current one.
     func updateFeedingViews() {
         var trusted = Set<ViewID>()
-        let scaleOf = { (sheet: DrawingSheet, view: DrawingView) in (view.scale ?? sheet.scale).value }
         for sheet in editor.document.sheets {
-            for view in sheet.views {
-                let source = Self.content(of: view.source, in: document)
-                let key = Self.key(of: source, frame: view.orientation.frame, scale: scaleOf(sheet, view))
-                if applied[view.id] == key, editor.contents[view.id]?.isPending != true { trusted.insert(view.id) }
+            for view in sheet.viewsParentsFirst {
+                if view.kind == .detail {
+                    if let parent = view.derivation?.parent, trusted.contains(parent), detailIsCurrent(view),
+                       editor.contents[view.id]?.isPending != true {
+                        trusted.insert(view.id)
+                    }
+                } else if applied[view.id] == requestKey(for: view, in: sheet), editor.contents[view.id]?.isPending != true {
+                    trusted.insert(view.id)
+                }
             }
         }
         editor.feedingViews = trusted
+    }
+
+    func detailIsCurrent(_ view: DrawingView) -> Bool {
+        guard case .detail(let circle)? = view.derivation, let input = detailInputs[view.id] else { return false }
+        return input == DetailInput(parentGeneration: generations[circle.parent] ?? 0, circle: circle)
     }
 
     private func options(for id: NodeID) -> DrawingSourceOption? {
@@ -199,17 +233,17 @@ public final class DrawingSession {
 
     private func request(views: [DrawingView], in sheet: DrawingSheet) {
         let projector = DrawingProjector(cache: cache, kernel: kernel)
-        for view in views {
+        for view in views where view.kind != .detail {
             let scale = (view.scale ?? sheet.scale).value
             let source = Self.content(of: view.source, in: document)
-            let key = Self.key(of: source, frame: view.orientation.frame, scale: scale)
+            let key = requestKey(for: view, in: sheet)
             wanted[view.id] = key
             if applied[view.id] == key || flights[view.id]?.key == key { continue }
             flights[view.id]?.task.cancel()
             var pending = editor.contents[view.id] ?? ViewContent()
             pending.isPending = true
             editor.feedingViews?.remove(view.id)
-            editor.contents[view.id] = pending
+            setContent(pending, for: view.id)
             let id = view.id
             let previous = editor.contents[id]
             let task = Task { @MainActor [weak self] in
@@ -218,6 +252,7 @@ public final class DrawingSession {
             }
             flights[id] = Flight(key: key, task: task)
         }
+        syncDetails(in: sheet)
     }
 
     /// A view's result: published only while it is still what the view wants.
@@ -230,8 +265,9 @@ public final class DrawingSession {
         shown.isPending = key.state == Self.evaluatingState
             || ((key.state == Self.failedState || shown.problem != nil) && shown.projection != nil)
         if !shown.isPending { editor.feedingViews?.insert(id) } else { editor.feedingViews?.remove(id) }
-        editor.contents[id] = shown
+        setContent(shown, for: id)
         applied[id] = key
+        if let sheet = editor.document.sheet(editor.currentSheet ?? SheetID()) { syncDetails(in: sheet) }
     }
 
     /// `RequestKey.state` of a source whose result is being made.
@@ -239,18 +275,25 @@ public final class DrawingSession {
     /// `RequestKey.state` of a source whose evaluation failed.
     static let failedState = 1
 
-    static func key(of source: DrawingSourceContent, frame: ProjectionFrame, scale: Double) -> RequestKey {
+    static func key(
+        of source: DrawingSourceContent, frame: ProjectionFrame, scale: Double, cutter: SectionCutter? = nil
+    ) -> RequestKey {
         switch source.state {
         case .removed:
-            RequestKey(state: 0, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale)
+            RequestKey(state: 0, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale, cutter: cutter)
         case .failed(let message):
-            RequestKey(state: failedState, solids: [], curves: [], meshCount: 0, failure: message, frame: frame, scale: scale)
+            RequestKey(
+                state: failedState, solids: [], curves: [], meshCount: 0, failure: message, frame: frame, scale: scale,
+                cutter: cutter)
         case .evaluating:
-            RequestKey(state: evaluatingState, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale)
+            RequestKey(
+                state: evaluatingState, solids: [], curves: [], meshCount: 0, failure: nil, frame: frame, scale: scale,
+                cutter: cutter)
         case .ready(let solids, let curves, let meshCount):
             RequestKey(
                 state: 3, solids: solids.map(ObjectIdentifier.init), curves: curves.map(ObjectIdentifier.init),
-                meshCount: meshCount, failure: nil, frame: frame, scale: scale, retained: solids)
+                meshCount: meshCount, failure: nil, frame: frame, scale: scale, cutter: cutter, retained: solids,
+                retainedCurves: curves)
         }
     }
 }

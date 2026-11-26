@@ -9,15 +9,49 @@ extension DrawingEditorModel {
         refusal = nil
         gesture = nil
         cancelAnnotationInput()
+        dropToolDrafts()
     }
 
+    /// Sets the view's source and every derived view's under it (R8, R10): a section's or auxiliary view's source is not editable
+    /// and its marks would otherwise sit over a part it no longer shows.
     public func setSource(_ source: NodeID, of id: ViewID) {
-        commitView(id) { $0.source = source }
+        commitSheet(DrawingStepName.changeView) { sheet in
+            for target in [id] + Self.derivedDescendants(of: id, in: sheet, detailsOnly: false) {
+                guard var view = sheet.view(target) else { continue }
+                view.source = source
+                sheet.setView(view)
+            }
+        }
     }
 
-    /// Base views only; a projected view's frame follows its parent's drop.
+    /// Base views only; a projected view's frame follows its parent's drop. The base's details (and theirs) turn with it; a
+    /// section's or auxiliary view's stored frame stays.
     public func setOrientation(_ orientation: StandardOrientation, of id: ViewID) {
-        commitView(id) { if $0.kind == .base { $0.orientation = .standard(orientation) } }
+        commitSheet(DrawingStepName.changeView) { sheet in
+            guard sheet.view(id)?.kind == .base else { return }
+            for target in [id] + Self.derivedDescendants(of: id, in: sheet, detailsOnly: true) {
+                guard var view = sheet.view(target) else { continue }
+                view.orientation = .standard(orientation)
+                sheet.setView(view)
+            }
+        }
+    }
+
+    /// The views derived from `id`, children before grandchildren, by derivation parents; `detailsOnly` follows details alone. A
+    /// visited set ends any cycle.
+    static func derivedDescendants(of id: ViewID, in sheet: DrawingSheet, detailsOnly: Bool) -> [ViewID] {
+        var found: [ViewID] = []
+        var seen: Set<ViewID> = [id]
+        var frontier = [id]
+        while !frontier.isEmpty {
+            let current = frontier.removeFirst()
+            for view in sheet.views
+            where view.derivation?.parent == current && (!detailsOnly || view.kind == .detail) && seen.insert(view.id).inserted {
+                found.append(view.id)
+                frontier.append(view.id)
+            }
+        }
+        return found
     }
 
     /// `nil` follows the sheet's scale.
