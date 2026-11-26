@@ -16,7 +16,8 @@ public enum DrawingAnchorResolver {
     ) -> Result<(target: AnchorTarget, topology: Topology), LostReason> {
         guard case .onPart(let part, let inner) = target else { return .success((target, topology)) }
         guard let span = parts.first(where: { $0.output == part }) else { return .failure(.partNotShown) }
-        return .success((inner, topology.restricted(toFaces: span.faces)))
+        let scoped = SpanScopes.current?.restricted(topology, to: span) ?? topology.restricted(toFaces: span.faces)
+        return .success((inner, scoped))
     }
 
     public static func resolve(

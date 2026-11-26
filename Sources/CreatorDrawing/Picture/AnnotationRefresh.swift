@@ -4,6 +4,10 @@ import CreatorKernel
 // swiftlint:disable function_parameter_count
 /// Re-reads an annotation's newest held values without projecting or laying anything out (plan R26).
 public enum AnnotationRefresh {
+    /// Runs `body`, in which every `lastGood` and `lostReason` call over ONE topology shares the restricted part topologies: the
+    /// pass's cache, bound for the call and dropped when it returns (DR-5 minors R15). Make a pass per topology, never across two.
+    public static func pass<T>(_ body: () -> T) -> T { SpanScopes.withFreshCache(body) }
+
     /// What the composer would report as the annotation's `current`, or nil when it is lost. A note is never refreshed here:
     /// its leaders' last points come from composes, which have the projected lines, and a symbol on a dimension is skipped
     /// likewise (it draws from its dimension and has no figure of its own, plan R11); a symbol on a line is re-read like a

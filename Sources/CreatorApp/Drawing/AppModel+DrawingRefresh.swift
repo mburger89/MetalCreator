@@ -168,11 +168,13 @@ extension DrawingSession {
             return RefreshResult(spans: spans)
         }
         var goods: [AnnotationID: LastGood] = [:]
-        for annotation in job.key.annotations {
-            let good = AnnotationRefresh.lastGood(
-                for: annotation, topology: found, frame: job.key.frame, format: job.key.format, standard: job.key.format.standard,
-                parts: spans, isPictorial: job.key.isPictorial)
-            if let good { goods[annotation.id] = good }
+        AnnotationRefresh.pass {
+            for annotation in job.key.annotations {
+                let good = AnnotationRefresh.lastGood(
+                    for: annotation, topology: found, frame: job.key.frame, format: job.key.format,
+                    standard: job.key.format.standard, parts: spans, isPictorial: job.key.isPictorial)
+                if let good { goods[annotation.id] = good }
+            }
         }
         return RefreshResult(goods: goods, spans: spans)
     }

@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorKernel
 import Foundation
+import Synchronization
 import Testing
 
 @testable import CreatorDrawing
@@ -215,5 +216,20 @@ struct BalloonComposerTests {
             of: a, topology: assembly(), frame: top, format: NumberFormat(units: .millimetres, settings: DrawingSettings()),
             standard: .iso, parts: spans, isPictorial: false)
         #expect(reason == nil)
+    }
+
+    /// DR-5 minors R15: a compose restricts each span once however many anchors lie on it; the next compose does it again.
+    @Test func aComposeRestrictsEachSpanOnce() {
+        let view = view()
+        let annotations = [balloon(view, part: 0), balloon(view, part: 0), balloon(view, part: 0), balloon(view, part: 1)]
+        let seen = Mutex<[PartSpan]>([])
+        let plain = compose(view, annotations)
+        let hook: @Sendable (PartSpan) -> Void = { span in seen.withLock { $0.append(span) } }
+        let counted = SpanScopes.$observer.withValue(hook, operation: { compose(view, annotations) })
+        #expect(counted == plain)
+        #expect(seen.withLock { $0 }.count == 2)
+        #expect(Set(seen.withLock { $0 }) == Set(spans))
+        _ = SpanScopes.$observer.withValue(hook, operation: { compose(view, annotations) })
+        #expect(seen.withLock { $0 }.count == 4)
     }
 }
