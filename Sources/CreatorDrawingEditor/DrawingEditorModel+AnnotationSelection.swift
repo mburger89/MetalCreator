@@ -137,7 +137,7 @@ extension DrawingEditorModel {
             seed.anchor = mapping.sheet(vertex)
         case .chamfer(let start, let end):
             seed.anchor = mapping.sheet((start + end) * 0.5)
-        case .attachment(_, let along):
+        case .attachment(_, let along, _):
             seed.direction = unit(along)
             seed.scale = mapping.scale
         case .centreMark, .centreLine, .leaders:

@@ -42,6 +42,15 @@ struct SheetStrokeGroups: Component {
         return order.compactMap { key in found[key].map { (key, $0.segments, $0.bounds) } }
     }
 
+    /// One shape per fill, each its own path, so overlapping fills never cancel whatever their winding (drawings minors R4).
+    func fillShapes() -> [(shape: SheetFillShape, isLost: Bool, bounds: Rect2D)] {
+        fills.compactMap { fill in
+            guard fill.points.count >= 3, let bounds = Rect2D(points: fill.points) else { return nil }
+            let origin = Vector2(bounds.min.x, bounds.max.y)
+            return (SheetFillShape(polygon: fill.points, zoom: zoom, origin: origin), fill.isLost, bounds)
+        }
+    }
+
     static func strokeStyle(_ key: Key, zoom: Double, style: DrawingStyle) -> StrokeStyle {
         let dash: [Pixels]
         switch key.pattern {
@@ -63,27 +72,14 @@ struct SheetStrokeGroups: Component {
                     .frame(width: (group.bounds.width * zoom + 2 * pad).px, height: (group.bounds.height * zoom + 2 * pad).px)
                     .offset(x: (origin.x * zoom).px, y: ((paperHeight - origin.y) * zoom).px)
             }
-            ForEach(Self.fillGroups(of: fills), id: \.isLost) { group in
-                let origin = Vector2(group.bounds.min.x, group.bounds.max.y)
-                SheetFillShape(polygons: group.polygons, zoom: zoom, origin: origin)
-                    .fill((group.isLost ? warning ?? ink : ink).color)
-                    .frame(width: (group.bounds.width * zoom).px, height: (group.bounds.height * zoom).px)
+            ForEach(Array(fillShapes().enumerated()), id: \.offset) { pair in
+                let drawn = pair.element
+                let origin = Vector2(drawn.bounds.min.x, drawn.bounds.max.y)
+                drawn.shape
+                    .fill((drawn.isLost ? warning ?? ink : ink).color)
+                    .frame(width: (drawn.bounds.width * zoom).px, height: (drawn.bounds.height * zoom).px)
                     .offset(x: (origin.x * zoom).px, y: ((paperHeight - origin.y) * zoom).px)
             }
-        }
-    }
-
-    /// The fills in two runs, the held ones and the lost ones (those only when there are any), each with its bounds.
-    static func fillGroups(of fills: [SheetFill]) -> [(isLost: Bool, polygons: [[Vector2]], bounds: Rect2D)] {
-        [false, true].compactMap { lost in
-            let chosen = fills.filter { $0.isLost == lost && $0.points.count >= 3 }
-            guard let first = chosen.first?.points.first else { return nil }
-            var low = first, high = first
-            for point in chosen.flatMap(\.points) {
-                low = Vector2(Swift.min(low.x, point.x), Swift.min(low.y, point.y))
-                high = Vector2(Swift.max(high.x, point.x), Swift.max(high.y, point.y))
-            }
-            return (lost, chosen.map(\.points), Rect2D(min: low, max: high))
         }
     }
 }

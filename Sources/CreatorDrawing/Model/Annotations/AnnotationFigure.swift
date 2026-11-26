@@ -11,12 +11,14 @@ public enum AnnotationFigure: Hashable, Sendable {
     case centreMark(center: Vector2, radius: Double)
     case centreLine(start: Vector2, end: Vector2)
     case leaders([Vector2])
-    case attachment(foot: Vector2, along: Vector2)
+    /// A symbol on a line: its foot, the line's unit tangent there and, for a straight edge, the edge's two projected ends (so a
+    /// lost datum beyond its edge keeps its extension line); `ends` is empty for a circle or an outline.
+    case attachment(foot: Vector2, along: Vector2, ends: [Vector2])
 }
 
 extension AnnotationFigure: Codable {
     private enum CodingKeys: String, CodingKey {
-        case type, points, direction, origin, center, radius, isDiameter, vertex, first, second, start, end, foot, along
+        case type, points, direction, origin, center, radius, isDiameter, vertex, first, second, start, end, foot, along, ends
     }
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -47,11 +49,15 @@ extension AnnotationFigure: Codable {
             self = .centreLine(start: try c.decode(Vector2.self, forKey: .start), end: try c.decode(Vector2.self, forKey: .end))
         case "leaders": self = .leaders(try c.decode([Vector2].self, forKey: .points))
         case "attachment":
-            self = .attachment(foot: try c.decode(Vector2.self, forKey: .foot), along: try c.decode(Vector2.self, forKey: .along))
+            // `ends` is optional on disk (a file written before it existed has none).
+            self = .attachment(
+                foot: try c.decode(Vector2.self, forKey: .foot), along: try c.decode(Vector2.self, forKey: .along),
+                ends: try c.decodeIfPresent([Vector2].self, forKey: .ends) ?? [])
         default: throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "Unknown figure type.")
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
@@ -93,10 +99,11 @@ extension AnnotationFigure: Codable {
         case .leaders(let points):
             try c.encode("leaders", forKey: .type)
             try c.encode(points, forKey: .points)
-        case .attachment(let foot, let along):
+        case .attachment(let foot, let along, let ends):
             try c.encode("attachment", forKey: .type)
             try c.encode(foot, forKey: .foot)
             try c.encode(along, forKey: .along)
+            if !ends.isEmpty { try c.encode(ends, forKey: .ends) }
         }
     }
 }

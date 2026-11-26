@@ -74,6 +74,43 @@ struct DrawingsFileTests {
         #expect(try reopened(GraphFile(graph: file.graph)).formatVersion == 21)
     }
 
+    /// A format-18 file with two views (the second aligned to the first) and a horizontal dimension on the first, as the DR-2 build
+    /// wrote it: a drawing with content, not an empty one.
+    @Test func aFormat18FileWithViewsAndADimensionOpensAndIsWrittenAs21() throws {
+        let drawings = [
+            #"{"settings":{"standard":"iso","titleBlockDefaults":{},"generalTolerance":{"size":"m","#,
+            #""type":"iso2768","geometric":"K"}},"sheets":[{"annotations":[{"kind":{"type":"dimension","#,
+            #""dimension":{"placement":{"angle":0,"offset":8},"kind":{"type":"linear","direction":"horizontal"},"#,
+            #""anchors":[{"point":{"y":0,"x":0},"type":"point"},{"point":{"y":0,"x":40},"type":"point"}]}},"#,
+            #""view":"00000000-0000-4000-8000-000000000001","id":"00000000-0000-4000-8000-0000000000D1"}],"#,
+            #""name":"Plate","scale":{"numerator":1,"denominator":1},"size":"a3","orientation":"landscape","#,
+            #""titleBlock":{},"views":[{"id":"00000000-0000-4000-8000-000000000001","showsCentreMarks":true,"#,
+            #""source":"00000000-0000-4000-8000-0000000000A1","showsHidden":false,"center":{"y":120,"x":100},"#,
+            #""orientation":{"standard":{"_0":"front"}},"showsTangent":true,"showsLabel":false,"kind":"base"},"#,
+            #"{"showsCentreMarks":true,"showsLabel":false,"center":{"y":120,"x":200},"#,
+            #""source":"00000000-0000-4000-8000-0000000000A1","id":"00000000-0000-4000-8000-000000000002","#,
+            #""orientation":{"standard":{"_0":"right"}},"showsHidden":false,"alignment":{"axis":"horizontal","#,
+            #""parent":"00000000-0000-4000-8000-000000000001"},"kind":"projected","showsTangent":true}],"#,
+            #""id":"00000000-0000-4000-8000-0000000000E1"}]}"#,
+        ].joined()
+        let text = #"{"formatVersion": 18, "graph": {"nodes": [], "links": [], "parameters": [], "drawings": "# + drawings + "}}"
+        let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
+        #expect(file.formatVersion == 18)
+        let sheet = try #require(file.graph.drawings.sheets.first)
+        #expect(sheet.views.count == 2)
+        #expect(sheet.views[1].alignment?.parent == sheet.views[0].id)
+        #expect(sheet.annotations.count == 1)
+        guard case .dimension(let dimension)? = sheet.annotations.first?.kind else {
+            Issue.record("the dimension was lost")
+            return
+        }
+        #expect(dimension.anchors.count == 2 && dimension.placement.offset == 8)
+        #expect(sheet.annotations.first?.view == sheet.views[0].id)
+        let written = try reopened(GraphFile(graph: file.graph))
+        #expect(written.formatVersion == 21)
+        #expect(written.graph.drawings == file.graph.drawings)
+    }
+
     @Test func derivedViewsRoundTrip() throws {
         let node = NodeID()
         let base = DrawingView(kind: .base, source: node, orientation: .standard(.top), center: Vector2(100, 100))
@@ -150,7 +187,7 @@ struct DrawingsFileTests {
             kind: .dimension(
                 DrawingDimension(kind: .diameter, anchors: [.edge(pick)], placement: DimensionPlacement(offset: 8, angle: 0))))
         let datum = DrawingAnnotation(
-            view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(size.id), distance: 7, dimensionEnd: 1)))
+            view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(size.id), distance: 12, dimensionEnd: 1)))
         let frame = DrawingAnnotation(
             view: view.id,
             kind: .featureControl(

@@ -33,7 +33,7 @@ public enum HoleReader {
         }
         switch DrawingAnchorResolver.resolve(.edge(pick), in: topology, frame: frame, parts: []) {
         case .lost(let reason): return .lost(reason)
-        case .held(.circle(let center, let axis, let radius, _), let edges, _):
+        case .held(.circle(let center, let axis, let radius, _, _), let edges, _):
             guard abs(axis.dot(frame.direction)) >= axisParallel else { return .lost(.foreshortened) }
             guard let first = edges.first.flatMap({ topology.edge($0) }) else { return .lost(.missing) }
             guard let shape = Reader(topology: topology, axis: axis, origin: center).shape(startingAt: first, radius: radius) else {
@@ -44,9 +44,11 @@ public enum HoleReader {
         }
     }
 
-    /// A full circle edge on the hole's axis.
+    /// A full circle on the hole's axis: one edge, or the arcs of a circle OCCT split (plan R6), each meeting the next. `edge` is the
+    /// lowest-numbered arc and stands for the ring; `ids` holds them all.
     private struct Ring {
         var edge: EdgeInfo
+        var ids: Set<EdgeID>
         var center: Vector3
         var radius: Double
     }
@@ -79,14 +81,67 @@ public enum HoleReader {
         }
 
         func ring(_ edge: EdgeInfo) -> Ring? {
-            guard !edge.isSeam, case .circle(let center, let circleAxis, let radius, _, let sweep)? = edge.curve,
-                abs(sweep) >= 2 * .pi - 1e-9
-            else { return nil }
+            guard !edge.isSeam, case .circle(let center, let circleAxis, let radius, _, let sweep)? = edge.curve else { return nil }
             guard isParallel(circleAxis), isOnAxis(center) else { return nil }
-            return Ring(edge: edge, center: center, radius: radius)
+            if abs(sweep) >= 2 * .pi - 1e-9 { return Ring(edge: edge, ids: [edge.id], center: center, radius: radius) }
+            guard let arcs = closedArcs(containing: edge, center: center, radius: radius) else { return nil }
+            let first = arcs.min { $0.id.rawValue < $1.id.rawValue } ?? edge
+            return Ring(edge: first, ids: Set(arcs.map(\.id)), center: center, radius: radius)
         }
 
-        func rings(of face: FaceInfo) -> [Ring] { topology.edges(of: face.id).compactMap(ring) }
+        private func arcEnds(_ edge: EdgeInfo) -> [ArcEnd] {
+            guard let curve = edge.curve else { return [] }
+            let points = curve.ends
+            let directions = curve.endDirections
+            guard points.count == 2, directions.count == 2 else { return [] }
+            return [ArcEnd(point: points[0], leaving: directions[0]), ArcEnd(point: points[1], leaving: directions[1])]
+        }
+
+        /// The arcs of the same circle as `edge` (same centre and radius to the resolver's join tolerance, between the same faces)
+        /// that join end to end with it, each end meeting another arc's and leaving it the opposite way (within the join angle), and
+        /// so close the circle. Nil when they do not close.
+        private func closedArcs(containing edge: EdgeInfo, center: Vector3, radius: Double) -> [EdgeInfo]? {
+            let faces = Set(edge.faces)
+            let same = topology.edges.filter { other in
+                guard !other.isSeam, Set(other.faces) == faces,
+                    case .circle(let otherCenter, let otherAxis, let otherRadius, _, let sweep)? = other.curve else { return false }
+                return abs(sweep) < 2 * .pi - 1e-9 && abs(otherRadius - radius) <= DrawingAnchorResolver.joinTolerance
+                    && (otherCenter - center).length <= DrawingAnchorResolver.joinTolerance && isParallel(otherAxis)
+            }
+            let opposite = -cos(DrawingAnchorResolver.joinAngle)
+            func joined(_ a: EdgeInfo, _ b: EdgeInfo) -> Bool {
+                arcEnds(a).contains { end in
+                    arcEnds(b).contains {
+                        ($0.point - end.point).length <= DrawingAnchorResolver.joinTolerance && $0.leaving.dot(end.leaving) <= opposite
+                    }
+                }
+            }
+            var group = [edge]
+            var grew = true
+            while grew {
+                grew = false
+                for other in same where !group.contains(where: { $0.id == other.id }) && group.contains(where: { joined($0, other) }) {
+                    group.append(other)
+                    grew = true
+                }
+            }
+            // Closed: every end of every arc is met by another arc of the group.
+            let closed = group.count >= 2 && group.allSatisfy { arc in
+                arcEnds(arc).count == 2 && arcEnds(arc).allSatisfy { end in
+                    group.contains { other in
+                        other.id != arc.id && arcEnds(other).contains {
+                            ($0.point - end.point).length <= DrawingAnchorResolver.joinTolerance && $0.leaving.dot(end.leaving) <= opposite
+                        }
+                    }
+                }
+            }
+            return closed ? group : nil
+        }
+
+        func rings(of face: FaceInfo) -> [Ring] {
+            var seen = Set<EdgeID>()
+            return topology.edges(of: face.id).compactMap(ring).filter { seen.insert($0.edge.id).inserted }
+        }
 
         func isWall(_ face: FaceInfo) -> Bool {
             (face.kind == .cylinder || face.kind == .cone) && isParallel(face.normal)
@@ -137,7 +192,7 @@ public enum HoleReader {
             guard let normal = plane.normal?.normalized else { return nil }
             // A mouth is open: the plane has more than the circle on it, and the wall runs into the material.
             let planeEdges = topology.edges(of: plane.id).filter { !$0.isSeam }
-            guard planeEdges.contains(where: { $0.id != mouth.edge.id && ring($0)?.radius != mouth.radius }) else { return nil }
+            guard planeEdges.contains(where: { !mouth.ids.contains($0.id) && ring($0)?.radius != mouth.radius }) else { return nil }
             guard (wall.centroid - mouth.center).dot(normal) < 0 else { return nil }
             let down = -normal
             guard let entry = entry(mouth: mouth, wall: wall, down: down) else { return nil }
@@ -172,19 +227,40 @@ public enum HoleReader {
                 wall: next, start: step, counterbore: .init(diameter: 2 * mouth.radius, depth: floor), floorDepth: floor)
         }
 
-        /// The distance from the mouth plane to the hole's far end when that end is blind (a flat floor or a drill point), else nil.
+        /// The distance from the mouth plane to the hole's far end when that end is blind (a flat floor or a drill point), else nil. A
+        /// bore that steps in to a smaller one is followed down to the deepest floor (plan R5); the hole is through only when a bore
+        /// leaves the part.
         func blindDepth(of wall: FaceInfo, far: Ring?, down: Vector3, from top: Vector3) -> Double? {
-            guard let far else { return nil }
-            let distance = (far.center - top).dot(down)
-            guard let end = face(across: far, from: wall) else { return nil }
-            let onlyThisCircle = topology.edges(of: end.id).filter { !$0.isSeam }.allSatisfy { $0.id == far.edge.id }
-            if end.kind == .plane, onlyThisCircle { return distance }
-            if end.kind == .cone, isWall(end) {
-                // A drill point narrows to an apex or a smaller disc; a cone that widens is an exit.
-                let others = rings(of: end).filter { $0.edge.id != far.edge.id }
-                if others.allSatisfy({ $0.radius < far.radius - HoleReader.sameRadius }) { return distance }
+            var wall = wall
+            var far = far
+            for _ in 0..<16 {
+                guard let ring = far else { return nil }
+                let distance = (ring.center - top).dot(down)
+                guard let end = face(across: ring, from: wall) else { return nil }
+                let others = topology.edges(of: end.id).filter { !$0.isSeam && !ring.ids.contains($0.id) }
+                if end.kind == .plane, others.isEmpty { return distance }
+                if end.kind == .cone, isWall(end) {
+                    // A drill point narrows to an apex or a smaller disc; a cone that widens is an exit.
+                    let inner = rings(of: end).filter { $0.edge.id != ring.edge.id }
+                    return inner.allSatisfy { $0.radius < ring.radius - HoleReader.sameRadius } ? distance : nil
+                }
+                // A step: a flat annulus facing the mouth round a smaller coaxial circle, with the next bore's wall beneath it.
+                guard isFlat(end), (end.normal?.normalized ?? down).dot(down) < 0,
+                    let step = rings(of: end).filter({ $0.edge.id != ring.edge.id && $0.radius < ring.radius - HoleReader.sameRadius })
+                        .max(by: { $0.radius < $1.radius }),
+                    let next = face(across: step, from: end), next.kind == .cylinder, isWall(next)
+                else { return nil }
+                let stepDepth = (step.center - top).dot(down)
+                wall = next
+                far = rings(of: next).first { ($0.center - top).dot(down) > stepDepth + 1e-9 }
             }
             return nil
         }
     }
+}
+
+/// An end of an arc: where it is and the way the arc leaves it.
+private struct ArcEnd {
+    var point: Vector3
+    var leaving: Vector3
 }

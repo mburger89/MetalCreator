@@ -37,6 +37,7 @@ import Foundation
     static func listJSON(_ session: any DocumentSession) -> JSONValue {
         let graph = session.content.graph
         let document = graph.drawings
+        let remembered = session.rememberedPartNames
         let standard = document.settings.standard
         let sheets = document.sheets.map { sheet -> JSONValue in
             let views = sheet.views.map { view -> JSONValue in
@@ -46,7 +47,9 @@ import Foundation
                     "orientation": .string(orientationName(view.orientation)),
                     "scale": .string((view.scale ?? sheet.scale).text(for: standard)),
                     "parts": .array(view.outputs.map { part in
-                        .object(["node": .string(part.rawValue.uuidString), "name": .string(graph.nodes[part]?.name ?? "?")])
+                        let name = graph.nodes[part]?.name ?? remembered[part]
+                            ?? document.partNames.first { $0.part == part }?.name ?? "?"
+                        return .object(["node": .string(part.rawValue.uuidString), "name": .string(name)])
                     }),
                 ]
                 if let letter = view.letter { fields["letter"] = .string(letter) }
@@ -78,7 +81,8 @@ import Foundation
     private static let getSheet = MCPTool(
         name: "get_sheet",
         description: "Reads one sheet as it would be exported: each view's status, each annotation's label and whether it still holds "
-            + "what it measures, the numbered parts and the revisions. A view still being drawn is reported pending.",
+            + "what it measures, the numbered parts and the revisions. A view still being drawn is reported pending, and a view "
+            + "that failed says why; either makes complete false.",
         inputSchema: schema(["sheet": property("string", "The sheet's ID or unique name.")], required: ["sheet"])
     ) { arguments, session, _ in
         let document = session.content.graph.drawings
@@ -102,6 +106,7 @@ import Foundation
                 complete = false
                 fields["status"] = .string("pending")
             case .failed(let problem):
+                complete = false
                 fields["status"] = .string("failed")
                 fields["problem"] = .string(problem)
             }

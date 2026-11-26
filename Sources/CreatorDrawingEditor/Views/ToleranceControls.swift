@@ -85,12 +85,12 @@ struct ToleranceControls: Component {
     private func limitRows(_ upper: Double, _ lower: Double, limits: Bool) -> some ElementGroup {
         DrawingRow("Upper", colors: colors) {
             DrawingField(model: model, text: text(upper), width: 90) {
-                model.setTolerance(upperText: $0, lowerText: text(lower), limits: limits, of: id)
+                model.setToleranceUpper(text: $0, limits: limits, of: id)
             }
         }
         DrawingRow("Lower", colors: colors) {
             DrawingField(model: model, text: text(lower), width: 90) {
-                model.setTolerance(upperText: text(upper), lowerText: $0, limits: limits, of: id)
+                model.setToleranceLower(text: $0, limits: limits, of: id)
             }
         }
     }

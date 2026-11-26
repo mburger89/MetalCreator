@@ -86,7 +86,7 @@ struct AnnotationRefreshTests {
         let refreshed = AnnotationRefresh.lastGood(
             for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(),
                 standard: .iso, parts: [], isPictorial: false)
-        #expect(refreshed?.figure == .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
+        expectAttachment(refreshed?.figure, foot: Vector2(20, 0), along: Vector2(1, 0))
         #expect(refreshed?.lines == ["Datum A"])
         let picture = Fixtures.compose(view, [symbol], content: Fixtures.content())
         #expect(picture.annotationReports[symbol.id]?.current == refreshed)

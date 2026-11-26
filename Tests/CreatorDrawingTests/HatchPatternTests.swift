@@ -133,6 +133,39 @@ struct HatchPatternTests {
         for p in e { #expect(abs(p.x - centre.x) <= 0.5 + 1e-9 && abs(p.y - centre.y) <= 0.5 + 1e-9) }
     }
 
+    /// A point at `across` (n . p) and `along` (d . p) of the part-0 family, in sheet millimetres.
+    private func point(across: Double, along: Double) -> Vector2 {
+        let h = (0.5).squareRoot()
+        return Vector2(-h * across + h * along, h * across + h * along)
+    }
+
+    @Test func aSliverInsideAStepsBandIsHatched() throws {
+        // A diagonal strip across 0.5...1.5 (no line of the 2.5 grid) with a tab reaching across 3.0 far along it. The tab holds the
+        // line at 2.5, but the band ends before the tab, so the piece that is drawn has no line of its own.
+        let loop = [
+            point(across: 0.5, along: 0), point(across: 1.5, along: 0), point(across: 1.5, along: 30), point(across: 3.0, along: 30),
+            point(across: 3.0, along: 40), point(across: 0.5, along: 40),
+        ]
+        let band = HatchBand(axis: .horizontal, low: nil, high: 0.5.squareRoot() * 25)
+        let region = HatchRegion(part: 0, edges: [loop], band: band)
+        let all = strokes([region], mapping: ViewMapping(scale: 1, offset: .zero))
+        #expect(all.count == 1)
+        let e = ends(try #require(all.first))
+        let h = (0.5).squareRoot()
+        #expect(abs((-h * e[0].x + h * e[0].y) - 1.0) < 1e-9)
+        for p in e { #expect(p.x <= band.high! + 1e-9) }
+    }
+
+    @Test func anExtentThatOnlyTouchesALineIsHatched() throws {
+        // The edge from (0, 0) to (10, 10) lies exactly on the grid line n . x = 0 and the rest of the triangle on one side of it.
+        let triangle = [Vector2(0, 0), Vector2(10, 10), Vector2(10, 8)]
+        let all = strokes([HatchRegion(part: 0, edges: [triangle], band: nil)], mapping: ViewMapping(scale: 1, offset: .zero))
+        #expect(all.count == 1)
+        let e = ends(try #require(all.first))
+        let h = (0.5).squareRoot()
+        #expect(abs((-h * e[0].x + h * e[0].y) + 2.0.squareRoot() / 2) < 1e-9)
+    }
+
     @Test func strokesAreThinOnTheHatchLayer() {
         for stroke in strokes([plate]) {
             #expect(stroke.layer == .hatch && stroke.width == 0.25 && stroke.source == nil && stroke.view == view)

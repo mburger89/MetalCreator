@@ -110,7 +110,7 @@ struct SymbolModelTests {
     }
 
     @Test func theAttachmentFigureRoundTrips() throws {
-        let figure = AnnotationFigure.attachment(foot: Vector2(1, 2), along: Vector2(0, 1))
+        let figure = AnnotationFigure.attachment(foot: Vector2(1, 2), along: Vector2(0, 1), ends: [])
         let text = try jsonText(figure)
         #expect(text.contains("\"type\":\"attachment\""))
         #expect(text.contains("\"foot\"") && text.contains("\"along\""))
@@ -282,5 +282,85 @@ struct SymbolModelTests {
         let back = try roundTrip(sheet)
         #expect(back.notes == sheet.notes)
         #expect(back == sheet)
+    }
+}
+
+@Suite("Datum distances and ends")
+struct DatumDistanceTests {
+    private func decodedSheet(_ datum: DatumFeature) throws -> DatumFeature {
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
+        let annotation = DrawingAnnotation(view: view.id, kind: .datumFeature(datum))
+        let sheet = DrawingSheet(name: "S", views: [view], annotations: [annotation])
+        let back = try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+        guard case .datumFeature(let value)? = back.annotations.first?.kind else { throw CancellationError() }
+        return value
+    }
+
+    private var line: SymbolAttachment {
+        .feature(LeaderEnd(target: AnchorTarget.point(Vector2(0, 0)), hint: .zero))
+    }
+
+    @Test func aDimensionEndOutsideZeroAndOneIsClampedOnDecode() throws {
+        let high = try JSONDecoder().decode(
+            DatumFeature.self,
+            from: JSONEncoder().encode(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 9, dimensionEnd: 7)))
+        #expect(high.dimensionEnd == 1)
+        let low = try JSONDecoder().decode(
+            DatumFeature.self,
+            from: JSONEncoder().encode(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 9, dimensionEnd: -3)))
+        #expect(low.dimensionEnd == 0)
+    }
+
+    @Test func aDistanceUnderTheLeastIsRaisedOnDecodeKeepingItsSide() throws {
+        let least = DatumLayout.minimumDistance(h: 2.5, standard: .iso)
+        let near = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: 0.5))
+        #expect(near.distance >= least - 1e-9 && near.distance > 0)
+        let other = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: -0.5))
+        #expect(other.distance <= -least + 1e-9)
+        let far = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: 30))
+        #expect(far.distance == 30)
+    }
+
+    @Test func aNegativeDistanceOnADimensionKeepsItsSignOnDecode() throws {
+        let least = DatumLayout.minimumDistance(h: 2.5, standard: .iso)
+        let host = AnnotationID()
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
+        func decoded(_ distance: Double) throws -> Double {
+            let dimension = DrawingAnnotation(
+                id: host, view: view.id,
+                kind: .dimension(
+                    DrawingDimension(
+                        kind: .linear(.horizontal), anchors: [.point(Vector2(0, 0)), .point(Vector2(9, 0))],
+                        placement: DimensionPlacement(offset: 5, angle: 0))))
+            let datum = DrawingAnnotation(
+                view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(host), distance: distance)))
+            let sheet = DrawingSheet(name: "S", views: [view], annotations: [dimension, datum])
+            let back = try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+            guard let found = back.annotations.compactMap({ annotation -> Double? in
+                if case .datumFeature(let value) = annotation.kind { return value.distance }
+                return nil
+            }).first else { throw CancellationError() }
+            return found
+        }
+        #expect(try decoded(-0.5) == -least)
+        #expect(try decoded(-30) == -30)
+        #expect(try decoded(30) == 30)
+    }
+
+    @Test func aBalloonWithNoViewIsDroppedOnDecode() throws {
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
+        let balloon = DrawingAnnotation(
+            view: nil, kind: .balloon(Balloon(leader: LeaderEnd(target: .point(Vector2(0, 0)), hint: .zero), offset: Vector2(5, 5))))
+        let sheet = DrawingSheet(name: "S", views: [view], annotations: [balloon])
+        let back = try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+        #expect(back.annotations.isEmpty)
+    }
+
+    @Test func clampedDistanceMatchesWhatIsDrawn() {
+        let h = 3.5
+        let datum = DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 1)
+        #expect(datum.clampedDistance(h: h, standard: .iso) == DatumLayout.minimumDistance(h: h, standard: .iso))
+        #expect(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: .nan).clampedDistance(h: h, standard: .iso)
+            == DatumLayout.minimumDistance(h: h, standard: .iso))
     }
 }

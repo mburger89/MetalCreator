@@ -20,6 +20,15 @@ public struct DatumFeature: Hashable, Codable, Sendable {
         letter = try c.decode(String.self, forKey: .letter)
         attachment = try c.decode(SymbolAttachment.self, forKey: .attachment)
         distance = try c.decodeIfPresent(Double.self, forKey: .distance) ?? 0
-        dimensionEnd = try c.decodeIfPresent(Int.self, forKey: .dimensionEnd) ?? 0
+        // The end is 0 or 1 as drawn (`AnnotationComposer`): any other value reads as the nearer of the two.
+        dimensionEnd = Swift.min(Swift.max(try c.decodeIfPresent(Int.self, forKey: .dimensionEnd) ?? 0, 0), 1)
+    }
+
+    /// The distance as it is drawn: its size at least `DatumLayout.minimumDistance(h:standard:)`, the sign kept; a non-finite one reads as
+    /// the least.
+    public func clampedDistance(h: Double, standard: DrawingStandard) -> Double {
+        let least = DatumLayout.minimumDistance(h: h, standard: standard)
+        guard distance.isFinite else { return least }
+        return distance < 0 ? -Swift.max(-distance, least) : Swift.max(distance, least)
     }
 }

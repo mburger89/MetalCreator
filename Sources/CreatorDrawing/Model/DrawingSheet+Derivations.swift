@@ -33,11 +33,22 @@ extension DrawingSheet {
                 view.letter = nil
             case .section, .detail, .auxiliary:
                 guard let derivation = view.derivation, derivation.matches(view.kind) else { continue }
+                // R1: a section whose cutter is damaged is dropped, never repaired into a degenerate frame.
+                if case .section(let line) = derivation, isDamaged(line.cutter) { continue }
             }
             result.append(view)
         }
         while let doomed = lowestInACycle(result) { result.removeAll { $0.id == doomed } }
         return result
+    }
+
+    /// Fewer than two points, a zero or non-finite `viewing`, or any non-finite coordinate in the points or the frame.
+    private static func isDamaged(_ cutter: SectionCutter) -> Bool {
+        func finite(_ v: Vector2) -> Bool { v.x.isFinite && v.y.isFinite }
+        func finite(_ v: Vector3) -> Bool { v.x.isFinite && v.y.isFinite && v.z.isFinite }
+        guard cutter.points.count >= 2, cutter.points.allSatisfy(finite), finite(cutter.viewing), cutter.viewing.length > 0
+        else { return true }
+        return !finite(cutter.frame.direction) || !finite(cutter.frame.up)
     }
 
     private static func lowestInACycle(_ views: [DrawingView]) -> ViewID? {

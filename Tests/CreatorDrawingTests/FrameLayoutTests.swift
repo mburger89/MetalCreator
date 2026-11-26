@@ -22,7 +22,7 @@ import Testing
     @Test func aSingleRowFrame() {
         let flat = frame(.flatness, rows: [ToleranceRow(value: 0.05)])
         let drawing = draw(flat)
-        let columns = FrameLayout.columns(of: flat, h: h, format: format)
+        let columns = FrameLayout.columns(of: flat, h: h, format: format, standard: .iso)
         #expect(columns.count == 2 && columns[0] == 5)
         let value = DrawingText.layout("0.05", height: h)
         #expect(abs(columns[1] - (value.width + 2 * 1.25)) <= 1e-12)
@@ -36,7 +36,7 @@ import Testing
 
     @Test func datumCellsAreAtLeastTwoH() {
         let rows = [ToleranceRow(value: 0.1, datums: [DatumReference(letter: "A")])]
-        let columns = FrameLayout.columns(of: frame(.perpendicularity, rows: rows), h: h, format: format)
+        let columns = FrameLayout.columns(of: frame(.perpendicularity, rows: rows), h: h, format: format, standard: .iso)
         #expect(columns.count == 3 && columns[2] == 5)
     }
 
@@ -92,7 +92,7 @@ import Testing
         ]
         let composite = frame(.position, rows: rows)
         let drawing = draw(composite)
-        let columns = FrameLayout.columns(of: composite, h: h, format: format)
+        let columns = FrameLayout.columns(of: composite, h: h, format: format, standard: .iso)
         func boundaries(top: Double) -> [Double] {
             drawing.segments.compactMap { segment in
                 if case let .line(a, b) = segment, a.y == top, b.y == top - 5 { return a.x }

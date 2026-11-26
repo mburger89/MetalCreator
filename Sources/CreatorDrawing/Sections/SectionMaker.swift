@@ -7,8 +7,11 @@ public struct SectionCutPiece: Sendable {
     public var regions: [HatchRegion]
     /// Whether the section of a part that should be hatched failed (the part is drawn unhatched).
     public var hatchFailed: Bool
+    /// What the cut left out, in words (a sheet beside a part that couldn't be cut).
+    public var warnings: [String]
 
-    public init(remainder: Solid?, regions: [HatchRegion] = [], hatchFailed: Bool = false) {
+    public init(remainder: Solid?, regions: [HatchRegion] = [], hatchFailed: Bool = false, warnings: [String] = []) {
+        self.warnings = warnings
         self.remainder = remainder
         self.regions = regions
         self.hatchFailed = hatchFailed
@@ -26,17 +29,17 @@ enum SectionMaker {
         _ solid: Solid, index: Int, cutter: SectionCutter, tolerance: Double, kernel: any Kernel
     ) async throws -> SectionCutPiece {
         let tag = NodeTag(node: SectionCutter.toolNode, item: index)
-        let remainder = try await kernel.cutAway(solid, by: cutter, tag: tag)
+        let (remainder, warnings) = try await kernel.cutAwayNoting(solid, by: cutter, tag: tag)
         try Task.checkCancellation()
         // Sheets are never sectioned (R5): a value with an open shell and no closed solid has no hatch and no kernel call.
-        guard solid.holdsClosedSolid else { return SectionCutPiece(remainder: remainder) }
+        guard solid.holdsClosedSolid else { return SectionCutPiece(remainder: remainder, warnings: warnings) }
         do {
             let regions = try await regions(of: solid, index: index, cutter: cutter, tolerance: tolerance, kernel: kernel)
-            return SectionCutPiece(remainder: remainder, regions: regions)
+            return SectionCutPiece(remainder: remainder, regions: regions, warnings: warnings)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            return SectionCutPiece(remainder: remainder, hatchFailed: true)
+            return SectionCutPiece(remainder: remainder, hatchFailed: true, warnings: warnings)
         }
     }
 

@@ -109,18 +109,28 @@ public enum DetailClip {
         return runs.map { .polyline($0) }
     }
 
-    /// Cut offsets `0 ... span` at `interior` (ascending, strictly inside) and keep the spans whose middle `isKept`.
-    private static func spans(_ span: Double, _ interior: [Double], keep isKept: (Double) -> Bool) -> [(Double, Double)] {
+    /// Cut offsets `0 ... span` at `interior` (ascending, strictly inside) and keep the spans whose middle `isKept`. Kept spans that
+    /// meet are one span, and on a closed curve (`span` a whole turn) the run that ends at `span` and the one that starts at 0 are one
+    /// run too, which then reads `low ... span + high` (so a circle the clip leaves whole is one whole span).
+    private static func spans(_ span: Double, _ interior: [Double], isClosed: Bool, keep isKept: (Double) -> Bool)
+        -> [(Double, Double)] {
         var cuts = [0.0]
         for value in interior.sorted() where value > cuts[cuts.count - 1] + 1e-15 && value < span { cuts.append(value) }
         cuts.append(span)
         var kept: [(Double, Double)] = []
         for index in 0..<(cuts.count - 1) {
             let low: Double = cuts[index], high: Double = cuts[index + 1]
-            if isKept((low + high) / 2) { kept.append((low, high)) }
+            guard isKept((low + high) / 2) else { continue }
+            if let last = kept.last, last.1 == low { kept[kept.count - 1].1 = high } else { kept.append((low, high)) }
+        }
+        if isClosed, kept.count > 1, let first = kept.first, let last = kept.last, first.0 == 0, last.1 == span {
+            kept.removeFirst()
+            kept[kept.count - 1].1 = span + first.1
         }
         return kept
     }
+
+    private static func isWholeTurn(_ span: Double) -> Bool { span >= 2 * Double.pi - 1e-12 }
 
     private static func arcPieces(
         _ center: Vector2, _ radius: Double, _ start: Double, _ sweep: Double, _ circle: HatchClip
@@ -146,11 +156,39 @@ public enum DetailClip {
                 }
             }
         }
-        return spans(span, cuts) { isInside(point($0), circle) }.compactMap { low, high in
+        return spans(span, cuts, isClosed: isWholeTurn(span)) { isInside(point($0), circle) }.compactMap { low, high in
             guard (high - low) * radius >= minimumLength else { return nil }
             if low == 0 && high == span { return .arc(center: center, radius: radius, start: start, sweep: sweep) }
             return .arc(center: center, radius: radius, start: start + sign * low, sweep: sign * (high - low))
         }
+    }
+
+    /// The parameter in `low ... high` where `gap` changes sign, to `bisectionStop`; `lowValue` is `gap(low)`.
+    private static func bisect(_ gap: (Double) -> Double, _ low: Double, _ high: Double, _ lowValue: Double) -> Double {
+        var lo = low, hi = high, loValue = lowValue
+        while hi - lo > bisectionStop {
+            let mid = (lo + hi) / 2, midValue = gap(mid)
+            if loValue * midValue <= 0 { hi = mid } else { lo = mid; loValue = midValue }
+        }
+        return (lo + hi) / 2
+    }
+
+    /// Where `function` is least on `low ... high` (golden-section search; a step of a smooth curve is unimodal).
+    private static func minimiser(_ low: Double, _ high: Double, _ function: (Double) -> Double) -> Double {
+        let ratio = (5.0.squareRoot() - 1) / 2
+        var lo = low, hi = high
+        var x1 = hi - ratio * (hi - lo), x2 = lo + ratio * (hi - lo)
+        var f1 = function(x1), f2 = function(x2)
+        while hi - lo > bisectionStop {
+            if f1 < f2 {
+                hi = x2; x2 = x1; f2 = f1
+                x1 = hi - ratio * (hi - lo); f1 = function(x1)
+            } else {
+                lo = x1; x1 = x2; f1 = f2
+                x2 = lo + ratio * (hi - lo); f2 = function(x2)
+            }
+        }
+        return (lo + hi) / 2
     }
 
     private struct Ellipse {
@@ -171,24 +209,30 @@ public enum DetailClip {
         }
         func gap(_ offset: Double) -> Double { (point(offset) - circle.center).length - circle.radius }
         let steps = max(16, Int((256 * span / (2 * Double.pi)).rounded(.up)))
+        let speed = max(major, minor)
         var cuts: [Double] = []
         var previous = gap(0)
         for step in 1...steps {
             let high = span * Double(step) / Double(steps), low = span * Double(step - 1) / Double(steps)
             let value = gap(high)
             if previous * value < 0 {
-                var lo = low, hi = high, loValue = previous
-                while hi - lo > bisectionStop {
-                    let mid = (lo + hi) / 2, midValue = gap(mid)
-                    if loValue * midValue <= 0 { hi = mid } else { lo = mid; loValue = midValue }
-                }
-                cuts.append((lo + hi) / 2)
+                cuts.append(bisect(gap, low, high, previous))
             } else if value == 0 && step < steps {
                 cuts.append(high)
+            } else if previous * value > 0, min(abs(previous), abs(value)) <= speed * (high - low) {
+                // No sign change between the samples, but the curve may dip across the circle and back inside the step (a crossing
+                // that is tangent or nearly so): look for the step's extremum toward zero, and a crossing on each side of it.
+                let sign: Double = previous < 0 ? -1 : 1
+                let nearest = minimiser(low, high) { sign * gap($0) }
+                let nearestValue = gap(nearest)
+                if nearestValue * sign < 0 {
+                    cuts.append(bisect(gap, low, nearest, previous))
+                    cuts.append(bisect(gap, nearest, high, nearestValue))
+                }
             }
             previous = value
         }
-        return spans(span, cuts) { isInside(point($0), circle) }.compactMap { low, high in
+        return spans(span, cuts, isClosed: isWholeTurn(span)) { isInside(point($0), circle) }.compactMap { low, high in
             guard (high - low) * max(major, minor) >= minimumLength else { return nil }
             if low == 0 && high == span {
                 return .ellipse(center: center, majorAxis: axis, majorRadius: major, minorRadius: minor, start: start, sweep: sweep)

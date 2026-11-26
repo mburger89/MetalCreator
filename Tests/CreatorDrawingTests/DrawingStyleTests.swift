@@ -19,6 +19,13 @@ struct DrawingStyleTests {
         #expect(DrawingStyle.of(.iso) == iso && DrawingStyle.of(.asme) == asme)
     }
 
+    @Test func eachStandardsDashesArePinnedByValue() {
+        // ISO and ASME draw hidden lines alike (3 mm dash, 1.5 mm gap); the chain lines are each the standard's own.
+        for style in [DrawingStyle.iso, .asme] { #expect(style.hiddenDash == 3 && style.hiddenGap == 1.5) }
+        #expect(DrawingStyle.iso.centreDash == [6, 0.75, 0.25, 0.75])
+        #expect(DrawingStyle.asme.centreDash == [19, 1.5, 3, 1.5])
+    }
+
     @Test func hatchSpacingBySize() {
         for style in [DrawingStyle.iso, .asme] {
             #expect(style.hatchSpacing(for: .a4) == 2.5 && style.hatchSpacing(for: .ansiA) == 2.5)

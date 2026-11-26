@@ -12,5 +12,8 @@ public struct Balloon: Hashable, Codable, Sendable {
     }
 
     /// The part the balloon is on: the leader's `onPart` part, else the view's source.
-    public func part(in view: DrawingView) -> NodeID { leader.target.part ?? view.source }
+    public func part(in view: DrawingView) -> NodeID { part(defaultingTo: view.source) }
+
+    /// The part the leader lands on, else `source` (the view's first Output): the one rule `part(in:)` and the composer share.
+    public func part(defaultingTo source: NodeID) -> NodeID { leader.target.part ?? source }
 }

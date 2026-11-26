@@ -49,20 +49,21 @@ public enum DatumLayout {
 
     /// The least distance from the foot to the square's centre: the triangle's height, the leader's least length and half the
     /// square twice over (plan R5).
-    public static func minimumDistance(h: Double) -> Double {
-        let style = SymbolStyle.of(.iso)
+    public static func minimumDistance(h: Double, standard: DrawingStandard) -> Double {
+        let style = SymbolStyle.of(standard)
         return style.datumTriangle * h * DrawingSymbols.sixty + style.datumLeaderMinimum * h + style.datumSquare * h / 2
     }
 
     private static func symbol(
         _ builder: inout DrawingBuilder, letter: String, foot: Vector2, along: Vector2, toward: Vector2, distance: Double, h: Double
     ) {
-        let style = SymbolStyle.of(.iso)
-        let reach = Swift.max(distance, minimumDistance(h: h))
-        let triangle = DrawingSymbols.datumTriangle(foot: foot, along: along, toward: toward, h: h)
+        let standard = builder.style.standard
+        let style = SymbolStyle.of(standard)
+        let reach = Swift.max(distance, minimumDistance(h: h, standard: standard))
+        let triangle = DrawingSymbols.datumTriangle(foot: foot, along: along, toward: toward, h: h, standard: standard)
         builder.drawing.fills.append(triangle)
         let centre = foot + toward * reach
-        builder.drawing.segments.append(.polyline(DrawingSymbols.datumSquare(center: centre, h: h)))
+        builder.drawing.segments.append(.polyline(DrawingSymbols.datumSquare(center: centre, h: h, standard: standard)))
         let run = DrawingText.layout(letter, height: h)
         builder.drawing.texts.append(
             PlacedText(run: run, original: letter, origin: Vector2(centre.x - run.width / 2, centre.y - h / 2), height: h, angle: 0))
@@ -99,7 +100,7 @@ public enum DatumLayout {
         let distance = toFoot.length
         guard distance > 1e-12 else { return }
         let direction = toFoot * (1 / distance)
-        let half = SymbolStyle.of(.iso).datumTriangle * h / 2
+        let half = SymbolStyle.of(builder.style.standard).datumTriangle * h / 2
         builder.line(nearest + direction * builder.style.extensionGap, foot + direction * (half + builder.style.extensionOvershoot))
     }
 }

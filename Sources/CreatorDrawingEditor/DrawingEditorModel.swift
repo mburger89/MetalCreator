@@ -29,9 +29,10 @@ public final class DrawingEditorModel {
     /// The part of the canvas that shows, in canvas points; set by the host.
     public var visibleRect = Rect2D(min: .zero, max: Vector2(1000, 700)) {
         didSet {
-            if fitsOnNextSize, visibleRect != oldValue {
-                fit()
+            // The first layout pass after a request settles it, whether or not the size changed.
+            if fitsOnNextSize {
                 fitsOnNextSize = false
+                if visibleRect != oldValue { fit() }
             }
         }
     }
@@ -138,6 +139,8 @@ public final class DrawingEditorModel {
 
     /// Where the pointer last was, in sheet millimetres: the draft follows it.
     @ObservationIgnored var lastPointer: Vector2?
+    /// The modifiers held over a still pointer (Shift keeps a cutting line's slant in its preview, as it does for a click).
+    @ObservationIgnored public internal(set) var heldModifiers: SheetModifiers = []
     /// The draft's id, one per model: a draft is composed under it and never saved.
     @ObservationIgnored let draftID = AnnotationID()
     /// The id the draft picture's annotation is composed under: a symbol draft's own, else the model's one draft id.
@@ -192,6 +195,8 @@ public final class DrawingEditorModel {
     /// Undo and redo: takes the drawings the host restored, keeping the sheet and the selection that still exist.
     public func replaceDocument(_ new: DrawingDocument) {
         document = new
+        balloonFoot = nil
+        pruneBitmaps()
         for entry in new.partNames where rememberedPartNames[entry.part] == nil { rememberedPartNames[entry.part] = entry.name }
         let kept = currentSheet.flatMap { new.sheet($0) != nil ? $0 : nil } ?? new.sheets.first?.id
         if kept != currentSheet {
@@ -216,9 +221,14 @@ public final class DrawingEditorModel {
     func commit(_ name: String, key: String? = nil, _ change: (inout DrawingDocument) -> Void) -> Bool {
         var next = document
         change(&next)
+        // A datum symbol's distance is stored as it is drawn (never under its least), so a commit clamps the sheets it changed.
+        for index in next.sheets.indices where document.sheets.indices.contains(index) && next.sheets[index] != document.sheets[index] {
+            next.sheets[index].clampingDatumDistances(standard: next.settings.standard)
+        }
         guard next != document else { return false }
         document = next
         refusal = nil
+        pruneBitmaps()
         events.committed(DrawingCommit(document: next, name: name, coalescingKey: key))
         return true
     }
@@ -239,6 +249,11 @@ public final class DrawingEditorModel {
         }
     }
 
+    /// Keeps the bitmaps of the logos the document still uses.
+    func pruneBitmaps() {
+        bitmaps.prune(keeping: Set(document.sheets.compactMap(\.titleBlock.logo)))
+    }
+
     func refuse(_ sentence: String) {
         refusal = sentence
     }
@@ -249,6 +264,8 @@ public final class DrawingEditorModel {
         selection = []
         selectedAnnotations = []
         hoveredStroke = nil
+        addingLeader = nil
+        hoverCandidate = nil
         dropPicks()
         dropToolDrafts()
         events.sheetChanged(id)

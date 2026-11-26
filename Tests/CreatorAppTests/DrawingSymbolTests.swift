@@ -36,7 +36,7 @@ struct DrawingSymbolTests {
         // On the left edge the datum's foot moves with the width (the bottom edge's middle would not).
         let id = try #require(await app.placeSymbol(.datum, on: view, side: .left))
         let before = try #require(app.drawing.editor.remembered[id])
-        guard case .attachment(let footBefore, _) = before.figure else {
+        guard case .attachment(let footBefore, _, _) = before.figure else {
             Issue.record("the datum remembers its attachment figure: \(before.figure)")
             return
         }
@@ -45,7 +45,7 @@ struct DrawingSymbolTests {
         try app.document.perform(plate.setWidth(60), name: "Width")
         await app.settle()
         let good = try #require(app.drawing.editor.remembered[id])
-        guard case .attachment(let footAfter, _) = good.figure else {
+        guard case .attachment(let footAfter, _, _) = good.figure else {
             Issue.record("the datum remembers its attachment figure: \(good.figure)")
             return
         }

@@ -8,8 +8,11 @@ public struct DXFOutput: Sendable {
     public var replacedTexts: [String]
     /// True when the sheet held a picture, which a DXF cannot: its rectangle is written instead (DR-5 R13).
     public var leftOutImages: Bool
+    /// How many strokes, fills, texts and pictures had a value that isn't a number and were left out (drawings minors R3).
+    public var leftOutNotANumber: Int
 
-    public init(data: Data, replacedTexts: [String], leftOutImages: Bool = false) {
+    public init(data: Data, replacedTexts: [String], leftOutImages: Bool = false, leftOutNotANumber: Int = 0) {
+        self.leftOutNotANumber = leftOutNotANumber
         self.data = data
         self.replacedTexts = replacedTexts
         self.leftOutImages = leftOutImages
@@ -23,6 +26,10 @@ public enum DXFWriter {
         strokes: [SheetStroke], texts: [SheetText], fills: [SheetFill] = [], images: [SheetImage] = [], extent: Rect2D,
         style: DrawingStyle
     ) -> DXFOutput {
+        let dropped = strokes.filter { !$0.isFinite }.count + texts.filter { !$0.isFinite }.count
+            + fills.filter { !$0.isFinite }.count + images.filter { !$0.isFinite }.count
+        let (strokes, texts, fills) = (strokes.filter(\.isFinite), texts.filter(\.isFinite), fills.filter(\.isFinite))
+        let images = images.filter(\.isFinite)
         var handles = DXFHandles()
         let set = DXFHandleSet(&handles)
         var entities = DXFText()
@@ -53,7 +60,8 @@ public enum DXFWriter {
         file.add(DXFObjects.objects(set, extent: extent))
         file.add(0, "EOF")
         return DXFOutput(
-            data: Data(file.text.utf8), replacedTexts: ReplacedTexts.collect(texts), leftOutImages: !images.isEmpty)
+            data: Data(file.text.utf8), replacedTexts: ReplacedTexts.collect(texts), leftOutImages: !images.isEmpty,
+            leftOutNotANumber: dropped)
     }
 
     /// The open sheet, in sheet millimetres.
