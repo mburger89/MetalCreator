@@ -26,11 +26,11 @@ public enum SheetComposer {
             TitleBlockLayout.picture(
                 sheet: sheet, settings: settings, facts: facts, sheetIndex: index, sheetCount: document.sheets.count))
         let items = PartItems.numbered(document, names: PartItems.names(of: facts.parts))
-        picture.append(
-            SheetNotesLayout.picture(
-                for: sheet, settings: settings, format: NumberFormat(units: units, settings: settings),
-                base: notesBase(for: sheet, standard: standard, rows: items.count)))
-        if notices { appendLogoNotice(to: &picture, sheet: sheet, facts: facts, style: style) }
+        let base = notesBase(for: sheet, standard: standard, rows: items.count)
+        let notes = SheetNotesLayout.picture(
+            for: sheet, settings: settings, format: NumberFormat(units: units, settings: settings), base: base)
+        picture.append(notes)
+        if notices { appendLogoNotice(to: &picture, sheet: sheet, facts: facts, style: style, above: (notes, base)) }
 
         let centers = ViewPlacement.centers(in: sheet)
         let annotations = AnnotationPass(
@@ -74,17 +74,24 @@ public enum SheetComposer {
         "The title block's logo couldn't be read: \(reason)"
     }
 
+    /// The logo's sentence stands with the sheet notes above the title block, over whatever they hold, never at the frame's corner
+    /// (drawings minors R19).
     private static func appendLogoNotice(
-        to picture: inout SheetPicture, sheet: DrawingSheet, facts: TitleBlockFacts, style: DrawingStyle
+        to picture: inout SheetPicture, sheet: DrawingSheet, facts: TitleBlockFacts, style: DrawingStyle,
+        above notes: (picture: SheetPicture, base: Double?)
     ) {
         guard case .unreadable(let reason)? = facts.logo else { return }
         let height = style.notesHeight(for: sheet.size)
         let sentence = logoUnreadableSentence(reason)
-        let frame = SheetFrame.rect(for: sheet, standard: style.standard)
+        let origin = TitleBlockLayout.origin(for: sheet, standard: style.standard)
+        var top = notes.base ?? origin.y + TitleBlockLayout.height
+        for stroke in notes.picture.strokes { top = Swift.max(top, stroke.bounds.max.y) }
+        for text in notes.picture.texts { top = Swift.max(top, text.origin.y + text.height) }
+        let baseline = top + SymbolStyle.of(style.standard).notesGap
         picture.texts.append(
             SheetText(
-                run: DrawingText.layout(sentence, height: height), original: sentence,
-                origin: Vector2(frame.min.x + 2, frame.min.y + 2), height: height, layer: .text, isNotice: true))
+                run: DrawingText.layout(sentence, height: height), original: sentence, origin: Vector2(origin.x, baseline),
+                height: height, layer: .text, isNotice: true))
     }
 
     /// The top of a parts list standing on the title block (the notes stand above it), or `nil` when there isn't one (R7).
@@ -145,10 +152,14 @@ public enum SheetComposer {
         }
         let frame = Rect2D(
             min: center - Vector2(size.x / 2, size.y / 2), max: center + Vector2(size.x / 2, size.y / 2))
-        picture.strokes.append(
-            SheetStroke(
-                segments: [.polyline(SheetFrame.closedPoints(of: frame))], width: style.thin, layer: .frame,
-                view: view.id))
+        // The placeholder box is on screen only: a file leaves it out and says the view has nothing drawn (drawings minors R2).
+        if notices {
+            picture.strokes.append(
+                SheetStroke(
+                    segments: [.polyline(SheetFrame.closedPoints(of: frame))], width: style.thin, layer: .frame, view: view.id))
+        }
+        let label = ViewLabel.text(for: view, sheet: sheet, standard: style.standard)
+        picture.emptyViews.append(EmptyViewNote(id: view.id, sentence: "View \(label) has nothing drawn."))
         if notices, let (problem, run) = layout {
             picture.texts.append(
                 SheetText(

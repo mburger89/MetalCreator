@@ -23,6 +23,7 @@ public enum DXFWriter {
         strokes: [SheetStroke], texts: [SheetText], fills: [SheetFill] = [], images: [SheetImage] = [], extent: Rect2D,
         style: DrawingStyle
     ) -> DXFOutput {
+        let (strokes, texts, fills) = (strokes.filter(\.isFinite), texts.filter(\.isFinite), fills.filter(\.isFinite))
         var handles = DXFHandles()
         let set = DXFHandleSet(&handles)
         var entities = DXFText()

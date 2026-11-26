@@ -24,6 +24,8 @@ decision 4: isometric views take balloons). DR-1 to DR-4's plans (`docs/superpow
 `2026-11-25-dr-2-dimensions-notes.md`, `2026-11-26-dr-3-sections-details.md`, `2026-11-26-dr-4-gdt-symbols.md`) hold the rulings this
 plan builds on; CLAUDE.md's "Drawings, DR-1" to "Drawings, DR-4" paragraphs say what exists.
 
+**Errata (drawings minors, 2026-11-26):** R15's "TEXT on TEXT" for a balloon's number in a view's DXF is wrong; the number is on DIMENSION, as R4 says. The code was right; this line corrects the plan.
+
 ## Global Constraints
 
 - **Worktree and branch.** `/Users/maxburger/Developer/MetalCreator-dr5`, branch `dr-5`. Never touch `../MetalUI`. A MetalUI shortcoming is

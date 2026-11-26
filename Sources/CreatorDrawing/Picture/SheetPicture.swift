@@ -107,6 +107,17 @@ public struct SheetImage: Hashable, Sendable {
     }
 }
 
+/// A view with nothing drawn: the file leaves its placeholder out and says so (drawings minors R2).
+public struct EmptyViewNote: Hashable, Sendable {
+    public var id: ViewID
+    public var sentence: String
+
+    public init(id: ViewID, sentence: String) {
+        self.id = id
+        self.sentence = sentence
+    }
+}
+
 /// Everything drawn on one sheet, in sheet millimetres with the origin at the bottom left.
 public struct SheetPicture: Hashable, Sendable {
     public var size: Vector2
@@ -128,6 +139,8 @@ public struct SheetPicture: Hashable, Sendable {
     public var viewExtents: [ViewID: Rect2D]
     /// The pictures on the sheet, drawn under the ink (DR-5 R12).
     public var images: [SheetImage]
+    /// The views that have no projection, in the sheet's order. Their placeholder is on screen only.
+    public var emptyViews: [EmptyViewNote] = []
 
     public init(
         size: Vector2, strokes: [SheetStroke] = [], texts: [SheetText] = [], viewFrames: [ViewID: Rect2D] = [:],
@@ -154,6 +167,7 @@ public struct SheetPicture: Hashable, Sendable {
         texts += other.texts
         fills += other.fills
         images += other.images
+        emptyViews += other.emptyViews
         for (id, frame) in other.viewFrames.sorted(by: { $0.key < $1.key }) { viewFrames[id] = frame }
     }
 }

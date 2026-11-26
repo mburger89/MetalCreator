@@ -41,7 +41,7 @@ extension AppModel {
             plan.sheets = [open]
         }
         for view in plan.view.map({ [$0] }) ?? plan.sheets.flatMap(\.views) {
-            if let problem = refusal(for: view) { throw problem }
+            if let problem = refusal(for: view, on: plan.sheets.first { $0.view(view.id) != nil } ?? open) { throw problem }
         }
         return plan
     }
@@ -62,7 +62,7 @@ extension AppModel {
 
     /// Why `view` can't be written, or `nil`: a failed Output (a failed part is named), every part removed, or nothing to draw. A part
     /// of an assembly that was removed, is empty or holds a mesh is only left out with a warning (R2).
-    private func refusal(for view: DrawingView) -> AppProblem? {
+    private func refusal(for view: DrawingView, on sheet: DrawingSheet) -> AppProblem? {
         let sources = drawing.sources(of: view)
         for source in sources {
             if case .failed(let message) = source.state { return AppProblem("“\(source.name)” can't be drawn", message) }
@@ -82,7 +82,7 @@ extension AppModel {
         if removed == sources.count { return AppProblem("A view can't be drawn", DrawingProjector.removedSentence) }
         if !drawable, !evaluating {
             let reason = meshes > 0 ? DrawingProjector.onlyMeshesSentence : DrawingProjector.nothingYetSentence
-            return AppProblem("“\(sources.first?.name ?? "")” can't be drawn", reason)
+            return AppProblem("“\(sheet.name)” couldn't be exported", reason)
         }
         return nil
     }
@@ -161,7 +161,10 @@ extension AppModel {
         for view in shown {
             for warning in snapshot.contents[view.id]?.warnings ?? [] where !warnings.contains(warning) { warnings.append(warning) }
         }
-        warnings += file.lost
+        // The not-a-number sentence is one per export however many sheets had such lines (drawings minors R3).
+        for sentence in file.lost where sentence != SheetPicture.notANumberSentence || !warnings.contains(sentence) {
+            warnings.append(sentence)
+        }
         if file.leftOutLogo { warnings.append(Self.dxfLogoSentence) }
         var seen: Set<String> = []
         let replaced = file.replaced.filter { seen.insert($0).inserted }
@@ -186,7 +189,8 @@ extension AppModel {
         }
         /// What a sheet says about itself in a file, in R15's order: its lost annotations, its checks, its unreadable logo.
         func warnings(of sheet: DrawingSheet, in page: SheetPicture, view: ViewID?) -> [String] {
-            var sentences = Self.lostWarnings(on: sheet, in: page, view: view) + Self.checkWarnings(on: sheet, in: page, view: view)
+            var sentences = page.fileWarnings(view: view) + Self.lostWarnings(on: sheet, in: page, view: view)
+                + Self.checkWarnings(on: sheet, in: page, view: view)
             if view == nil, case .unreadable(let reason)? = snapshot.facts[sheet.id]?.logo {
                 sentences.append(SheetComposer.logoUnreadableSentence(reason))
             }
