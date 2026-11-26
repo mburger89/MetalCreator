@@ -216,6 +216,10 @@ public final class DrawingEditorModel {
     func commit(_ name: String, key: String? = nil, _ change: (inout DrawingDocument) -> Void) -> Bool {
         var next = document
         change(&next)
+        // A datum symbol's distance is stored as it is drawn (never under its least), so a commit clamps the sheets it changed.
+        for index in next.sheets.indices where document.sheets.indices.contains(index) && next.sheets[index] != document.sheets[index] {
+            next.sheets[index].clampingDatumDistances(standard: next.settings.standard)
+        }
         guard next != document else { return false }
         document = next
         refusal = nil

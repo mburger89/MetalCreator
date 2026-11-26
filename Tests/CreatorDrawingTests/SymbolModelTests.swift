@@ -284,3 +284,48 @@ struct SymbolModelTests {
         #expect(back == sheet)
     }
 }
+
+@Suite("Datum distances and ends")
+struct DatumDistanceTests {
+    private func decodedSheet(_ datum: DatumFeature) throws -> DatumFeature {
+        let view = DrawingView(kind: .base, source: NodeID(), orientation: .standard(.front), center: .zero)
+        let annotation = DrawingAnnotation(view: view.id, kind: .datumFeature(datum))
+        let sheet = DrawingSheet(name: "S", views: [view], annotations: [annotation])
+        let back = try JSONDecoder().decode(DrawingSheet.self, from: JSONEncoder().encode(sheet))
+        guard case .datumFeature(let value)? = back.annotations.first?.kind else { throw CancellationError() }
+        return value
+    }
+
+    private var line: SymbolAttachment {
+        .feature(LeaderEnd(target: AnchorTarget.point(Vector2(0, 0)), hint: .zero))
+    }
+
+    @Test func aDimensionEndOutsideZeroAndOneIsClampedOnDecode() throws {
+        let high = try JSONDecoder().decode(
+            DatumFeature.self,
+            from: JSONEncoder().encode(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 9, dimensionEnd: 7)))
+        #expect(high.dimensionEnd == 1)
+        let low = try JSONDecoder().decode(
+            DatumFeature.self,
+            from: JSONEncoder().encode(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 9, dimensionEnd: -3)))
+        #expect(low.dimensionEnd == 0)
+    }
+
+    @Test func aDistanceUnderTheLeastIsRaisedOnDecodeKeepingItsSide() throws {
+        let least = DatumLayout.minimumDistance(h: 2.5)
+        let near = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: 0.5))
+        #expect(near.distance >= least - 1e-9 && near.distance > 0)
+        let other = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: -0.5))
+        #expect(other.distance <= -least + 1e-9)
+        let far = try decodedSheet(DatumFeature(letter: "A", attachment: line, distance: 30))
+        #expect(far.distance == 30)
+    }
+
+    @Test func clampedDistanceMatchesWhatIsDrawn() {
+        let h = 3.5
+        let datum = DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: 1)
+        #expect(datum.clampedDistance(h: h) == DatumLayout.minimumDistance(h: h))
+        #expect(DatumFeature(letter: "A", attachment: .dimension(AnnotationID()), distance: .nan).clampedDistance(h: h)
+            == DatumLayout.minimumDistance(h: h))
+    }
+}

@@ -12,17 +12,70 @@ public enum SheetSegment: Hashable, Sendable {
 
     /// The segment scaled by `scale` about the origin, then moved by `offset`.
     public func transformed(scale: Double, offset: Vector2) -> SheetSegment {
-        func move(_ p: Vector2) -> Vector2 { p * scale + offset }
+        transformed(scaleX: scale, scaleY: scale, offset: offset)
+    }
+
+    /// The segment scaled by `scaleX` and `scaleY` about the origin (a negative one mirrors), then moved by `offset`. The ends
+    /// stay the ends: a mirror reverses the sweep, so the segment is traced from the same end as before.
+    public func transformed(scaleX: Double, scaleY: Double, offset: Vector2) -> SheetSegment {
+        func move(_ p: Vector2) -> Vector2 { Vector2(p.x * scaleX + offset.x, p.y * scaleY + offset.y) }
         switch self {
         case let .line(a, b): return .line(move(a), move(b))
-        case let .arc(center, radius, start, sweep):
-            return .arc(center: move(center), radius: radius * scale, start: start, sweep: sweep)
-        case let .ellipse(center, axis, major, minor, start, sweep):
-            return .ellipse(
-                center: move(center), majorAxis: axis, majorRadius: major * scale, minorRadius: minor * scale, start: start,
-                sweep: sweep)
         case let .polyline(points): return .polyline(points.map(move))
+        case let .arc(center, radius, start, sweep):
+            if scaleX == scaleY && scaleX > 0 {
+                return .arc(center: move(center), radius: radius * scaleX, start: start, sweep: sweep)
+            }
+            return Self.ellipse(
+                Ellipse(center: center, axis: Vector2(1, 0), major: radius, minor: radius, start: start, sweep: sweep),
+                scaleX: scaleX, scaleY: scaleY, offset: offset)
+        case let .ellipse(center, axis, major, minor, start, sweep):
+            if scaleX == scaleY && scaleX > 0 {
+                return .ellipse(
+                    center: move(center), majorAxis: axis, majorRadius: major * scaleX, minorRadius: minor * scaleX, start: start,
+                    sweep: sweep)
+            }
+            return Self.ellipse(
+                Ellipse(center: center, axis: axis, major: major, minor: minor, start: start, sweep: sweep),
+                scaleX: scaleX, scaleY: scaleY, offset: offset)
         }
+    }
+
+    private struct Ellipse {
+        var center: Vector2
+        var axis: Vector2
+        var major: Double
+        var minor: Double
+        var start: Double
+        var sweep: Double
+    }
+
+    /// An ellipse (or circle) through a scale: its two half-axes A = major u and B = minor v are scaled as vectors, and the
+    /// scaled pair, which is no longer perpendicular for a general scale, is turned back to principal axes by a shift of the
+    /// parameter. A mirror makes the pair left-handed, so the parameter runs the other way and the sweep changes sign.
+    private static func ellipse(_ source: Ellipse, scaleX: Double, scaleY: Double, offset: Vector2) -> SheetSegment {
+        let (center, major, minor, start, sweep) = (source.center, source.major, source.minor, source.start, source.sweep)
+        let u = unit(source.axis)
+        func scaled(_ v: Vector2) -> Vector2 { Vector2(v.x * scaleX, v.y * scaleY) }
+        let a = scaled(u * major), b = scaled(Vector2(-u.y, u.x) * minor)
+        let t0 = 0.5 * atan2(2 * (a.x * b.x + a.y * b.y), a.x * a.x + a.y * a.y - b.x * b.x - b.y * b.y)
+        // The point is c + cos s A' + sin s B' for s = t - t0, with A' and B' perpendicular.
+        var first = a * cos(t0) + b * sin(t0)
+        var second = b * cos(t0) - a * sin(t0)
+        var from = start - t0
+        if second.length > first.length {
+            // The long axis is B': cos s A' + sin s B' = cos u (-B') + sin u A' for s = u - pi/2.
+            (first, second) = (second * -1, first)
+            from += .pi / 2
+        }
+        let majorLength = first.length
+        let middle = Vector2(center.x * scaleX + offset.x, center.y * scaleY + offset.y)
+        guard majorLength > 0 else { return .line(middle, middle) }
+        let direction = first * (1 / majorLength)
+        let leftHanded = second.x * -direction.y + second.y * direction.x < 0
+        return .ellipse(
+            center: middle, majorAxis: direction, majorRadius: majorLength, minorRadius: second.length, start: leftHanded ? -from : from,
+            sweep: leftHanded ? -sweep : sweep)
     }
 
     /// The smallest rectangle holding the segment.

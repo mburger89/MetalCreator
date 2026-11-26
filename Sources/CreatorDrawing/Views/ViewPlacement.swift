@@ -19,17 +19,27 @@ public enum ViewPlacement {
         return result
     }
 
-    /// Whether the view's alignment holds: it has a parent here and is not part of a cycle.
+    /// Whether the view's alignment holds: it has a parent here and is not the one view of a cycle that is set free. Only the
+    /// views whose own link is broken are free; a view aligned to a free or a freed view still follows it.
     private static func isAligned(_ view: DrawingView, in sheet: DrawingSheet) -> Bool {
-        guard let alignment = view.alignment else { return false }
+        view.alignment != nil && !alignmentIsBroken(view, in: sheet.views)
+    }
+
+    /// Whether `view`'s own alignment link is broken among `views`: its parent is missing, or it closes a cycle and has the
+    /// highest `ViewID` in it (the one view of a cycle that is set free). A view further along a broken chain is not broken.
+    static func alignmentIsBroken(_ view: DrawingView, in views: [DrawingView]) -> Bool {
+        guard let parent = view.alignment?.parent else { return false }
+        func find(_ id: ViewID) -> DrawingView? { views.first { $0.id == id } }
+        guard find(parent) != nil else { return true }
         var seen: Set<ViewID> = [view.id]
-        var next: ViewID? = alignment.parent
-        while let id = next {
-            guard let parent = sheet.view(id) else { return false }
-            if !seen.insert(id).inserted { return false }
-            next = parent.alignment?.parent
+        var cycle = [view.id]
+        var next = parent
+        while true {
+            if next == view.id { return view.id == cycle.max() }
+            guard seen.insert(next).inserted, let node = find(next), let following = node.alignment?.parent else { return false }
+            cycle.append(next)
+            next = following
         }
-        return true
     }
 
     private static func descendants(of id: ViewID, in sheet: DrawingSheet) -> [ViewID] {

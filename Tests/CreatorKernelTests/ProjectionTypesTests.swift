@@ -21,6 +21,12 @@ struct ProjectionTypesTests {
         #expect(ProjectionFrame.make(direction: .zero, up: Vector3(0, 0, 1)) == nil)
     }
 
+    @Test func hugeNearParallelUpIsNil() {
+        let direction = Vector3(0, 1, 0)
+        let up = (direction + Vector3(1e-12, 0, 0)) * 1e9
+        #expect(ProjectionFrame.make(direction: direction, up: up) == nil)
+    }
+
     @Test func validateRefuses() {
         let sentence = "The view direction and its up direction must be perpendicular unit vectors."
         for frame in [ProjectionFrame(direction: Vector3(0, 2, 0), up: Vector3(0, 0, 1)),
