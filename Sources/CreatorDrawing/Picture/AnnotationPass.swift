@@ -33,7 +33,7 @@ struct AnnotationPass {
         let context = AnnotationContext(
             view: view.id, center: center, mapping: mapping, viewFrame: frame, projection: content.projection,
             state: AnnotationViewState.of(content, frame: view.orientation.frame), standard: standard, style: annotationStyle,
-            drawingStyle: style, height: height)
+            drawingStyle: style, height: height, isPictorial: sheet.isPictorial(view))
         let annotations = sheet.annotations(of: view.id)
         // R11's order: everything not on a dimension, then frames on dimensions, then datum symbols on dimensions, so a hanging
         // datum sits below the frames on the same dimension.

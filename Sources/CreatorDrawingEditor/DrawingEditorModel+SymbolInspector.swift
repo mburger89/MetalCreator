@@ -17,7 +17,6 @@ extension DrawingEditorModel {
     static let symbolBlocksKindSentence =
         "A datum symbol hangs on this diameter, and a radius can't carry one; delete the datum symbol first."
     static let maximumDatums = 3
-    private static let micrometresPerMicroinch = 0.0254
     private static let defaultRoughness = 3.2
 
     // MARK: Datum
@@ -59,7 +58,7 @@ extension DrawingEditorModel {
 
     public func setToleranceValue(text: String, row: Int, of id: AnnotationID) {
         changeRow(row, of: id) { frame, index in
-            guard let value = units.parse(text, quantity: .length), value > 0 else { return Self.toleranceValueSentence }
+            guard let value = lengthValue(text), value > 0 else { return Self.toleranceValueSentence }
             frame.rows[index].value = value
             return nil
         }
@@ -100,7 +99,7 @@ extension DrawingEditorModel {
             if !frame.characteristic.takesProjectedZone { return "\(frame.characteristic.title) takes no projected zone." }
             if lengthText.allSatisfy(\.isWhitespace) {
                 frame.rows[index].projected = ProjectedZone(length: nil)
-            } else if let length = units.parse(lengthText, quantity: .length), length > 0 {
+            } else if let length = lengthValue(lengthText), length > 0 {
                 frame.rows[index].projected = ProjectedZone(length: length)
             } else {
                 return Self.projectedLengthSentence
@@ -223,11 +222,16 @@ extension DrawingEditorModel {
         return Swift.abs(found.along.y) <= 1e-9 * found.along.length
     }
 
+    /// A length from what was typed, in millimetres: the fields show the document's decimal sign, so a comma is a point.
+    func lengthValue(_ text: String) -> Double? {
+        units.parse(text.replacingOccurrences(of: ",", with: "."), quantity: .length)
+    }
+
     /// Micrometres from what was typed: µm in a millimetre document, µin in an inch one; a comma is a point.
     func roughness(_ text: String) -> Double? {
         let typed = text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
         guard let value = Double(typed), value.isFinite, value > 0 else { return nil }
-        return standardUnitsAreInches ? value * Self.micrometresPerMicroinch : value
+        return standardUnitsAreInches ? value * GDTNumber.micrometresPerMicroinch : value
     }
 
     private func store(_ kind: AnnotationKind, of id: AnnotationID, as name: String) {

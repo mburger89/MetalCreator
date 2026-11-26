@@ -22,6 +22,12 @@ extension AnnotationComposer {
         case .failed(let reason):
             return lostSymbol(annotation, because: (reason, []), context: context, format: format, last: remembered)
         case .annotated(let topology, let frame):
+            // R17: an isometric view takes no symbols, so one placed before the view turned is lost, never drawn.
+            if context.isPictorial, case .feature? = annotation.symbolAttachment {
+                return lostSymbol(
+                    annotation, because: (.refused(DrawingPick.symbolIsometricSentence), []), context: context, format: format,
+                    last: remembered)
+            }
             guard let evaluated = AnnotationEvaluator.evaluate(annotation, topology: topology, frame: frame, format: format) else {
                 return (AnnotationReport(status: .lost(.noPart), label: text), AnnotationPieces())
             }

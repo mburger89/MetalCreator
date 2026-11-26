@@ -18,7 +18,7 @@ extension DrawingEditorModel {
     public func setEdgeBreak(minimumText: String, maximumText: String) {
         let typed = [minimumText, maximumText].filter { !$0.allSatisfy(\.isWhitespace) }
         guard !typed.isEmpty else { return commitEdgeBreak(nil) }
-        let lengths = typed.map { units.parse($0, quantity: .length) }
+        let lengths = typed.map { lengthValue($0) }
         guard let first = lengths.first ?? nil, first > 0, let last = lengths.last ?? nil, first <= last else {
             return refuse(Self.edgeBreakSentence)
         }

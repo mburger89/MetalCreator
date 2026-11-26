@@ -10,7 +10,10 @@ public enum DatumLetters {
 
     /// The typed text uppercased and trimmed, or nil when it is no datum letter.
     public static func normalized(_ typed: String) -> String? {
-        let letter = typed.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let trimmed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Judged before uppercasing: "ß" would become "SS" and "ﬀ" "FF".
+        guard (1...2).contains(trimmed.count), trimmed.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
+        let letter = trimmed.uppercased()
         return isValid(letter) ? letter : nil
     }
 

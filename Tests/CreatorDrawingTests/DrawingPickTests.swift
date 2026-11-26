@@ -161,6 +161,13 @@ struct DrawingPickTests {
         #expect(DrawingPick.refusal(at: Vector2(300, 55), in: drawn, view: view, tolerance: 2) == nil)
     }
 
+    @Test func aFreeCurveRefusalSaysSymbolForASymbolTool() {
+        let drawn = picture([stroke(.polyline([Vector2(100, 50), Vector2(120, 60)]), .curve(index: 0, piece: 0))])
+        #expect(
+            DrawingPick.refusal(at: Vector2(110, 55), in: drawn, view: view, tolerance: 2, purpose: PickPurpose(symbol: .datum))?
+                .sentence == "This line is a free curve; symbols attach to a part's edges.")
+    }
+
     // MARK: Naming (R3)
 
     @Test func anUnnamedEdgeIsRefused() {

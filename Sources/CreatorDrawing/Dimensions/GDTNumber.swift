@@ -6,8 +6,8 @@ public enum GDTNumber {
     static let tolerancePlaces = 4
     /// The most decimals a roughness value in micrometres may need.
     static let roughnessPlaces = 3
-    /// Millimetres per microinch's thousandth: one micrometre is 1 / 0.0254 microinches.
-    static let micrometresPerMicroinch = 0.0254
+    /// Micrometres per microinch: one micrometre is 1 / 0.0254 microinches. The editor reads typed microinches with it too.
+    public static let micrometresPerMicroinch = 0.0254
 
     /// A tolerance in millimetres as the document's unit, with as many decimals as it needs (up to 4), never rounded to the
     /// document's precision; inches keep at least the document's precision (".005" in ASME).

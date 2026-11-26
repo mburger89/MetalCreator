@@ -43,7 +43,8 @@ extension DrawingEditorModel {
         } else if let framed {
             attachToAnnotation(framed, kind: kind)
         } else if let refused = DrawingPick.refusal(
-            at: point, in: picture, view: view, tolerance: Self.hoverTolerancePoints / transform.zoom) {
+            at: point, in: picture, view: view, tolerance: Self.hoverTolerancePoints / transform.zoom,
+            purpose: PickPurpose(symbol: kind)) {
             refuse(refused.sentence)
         }
     }

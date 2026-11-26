@@ -13,6 +13,7 @@ struct DatumLettersTests {
         #expect(DatumLetters.normalized("i") == nil)
         #expect(DatumLetters.normalized("Ä") == nil)
         #expect(DatumLetters.normalized("") == nil)
+        for tricky in ["ß", "ﬀ", "ǆ", "ŉ"] { #expect(DatumLetters.normalized(tricky) == nil, "\(tricky)") }
     }
 
     private func document(_ sheets: [[String]]) -> DrawingDocument {

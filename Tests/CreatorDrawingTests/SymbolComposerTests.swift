@@ -202,4 +202,12 @@ struct SymbolComposerTests {
         #expect(report.status == .held)
         #expect(report.current?.figure == .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
     }
+
+    @Test func aSymbolOnALineIsLostInAnIsometricView() {
+        let view = Fixtures.makeView(orientation: .isometricFrontRight)
+        let symbol = datum(view)
+        let picture = Fixtures.compose(view, [symbol], content: Fixtures.content())
+        #expect(picture.annotationReports[symbol.id]?.status == .lost(.refused(DrawingPick.symbolIsometricSentence)))
+        #expect(picture.lostAnnotations == [symbol.id])
+    }
 }

@@ -47,6 +47,14 @@ struct SheetNotesModelTests {
         #expect(notes(s).edgeBreak == nil)
     }
 
+    @Test func anEdgeBreakTakesTheCommaItIsShownWith() {
+        let s = scene()
+        s.h.model.setEdgeBreak(minimumText: "0,5", maximumText: "1,5")
+        #expect(notes(s).edgeBreak == EdgeBreak(minimum: 0.5, maximum: 1.5))
+        s.h.model.setEdgeBreak(minimumText: "0.3", maximumText: "1,5")
+        #expect(notes(s).edgeBreak == EdgeBreak(minimum: 0.3, maximum: 1.5))
+    }
+
     @Test func theGeneralSurfaceIsSet() {
         let s = scene()
         s.h.model.setGeneralSurface(SurfaceRequirement(process: .removalRequired, parameter: .ra, value: 3.2))

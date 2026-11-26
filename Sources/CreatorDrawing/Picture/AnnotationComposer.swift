@@ -59,6 +59,8 @@ struct AnnotationContext {
     var style: AnnotationStyle
     var drawingStyle: DrawingStyle
     var height: Double
+    /// The view takes no dimensions and no symbols on its lines (R17).
+    var isPictorial = false
 }
 
 /// Composes one annotation: resolve, measure, label, lay out and tag (plan R15, R25).
