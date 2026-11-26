@@ -14,12 +14,16 @@ extension DrawingSession {
         var frame: ProjectionFrame
         var format: NumberFormat
         var annotations: [DrawingAnnotation]
+        /// A section's cutting line and the tolerance its cut was cached under (R14): its annotations read the cut remainders.
+        var cutter: SectionCutter?
+        var tolerance: Double = 0
         /// The solids themselves, kept alive so that an identity in `solids` can't be reused by a later solid at the same address.
         /// Not part of the key's equality.
         var retained: [Solid] = []
 
         static func == (lhs: RefreshKey, rhs: RefreshKey) -> Bool {
             lhs.solids == rhs.solids && lhs.frame == rhs.frame && lhs.format == rhs.format && lhs.annotations == rhs.annotations
+                && lhs.cutter == rhs.cutter && lhs.tolerance == rhs.tolerance
         }
 
         func hash(into hasher: inout Hasher) {
@@ -27,6 +31,8 @@ extension DrawingSession {
             hasher.combine(frame)
             hasher.combine(format)
             hasher.combine(annotations)
+            hasher.combine(cutter)
+            hasher.combine(tolerance)
         }
     }
 
@@ -54,9 +60,14 @@ extension DrawingSession {
                 }
                 let source = Self.content(of: view.source, in: document)
                 guard !annotations.isEmpty, case .ready(let solids, _, _) = source.state, !solids.isEmpty else { continue }
+                // A detail reads what its nearest non-detail ancestor shows (R14); a section, its cut remainders.
+                let base = sheet.nearestNonDetail(of: view) ?? view
+                var cutter: SectionCutter?
+                if case .section(let line)? = base.derivation { cutter = line.cutter }
                 let key = RefreshKey(
-                    solids: solids.map(ObjectIdentifier.init), frame: view.orientation.frame, format: format,
-                    annotations: annotations, retained: solids)
+                    solids: solids.map(ObjectIdentifier.init), frame: base.orientation.frame, format: format,
+                    annotations: annotations, cutter: cutter, tolerance: 0.01 / (base.scale ?? sheet.scale).value,
+                    retained: solids)
                 if refreshed[view.id] != key {
                     pending.append(RefreshJob(view: view.id, output: source.output, solids: solids, key: key))
                 }
@@ -95,7 +106,17 @@ extension DrawingSession {
     @concurrent
     static func lastGood(of job: RefreshJob, cache: ProjectionCache, kernel: any Kernel) async -> [AnnotationID: LastGood] {
         let tag = NodeTag(node: job.output, item: 0)
-        guard let found = try? await cache.topology(of: job.solids, compoundTag: tag, kernel: kernel) else { return [:] }
+        var shown = job.solids
+        if let cutter = job.key.cutter {
+            shown = []
+            for (index, solid) in job.solids.enumerated() {
+                guard let piece = try? await cache.sectionCut(
+                    of: solid, index: index, cutter: cutter, tolerance: job.key.tolerance, kernel: kernel)
+                else { return [:] }
+                if let remainder = piece.remainder { shown.append(remainder) }
+            }
+        }
+        guard let found = try? await cache.topology(of: shown, compoundTag: tag, kernel: kernel) else { return [:] }
         var goods: [AnnotationID: LastGood] = [:]
         for annotation in job.key.annotations {
             let good = AnnotationRefresh.lastGood(

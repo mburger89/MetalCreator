@@ -82,3 +82,37 @@ extension DrawingSheet {
         return result
     }
 }
+
+extension DrawingSheet {
+    /// The views with every view after its parent (R14), otherwise in the sheet's order. A view whose parent is not on the sheet
+    /// counts as a root; a walk that meets a view it has seen stops there, so a damaged cycle can't loop.
+    public var viewsParentsFirst: [DrawingView] {
+        var placed: Set<ViewID> = []
+        var result: [DrawingView] = []
+        for view in views where !placed.contains(view.id) {
+            var chain: [DrawingView] = []
+            var seen: Set<ViewID> = []
+            var current: DrawingView? = view
+            while let next = current, !placed.contains(next.id), seen.insert(next.id).inserted {
+                chain.append(next)
+                current = next.derivation.flatMap { self.view($0.parent) }
+            }
+            for member in chain.reversed() where placed.insert(member.id).inserted { result.append(member) }
+        }
+        return result
+    }
+
+    /// The view itself unless it is a detail; a detail's nearest ancestor that is not one (R14), `nil` when the walk leaves the sheet
+    /// or meets a cycle.
+    public func nearestNonDetail(of view: DrawingView) -> DrawingView? {
+        var seen: Set<ViewID> = []
+        var current = view
+        while current.kind == .detail {
+            guard seen.insert(current.id).inserted, let parent = current.derivation.flatMap({ self.view($0.parent) }) else {
+                return nil
+            }
+            current = parent
+        }
+        return current
+    }
+}
