@@ -59,6 +59,34 @@ struct AnchorResolverTests {
         #expect(abs(sweep - 2 * .pi) < 1e-9)
     }
 
+    @Test func anArcRunStartsWhereNoOtherPieceEnds() throws {
+        let quarter = Double.pi / 2
+        let first = Fixture.circle(0, center: v(0, 0, 0), axis: v(0, 0, 1), radius: 3, sweep: quarter, between: 0, 2)
+        var second = first
+        second.id = EdgeID(1)
+        second.curve = .circle(center: v(0, 0, 0), axis: v(0, 0, 1), radius: 3, start: first.curve?.ends[1] ?? v(0, 0, 0), sweep: quarter)
+        // The piece that continues the run is listed first: the run's start is still the other piece's start.
+        let topology = Fixture.plate(edges: [second, first])
+        let result = resolve(.edge(EdgePick(key: topology.key(of: first)!, matchCount: 2, runCount: 1)), topology)
+        guard case .held(let geometry, _, true) = result, case .circle(_, _, _, let start, let sweep) = geometry else {
+            Issue.record("expected a held circle run: \(result)")
+            return
+        }
+        let begins = try #require(first.curve?.ends[0])
+        #expect((start - begins).length < 1e-9 && abs(sweep - quarter * 2) < 1e-9)
+        // A symbol's foot on the run is measured from that start: a hint before it stands on it, one past the far end on the far end.
+        let frame = StandardOrientation.top.frame
+        guard case .success(let before) = SymbolFoot.of(geometry, hint: Vector2(6, 6), frame: frame),
+            case .success(let after) = SymbolFoot.of(geometry, hint: Vector2(6, -6), frame: frame)
+        else {
+            Issue.record("expected feet")
+            return
+        }
+        #expect((before.foot - frame.place(begins)).length < 1e-9)
+        let far = try #require(second.curve?.ends[1])
+        #expect((after.foot - frame.place(far)).length < 1e-9)
+    }
+
     @Test func aChangedRunCountIsLost() {
         let topology = Fixture.plate(edges: [
             Fixture.line(0, v(0, 0, 0), v(15, 0, 0), between: 0, 2),
@@ -256,7 +284,7 @@ struct AnchorResolverTests {
             (.notAHole, "The hole it called out is no longer a plain, counterbored or countersunk hole."),
             (.sourceRemoved, "The Output this view showed was removed."),
             (.viewFailed("The view failed."), "The view failed."),
-            (.noPart, "This view has no part to measure."),
+            (.noPart, "This view shows no part."),
             (.refused("Too big."), "Too big."),
         ]
         for (reason, sentence) in table { #expect(reason.sentence == sentence) }

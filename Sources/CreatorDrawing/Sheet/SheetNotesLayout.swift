@@ -68,8 +68,8 @@ public enum SheetNotesLayout {
         let (apexY, right, h, style, format) = (stand.apexY, stand.right, stand.h, stand.style, stand.format)
         let symbols = SymbolStyle.of(style.standard)
         let gap = symbols.surfaceTextGap * h
-        // The parentheses stand with their middle (half the cap height up) at the middle of the symbol's legs.
-        let textY = apexY + symbols.surfaceLong * h / 2 - h / 2
+        // The parentheses stand with the middle of their glyph box (Helvetica's, not the cap height's) at the middle of the legs.
+        let textY = apexY + symbols.surfaceLong * h / 2 - HelveticaMetrics.parenthesisMiddle(height: h)
         var edge = right
         var texts: [(String, Double)] = []
         var strokes: [[SheetSegment]] = []
@@ -94,7 +94,7 @@ public enum SheetNotesLayout {
         for (text, x) in texts {
             picture.texts.append(
                 SheetText(run: DrawingText.layout(text, height: h), original: text, origin: Vector2(x, textY), height: h, layer: .text))
-            topY = Swift.max(topY, textY + h)
+            topY = Swift.max(topY, textY + Double(HelveticaMetrics.parenthesisExtent.upperBound) * h / Double(HelveticaMetrics.capHeight))
         }
         for group in strokes + [main.segments] {
             for segment in group {

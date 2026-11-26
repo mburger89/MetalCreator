@@ -36,6 +36,6 @@ import Testing
         }
         let digest = SHA256.hash(symbolsOutput(DrawingFixtures.symbolsSheet()).data)
             .map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined()
-        #expect(digest == "2510bdf362e555a6d66a4d239e6e393f867aefa1dd15e265c61393e4d314ae29")
+        #expect(digest == "8f2bcbb3b0a1d823a3318577e4daabadbb2239fd7e8bb9051da091b87ec28afd")
     }
 }

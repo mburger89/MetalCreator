@@ -78,11 +78,18 @@ import Testing
         #expect(open != nil && close != nil)
         if let open, let close {
             #expect(open.origin.x < close.origin.x)
-            // Both stand with their middle at the middle of the symbol's legs, not with their baseline on its apex.
-            let (_, top) = blockTop(sheet(SheetNotes()))
-            let apexY = top + SymbolStyle.of(.iso).notesGap
-            let middle = apexY + SymbolStyle.of(.iso).surfaceLong * open.height / 2
-            for paren in [open, close] { #expect(abs(paren.origin.y + paren.height / 2 - middle) < 1e-9) }
+            // The drawn glyph box of each parenthesis (Helvetica.afm: -207 to 733 per 1000 em of a font size of height / 0.718)
+            // is centred on the symbol's drawn legs.
+            let ys = with.strokes.flatMap(\.segments).flatMap { segment -> [Double] in
+                if case .line(let a, let b) = segment { return [a.y, b.y] }
+                return []
+            }
+            let legsMiddle = ((ys.min() ?? 0) + (ys.max() ?? 0)) / 2
+            for paren in [open, close] {
+                let size = paren.height / 0.718
+                let box = (paren.origin.y - 0.207 * size)...(paren.origin.y + 0.733 * size)
+                #expect(abs((box.lowerBound + box.upperBound) / 2 - legsMiddle) < 1e-9)
+            }
             let (origin, _) = blockTop(sheet(SheetNotes()))
             #expect(abs(close.origin.x + close.run.width - (origin.x + TitleBlockLayout.width)) < 1e-9)
         }
