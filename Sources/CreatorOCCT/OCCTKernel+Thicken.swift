@@ -80,8 +80,13 @@ extension OCCTKernel {
             return .built(built.shape, built.history)
         } catch let error as OCCTError {
             if error.message == OCCTCancelFlag.message { throw CancellationError() }
-            return .failed(reason: error.message == Self.thickenOpenEdgesSentence ? error.message : nil)
+            return .failed(reason: Self.thickenFailureReason(error.message))
         }
+    }
+
+    /// What a failed try says to the user: only the open-edges sentence (R2), every other failure is a distance that doesn't work.
+    static func thickenFailureReason(_ message: String) -> String? {
+        message == thickenOpenEdgesSentence ? message : nil
     }
 
     func thickenedSolid(_ shape: OCCTShape, _ history: [OCCTHistoryRecord], of sheet: Solid, tag: NodeTag) throws -> Solid {

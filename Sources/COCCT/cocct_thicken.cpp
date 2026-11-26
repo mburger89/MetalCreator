@@ -11,13 +11,13 @@
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepFill.hxx>
-#include <BRepBuilderAPI_MakeEdge.hxx>
-#include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLib.hxx>
 #include <BRep_Builder.hxx>
@@ -26,17 +26,21 @@
 #include <Geom_ConicalSurface.hxx>
 #include <Geom_CylindricalSurface.hxx>
 #include <Geom_Plane.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <TopoDS_Shell.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <string>
 #include <vector>
 
 using namespace cocct;
@@ -94,7 +98,8 @@ bool arc_span(const TopoDS_Edge &edge, const gp_Ax3 &frame, double &first, doubl
 }
 
 /// R1: the wall between two coaxial circle arcs on an analytic surface: a cylinder for equal radii in different planes, a plane (an
-/// annular sector) for arcs in one plane, otherwise a cone. Null when the pair isn't that (or won't build): the ruled wall takes it.
+/// annular sector) for arcs in one plane, otherwise a cone. Null when the pair isn't that (or won't build): the ruled wall takes it, which
+/// is deliberate (R1: every other pair keeps `BRepFill::Face`).
 TopoDS_Face analytic_wall(const TopoDS_Edge &lower, const TopoDS_Edge &upper) {
     BRepAdaptor_Curve a(lower);
     BRepAdaptor_Curve b(upper);
@@ -117,10 +122,21 @@ TopoDS_Face analytic_wall(const TopoDS_Edge &lower, const TopoDS_Edge &upper) {
     const double rb = cb.Radius();
     const double height = offset.Dot(za);
     double a0, a1, b0, b1;
-    if (!arc_span(lower, frame, a0, a1) || !arc_span(upper, frame, b0, b1) || std::abs(a0 - b0) > 1e-6 || std::abs(a1 - b1) > 1e-6) {
+    if (!arc_span(lower, frame, a0, a1) || !arc_span(upper, frame, b0, b1)) {
         return TopoDS_Face();
     }
     const bool full = std::abs((a1 - a0) - 2 * kPi) < 1e-9;
+    // The two arcs must cover the same angles. The starts come from atan2, so one on the +-pi ray can differ by a whole turn: compare
+    // the spans, and the starts modulo 2 pi (a full circle's seam may sit anywhere, so its start doesn't matter).
+    double turn = std::fmod(a0 - b0, 2 * kPi);
+    if (turn > kPi) {
+        turn -= 2 * kPi;
+    } else if (turn < -kPi) {
+        turn += 2 * kPi;
+    }
+    if (std::abs((a1 - a0) - (b1 - b0)) > 1e-6 || (!full && std::abs(turn) > 1e-6)) {
+        return TopoDS_Face();
+    }
     const bool coplanar = std::abs(height) < 1e-7;
     const bool equal = std::abs(ra - rb) < 1e-7;
     constexpr double tolerance = 1e-7;
@@ -282,6 +298,17 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
         const TopTools_IndexedMapOfShape faces = map_of(work, TopAbs_FACE);
         const TopTools_IndexedMapOfShape edges = map_of(work, TopAbs_EDGE);
 
+        // R2: the offset's refusal to keep an edge is Thicken's own sentence here.
+        auto offset_sides = [&](double signed_distance) {
+            try {
+                return offset_shell(work, signed_distance, cancel);
+            } catch (const user_error &error) {
+                if (std::string(error.what()) == kOffsetOpenEdges) {
+                    throw user_error(kThickenOpenEdges);
+                }
+                throw;
+            }
+        };
         layer lower, upper;
         auto sheet_layer = [&](const offset_result &partner, layer &out) {
             for (int f = 1; f <= faces.Extent(); ++f) {
@@ -298,16 +325,16 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
             }
         };
         if (side == 0) {
-            const offset_result up = offset_shell(work, distance, cancel);
+            const offset_result up = offset_sides(distance);
             sheet_layer(up, lower);
             offset_layer(up, upper);
         } else if (side == 1) {
-            const offset_result down = offset_shell(work, -distance, cancel);
+            const offset_result down = offset_sides(-distance);
             offset_layer(down, lower);
             sheet_layer(down, upper);
         } else {
-            const offset_result down = offset_shell(work, -0.5 * distance, cancel);
-            const offset_result up = offset_shell(work, 0.5 * distance, cancel);
+            const offset_result down = offset_sides(-0.5 * distance);
+            const offset_result up = offset_sides(0.5 * distance);
             offset_layer(down, lower);
             offset_layer(up, upper);
         }
