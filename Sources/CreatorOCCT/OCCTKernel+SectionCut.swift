@@ -78,10 +78,10 @@ extension OCCTKernel {
             split = try await self.split(sheet, by: .body(tool), tag: tag)
         } catch let error as KernelError {
             // The splitter refuses when the prism divides nothing (the line misses a sheet that only its bounding rectangle
-            // meets): then the whole sheet lies on one side, which one point of it tells.
-            guard case .invalidInput(let message) = error, message == Self.noCutMessage,
-                  let face = sheet.topology.faces.first else { throw Self.cutFailure }
-            return Self.contains(removed, frame.place(face.centroid)) ? nil : sheet
+            // meets): then each face lies wholly on one side, which a point on that face tells (never a centroid, which can
+            // lie off a non-convex or curved face).
+            guard case .invalidInput(let message) = error, message == Self.noCutMessage else { throw Self.cutFailure }
+            return try keepingFacesOutside(sheet, removed: removed, frame: frame)
         } catch is OCCTError {
             throw Self.cutFailure
         }
@@ -91,6 +91,30 @@ extension OCCTKernel {
         if kept.isEmpty { return nil }
         if inside.isEmpty { return sheet }
         return try subSheet(kept, of: split.whole)
+    }
+
+    /// The faces of `sheet` whose own points lie outside `removed`, as a sheet; `nil` when none do.
+    private func keepingFacesOutside(_ sheet: Solid, removed: [Vector2], frame: ProjectionFrame) throws -> Solid? {
+        let mesh = try tessellate(sheet, tolerance: 0.1, angle: DisplayAngle.standard)
+        let edges = removed.indices.map { (removed[$0], removed[($0 + 1) % removed.count]) }
+        var onFace: [FaceID: [Vector2]] = [:]
+        for (triangle, face) in mesh.triangleFaces.enumerated() {
+            for corner in 0..<3 {
+                let index = Int(mesh.indices[triangle * 3 + corner])
+                onFace[face, default: []].append(frame.place(mesh.positions[index]))
+            }
+        }
+        var kept: [FaceID] = []
+        for face in sheet.topology.faces {
+            // A point on the line itself decides nothing; take one clear of it.
+            guard let point = onFace[face.id]?.first(where: { Self.distance(from: $0, to: edges) > 1e-6 }) else {
+                throw Self.cutFailure
+            }
+            if !Self.contains(removed, point) { kept.append(face.id) }
+        }
+        if kept.isEmpty { return nil }
+        if kept.count == sheet.topology.faces.count { return sheet }
+        return try subSheet(kept, of: sheet)
     }
 
     private static let noCutMessage = "The cutter doesn't cut the surface."

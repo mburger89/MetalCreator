@@ -125,6 +125,33 @@ struct SectionCutTests {
         #expect(try await kernel.cutAway(sheet, by: removedSide, tag: tag) == nil)
     }
 
+    private func polygonSheet(_ points: [(Double, Double)]) async throws -> Solid {
+        let vectors = points.map { Vector3($0.0, $0.1, 0) }
+        let pieces = vectors.indices.map { CurvePiece.line(vectors[$0], vectors[($0 + 1) % vectors.count]) }
+        return try await kernel.planarSurface([try await kernel.makeCurve(pieces, tag: source)], tag: source)
+    }
+
+    /// The centroid of an L lies in its notch, inside the removed region, yet the whole L is on the kept side.
+    @Test func anLSheetWhoseCentroidIsOffTheFaceIsKept() async throws {
+        let sheet = try await polygonSheet([(0, 0), (40, 0), (40, 2), (2, 2), (2, 40), (0, 40)])
+        let line = SectionCutter(frame: top, points: [Vector2(-50, 50), Vector2(5, 50), Vector2(5, 5), Vector2(60, 5)],
+                                 viewing: Vector2(0, -1))
+        let kept = try #require(try await kernel.cutAway(sheet, by: line, tag: tag))
+        #expect(kept.topology.faces.count == 1)
+        #expect(abs(kept.bounds.max.x - 40) < 1e-6 && abs(kept.bounds.max.y - 40) < 1e-6)
+    }
+
+    /// Two separate faces with the line between them: the one on the removed side goes, the other stays.
+    @Test func twoSeparateFacesAreEachKeptOrRemoved() async throws {
+        let left = try await polygonSheet([(0, 0), (10, 0), (10, 10), (0, 10)])
+        let right = try await polygonSheet([(30, 0), (40, 0), (40, 10), (30, 10)])
+        let both = try await kernel.compound([left, right], tag: source)
+        let line = SectionCutter(frame: top, points: [Vector2(20, -5), Vector2(20, 15)], viewing: Vector2(1, 0))
+        let kept = try #require(try await kernel.cutAway(both, by: line, tag: tag))
+        #expect(kept.topology.faces.count == 1)
+        #expect(abs(kept.bounds.min.x - 30) < 1e-6)
+    }
+
     @Test func cancelledBeforeTheBoolean() async throws {
         let part = try await box()
         let line = cutter([(-5, 5), (45, 5)])
