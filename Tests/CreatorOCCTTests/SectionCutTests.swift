@@ -112,6 +112,27 @@ struct SectionCutTests {
         #expect(!onLine.isEmpty)
     }
 
+    /// R18: a closed solid beside a sheet that the line crosses keeps the sheet's remainder, each with its own names.
+    @Test func aMixedValueKeepsTheSheetsRemainder() async throws {
+        let part = try await box()
+        let corners = [Vector3(0, 30, 0), Vector3(0, 50, 0), Vector3(40, 50, 0), Vector3(40, 30, 0)]
+        let loop = try await kernel.makeCurve(corners.indices.map { .line(corners[$0], corners[($0 + 1) % 4]) }, tag: source)
+        let sheet = try await kernel.planarSurface([loop], tag: source)
+        let mixed = try await kernel.compound([part, sheet], tag: source)
+        #expect(mixed.holdsClosedSolid && mixed.hasOpenShell)
+        // The line y = 40 crosses the sheet (30...50) and misses the box (0...20); the far side (y >= 40) is kept.
+        let result = try #require(try await kernel.cutAway(mixed, by: cutter([(-5, 40), (45, 40)]), tag: tag))
+        #expect(result.hasOpenShell)
+        #expect(abs(result.bounds.min.y - 40) < 1e-6 && abs(result.bounds.max.y - 50) < 1e-6)
+        // Cutting through the box too: the box's far part and the sheet's far part both remain.
+        let both = try #require(try await kernel.cutAway(mixed, by: cutter([(-5, 10), (45, 10)]), tag: tag))
+        #expect(both.holdsClosedSolid && both.hasOpenShell)
+        #expect(abs(both.bounds.min.y - 10) < 1e-6 && abs(both.bounds.max.y - 50) < 1e-6)
+        let solidFaces = both.topology.faces.filter { !$0.isOnOpenShell }
+        let cutFaces = solidFaces.filter { $0.tags.contains { $0.node == SectionCutter.toolNode } }
+        #expect(cutFaces.count == 1)
+    }
+
     @Test func aDiskSheetTheLineMissesIsKeptOrRemoved() async throws {
         let ring = CurvePiece.arc(center: .zero, normal: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: 2 * .pi)
         let sheet = try await kernel.planarSurface([try await kernel.makeCurve([ring], tag: source)], tag: source)

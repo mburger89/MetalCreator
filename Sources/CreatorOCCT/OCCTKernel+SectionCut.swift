@@ -29,10 +29,33 @@ extension OCCTKernel {
                           xAxis: frame.right)
         let segments = polygon.indices.map { Segment2D.line(polygon[$0], polygon[($0 + 1) % polygon.count]) }
         let tool = try await extrude(Profile2D(plane: plane, segments: segments), distance: far - near + 2, mode: .symmetric, tag: tag)
-        if solid.hasOpenShell && !solid.holdsClosedSolid {
+        if solid.hasOpenShell && solid.holdsClosedSolid {
+            return try await cutMixed(solid, by: cutter, tag: tag)
+        }
+        if solid.hasOpenShell {
             return try await cutSheet(solid, by: tool, frame: frame, removed: polygon, tag: tag)
         }
         return try await subtract(tool, from: solid, tag: tag)
+    }
+
+    /// R18: a closed solid beside a sheet. `occt_boolean` would lose the sheet, so the value is divided by shell kind (the sheets'
+    /// faces through `subSheet`, the solids' sewn back into solids, which keeps each face's own tags), each part is cut on its own
+    /// and the remainders are compounded. Either part may vanish; both vanishing gives `nil`.
+    private func cutMixed(_ mixed: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
+        let sheetFaces = mixed.topology.faces.filter(\.isOnOpenShell).map(\.id)
+        let solidFaces = mixed.topology.faces.filter { !$0.isOnOpenShell }.map(\.id)
+        let sheets = try subSheet(sheetFaces, of: mixed)
+        let shell = try subSheet(solidFaces, of: mixed)
+        let sewn = try await sewn([shell], tolerance: 1e-6, tag: tag)
+        guard sewn.sheets == 0, sewn.solids > 0 else { throw Self.cutFailure }
+        var parts: [Solid] = []
+        if let part = try await cutAway(sewn.body, by: cutter, tag: tag) { parts.append(part) }
+        if let part = try await cutAway(sheets, by: cutter, tag: tag) { parts.append(part) }
+        switch parts.count {
+        case 0: return nil
+        case 1: return parts[0]
+        default: return try compound(parts, tag: tag)
+        }
     }
 
     private func subtract(_ tool: Solid, from solid: Solid, tag: NodeTag) async throws -> Solid? {
