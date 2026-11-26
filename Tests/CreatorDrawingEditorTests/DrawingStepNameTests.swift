@@ -223,7 +223,8 @@ struct DrawingStepNameTests {
         for typed in ["0,125", "-1,234", "+12,500"] {
             point.model.setDetailRadius(text: typed, of: other.id)
             #expect(point.log.commits.isEmpty, "\(typed)")
-            #expect(point.model.refusal == "“\(typed)” could mean \(typed.replacingOccurrences(of: ",", with: ".")) or \(typed.replacingOccurrences(of: ",", with: "")); type it with a point.")
+            let decimal = typed.replacingOccurrences(of: ",", with: "."), whole = typed.replacingOccurrences(of: ",", with: "")
+            #expect(point.model.refusal == "“\(typed)” could mean \(decimal) or \(whole); type it with a point.")
         }
         point.model.setDetailRadius(text: "1.234", of: other.id)
         #expect(radius(point, other.id).map { abs($0 - 1.234) < 1e-9 } == true)
