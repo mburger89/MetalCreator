@@ -32,7 +32,8 @@ public enum SheetComposer {
         let centers = ViewPlacement.centers(in: sheet)
         let annotations = AnnotationPass(
             sheet: sheet, standard: standard, style: style, format: NumberFormat(units: units, settings: settings),
-            remembered: remembered, rules: GDTRules.Context.make(document: document, sheet: sheet))
+            remembered: remembered, rules: GDTRules.Context.make(document: document, sheet: sheet),
+            items: PartItems.numbered(document, names: PartItems.names(of: facts.parts)))
         for view in sheet.views {
             let center = centers[view.id] ?? view.center
             let scale = (view.scale ?? sheet.scale).value

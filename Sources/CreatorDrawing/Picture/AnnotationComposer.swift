@@ -61,6 +61,10 @@ struct AnnotationContext {
     var height: Double
     /// The view takes no dimensions and no symbols on its lines (R17).
     var isPictorial = false
+    /// The drawing's numbered items, computed once per compose (DR-5 R5).
+    var items: [NumberedItem] = []
+    /// The view's `source`, the part a balloon with an unwrapped anchor is on (DR-5 R4).
+    var viewSource: NodeID?
 
     /// The spans of the view's parts (empty for a single-Output view).
     var parts: [PartSpan] {
@@ -75,6 +79,9 @@ enum AnnotationComposer {
     ) -> (report: AnnotationReport, pieces: AnnotationPieces) {
         if case .note(let note) = annotation.kind {
             return composeNote(annotation, note, context: context, remembered: remembered ?? annotation.last)
+        }
+        if case .balloon(let balloon) = annotation.kind {
+            return composeBalloon(annotation, balloon, context: context, remembered: remembered ?? annotation.last)
         }
         if annotation.symbolKind != nil {
             return composeSymbol(annotation, context: context, format: format, remembered: remembered ?? annotation.last)

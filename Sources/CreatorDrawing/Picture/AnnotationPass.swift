@@ -11,6 +11,8 @@ struct AnnotationPass {
     let remembered: [AnnotationID: LastGood]
     /// What the rules of geometric tolerancing need, made once per compose (plan R8, R18).
     let rules: GDTRules.Context
+    /// The drawing's item numbers, made once per compose from the document and the facts' part names (DR-5 R5).
+    let items: [NumberedItem]
 
     private var annotationStyle: AnnotationStyle { .of(standard) }
     private var height: Double { style.notesHeight(for: sheet.size) }
@@ -33,7 +35,8 @@ struct AnnotationPass {
         let context = AnnotationContext(
             view: view.id, center: center, mapping: mapping, viewFrame: frame, projection: content.projection,
             state: AnnotationViewState.of(content, frame: view.orientation.frame), standard: standard, style: annotationStyle,
-            drawingStyle: style, height: height, isPictorial: sheet.isPictorial(view))
+            drawingStyle: style, height: height, isPictorial: sheet.isPictorial(view), items: items,
+            viewSource: view.source)
         let annotations = sheet.annotations(of: view.id)
         // R11's order: everything not on a dimension, then frames on dimensions, then datum symbols on dimensions, so a hanging
         // datum sits below the frames on the same dimension.
@@ -78,7 +81,7 @@ struct AnnotationPass {
         let context = AnnotationContext(
             view: nil, center: .zero, mapping: ViewMapping(scale: 1, offset: .zero), viewFrame: Rect2D(min: .zero, max: .zero),
             projection: nil, state: .unlisted(.noPart), standard: standard, style: annotationStyle, drawingStyle: style,
-            height: height)
+            height: height, items: items)
         for annotation in sheet.annotations where annotation.view == nil {
             let (report, pieces) = AnnotationComposer.compose(
                 annotation, context: context, format: format, remembered: remembered[annotation.id])

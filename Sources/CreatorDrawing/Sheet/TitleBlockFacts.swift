@@ -1,12 +1,16 @@
+import CreatorKernel
 import Foundation
 
 /// Values the title block shows that come from the model, not the sheet.
 public struct TitleBlockFacts: Hashable, Sendable {
     /// The mass text, or `nil` when the field stays empty (plan R16).
     public var massText: String?
+    /// Every part the drawing wants, by Output: its name, quantity and whether it is removed (DR-5 R5). Read by lookup only.
+    public var parts: [NodeID: PartFacts]
 
-    public init(massText: String? = nil) {
+    public init(massText: String? = nil, parts: [NodeID: PartFacts] = [:]) {
         self.massText = massText
+        self.parts = parts
     }
 
     /// "8.4 g" under 10 g, "84 g" under 1000 g, "1.234 kg" above, or pounds ("2.721 lb") when `inches`.
