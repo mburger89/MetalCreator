@@ -22,7 +22,7 @@ struct NewOpenPendingEntryTests {
 
     func typedDrawingValue() async -> AppModel {
         let app = await AppModel.inDrawing(DrawingBox().graph)
-        app.drawing.editor.notePendingDraft(owner: UUID()) { app.drawing.editor.setTitleField(.tolerance, to: "typed") }
+        app.drawing.editor.notePendingDraft(owner: UUID()) { app.drawing.editor.setTitleField(.title, to: "typed") }
         return app
     }
 
@@ -44,13 +44,13 @@ struct NewOpenPendingEntryTests {
         let app = await typedDrawingValue()
         app.newDocument()
         #expect(app.alert == .discardChanges)
-        #expect(app.document.drawings.settings.generalTolerance == "typed")
+        #expect(app.document.drawings.settings.titleBlockDefaults.title == "typed")
     }
 
     @Test func openAsksAboutATypedDrawingValueAndKeepsIt() async throws {
         let app = await typedDrawingValue()
         await app.openDocument(using: ScriptedPicker([]))
         #expect(app.alert == .discardChanges)
-        #expect(app.document.drawings.settings.generalTolerance == "typed")
+        #expect(app.document.drawings.settings.titleBlockDefaults.title == "typed")
     }
 }

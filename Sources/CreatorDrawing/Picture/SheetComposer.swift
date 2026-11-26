@@ -14,18 +14,22 @@ public enum SheetComposer {
 
     public static func compose(
         _ sheet: DrawingSheet, in document: DrawingDocument, contents: [ViewID: ViewContent], facts: TitleBlockFacts,
-        notices: Bool = true
+        notices: Bool = true, units: DocumentUnits = .millimetres, remembered: [AnnotationID: LastGood] = [:]
     ) -> SheetPicture {
         let settings = document.settings
         let standard = settings.standard
         let style = DrawingStyle.of(standard)
         var picture = SheetFrame.picture(for: sheet, standard: standard)
+        picture.standard = standard
         let index = document.sheets.firstIndex { $0.id == sheet.id } ?? 0
         picture.append(
             TitleBlockLayout.picture(
                 sheet: sheet, settings: settings, facts: facts, sheetIndex: index, sheetCount: document.sheets.count))
 
         let centers = ViewPlacement.centers(in: sheet)
+        let annotations = AnnotationPass(
+            sheet: sheet, standard: standard, style: style, format: NumberFormat(units: units, settings: settings),
+            remembered: remembered)
         for view in sheet.views {
             let center = centers[view.id] ?? view.center
             let scale = (view.scale ?? sheet.scale).value
@@ -42,6 +46,8 @@ public enum SheetComposer {
                     notices: notices)
             }
             picture.viewFrames[view.id] = frame
+            annotations.compose(
+                view: view, center: center, scale: scale, content: content, frame: frame, into: &picture)
             if view.showsLabel {
                 let label = ViewLabel.text(for: view, sheet: sheet, standard: standard)
                 let height = style.viewLabelHeight
@@ -58,6 +64,7 @@ public enum SheetComposer {
                     style: style)
             }
         }
+        annotations.finish(&picture)
         return picture
     }
 

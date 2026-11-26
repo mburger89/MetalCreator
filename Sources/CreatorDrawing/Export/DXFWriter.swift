@@ -17,7 +17,7 @@ public struct DXFOutput: Sendable {
 /// input: handles are sequential, numbers go through `PDFNumber`, nothing iterates a dictionary.
 public enum DXFWriter {
     public static func write(
-        strokes: [SheetStroke], texts: [SheetText], extent: Rect2D, style: DrawingStyle
+        strokes: [SheetStroke], texts: [SheetText], fills: [SheetFill] = [], extent: Rect2D, style: DrawingStyle
     ) -> DXFOutput {
         var handles = DXFHandles()
         let set = DXFHandleSet(&handles)
@@ -27,6 +27,7 @@ public enum DXFWriter {
         for stroke in strokes {
             for segment in stroke.segments { entity(segment, of: stroke, owner: set.modelRecord, handles: &handles, into: &entities) }
         }
+        for fill in fills { solids(fill, owner: set.modelRecord, handles: &handles, into: &entities) }
         for text in texts where !text.run.shown.isEmpty {
             textEntity(text, owner: set.modelRecord, handles: &handles, into: &entities)
         }
@@ -46,16 +47,48 @@ public enum DXFWriter {
     /// The open sheet, in sheet millimetres.
     public static func sheet(_ picture: SheetPicture, style: DrawingStyle) -> DXFOutput {
         write(
-            strokes: picture.strokes, texts: picture.texts, extent: Rect2D(min: .zero, max: picture.size), style: style)
+            strokes: picture.strokes, texts: picture.texts, fills: picture.fills,
+            extent: Rect2D(min: .zero, max: picture.size), style: style)
     }
 
-    /// One view at 1:1 in model millimetres, x and y as the view plane's (plan R24): no frame and no texts.
-    public static func view(_ projection: Projection2D, view: DrawingView, style: DrawingStyle) -> DXFOutput {
+    /// One view at 1:1 in model millimetres, x and y as the view plane's (plan R24): no frame and no texts. With `annotations` (plan
+    /// R22) the view's own dimensions, callouts, notes and leaders from the sheet's picture come too, mapped back by `mapping`
+    /// (sheet minus offset, over scale) with their text heights over the scale, so the geometry measures true and the lettering keeps
+    /// its size against the part.
+    public static func view(
+        _ projection: Projection2D, view: DrawingView, style: DrawingStyle,
+        annotations: (picture: SheetPicture, mapping: ViewMapping)? = nil
+    ) -> DXFOutput {
         guard let bounds = projection.bounds else {
             return write(strokes: [], texts: [], extent: Rect2D(min: .zero, max: .zero), style: style)
         }
-        let strokes = ViewLinework.strokes(for: projection, view: view, center: bounds.center, scale: 1, style: style)
-        return write(strokes: strokes, texts: [], extent: bounds, style: style)
+        var strokes = ViewLinework.strokes(for: projection, view: view, center: bounds.center, scale: 1, style: style)
+        var (texts, fills): ([SheetText], [SheetFill]) = ([], [])
+        var extent = bounds
+        if let (picture, mapping) = annotations {
+            let (back, shift) = (1 / mapping.scale, mapping.offset * (-1 / mapping.scale))
+            // The view's automatic centre marks carry no annotation but sit alone on the centre layer among a view's own strokes.
+            for stroke in picture.strokes where stroke.view == view.id && (stroke.annotation != nil || stroke.layer == .center) {
+                var moved = stroke
+                moved.segments = stroke.segments.map { $0.transformed(scale: back, offset: shift) }
+                extent = extent.union(moved.bounds)
+                strokes.append(moved)
+            }
+            for fill in picture.fills where fill.view == view.id && fill.annotation != nil {
+                var moved = fill
+                moved.points = fill.points.map { mapping.model($0) }
+                if let box = Rect2D(points: moved.points) { extent = extent.union(box) }
+                fills.append(moved)
+            }
+            for text in picture.texts where text.view == view.id && text.annotation != nil && !text.isNotice {
+                var moved = text
+                moved.origin = mapping.model(text.origin)
+                moved.height = text.height * back
+                extent = extent.union(Rect2D(min: moved.origin, max: moved.origin))
+                texts.append(moved)
+            }
+        }
+        return write(strokes: strokes, texts: texts, fills: fills, extent: extent, style: style)
     }
 
     // MARK: Entities
@@ -69,6 +102,7 @@ public enum DXFWriter {
         t.add(100, "AcDbEntity")
         t.add(8, stroke.layer.rawValue)
         if stroke.pattern == .hidden && stroke.layer != .hidden { t.add(6, "DASHED") }
+        if stroke.pattern == .centre && stroke.layer != .center { t.add(6, "CENTER") }
         t.add(370, DXFTables.lineweight(stroke.width))
     }
 
@@ -196,8 +230,28 @@ public enum DXFWriter {
         t.add(30, 0.0)
         t.add(40, text.height)
         t.add(1, escaped(text.run.shown))
+        if text.angle != 0 { t.add(50, degrees(text.angle)) }
         t.add(7, "Standard")
         t.add(100, "AcDbText")
+    }
+
+    /// A filled polygon as a fan of `SOLID`s from its first point; each triangle's fourth vertex repeats its third.
+    private static func solids(_ fill: SheetFill, owner: String, handles: inout DXFHandles, into t: inout DXFText) {
+        guard fill.points.count >= 3 else { return }
+        for index in 1..<(fill.points.count - 1) {
+            let corners = [fill.points[0], fill.points[index], fill.points[index + 1]]
+            t.add(0, "SOLID")
+            t.add(5, handles.make())
+            t.add(330, owner)
+            t.add(100, "AcDbEntity")
+            t.add(8, fill.layer.rawValue)
+            t.add(100, "AcDbTrace")
+            for (slot, point) in (corners + [corners[2]]).enumerated() {
+                t.add(10 + slot, point.x)
+                t.add(20 + slot, point.y)
+                t.add(30 + slot, 0.0)
+            }
+        }
     }
 
     /// DXF's text codes: `%%c` for Ø, `%%p` for ±, `%%d` for °, `%%%` for a percent sign, `\U+XXXX` for anything else

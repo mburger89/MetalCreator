@@ -1,5 +1,16 @@
 import CreatorKernel
 
+/// A projection with the topology of the solid it shows (plan R26): one solid's own, the compound's for several, nil for none.
+public struct CachedProjection: Sendable {
+    public var projection: Projection2D
+    public var topology: Topology?
+
+    public init(projection: Projection2D, topology: Topology?) {
+        self.projection = projection
+        self.topology = topology
+    }
+}
+
 /// Projections by the identities of what they were made from (plan R19). Keyed on the source solids and curves, never on a
 /// compound of them (`Kernel.compound` returns a new `Solid` every call); a miss with two or more solids compounds them once.
 public actor ProjectionCache {
@@ -15,8 +26,21 @@ public actor ProjectionCache {
     private struct Entry {
         var solids: [Solid]
         var curves: [Curve]
-        var compound: Solid?
-        var projection: Projection2D
+        var cached: CachedProjection
+        var bytes: Int
+        var stamp: Int
+    }
+
+    private struct CompoundKey: Hashable {
+        var solids: [ObjectIdentifier]
+        var tag: NodeTag
+    }
+
+    /// The compound of a set of solids, made once and shared by a topology request and a projection (plan R26). It keeps its
+    /// inputs alive so an identity can't be reused while it is cached.
+    private struct CompoundEntry {
+        var solids: [Solid]
+        var compound: Solid
         var bytes: Int
         var stamp: Int
     }
@@ -31,10 +55,12 @@ public actor ProjectionCache {
 
     private let limit: Int
     private var entries: [Key: Entry] = [:]
+    private var compounds: [CompoundKey: CompoundEntry] = [:]
+    private var compoundFlights: [CompoundKey: Task<Solid, any Error>] = [:]
     private struct Flight {
         var id: Int
         var task: Task<Void, Never>
-        var waiters: [Int: CheckedContinuation<Projection2D, any Error>]
+        var waiters: [Int: CheckedContinuation<CachedProjection, any Error>]
     }
 
     private var inFlight: [Key: Flight] = [:]
@@ -54,7 +80,7 @@ public actor ProjectionCache {
     public func projection(
         of solids: [Solid], curves: [Curve], compoundTag: NodeTag, frame: ProjectionFrame, options: ProjectionOptions,
         kernel: any Kernel
-    ) async throws -> Projection2D {
+    ) async throws -> CachedProjection {
         let key = Key(
             solids: solids.map(ObjectIdentifier.init), curves: curves.map(ObjectIdentifier.init), compoundTag: compoundTag,
             frame: frame, options: options)
@@ -62,7 +88,7 @@ public actor ProjectionCache {
             clock += 1
             hit.stamp = clock
             entries[key] = hit
-            return hit.projection
+            return hit.cached
         }
         waiterSerial += 1
         let waiter = waiterSerial
@@ -79,7 +105,7 @@ public actor ProjectionCache {
     /// Waiters in flight, over every key (a test reads it to know a request has joined).
     public var waitingCount: Int { inFlight.values.reduce(0) { $0 + $1.waiters.count } }
 
-    private func join(_ key: Key, waiter: Int, request: Request, kernel: any Kernel) async throws -> Projection2D {
+    private func join(_ key: Key, waiter: Int, request: Request, kernel: any Kernel) async throws -> CachedProjection {
         try await withCheckedThrowingContinuation { continuation in
             if Task.isCancelled {
                 continuation.resume(throwing: CancellationError())
@@ -110,7 +136,7 @@ public actor ProjectionCache {
     }
 
     private func run(_ key: Key, flight id: Int, _ request: Request, _ kernel: any Kernel) async {
-        let result: Result<Projection2D, any Error>
+        let result: Result<CachedProjection, any Error>
         do {
             result = .success(try await build(key, request, kernel))
         } catch {
@@ -124,37 +150,83 @@ public actor ProjectionCache {
 
     public func removeAll() {
         entries.removeAll()
+        compounds.removeAll()
         bytesUsed = 0
     }
 
-    private func build(_ key: Key, _ request: Request, _ kernel: any Kernel) async throws -> Projection2D {
+    /// The topology of the solids a view shows (plan R26): nil for none, a single solid's own with no kernel call, else the
+    /// compound's, made once per set of solid identities and tag.
+    public func topology(of solids: [Solid], compoundTag: NodeTag, kernel: any Kernel) async throws -> Topology? {
+        guard let first = solids.first else { return nil }
+        if solids.count == 1 { return first.topology }
+        let made = try await compound(of: solids, tag: compoundTag, kernel: kernel)
+        try Task.checkCancellation()
+        return made.topology
+    }
+
+    private func compound(of solids: [Solid], tag: NodeTag, kernel: any Kernel) async throws -> Solid {
+        let key = CompoundKey(solids: solids.map(ObjectIdentifier.init), tag: tag)
+        if var hit = compounds[key] {
+            clock += 1
+            hit.stamp = clock
+            compounds[key] = hit
+            return hit.compound
+        }
+        if let flight = compoundFlights[key] { return try await flight.value }
+        compoundCalls += 1
+        let flight = Task { try await kernel.compound(solids, tag: tag) }
+        compoundFlights[key] = flight
+        let made: Solid
+        do {
+            made = try await flight.value
+        } catch {
+            compoundFlights[key] = nil
+            throw error
+        }
+        compoundFlights[key] = nil
+        clock += 1
+        let bytes = Self.estimatedBytes(of: made.topology)
+        compounds[key] = CompoundEntry(solids: solids, compound: made, bytes: bytes, stamp: clock)
+        bytesUsed += bytes
+        evict()
+        return made
+    }
+
+    private static func estimatedBytes(of topology: Topology) -> Int {
+        256 * (topology.faces.count + topology.edges.count) + 64
+    }
+
+    private func build(_ key: Key, _ request: Request, _ kernel: any Kernel) async throws -> CachedProjection {
         let (solids, curves, tag) = (request.solids, request.curves, request.tag)
         let (frame, options) = (request.frame, request.options)
-        var compound: Solid?
         var target = solids.first
-        if solids.count > 1 {
-            compoundCalls += 1
-            let made = try await kernel.compound(solids, tag: tag)
-            compound = made
-            target = made
-        }
+        if solids.count > 1 { target = try await compound(of: solids, tag: tag, kernel: kernel) }
         kernelCalls += 1
         let projection = try await kernel.projection(of: target, curves: curves, frame: frame, options: options)
         try Task.checkCancellation()
         clock += 1
         let bytes = projection.estimatedBytes
-        entries[key] = Entry(
-            solids: solids, curves: curves, compound: compound, projection: projection, bytes: bytes, stamp: clock)
+        let cached = CachedProjection(projection: projection, topology: target?.topology)
+        entries[key] = Entry(solids: solids, curves: curves, cached: cached, bytes: bytes, stamp: clock)
         bytesUsed += bytes
-        evict(keeping: key)
-        return projection
+        evict()
+        return cached
     }
 
-    private func evict(keeping newest: Key) {
-        while bytesUsed > limit, entries.count > 1 {
-            guard let oldest = entries.filter({ $0.key != newest }).min(by: { $0.value.stamp < $1.value.stamp }) else { return }
-            bytesUsed -= oldest.value.bytes
-            entries[oldest.key] = nil
+    /// Drops the least recently used projection or compound until the limit holds, always keeping the newest of all.
+    private func evict() {
+        while bytesUsed > limit, entries.count + compounds.count > 1 {
+            let oldestEntry = entries.min { $0.value.stamp < $1.value.stamp }
+            let oldestCompound = compounds.min { $0.value.stamp < $1.value.stamp }
+            if let entry = oldestEntry, oldestCompound.map({ entry.value.stamp < $0.value.stamp }) ?? true {
+                bytesUsed -= entry.value.bytes
+                entries[entry.key] = nil
+            } else if let compound = oldestCompound {
+                bytesUsed -= compound.value.bytes
+                compounds[compound.key] = nil
+            } else {
+                return
+            }
         }
     }
 }

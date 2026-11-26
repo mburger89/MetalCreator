@@ -15,10 +15,16 @@ enum SheetCanvasInput {
         return result
     }
 
-    /// The drawing key a press stands for: F, Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
+    /// The letters that choose an annotation tool (plan R17), each with its capital.
+    private static let toolLetters: [Character: DrawingTool] = [
+        "d": .dimension, "h": .holeCallout, "m": .centreMark, "l": .centreLine, "n": .note,
+    ]
+
+    /// The drawing key a press stands for: F, the tool letters D, H, M, L and N, Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
     static func key(_ key: KeyEquivalent, modifiers: EventModifiers, isRepeat: Bool = false) -> DrawingKey? {
         // A chord with ⌘ (Ctrl elsewhere) or ⌥ belongs to the menus.
         if modifiers.contains(.primary) || modifiers.contains(.control) || modifiers.contains(.option) { return nil }
+        if let letter = key.character.lowercased().first, let tool = toolLetters[letter] { return .tool(tool) }
         let step = modifiers.contains(.shift) ? 10.0 : 1.0
         switch key {
         case "f", "F": return .fit

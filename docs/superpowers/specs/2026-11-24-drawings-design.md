@@ -1,6 +1,6 @@
 # Engineering drawings — design
 
-Status: approved for planning (2026-11-24). Sub-projects DR-1 to DR-5, built in that order. DR-1 done (2026-11-25; human checks group DR-1 pending; R10: primary path, HLRBRep_Data read per edge, no HLRBRep_HLRToShape fallback).
+Status: approved for planning (2026-11-24). Sub-projects DR-1 to DR-5, built in that order. DR-1 done (2026-11-25; human checks group DR-1 pending; R10: primary path, HLRBRep_Data read per edge, no HLRBRep_HLRToShape fallback). DR-2 done (2026-11-25; human checks group DR-2 pending; R1: a sheet-millimetre layout beside the viewport's).
 
 ## Intent
 

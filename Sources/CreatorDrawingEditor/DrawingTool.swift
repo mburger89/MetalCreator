@@ -1,8 +1,17 @@
-/// The tools of DR-1 (the toolbar's others come with DR-2 to DR-5).
+/// The tools of the drawing toolbar: DR-1's view tools, then DR-2's annotation tools.
 public enum DrawingTool: Hashable, Sendable, CaseIterable {
     case select
     case baseView
     case projectedView
+    case dimension
+    case baselineDimension
+    case chainDimension
+    case ordinateDimension
+    case chamferDimension
+    case holeCallout
+    case centreMark
+    case centreLine
+    case note
 }
 
 extension DrawingTool {
@@ -12,6 +21,23 @@ extension DrawingTool {
         case .select: nil
         case .baseView: "Base View"
         case .projectedView: "Projected View"
+        case .dimension: "Dimension"
+        case .baselineDimension: "Baseline"
+        case .chainDimension: "Chain"
+        case .ordinateDimension: "Ordinate"
+        case .chamferDimension: "Chamfer"
+        case .holeCallout: "Hole Callout"
+        case .centreMark: "Centre Mark"
+        case .centreLine: "Centre Line"
+        case .note: "Note"
+        }
+    }
+
+    /// Whether the tool picks things on a view's lines or places a note (plan R17).
+    public var isAnnotationTool: Bool {
+        switch self {
+        case .select, .baseView, .projectedView: false
+        default: true
         }
     }
 }

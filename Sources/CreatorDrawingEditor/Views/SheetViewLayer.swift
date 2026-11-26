@@ -3,13 +3,14 @@ import CreatorGeometry
 import CreatorStyle
 import MetalUI
 
-/// One view on the sheet (plan R27): its strokes and lettering, the selection outline and the hovered line, in paper space.
+/// One view on the sheet (plan R27): its strokes, arrowheads and lettering, the selection outline and the hovered line, in paper space.
 /// `.equatable()` where the canvas builds it, and `==` covers every stored property (the synthesized one does;
 /// `SheetViewEqualityTests` fails when a property gains no variant), so a pan, or a change to another view, skips it.
 struct SheetViewLayer: Component, Equatable {
     let id: ViewID
     let strokes: [SheetStroke]
     let texts: [SheetText]
+    let fills: [SheetFill]
     let frame: Rect2D
     let zoom: Double
     let paperHeight: Double
@@ -24,7 +25,9 @@ struct SheetViewLayer: Component, Equatable {
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
             ZStack(alignment: .topLeading) {
-                SheetStrokeGroups(strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style)
+                SheetStrokeGroups(
+                    strokes: strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style, fills: fills,
+                    warning: colors.warning)
                 SheetTexts(
                     texts: texts.filter { !$0.isNotice }, zoom: zoom, paperHeight: paperHeight, ink: colors.ink,
                     warning: colors.warning)

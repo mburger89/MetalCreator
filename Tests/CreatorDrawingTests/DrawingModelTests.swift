@@ -193,10 +193,10 @@ struct DrawingModelTests {
     }
 
     @Test func defaultTolerances() {
-        #expect(DrawingSettings.defaultTolerance(for: .iso, inches: false) == "ISO 2768-mK")
-        #expect(DrawingSettings.defaultTolerance(for: .asme, inches: false) == "±0.5, ±0.1, ±0.05 mm")
-        #expect(DrawingSettings.defaultTolerance(for: .asme, inches: true) == "±.03, ±.010, ±.005 in")
-        #expect(DrawingSettings().generalTolerance == "ISO 2768-mK")
+        #expect(GeneralTolerance.standardDefault(for: .iso, inches: false).text == "ISO 2768-mK")
+        #expect(GeneralTolerance.standardDefault(for: .asme, inches: false).text == "±0.5, ±0.1, ±0.05 mm")
+        #expect(GeneralTolerance.standardDefault(for: .asme, inches: true).text == "±.03, ±.010, ±.005 in")
+        #expect(DrawingSettings().generalTolerance == .iso2768(.m, .K))
         #expect(DrawingStandard.iso.isFirstAngle && !DrawingStandard.asme.isFirstAngle)
     }
 }

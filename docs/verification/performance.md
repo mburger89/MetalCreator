@@ -1561,3 +1561,22 @@ BENCH load after: 4.78 9.50 13.17
 ```
 
 Each `drawing-1` round gives the views new IDs: the session remembers what it applied per view, so the same IDs would see an unchanged view and project nothing (a first run without this printed 0.12 ms). The benchmark checks that the cache's kernel calls grew by at least four per round.
+
+### Dimensions (DR-2, Task 15)
+
+Plan `docs/superpowers/plans/2026-11-25-dr-2-dimensions-notes.md`, Task 15; the same suite, with the bracket sheet carrying 30 dimensions (lengths, diameters and angles made from each view's real topology; the Isometric view holds none, since R5 refuses a foreshortened measure). The Mac was loaded (load average 3 to 8 over one minute, 12 cores), so the numbers are recorded as saturated, never as a verdict.
+
+| Row | Time | Budget |
+|---|---|---|
+| `drawing-3` composing the annotated sheet (views already projected; 50 composes) | median 0.84 ms, p95 0.85 ms, max 0.85 ms | report only (R24's 4 ms trigger: not reached) |
+| `drawing-3-warm` 60 steps dragging one dimension's offset, each a new document landing on the sheet, warm window CPU time per frame (55 frames after warm-up) | median 11.29 ms, p95 15.16 ms, max 16.70 ms | 16.67 ms: median and p95 met, max 0.03 ms over |
+
+```text
+BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
+BENCH load before: 2.93 6.03 7.34
+BENCH drawing-3 bracket sheet with 30 dimensions, composed: median 0.84 ms, p95 0.85 ms, max 0.85 ms (n 50); budget 4.00 ms: met
+BENCH drawing-3-warm window-cpu (warm frame, dimension dragged): median 11.29 ms, p95 15.16 ms, max 16.70 ms (n 55); budget 16.67 ms: met
+BENCH load after: 7.95 8.50 8.22
+```
+
+`drawing-3`'s 4 ms budget is the R24 trigger, not a gate. The drag steps go through `setDrawings` (a whole-document edit) rather than the editor's pointer drag, so each step also pays the app's refresh.

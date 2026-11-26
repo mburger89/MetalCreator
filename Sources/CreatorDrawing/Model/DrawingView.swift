@@ -34,11 +34,13 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
     public var showsHidden: Bool
     public var showsTangent: Bool
     public var showsLabel: Bool
+    /// Whether the view draws its automatic centre marks (missing in an older file reads true).
+    public var showsCentreMarks: Bool
 
     public init(
         id: ViewID = ViewID(), kind: ViewKind, source: NodeID, orientation: ViewOrientation, scale: DrawingScale? = nil,
         center: Vector2, alignment: ViewAlignment? = nil, showsHidden: Bool = false, showsTangent: Bool = true,
-        showsLabel: Bool = false
+        showsLabel: Bool = false, showsCentreMarks: Bool = true
     ) {
         self.id = id
         self.kind = kind
@@ -50,10 +52,11 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         self.showsHidden = showsHidden
         self.showsTangent = showsTangent
         self.showsLabel = showsLabel
+        self.showsCentreMarks = showsCentreMarks
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, source, orientation, scale, center, alignment, showsHidden, showsTangent, showsLabel
+        case id, kind, source, orientation, scale, center, alignment, showsHidden, showsTangent, showsLabel, showsCentreMarks
     }
 
     public init(from decoder: any Decoder) throws {
@@ -69,5 +72,6 @@ public struct DrawingView: Hashable, Sendable, Codable, Identifiable {
         showsHidden = try c.decodeIfPresent(Bool.self, forKey: .showsHidden) ?? false
         showsTangent = try c.decodeIfPresent(Bool.self, forKey: .showsTangent) ?? true
         showsLabel = try c.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? false
+        showsCentreMarks = try c.decodeIfPresent(Bool.self, forKey: .showsCentreMarks) ?? true
     }
 }

@@ -122,7 +122,7 @@ enum DXFTables {
             LineType(name: "ByLayer", description: "", elements: []),
             LineType(name: "Continuous", description: "Solid line", elements: []),
             LineType(name: "DASHED", description: "Dashed", elements: [style.hiddenDash, -style.hiddenGap]),
-            LineType(name: "CENTER", description: "Center", elements: [6, -0.75, 0, -0.75]),
+            LineType(name: "CENTER", description: "Center", elements: style.dxfCentreElements),
         ]
     }
 

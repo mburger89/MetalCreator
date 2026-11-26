@@ -26,7 +26,7 @@ struct TitleBlockTests {
         #expect(title.valueHeight == 7)
         let origin = TitleBlockLayout.origin(for: a3(), standard: .iso)
         #expect(origin == Vector2(230, 10))
-        #expect(TitleBlockKey.allCases.filter(\.isTyped).count == 8)
+        #expect(TitleBlockKey.allCases.filter(\.isTyped).count == 7)
     }
 
     @Test func automaticValues() {

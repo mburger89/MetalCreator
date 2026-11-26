@@ -32,35 +32,72 @@ public struct SheetCanvas: Component {
     ) -> SheetViewLayer {
         SheetViewLayer(
             id: view.id, strokes: picture.strokes.filter { $0.view == view.id },
-            texts: picture.texts.filter { $0.view == view.id },
+            texts: picture.texts.filter { $0.view == view.id }, fills: picture.fills.filter { $0.view == view.id },
             frame: picture.viewFrames[view.id] ?? Rect2D(min: .zero, max: .zero), zoom: zoom, paperHeight: picture.size.y,
             isPending: model.contents[view.id]?.isPending ?? false, isSelected: model.selection.contains(view.id),
             hovered: hovered?.view == view.id ? hovered : nil, colors: colors, style: style)
     }
 
-    private func surface(_ picture: SheetPicture, sheet: DrawingSheet, colors: DrawingColors) -> some ElementGroup {
-        let transform = model.transform
-        let zoom = transform.zoom
+    /// What the selection layer draws: the selected annotations, the draft being placed and what the tool would pick.
+    private func highlighted(in picture: SheetPicture) -> (strokes: [SheetStroke], fills: [SheetFill], texts: [SheetText], ring: Vector2?) {
+        let chosen = model.selectedAnnotations
+        var strokes = picture.strokes.filter { $0.annotation.map(chosen.contains) ?? false }
+        var fills = picture.fills.filter { $0.annotation.map(chosen.contains) ?? false }
+        var texts = picture.texts.filter { $0.annotation.map(chosen.contains) ?? false }
+        if let draft = model.draftPicture {
+            strokes += draft.strokes.filter { $0.annotation == model.draftID }
+            fills += draft.fills.filter { $0.annotation == model.draftID }
+            texts += draft.texts.filter { $0.annotation == model.draftID }
+        }
+        var ring: Vector2?
+        switch model.hoverCandidate {
+        case .edge(_, let index), .outline(_, let index):
+            if picture.strokes.indices.contains(index) { strokes.append(picture.strokes[index]) }
+        case .corner(_, let point), .centre(_, let point):
+            ring = point
+        case nil:
+            break
+        }
+        return (strokes, fills, texts, ring)
+    }
+
+    /// The paper, its frame layer, the views that can show and the selection layer, in paper space.
+    private func paperStack(
+        _ picture: SheetPicture, shown: [DrawingView], hovered: SheetStroke?, colors: DrawingColors, style: DrawingStyle
+    ) -> some ProposalElementGroup {
+        let zoom = model.transform.zoom
         let paper = picture.size
+        let marked = highlighted(in: picture)
+        return ZStack(alignment: .topLeading) {
+            Rectangle().fill(colors.paper.color).frame(width: (paper.x * zoom).px, height: (paper.y * zoom).px)
+            SheetFrameLayer(
+                strokes: picture.strokes.filter { $0.view == nil }, texts: picture.texts.filter { $0.view == nil },
+                fills: picture.fills.filter { $0.view == nil }, zoom: zoom, paperHeight: paper.y, colors: colors, style: style)
+                .equatable()
+            ForEach(shown, id: \.id) { view in
+                viewLayer(view, in: picture, hovered: hovered, zoom: zoom, colors: colors, style: style).equatable()
+            }
+            SheetSelectionLayer(
+                strokes: marked.strokes, fills: marked.fills, texts: marked.texts, ring: marked.ring, zoom: zoom,
+                paperHeight: paper.y, colors: colors, style: style)
+                .equatable()
+        }
+        .offset(x: model.transform.offset.x.px, y: (model.transform.offset.y - paper.y * zoom).px)
+        .allowsHitTesting(false)
+    }
+
+    private func surface(_ picture: SheetPicture, sheet: DrawingSheet, colors: DrawingColors) -> some ElementGroup {
+        let zoom = model.transform.zoom
         let style = DrawingStyle.of(model.document.settings.standard)
         let visible = model.visibleSheetRect
-        let shown = sheet.views.filter { picture.viewFrames[$0.id]?.intersects(visible) ?? true }
+        // A view is built while its frame and its annotations meet the visible rectangle (plan R16).
+        let shown = sheet.views.filter {
+            (picture.viewExtents[$0.id] ?? picture.viewFrames[$0.id])?.intersects(visible) ?? true
+        }
         let hovered = model.hoveredStroke.flatMap { picture.strokes.indices.contains($0) ? picture.strokes[$0] : nil }
-        let framing = picture.strokes.filter { $0.view == nil }
-        let framingTexts = picture.texts.filter { $0.view == nil }
         return colors.surround.color
             .overlay(alignment: .topLeading) {
-                ZStack(alignment: .topLeading) {
-                    Rectangle().fill(colors.paper.color).frame(width: (paper.x * zoom).px, height: (paper.y * zoom).px)
-                    SheetFrameLayer(
-                        strokes: framing, texts: framingTexts, zoom: zoom, paperHeight: paper.y, colors: colors, style: style)
-                        .equatable()
-                    ForEach(shown, id: \.id) { view in
-                        viewLayer(view, in: picture, hovered: hovered, zoom: zoom, colors: colors, style: style).equatable()
-                    }
-                }
-                .offset(x: transform.offset.x.px, y: (transform.offset.y - paper.y * zoom).px)
-                .allowsHitTesting(false)
+                paperStack(picture, shown: shown, hovered: hovered, colors: colors, style: style)
             }
             .clipped()
             .gesture(SheetCanvasInput.primaryGesture(model))

@@ -62,5 +62,35 @@ struct SheetTextViewTests {
         #expect(abs(mapped - baseline) <= 1, "the PDF's baseline lands at \(mapped)")
         #expect(abs(bottom - mapped) <= 1)
     }
+
+    /// A run turned 90 degrees keeps its baseline (plan R16): the glyphs stack upward from the origin, their feet on the vertical line
+    /// through it. If this fails, the per-glyph view's rotation is off and gap DR-2-a is logged.
+    @Test func aRotatedRunKeepsItsBaseline() async throws {
+        let zoom = 3.0
+        var text = Self.text("HHH", height: 10, at: Vector2(60, 40))
+        text.angle = .pi / 2
+        let colors = ColorTheme.dracula.colors
+        let window = try await DrawingWindow.open(size: Size(width: Pixels(600), height: Pixels(500))) {
+            colors.drawingPaper.color.overlay(alignment: .topLeading) {
+                SheetTextView(text: text, zoom: zoom, paperHeight: 100, color: colors.drawingInk)
+            }
+        }
+        let image = try PixelImage(window: window.window)
+        let transform = SheetTransform(offset: Vector2(0, 100 * zoom), zoom: zoom)
+        let origin = transform.screenPoint(text.origin)
+        var rightmost: Int?, lowest: Int?, highest: Int?
+        for y in 0..<image.height {
+            for x in 0..<image.width where image.luminance(x, y) < 128 {
+                rightmost = Swift.max(rightmost ?? x, x)
+                lowest = Swift.max(lowest ?? y, y)
+                highest = Swift.min(highest ?? y, y)
+            }
+        }
+        let feet = Double(try #require(rightmost) + 1) / 2
+        #expect(abs(feet - origin.x) <= 0.5, "the glyphs' feet are at \(feet), the baseline at \(origin.x)")
+        let bottom = Double(try #require(lowest) + 1) / 2, top = Double(try #require(highest)) / 2
+        #expect(bottom <= origin.y + 0.5 && bottom >= origin.y - 4, "the run starts at its origin: \(bottom) against \(origin.y)")
+        #expect(origin.y - top > text.run.width * zoom * 0.8, "the run climbs: \(origin.y - top) of \(text.run.width * zoom)")
+    }
     #endif
 }

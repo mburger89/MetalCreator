@@ -12,10 +12,22 @@ public enum SheetHitTest {
         return nil
     }
 
+    static let annotationGrowth = 1.0
+
+    /// The topmost annotation (the last in `order`) whose report frame, grown by 1 mm, holds the point (plan R18).
+    public static func annotation(at point: Vector2, in picture: SheetPicture, order: [AnnotationID]) -> AnnotationID? {
+        for id in order.reversed() {
+            guard let report = picture.annotationReports[id], report.frame.width > 0 || report.frame.height > 0 else { continue }
+            if report.frame.insetBy(-annotationGrowth).contains(point) { return id }
+        }
+        return nil
+    }
+
     /// The index into `picture.strokes` of the view's stroke nearest the point within `tolerance`.
     public static func line(near point: Vector2, in picture: SheetPicture, view: ViewID, tolerance: Double) -> Int? {
         var best: (index: Int, distance: Double)?
-        for (index, stroke) in picture.strokes.enumerated() where stroke.view == view {
+        for (index, stroke) in picture.strokes.enumerated()
+            where stroke.view == view && stroke.annotation == nil && stroke.layer != .center {
             let distance = stroke.segments.map { distance(from: point, to: $0) }.min() ?? .infinity
             if distance <= tolerance, distance < (best?.distance ?? .infinity) { best = (index, distance) }
         }

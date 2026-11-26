@@ -111,8 +111,23 @@ struct SheetEditingTests {
         #expect(h.log.commits[0].name == "Edit Title Block")
         #expect(h.model.document.sheets[0].titleBlock.title == "Bracket")
         #expect(h.model.document.settings.titleBlockDefaults.title == "Bracket")
+        let commits = h.log.commits.count
         h.model.setTitleField(.tolerance, to: "ISO 2768-fH")
-        #expect(h.model.document.settings.generalTolerance == "ISO 2768-fH")
+        #expect(h.log.commits.count == commits)
+        #expect(h.model.document.settings.generalTolerance == .iso2768(.m, .K))
+    }
+
+    @Test func addSheetFillsAnEmptyTolerance() throws {
+        var empty = DrawingDocument()
+        empty.settings.generalTolerance = .text("")
+        let h = EditorHarness(document: empty, sheet: nil)
+        h.model.addSheet()
+        #expect(h.model.document.settings.generalTolerance == .standardDefault(for: .iso, inches: false))
+        var typed = DrawingDocument()
+        typed.settings.generalTolerance = .text("Per drawing 12")
+        let kept = EditorHarness(document: typed, sheet: nil)
+        kept.model.addSheet()
+        #expect(kept.model.document.settings.generalTolerance == .text("Per drawing 12"))
     }
 
     @Test func changeStandardIsOneStep() throws {

@@ -40,6 +40,7 @@ extension DrawingEditorModel {
     /// The pointer left the canvas.
     public func pointerLeft() {
         if hoveredStroke != nil { hoveredStroke = nil }
+        if hoverCandidate != nil { hoverCandidate = nil }
     }
 
     /// The part of the sheet that shows, in sheet millimetres, grown by 20 % on each side (plan R27).

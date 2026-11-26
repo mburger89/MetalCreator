@@ -1,0 +1,73 @@
+import CreatorGeometry
+import CreatorKernel
+import Testing
+
+@testable import CreatorDrawing
+
+@Suite("Annotation refresh")
+struct AnnotationRefreshTests {
+    private typealias Fixtures = AnnotationFixtures
+    private let topology = Fixtures.topology()
+
+    private func pick(_ edge: Int) -> AnchorTarget { Fixtures.pick(topology, edge) }
+
+    private func annotations(_ view: ViewID) -> [DrawingAnnotation] {
+        let placement = DimensionPlacement(offset: 10, angle: 0.4)
+        func dimension(_ kind: DrawingDimensionKind, _ anchors: [AnchorTarget]) -> DrawingAnnotation {
+            DrawingAnnotation(
+                view: view,
+                kind: .dimension(DrawingDimension(kind: kind, anchors: anchors, placement: placement)))
+        }
+        return [
+            dimension(.linear(.horizontal), [pick(102)]), dimension(.linear(.vertical), [pick(100)]),
+            dimension(.linear(.aligned), [pick(105)]), dimension(.linear(.horizontal), [pick(100), pick(103)]),
+            dimension(.baseline(.horizontal), [pick(100), pick(103), pick(102)]),
+            dimension(.chain(.horizontal), [pick(100), pick(103), pick(102)]), dimension(.ordinate(.horizontal), [pick(100), pick(103)]),
+            dimension(.radius, [pick(0)]), dimension(.diameter, [pick(0)]), dimension(.angle, [pick(102), pick(105)]),
+            dimension(.chamfer, [pick(105), pick(102)]),
+            DrawingAnnotation(view: view, kind: .holeCallout(HoleCallout(anchor: pick(0), placement: placement))),
+            DrawingAnnotation(view: view, kind: .centreMark(CentreMark(anchor: pick(0)))),
+        ]
+    }
+
+    private func format() -> NumberFormat { NumberFormat(units: .millimetres, standard: .iso, decimalSign: .point) }
+
+    @Test func theRefreshMatchesTheCompose() throws {
+        let view = Fixtures.makeView()
+        let all = annotations(view.id)
+        let picture = Fixtures.compose(view, all, content: Fixtures.content())
+        for annotation in all {
+            let report = try #require(picture.annotationReports[annotation.id])
+            let refreshed = AnnotationRefresh.lastGood(
+                for: annotation, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso)
+            #expect(report.current != nil, "\(annotation.kind) holds")
+            #expect(refreshed == report.current)
+        }
+    }
+
+    @Test func aCentreLineRefreshesLikeItsCompose() throws {
+        let view = Fixtures.makeView(orientation: .front)
+        let face = try #require(topology.facePick(for: FaceID(2)))
+        let line = DrawingAnnotation(view: view.id, kind: .centreLine(CentreLine(anchor: .axis(face))))
+        let picture = Fixtures.compose(view, [line], content: Fixtures.content())
+        let refreshed = AnnotationRefresh.lastGood(
+            for: line, topology: topology, frame: StandardOrientation.front.frame, format: format(), standard: .iso)
+        #expect(refreshed != nil && refreshed == picture.annotationReports[line.id]?.current)
+    }
+
+    @Test func aLostAnnotationRefreshesToNil() {
+        let view = Fixtures.makeView()
+        let dimension = annotations(view.id)[0]
+        let gone = Fixtures.topology(removing: [102])
+        #expect(
+            AnnotationRefresh.lastGood(
+                for: dimension, topology: gone, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+    }
+
+    @Test func notesAreNotRefreshed() {
+        let note = Fixtures.note(nil, "Note", at: .zero)
+        #expect(
+            AnnotationRefresh.lastGood(
+                for: note, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+    }
+}

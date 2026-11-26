@@ -15,17 +15,19 @@ struct SheetViewEqualityTests {
     private let text = SheetText(run: DrawingText.layout("A", height: 2.5), original: "A", origin: Vector2(1, 1), height: 2.5)
 
     private func viewLayer(
-        id: ViewID? = nil, strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, frame: Rect2D? = nil, zoom: Double = 2,
+        id: ViewID? = nil, strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, fills: [SheetFill]? = nil,
+        frame: Rect2D? = nil, zoom: Double = 2,
         paperHeight: Double = 210, isPending: Bool = false, isSelected: Bool = false, hovered: SheetStroke? = nil,
         colors: DrawingColors? = nil, style: DrawingStyle = .iso
     ) -> SheetViewLayer {
         SheetViewLayer(
-            id: id ?? fixedID, strokes: strokes ?? [stroke], texts: texts ?? [text],
+            id: id ?? fixedID, strokes: strokes ?? [stroke], texts: texts ?? [text], fills: fills ?? [fill],
             frame: frame ?? Rect2D(min: .zero, max: Vector2(10, 5)), zoom: zoom, paperHeight: paperHeight, isPending: isPending,
             isSelected: isSelected, hovered: hovered, colors: colors ?? self.colors, style: style)
     }
 
     private let fixedID = ViewID()
+    private let fill = SheetFill(points: [Vector2(0, 0), Vector2(2, 0), Vector2(1, 1)])
 
     @Test func theViewLayerReadsEveryPropertyInEquals() {
         var other = colors
@@ -38,6 +40,7 @@ struct SheetViewEqualityTests {
                 "id": viewLayer(id: ViewID()),
                 "strokes": viewLayer(strokes: [thicker]),
                 "texts": viewLayer(texts: []),
+                "fills": viewLayer(fills: []),
                 "frame": viewLayer(frame: Rect2D(min: .zero, max: Vector2(11, 5))),
                 "zoom": viewLayer(zoom: 3),
                 "paperHeight": viewLayer(paperHeight: 297),
@@ -51,11 +54,11 @@ struct SheetViewEqualityTests {
 
     @Test func theFrameLayerReadsEveryPropertyInEquals() {
         func frameLayer(
-            strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, zoom: Double = 2, paperHeight: Double = 210,
-            colors: DrawingColors? = nil, style: DrawingStyle = .iso
+            strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, fills: [SheetFill]? = nil, zoom: Double = 2,
+            paperHeight: Double = 210, colors: DrawingColors? = nil, style: DrawingStyle = .iso
         ) -> SheetFrameLayer {
             SheetFrameLayer(
-                strokes: strokes ?? [stroke], texts: texts ?? [text], zoom: zoom, paperHeight: paperHeight,
+                strokes: strokes ?? [stroke], texts: texts ?? [text], fills: fills ?? [fill], zoom: zoom, paperHeight: paperHeight,
                 colors: colors ?? self.colors, style: style)
         }
         var other = colors
@@ -65,10 +68,36 @@ struct SheetViewEqualityTests {
             [
                 "strokes": frameLayer(strokes: []),
                 "texts": frameLayer(texts: []),
+                "fills": frameLayer(fills: []),
                 "zoom": frameLayer(zoom: 3),
                 "paperHeight": frameLayer(paperHeight: 297),
                 "colors": frameLayer(colors: other),
                 "style": frameLayer(style: .asme),
+            ])
+    }
+
+    @Test func theSelectionLayerReadsEveryPropertyInEquals() {
+        func layer(
+            strokes: [SheetStroke]? = nil, fills: [SheetFill]? = nil, texts: [SheetText]? = nil, ring: Vector2? = nil,
+            zoom: Double = 2, paperHeight: Double = 210, colors: DrawingColors? = nil, style: DrawingStyle = .iso
+        ) -> SheetSelectionLayer {
+            SheetSelectionLayer(
+                strokes: strokes ?? [stroke], fills: fills ?? [fill], texts: texts ?? [text], ring: ring, zoom: zoom,
+                paperHeight: paperHeight, colors: colors ?? self.colors, style: style)
+        }
+        var other = colors
+        other.highlight = HexColor(0x123456)
+        expectEqualityCovers(
+            layer(), equalTo: layer(),
+            [
+                "strokes": layer(strokes: []),
+                "fills": layer(fills: []),
+                "texts": layer(texts: []),
+                "ring": layer(ring: Vector2(1, 1)),
+                "zoom": layer(zoom: 3),
+                "paperHeight": layer(paperHeight: 297),
+                "colors": layer(colors: other),
+                "style": layer(style: .asme),
             ])
     }
 }

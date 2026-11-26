@@ -4,11 +4,11 @@ import CreatorGeometry
 public enum TitleBlockKey: String, CaseIterable, Sendable {
     case owner, drawnBy, date, title, material, mass, scale, projection, drawingNumber, revision, size, sheet, tolerance
 
-    /// Whether the value is typed (in `TitleBlock`, or `DrawingSettings.generalTolerance`) rather than automatic.
+    /// Whether the value is typed (in `TitleBlock`) rather than automatic.
     public var isTyped: Bool {
         switch self {
-        case .owner, .drawnBy, .date, .title, .material, .drawingNumber, .revision, .tolerance: true
-        case .mass, .scale, .projection, .size, .sheet: false
+        case .owner, .drawnBy, .date, .title, .material, .drawingNumber, .revision: true
+        case .mass, .scale, .projection, .size, .sheet, .tolerance: false
         }
     }
 }
@@ -141,7 +141,7 @@ public enum TitleBlockLayout {
             case .material: return block.material
             case .drawingNumber: return block.drawingNumber
             case .revision: return block.revision
-            default: return settings.generalTolerance
+            default: return ""
             }
         }
 
@@ -150,6 +150,7 @@ public enum TitleBlockLayout {
             case .mass: return facts.massText ?? ""
             case .scale: return sheet.scale.text(for: settings.standard)
             case .size: return sheet.size.title
+            case .tolerance: return settings.generalTolerance.text
             case .sheet: return settings.standard == .iso ? "\(position) / \(count)" : "\(position) OF \(count)"
             default: return ""
             }

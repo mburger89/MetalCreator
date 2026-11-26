@@ -163,3 +163,110 @@ struct DrawingInspectorScaleDensityTests {
         #expect(h.model.document.sheets[0].titleBlock.density == nil)
     }
 }
+
+/// The annotation pages and the sheet page's DR-2 rows (plan R20).
+@MainActor
+@Suite("Drawing inspector annotations")
+struct DrawingInspectorAnnotationTests {
+    private func open(_ scene: SelectionScene, height: Float = 1400) async throws -> DrawingWindow {
+        try await DrawingWindow.open(size: Size(width: Pixels(400), height: Pixels(height)), scaleFactor: 1) {
+            DrawingInspector(model: scene.h.model)
+        }
+    }
+
+    private func texts(_ window: DrawingWindow) throws -> [String] {
+        try window.window.elements(role: .staticText).compactMap { $0.value ?? $0.label }
+    }
+
+    @Test func aDimensionPageShowsItsRows() async throws {
+        let scene = SelectionScene.make([.horizontal])
+        scene.h.model.selectedAnnotations = [SelectionScene.horizontal]
+        let shown = try texts(try await open(scene))
+        for row in ["Kind", "Value", "Precision", "Tolerance", "General", "Prefix", "Suffix"] {
+            #expect(shown.contains(row), "\(row) in \(shown)")
+        }
+        #expect(shown.contains { $0.hasPrefix("±") && $0.hasSuffix("(ISO 2768-m)") }, "the general tolerance's value: \(shown)")
+    }
+
+    @Test func aLostDimensionSaysWhyAndHowToReattach() async throws {
+        let scene = SelectionScene.make([.horizontal], removing: [100])
+        scene.h.model.selectedAnnotations = [SelectionScene.horizontal]
+        let shown = try texts(try await open(scene))
+        #expect(shown.contains(LostReason.missing.sentence), "\(shown)")
+        #expect(shown.contains("Click a line to attach it again."))
+        #expect(shown.contains { $0.hasSuffix("?") }, "the value reads with a question mark: \(shown)")
+    }
+
+    @Test func fitControlsAppearForFits() async throws {
+        let scene = SelectionScene.make([.diameter])
+        scene.h.model.selectedAnnotations = [SelectionScene.diameter]
+        let plain = try texts(try await open(scene))
+        #expect(!plain.contains("Letter") && !plain.contains("Grade"))
+        scene.h.model.setTolerance(.fit(.hole(.H, grade: 7), showsDeviations: true), of: SelectionScene.diameter)
+        let window = try await open(scene)
+        let shown = try texts(window)
+        #expect(shown.contains("Letter") && shown.contains("Grade"), "\(shown)")
+        _ = try window.window.element(label: "Show deviations")
+    }
+
+    @Test func aNotePageEditsText() async throws {
+        let scene = SelectionScene.make([.note])
+        scene.h.model.selectedAnnotations = [SelectionScene.note]
+        let window = try await open(scene)
+        _ = try window.window.elements(where: { $0.value == "Plate" })[0]
+        let add = try window.window.element(label: "Add Leader")
+        window.window.click(at: Point(x: add.frame.origin.x + 4, y: add.frame.origin.y + 4))
+        #expect(scene.h.model.addingLeader == SelectionScene.note)
+        scene.h.model.setNoteText("Plate 2", of: SelectionScene.note)
+        #expect(scene.note(SelectionScene.note)?.text == "Plate 2")
+    }
+
+    @Test func severalAnnotationsOfferDeleteAndACentreMarkOnlyDelete() async throws {
+        let scene = SelectionScene.make([.horizontal, .mark])
+        scene.h.model.selectedAnnotations = [SelectionScene.mark]
+        let one = try texts(try await open(scene))
+        #expect(one.contains("Centre mark") && !one.contains("Kind"), "\(one)")
+        scene.h.model.selectedAnnotations = [SelectionScene.mark, SelectionScene.horizontal]
+        let window = try await open(scene)
+        #expect(try texts(window).contains("2 items selected"))
+        let delete = try window.window.element(label: "Delete")
+        window.window.click(at: Point(x: delete.frame.origin.x + 4, y: delete.frame.origin.y + 4))
+        #expect(scene.h.log.commits.map(\.name) == ["Delete Annotations"])
+    }
+
+    @Test func theSheetPageListsLostReferences() async throws {
+        let scene = SelectionScene.make([.horizontal], removing: [100])
+        let shown = try texts(try await open(scene))
+        #expect(shown.contains("LOST REFERENCES"), "\(shown)")
+        #expect(shown.contains { $0.hasSuffix(LostReason.missing.sentence) }, "\(shown)")
+        let clean = SelectionScene.make([.horizontal])
+        #expect(!(try texts(try await open(clean))).contains("LOST REFERENCES"))
+    }
+
+    @Test func decimalSignIsISOOnly() async throws {
+        let scene = SelectionScene.make([])
+        #expect(try texts(try await open(scene)).contains("Decimal sign"))
+        scene.h.model.setStandard(.asme)
+        #expect(!(try texts(try await open(scene)).contains("Decimal sign")))
+    }
+
+    @Test func asmeShowsTheDecimalsTable() async throws {
+        let scene = SelectionScene.make([])
+        scene.h.model.setStandard(.asme)
+        let shown = try texts(try await open(scene))
+        for row in ["0 decimals", "1 decimal", "2 decimals"] { #expect(shown.contains(row), "\(row) in \(shown)") }
+        #expect(!shown.contains("Geometric"))
+        let iso = SelectionScene.make([])
+        let isoShown = try texts(try await open(iso))
+        #expect(isoShown.contains("Geometric") && !isoShown.contains("0 decimals"))
+    }
+
+    @Test func aViewPageOffersCentreMarks() async throws {
+        let scene = SelectionScene.make([])
+        scene.h.model.selection = [scene.view.id]
+        let window = try await open(scene)
+        let toggle = try window.window.element(label: "Centre marks")
+        window.window.click(at: Point(x: toggle.frame.origin.x + 4, y: toggle.frame.origin.y + 4))
+        #expect(scene.h.model.document.sheets[0].views[0].showsCentreMarks == false)
+    }
+}

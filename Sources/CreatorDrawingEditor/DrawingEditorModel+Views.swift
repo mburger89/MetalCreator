@@ -8,6 +8,7 @@ extension DrawingEditorModel {
         self.tool = tool
         refusal = nil
         gesture = nil
+        cancelAnnotationInput()
     }
 
     public func setSource(_ source: NodeID, of id: ViewID) {
@@ -41,18 +42,21 @@ extension DrawingEditorModel {
     }
 
     public func deleteSelection() {
-        guard let id = currentSheet, !selection.isEmpty else { return }
-        let doomed = selection
-        commitSheet(id, DrawingStepName.deleteView) { sheet in
+        guard let id = currentSheet, !selection.isEmpty || !selectedAnnotations.isEmpty else { return }
+        let doomed = selection, doomedAnnotations = selectedAnnotations
+        let name = deleteName(of: doomedAnnotations, withViews: !doomed.isEmpty)
+        commitSheet(id, name) { sheet in
+            for annotation in doomedAnnotations { sheet.removeAnnotation(annotation) }
             for view in sheet.views where doomed.contains(view.id) {
                 sheet = ViewPlacement.removing(view.id, from: sheet)
             }
         }
         selection = []
+        selectedAnnotations = []
         hoveredStroke = nil
     }
 
-    private func commitView(_ id: ViewID, _ name: String = DrawingStepName.changeView, _ change: (inout DrawingView) -> Void) {
+    func commitView(_ id: ViewID, _ name: String = DrawingStepName.changeView, _ change: (inout DrawingView) -> Void) {
         commitSheet(name) { sheet in
             guard var view = sheet.view(id) else { return }
             change(&view)

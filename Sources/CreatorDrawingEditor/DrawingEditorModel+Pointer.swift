@@ -14,37 +14,62 @@ extension DrawingEditorModel {
         let point = transform.sheetPoint(canvas)
         let order = sheet.views.map(\.id)
         let hit = picture.flatMap { SheetHitTest.view(at: point, in: $0, order: order) }
+        if addingLeader != nil || tool.isAnnotationTool {
+            lastPointer = point
+            gesture = .annotating(modifiers)
+            return
+        }
         switch tool {
         case .baseView:
             gesture = .placing
         case .projectedView:
             if let hit { gesture = .projecting(parent: hit, start: point) }
+        case .dimension, .baselineDimension, .chainDimension, .ordinateDimension, .chamferDimension, .holeCallout, .centreMark,
+            .centreLine, .note:
+            break
         case .select:
-            guard let hit else {
-                if !modifiers.contains(.shift) { selection = [] }
-                gesture = nil
-                return
-            }
-            if modifiers.contains(.shift) {
-                selection.insert(hit)
-            } else if !selection.contains(hit) {
-                selection = [hit]
-            }
-            dragSerial += 1
-            gesture = .movingViews(
-                base: sheet, start: point, key: "drawing-move-\(dragSerial)", roots: Self.roots(of: selection, in: sheet))
+            selectDown(at: point, hit: hit, modifiers: modifiers, sheet: sheet)
         }
     }
 
-    public func pointerDragged(to canvas: Vector2) {
-        guard case let .movingViews(base, start, key, roots) = gesture, let id = currentSheet else { return }
-        let delta = transform.sheetPoint(canvas) - start
-        var next = base
-        for root in roots { next = ViewPlacement.moving(root, by: delta, in: next) }
-        commit(DrawingStepName.moveView, key: key) { document in
-            guard let index = document.sheets.firstIndex(where: { $0.id == id }) else { return }
-            document.sheets[index] = next
+    /// A press with Select: a click that re-attaches or refuses stays out of the selection; else it selects the annotation or view
+    /// under it (annotations first, plan R18) and begins moving what is selected.
+    private func selectDown(at point: Vector2, hit: ViewID?, modifiers: SheetModifiers, sheet: DrawingSheet) {
+        if reattachClick(at: point) {
+            gesture = nil
+            return
         }
+        if let picture,
+            let annotation = SheetHitTest.annotation(at: point, in: picture, order: sheet.annotations.map(\.id)) {
+            if modifiers.contains(.shift) {
+                selectedAnnotations.insert(annotation)
+            } else if !selectedAnnotations.contains(annotation) {
+                selectedAnnotations = [annotation]
+                selection = []
+            }
+            beginMove(at: point, sheet: sheet, onLabelOf: annotation)
+            return
+        }
+        guard let hit else {
+            if !modifiers.contains(.shift) {
+                selection = []
+                selectedAnnotations = []
+            }
+            gesture = nil
+            return
+        }
+        if modifiers.contains(.shift) {
+            selection.insert(hit)
+        } else if !selection.contains(hit) {
+            selection = [hit]
+            selectedAnnotations = []
+        }
+        beginMove(at: point, sheet: sheet, onLabelOf: nil)
+    }
+
+    public func pointerDragged(to canvas: Vector2) {
+        guard case .moving(let move) = gesture else { return }
+        continueMove(move, to: transform.sheetPoint(canvas))
     }
 
     public func pointerUp(at canvas: Vector2) {
@@ -54,16 +79,15 @@ extension DrawingEditorModel {
         switch ended {
         case .placing: placeBaseView(at: point)
         case let .projecting(parent, _): placeProjectedView(of: parent, dropAt: point)
-        case .movingViews, nil: break
+        case .annotating(let modifiers): annotationClick(at: point, modifiers: modifiers)
+        case .moving, nil: break
         }
     }
 
     public func pointerCancelled() {
-        if case let .movingViews(base, _, _, _) = gesture, let id = currentSheet {
-            // The steps already committed stay; the pointer simply stops where it was.
-            _ = (base, id)
-        }
+        let ended = gesture
         gesture = nil
+        if case .moving(let move)? = ended { cancelMove(move) }
     }
 
     /// Hover: the nearest stroke within 4 points at the current zoom.
@@ -73,6 +97,9 @@ extension DrawingEditorModel {
             return
         }
         let point = transform.sheetPoint(canvas)
+        lastPointer = point
+        updateHover(at: point)
+        if !picks.isEmpty { updateDraft() }
         let tolerance = Self.hoverTolerancePoints / transform.zoom
         var found: Int?
         for view in sheet.views.reversed() {

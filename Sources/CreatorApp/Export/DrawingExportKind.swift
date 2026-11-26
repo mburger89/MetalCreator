@@ -6,6 +6,8 @@ public enum DrawingExportKind: String, CaseIterable, Sendable {
     case dxfSheet
     /// The one selected view at 1:1, in model millimetres.
     case dxfView
+    /// The one selected view at 1:1 with its dimensions, callouts, notes and centre marks, in model millimetres (plan R22).
+    case dxfViewWithAnnotations
 
     /// The file extension.
     var fileExtension: String { self == .pdf ? "pdf" : "dxf" }

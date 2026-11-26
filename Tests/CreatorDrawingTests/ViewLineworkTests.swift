@@ -83,4 +83,13 @@ struct ViewLineworkTests {
         #expect(ViewLabel.text(for: overridden, sheet: sheet, standard: .iso) == "Front (2 : 1)")
         #expect(ViewLabel.text(for: overridden, sheet: sheet, standard: .asme) == "FRONT (2:1)")
     }
+
+    @Test func strokesCarryTheirSource() {
+        let tagged = ProjectedLine(
+            visibility: .visible, lineClass: .sharp, curve: .line(Vector2(0, 0), Vector2(10, 0)), source: .edge(EdgeID(4)))
+        let projection = Projection2D(lines: [tagged, line(.visible, .sharp)])
+        let strokes = ViewLinework.strokes(for: projection, view: view(), center: .zero, scale: 1, style: style)
+        #expect(strokes[0].source == .edge(EdgeID(4)))
+        #expect(strokes[1].source == nil)
+    }
 }

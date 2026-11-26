@@ -9,34 +9,17 @@ extension ConstantValue {
         guard !names.isEmpty else { return self }
         switch self {
         case .edgePicks(let picks):
-            return .edgePicks(picks.map { pick in
-                var renamed = pick
-                renamed.key = Self.renaming(pick.key, names)
-                return renamed
-            })
+            return .edgePicks(picks.map { TagRenaming.renaming($0, names) })
         case .facePick(let pick):
-            var renamed = pick
-            renamed.tags = Self.renaming(pick.tags, names)
-            return .facePick(renamed)
+            return .facePick(TagRenaming.renaming(pick, names))
         case .regionPicks(let picks):
             return .regionPicks(picks.map { region in
                 var renamed = region
-                renamed.pick.tags = Self.renaming(region.pick.tags, names)
+                renamed.pick.tags = TagRenaming.renaming(region.pick.tags, names)
                 return renamed
             })
         default:
             return self
         }
-    }
-
-    private static func renaming(_ key: EdgeKey, _ names: [NodeID: NodeID]) -> EdgeKey {
-        EdgeKey(renaming(key.first, names), renaming(key.second, names))
-    }
-
-    private static func renaming(_ tags: Set<TopoTag>, _ names: [NodeID: NodeID]) -> Set<TopoTag> {
-        Set(tags.map { tag in
-            let role = tag.role.mappingNestedTags { renaming([$0], names).first ?? $0 }
-            return TopoTag(node: names[tag.node] ?? tag.node, item: tag.item, role: role)
-        })
     }
 }

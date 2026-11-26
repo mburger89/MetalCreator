@@ -9,11 +9,13 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
     public var scale: DrawingScale
     public var titleBlock: TitleBlock
     public private(set) var views: [DrawingView]
+    /// The sheet's annotations, sorted by id (plan R2).
+    public private(set) var annotations: [DrawingAnnotation]
 
     public init(
         id: SheetID = SheetID(), name: String, size: SheetSize = .a3, orientation: SheetOrientation = .landscape,
         scale: DrawingScale = DrawingScale(numerator: 1, denominator: 1), titleBlock: TitleBlock = TitleBlock(),
-        views: [DrawingView] = []
+        views: [DrawingView] = [], annotations: [DrawingAnnotation] = []
     ) {
         self.id = id
         self.name = name
@@ -22,6 +24,7 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         self.scale = scale
         self.titleBlock = titleBlock
         self.views = views.sorted { $0.id < $1.id }
+        self.annotations = annotations.sorted { $0.id < $1.id }
     }
 
     /// The paper in millimetres, width by height; landscape swaps the upright size.
@@ -42,12 +45,32 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         }
     }
 
+    /// Removes the view and, with it, its annotations (plan R27); free annotations stay.
     public mutating func removeView(_ id: ViewID) {
         views.removeAll { $0.id == id }
+        annotations.removeAll { $0.view == id }
+    }
+
+    public func annotation(_ id: AnnotationID) -> DrawingAnnotation? { annotations.first { $0.id == id } }
+
+    public func annotations(of view: ViewID) -> [DrawingAnnotation] { annotations.filter { $0.view == view } }
+
+    /// Adds the annotation, or replaces the one with its id, keeping the list sorted.
+    public mutating func setAnnotation(_ annotation: DrawingAnnotation) {
+        if let index = annotations.firstIndex(where: { $0.id == annotation.id }) {
+            annotations[index] = annotation
+        } else {
+            let at = annotations.firstIndex { $0.id > annotation.id } ?? annotations.endIndex
+            annotations.insert(annotation, at: at)
+        }
+    }
+
+    public mutating func removeAnnotation(_ id: AnnotationID) {
+        annotations.removeAll { $0.id == id }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, size, orientation, scale, titleBlock, views
+        case id, name, size, orientation, scale, titleBlock, views, annotations
     }
 
     public init(from decoder: any Decoder) throws {
@@ -62,6 +85,22 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         titleBlock = try c.decodeIfPresent(TitleBlock.self, forKey: .titleBlock) ?? TitleBlock()
         let decoded = try c.decodeIfPresent([DrawingView].self, forKey: .views) ?? []
         views = Self.repairingAlignments(decoded.sorted { $0.id < $1.id })
+        // An annotation of a view that is not on the sheet is dropped.
+        let present = Set(views.map(\.id))
+        let decodedAnnotations = try c.decodeIfPresent([DrawingAnnotation].self, forKey: .annotations) ?? []
+        annotations = decodedAnnotations.filter { $0.view.map(present.contains) ?? true }.sorted { $0.id < $1.id }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(size, forKey: .size)
+        try c.encode(orientation, forKey: .orientation)
+        try c.encode(scale, forKey: .scale)
+        try c.encode(titleBlock, forKey: .titleBlock)
+        try c.encode(views, forKey: .views)
+        if !annotations.isEmpty { try c.encode(annotations, forKey: .annotations) }
     }
 
     /// A view whose alignment names a view that is not here, or would close a cycle, is kept and set free at its centre.
