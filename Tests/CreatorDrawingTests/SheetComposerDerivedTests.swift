@@ -124,6 +124,24 @@ struct SheetComposerDerivedTests {
         #expect(picture.texts.contains { $0.mark == detail.id && $0.original == "B" })
     }
 
+    @Test func aDetailWhoseParentHasNothingDrawnGivesANotice() {
+        let parent = DrawingView(kind: .base, source: node, orientation: .standard(.front), center: Vector2(100, 150))
+        let circle = DetailCircle(parent: parent.id, center: Vector2(20, 10), radius: 6)
+        let detail = DrawingView(
+            kind: .detail, source: node, orientation: .standard(.front), scale: DrawingScale(numerator: 5, denominator: 1),
+            center: Vector2(250, 150), derivation: .detail(circle), letter: "B")
+        let sheet = DrawingSheet(name: "S", views: [parent, detail])
+        let content = ViewContent(projection: projection, framing: Rect2D(min: Vector2(14, 4), max: Vector2(26, 16)))
+        let picture = SheetComposer.compose(
+            sheet, in: DrawingDocument(sheets: [sheet]), contents: [detail.id: content], facts: TitleBlockFacts(), notices: true)
+        #expect(
+            picture.texts.filter { $0.isNotice && $0.view == detail.id }.map(\.original) == [DerivedViewNotices.detailParentEmpty])
+        #expect(DerivedViewNotices.detailParentEmpty
+            == "The view this detail enlarged has nothing drawn yet, so its circle isn't shown.")
+        #expect(picture.strokes.allSatisfy { $0.mark != detail.id || $0.view == detail.id }, "no circle on the parent")
+        #expect(picture.texts.allSatisfy { $0.mark != detail.id })
+    }
+
     @Test func extentsCoverTheMarks() throws {
         let f = fixture()
         let picture = compose(f)

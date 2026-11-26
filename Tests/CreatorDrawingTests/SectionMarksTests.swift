@@ -31,6 +31,16 @@ struct SectionMarksTests {
         }
     }
 
+    /// R6's constants, in sheet millimetres; a change to one is a change to every drawing's marks.
+    @Test func theStylesConstantsArePinned() {
+        let iso = SectionMarkStyle.of(.iso), asme = SectionMarkStyle.of(.asme)
+        #expect(iso.chainWidth == 0.25 && iso.thickEndLength == 5 && iso.thickCornerLength == 3)
+        #expect(iso.arrowShaft == 7 && iso.letterGap == 1 && iso.viewArrowGap == 2)
+        #expect(asme.chainWidth == 0.6 && asme.thickEndLength == 0 && asme.thickCornerLength == 0)
+        #expect(asme.arrowShaft == 8 && asme.letterGap == 1.5 && asme.viewArrowGap == 2)
+        #expect(iso.letterDiagonal == Vector2((0.5).squareRoot(), (0.5).squareRoot()))
+    }
+
     @Test func isoThickEndsAndCorners() {
         let pieces = cutting(.iso)
         let chain = pieces.strokes.filter { $0.layer == .center }
@@ -45,6 +55,18 @@ struct SectionMarksTests {
         #expect(thin.map(length) == [12, 4, 12])
         #expect(thick[0].segments == [.line(Vector2(0, 0), Vector2(5, 0))])
         #expect(thick[1].segments == [.polyline([Vector2(17, 0), Vector2(20, 0), Vector2(20, 3)])])
+    }
+
+    @Test func aZeroLengthLastSegmentKeepsTheThickEnd() {
+        // The line's last two points coincide: the end is still the previous segment's, thick for 5 mm, never lost or thin.
+        let doubled = SectionCutter(
+            frame: frame, points: [Vector2(0, 0), Vector2(20, 0), Vector2(20, 10), Vector2(40, 10), Vector2(40, 10)],
+            viewing: Vector2(0, 1))
+        #expect(cutting(.iso, cutter: doubled).strokes == cutting(.iso).strokes)
+        let leading = SectionCutter(
+            frame: frame, points: [Vector2(0, 0), Vector2(0, 0), Vector2(20, 0), Vector2(20, 10), Vector2(40, 10)],
+            viewing: Vector2(0, 1))
+        #expect(cutting(.iso, cutter: leading).strokes == cutting(.iso).strokes)
     }
 
     @Test func asmeIsThickThroughout() {

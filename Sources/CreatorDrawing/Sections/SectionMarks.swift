@@ -129,7 +129,12 @@ public enum SectionMarks {
 
         /// The chain: thick solid pieces at the ends and each step's corners (ISO), thin chain between them; one thick chain
         /// stroke for ASME. All on the centre layer.
-        func chain(_ points: [Vector2]) -> [SheetStroke] {
+        func chain(_ line: [Vector2]) -> [SheetStroke] {
+            // Points that coincide with the one before make no segment: dropped first, so the first and last segments that remain
+            // are the line's ends and keep their thick ends (a zero-length last segment must not take the end with it).
+            var points: [Vector2] = []
+            for point in line where points.last != point { points.append(point) }
+            guard points.count >= 2 else { return [] }
             guard marks.thickEndLength > 0 || marks.thickCornerLength > 0 else {
                 return [stroke(.polyline(points), width: marks.chainWidth, pattern: .centre, layer: .center)]
             }
