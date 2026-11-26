@@ -22,8 +22,15 @@ public struct DrawingTemplateFolder: Hashable, Sendable {
             && !id.unicodeScalars.contains { $0.properties.generalCategory == .control }
     }
 
+    /// The file of `id`: one already in the folder with this stem and any case of the extension, else the lower-case name.
     public func fileURL(for id: String) -> URL {
-        url.appending(path: "\(id).mctemplate", directoryHint: .notDirectory)
+        let existing = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+        if let found = existing?.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).first(where: {
+            $0.pathExtension.lowercased() == "mctemplate" && $0.deletingPathExtension().lastPathComponent == id
+        }) {
+            return found
+        }
+        return url.appending(path: "\(id).mctemplate", directoryHint: .notDirectory)
     }
 
     /// Every template in the folder by file name, and a sentence for each file that was skipped. A folder that doesn't exist yet
@@ -34,8 +41,6 @@ public struct DrawingTemplateFolder: Hashable, Sendable {
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return ([], []) }
         do {
             files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
-        } catch CocoaError.fileReadNoSuchFile {
-            return ([], [])
         } catch {
             return ([], ["The templates folder couldn't be read: \(error.localizedDescription)"])
         }

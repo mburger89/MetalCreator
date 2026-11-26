@@ -34,6 +34,9 @@ struct DrawingMinorsEditorTests {
         h.model.setPart(ids[0], shown: false, of: view.id)
         h.model.setPart(ids[0], shown: true, of: view.id)
         #expect(h.model.document.sheets[0].view(view.id)?.assembly == ids)
+        h.model.setPart(ids[1], shown: false, of: view.id)
+        h.model.setPart(ids[1], shown: true, of: view.id)
+        #expect(h.model.document.sheets[0].view(view.id)?.assembly == ids)
     }
 
     @Test func replacingTheDocumentClearsTheBalloonFootAndPrunesBitmaps() throws {
@@ -100,10 +103,13 @@ struct DrawingMinorsEditorTests {
 
     @Test func clipboardKeysTakeNoOtherModifier() {
         #expect(SheetCanvasInput.key("c", modifiers: .primary) == .copy)
-        #expect(SheetCanvasInput.key("c", modifiers: [.primary, .control]) == nil)
+        // The platform's other modifier: Control where Command is primary, Command where Control is.
+        let other: EventModifiers = EventModifiers.primary == .command ? .control : .command
+        #expect(SheetCanvasInput.key("c", modifiers: [.primary, other]) == nil)
         #expect(SheetCanvasInput.key("v", modifiers: [.primary, .option]) == nil)
         #expect(SheetCanvasInput.key("x", modifiers: [.primary, .shift]) == nil)
-        #expect(SheetCanvasInput.key("c", modifiers: [.primary, .command]) == .copy)
+        #expect(SheetCanvasInput.key("x", modifiers: .primary) == .cut)
+        #expect(SheetCanvasInput.key("v", modifiers: .primary) == .paste)
     }
 
     @Test func templateNamesAreTrimmedAndUnique() {
@@ -137,6 +143,21 @@ struct DrawingMinorsEditorTests {
         try FileManager.default.moveItem(at: lower, to: upper)
         let loaded = folder.load()
         #expect(loaded.templates.map(\.id) == [template.id])
+        try? FileManager.default.removeItem(at: folder.url)
+    }
+
+    @Test func anUpperCaseExtensionFileIsRemovedAndOverwritten() throws {
+        let folder = DrawingTemplateStoreTests.folder()
+        let template = DrawingTemplateStoreTests.template("Acme")
+        try folder.save(template)
+        let lower = folder.fileURL(for: template.id)
+        let upper = lower.deletingLastPathComponent().appending(path: "\(template.id).MCTEMPLATE")
+        try FileManager.default.moveItem(at: lower, to: upper)
+        try folder.save(template)
+        #expect(DrawingTemplateStoreTests.files(in: folder) == ["\(template.id).MCTEMPLATE"])
+        try folder.remove(template.id)
+        #expect(folder.load().templates.isEmpty)
+        #expect(DrawingTemplateStoreTests.files(in: folder).isEmpty)
         try? FileManager.default.removeItem(at: folder.url)
     }
 
