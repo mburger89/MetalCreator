@@ -12,6 +12,8 @@ public enum LostReason: Error, Hashable, Sendable {
     case outlineTurned
     case foreshortened
     case notAHole
+    case notStraight
+    case turnedAway
     case sourceRemoved
     case viewFailed(String)
     case noPart
@@ -28,6 +30,8 @@ public enum LostReason: Error, Hashable, Sendable {
         case .outlineTurned: "The cylinder it was attached to has turned, so the side of its outline can't be told."
         case .foreshortened: "What it measures now runs at an angle to the view, so its size here would be foreshortened."
         case .notAHole: "The hole it called out is no longer a plain, counterbored or countersunk hole."
+        case .notStraight: "What it stands on is no longer a straight line."
+        case .turnedAway: "What it stands on has turned, so this view no longer shows it the way the symbol needs."
         case .sourceRemoved: DrawingProjector.removedSentence
         case .viewFailed(let message): message
         case .noPart: "This view has no part to measure."

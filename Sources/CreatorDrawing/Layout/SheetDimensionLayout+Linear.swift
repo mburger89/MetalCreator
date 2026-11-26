@@ -31,8 +31,12 @@ extension DrawingBuilder {
             guard let level else { continue }
             extensionLine(from: points[index], d: d, n: n, level: level, fallback: sign)
         }
-        for run in runs {
+        for (index, run) in runs.enumerated() {
             let label = labels[Swift.min(run.label, labels.count - 1)]
+            if index == 0 {
+                func tip(_ point: Int) -> Vector2 { d * Self.dot(points[point], d) + n * run.level }
+                drawing.dimensionLine = [tip(run.from), tip(run.to)]
+            }
             dimensionLine(
                 feet: (Self.dot(points[run.from], d), Self.dot(points[run.to], d)), level: run.level, d: d, n: n, label: label,
                 textShift: placement.textShift)

@@ -109,14 +109,17 @@ public struct SheetPicture: Hashable, Sendable {
     public var annotationReports: [AnnotationID: AnnotationReport]
     /// The annotations that lost what they were attached to, in the sheet's order.
     public var lostAnnotations: [AnnotationID]
+    /// The annotations whose report has warnings, in the sheet's order (plan R11).
+    public var checkedAnnotations: [AnnotationID]
     /// Each view's frame grown to hold its annotations and centre marks. Read by lookup only.
     public var viewExtents: [ViewID: Rect2D]
 
     public init(
         size: Vector2, strokes: [SheetStroke] = [], texts: [SheetText] = [], viewFrames: [ViewID: Rect2D] = [:],
         fills: [SheetFill] = [], standard: DrawingStandard = .iso, annotationReports: [AnnotationID: AnnotationReport] = [:],
-        lostAnnotations: [AnnotationID] = [], viewExtents: [ViewID: Rect2D] = [:]
+        lostAnnotations: [AnnotationID] = [], viewExtents: [ViewID: Rect2D] = [:], checkedAnnotations: [AnnotationID] = []
     ) {
+        self.checkedAnnotations = checkedAnnotations
         self.annotationReports = annotationReports
         self.lostAnnotations = lostAnnotations
         self.viewExtents = viewExtents

@@ -99,7 +99,15 @@ struct DrawingBuilder {
         drawing.texts += placed.texts
         drawing.segments += placed.segments
         if let box = placed.box { drawing.boxes.append(box) }
-        if drawing.textCenter == nil { drawing.textCenter = center }
+        if drawing.textCenter == nil {
+            drawing.textCenter = center
+            var corners = placed.texts.flatMap(\.corners) + (placed.box ?? [])
+            for segment in placed.segments {
+                let bounds = segment.bounds
+                corners += [bounds.min, bounds.max]
+            }
+            drawing.labelRect = Rect2D(points: corners)
+        }
         return placed.width
     }
 

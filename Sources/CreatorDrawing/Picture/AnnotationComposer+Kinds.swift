@@ -7,6 +7,8 @@ struct HeldAnnotation {
     var current: LastGood
     /// The first value's plain text.
     var label: String
+    /// A symbol's line's projected ends, in the model plane (plan R5's extension line); empty for any other kind.
+    var edgeEnds: [Vector2] = []
 }
 
 /// What resolving and measuring an annotation found: each anchor's state and the held result or the reason it is lost.
@@ -28,7 +30,7 @@ enum AnnotationEvaluator {
         case .centreMark(let mark): centreMark(mark, topology: topology, frame: frame)
         case .centreLine(let line): centreLine(line, topology: topology, frame: frame)
         case .note: nil
-        case .datumFeature, .featureControl, .surfaceTexture: nil  // DR-4 Task 5
+        case .datumFeature, .featureControl, .surfaceTexture: symbol(annotation, topology: topology, frame: frame, format: format)
         }
     }
 
@@ -73,8 +75,9 @@ enum AnnotationEvaluator {
         case .failure(let reason): return lost(reason, anchors: anchors)
         case .success(let found): measurement = found
         }
+        guard measurement.values.allSatisfy(\.isFinite) else { return lost(.refused(nonFiniteSentence), anchors: anchors) }
         do {
-            let labels = try labels(of: dimension, measurement, format: format)
+            let labels = try labels(of: dimension, values: measurement.values, format: format)
             return held(
                 anchors, labels: labels, values: measurement.values, figure: measurement.figure, label: shownLabel(of: dimension, labels))
         } catch {
@@ -88,10 +91,12 @@ enum AnnotationEvaluator {
         return labels.first
     }
 
-    private static func labels(
-        of dimension: DrawingDimension, _ measurement: DrawingMeasurement, format: NumberFormat
+    static let nonFiniteSentence = "What it measures has no finite size here."
+
+    /// The labels a dimension shows for `values`: a held measurement's, and what a lost dimension remembers.
+    static func labels(
+        of dimension: DrawingDimension, values: [Double], format: NumberFormat
     ) throws(DrawingRefusal) -> [DimensionLabel] {
-        let values = measurement.values
         func size(_ mm: Double, _ symbol: SizeSymbol) throws(DrawingRefusal) -> DimensionLabel {
             try DimensionLabel.size(
                 mm, symbol: symbol, tolerance: dimension.tolerance, precision: dimension.precision, prefix: dimension.prefix,

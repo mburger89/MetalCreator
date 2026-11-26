@@ -24,11 +24,21 @@ public struct AnnotationReport: Hashable, Sendable {
     /// What was drawn, in sheet millimetres (a zero rectangle when nothing was).
     public var frame: Rect2D
     public var textCenter: Vector2?
+    /// A dimension's first label's bounding rectangle in sheet millimetres, box included (plan R11); `nil` for any other kind.
+    public var labelRect: Rect2D?
+    /// A dimension's first dimension line's two arrow tips in sheet millimetres (plan R11); `nil` when it has none.
+    public var dimensionLine: [Vector2]?
+    /// The rules a symbol breaks, in words (plan R8); empty for every other kind.
+    public var warnings: [String]
 
     public init(
         status: AnnotationStatus, anchors: [AnchorStatus] = [], current: LastGood? = nil, label: String = "",
-        frame: Rect2D = Rect2D(min: .zero, max: .zero), textCenter: Vector2? = nil
+        frame: Rect2D = Rect2D(min: .zero, max: .zero), textCenter: Vector2? = nil, labelRect: Rect2D? = nil,
+        dimensionLine: [Vector2]? = nil, warnings: [String] = []
     ) {
+        self.labelRect = labelRect
+        self.dimensionLine = dimensionLine
+        self.warnings = warnings
         self.status = status
         self.anchors = anchors
         self.current = current

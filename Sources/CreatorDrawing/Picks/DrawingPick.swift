@@ -5,6 +5,45 @@ import Foundation
 /// What a pick is for: the tool that takes it decides which things it accepts (plan R5).
 public enum PickPurpose: Sendable {
     case dimension, holeCallout, centreMark, centreLine, leader
+    /// DR-4's symbols (plan R2): a datum feature symbol, a feature control frame and a surface texture symbol.
+    case datum, frame, surface
+
+    /// Whether the pick is for a symbol, which takes slanted lines and words its refusals for symbols (plan R2, R20).
+    public var isSymbol: Bool {
+        switch self {
+        case .datum, .frame, .surface: true
+        default: false
+        }
+    }
+
+    /// The purpose that picks for `symbol`, also the one a re-attach click uses.
+    public init(symbol: SymbolKind) {
+        switch symbol {
+        case .datum: self = .datum
+        case .frame: self = .frame
+        case .surface: self = .surface
+        }
+    }
+}
+
+/// The sentences a picker refuses with, by what it picks for (plan R20): DR-2's and DR-3's purposes keep their own words.
+struct PickWording {
+    let noEdgeName: String
+    let sharedEdge: String
+    let noCylinderName: String
+    let sharedCylinder: String
+    let cylinder: String
+
+    static let dimensions = PickWording(
+        noEdgeName: DrawingPick.noEdgeNameSentence, sharedEdge: DrawingPick.sharedEdgeSentence,
+        noCylinderName: DrawingPick.noCylinderNameSentence, sharedCylinder: DrawingPick.sharedCylinderSentence,
+        cylinder: DrawingPick.cylinderSentence)
+    static let symbols = PickWording(
+        noEdgeName: DrawingPick.symbolNoEdgeNameSentence, sharedEdge: DrawingPick.symbolSharedEdgeSentence,
+        noCylinderName: DrawingPick.symbolNoCylinderNameSentence, sharedCylinder: DrawingPick.symbolSharedCylinderSentence,
+        cylinder: DrawingPick.symbolCylinderSentence)
+
+    static func of(_ purpose: PickPurpose) -> PickWording { purpose.isSymbol ? .symbols : .dimensions }
 }
 
 /// The model-plane shape a pick contributes to a dimension (model millimetres in the view plane).
@@ -51,15 +90,37 @@ public enum DrawingPick {
     public static let centreMarkSentence = "A centre mark goes on a circle."
     public static let centreLineSentence = "A centre line goes along a cylinder seen side on."
 
+    // DR-4 (plan R2, R20).
+    public static let symbolIsometricSentence = "Isometric views take notes and leaders, not datum, tolerance or surface symbols."
+    public static let datumCircleSentence = "A datum symbol stands on a straight line of a view or on a dimension."
+    public static let surfaceCircleSentence = "A surface symbol stands on a straight line of a view."
+    public static let symbolNoEdgeNameSentence = "This edge has no lasting name, so a symbol can't hold on to it."
+    public static let symbolSharedEdgeSentence = "This line's edge shares its name with other edges, so a symbol can't hold on to it."
+    public static let symbolNoCylinderNameSentence = "This cylinder has no lasting name, so a symbol can't hold on to it."
+    public static let symbolSharedCylinderSentence = "This cylinder shares its name with other faces, so a symbol can't hold on to it."
+    public static let symbolCylinderSentence = "This cylinder isn't seen side on, so it has no outline here for a symbol to stand on."
+    public static let symbolEndOnSentence = "This edge is seen end on here, so a symbol can't stand on it."
+    public static let symbolCircleSentence =
+        "This circle isn't seen face on here; point the frame at it in a view that looks along its axis."
+    public static let symbolCurveSentence = "This edge isn't a straight line or a circle, so a symbol can't stand on it here."
+
     // The brief fixes this signature: the click, the tool, the part's topology and the view's frame, mapping and kind.
     // swiftlint:disable:next function_parameter_count
     public static func anchor(
         for candidate: PickCandidate, click: Vector2, purpose: PickPurpose, topology: Topology, frame: ProjectionFrame,
         mapping: ViewMapping, isIsometric: Bool
     ) -> Result<PickedAnchor, DrawingRefusal> {
-        if isIsometric, purpose != .leader { return .failure(DrawingRefusal(sentence: isometricSentence)) }
+        if isIsometric, purpose != .leader {
+            return .failure(DrawingRefusal(sentence: purpose.isSymbol ? symbolIsometricSentence : isometricSentence))
+        }
         let picker = Picker(topology: topology, frame: frame, mapping: mapping, purpose: purpose, click: click)
         return picker.anchor(for: candidate)
+    }
+
+    /// Whether a line with model direction `along` is seen end on in a view looking along `direction` (plan R2): the one test
+    /// that refuses a symbol at the pick and loses it afterwards, so an accepted pick is never lost at once.
+    static func isSeenEndOn(_ along: Vector3, direction: Vector3) -> Bool {
+        (along - direction * along.dot(direction)).length <= 1e-9 * along.length
     }
 
     /// Whether the unit vectors are the same line, to 1e-9.
@@ -76,14 +137,18 @@ extension DrawingPick {
         let purpose: PickPurpose
         let click: Vector2
 
+        var wording: PickWording { PickWording.of(purpose) }
+
         func anchor(for candidate: PickCandidate) -> Result<PickedAnchor, DrawingRefusal> {
             switch candidate {
-            case .edge(let id, _): return topology.edge(id).map(edge) ?? .failure(refusal(noEdgeNameSentence))
+            case .edge(let id, _): return topology.edge(id).map(edge) ?? .failure(refusal(wording.noEdgeName))
             case .corner(let id, let point):
+                // A symbol picks the corner's edge, as DR-3's auxiliary views do.
+                if purpose.isSymbol { return topology.edge(id).map(edge) ?? .failure(refusal(wording.noEdgeName)) }
                 guard purpose == .dimension || purpose == .leader else { return .failure(wrong()) }
-                return topology.edge(id).map { corner($0, at: point) } ?? .failure(refusal(noEdgeNameSentence))
+                return topology.edge(id).map { corner($0, at: point) } ?? .failure(refusal(wording.noEdgeName))
             case .centre(let id, _):
-                guard let edge = topology.edge(id) else { return .failure(refusal(noEdgeNameSentence)) }
+                guard let edge = topology.edge(id) else { return .failure(refusal(wording.noEdgeName)) }
                 return purpose == .dimension || purpose == .leader ? centre(edge) : self.edge(edge)
             case .outline(let id, _): return outline(id)
             }
@@ -98,6 +163,9 @@ extension DrawingPick {
             case .centreMark: refusal(centreMarkSentence)
             case .centreLine: refusal(centreLineSentence)
             case .dimension, .leader: refusal(outlineOnlySentence)
+            case .datum: refusal(datumCircleSentence)
+            case .surface: refusal(surfaceCircleSentence)
+            case .frame: refusal(symbolCurveSentence)
             }
         }
 
@@ -106,11 +174,11 @@ extension DrawingPick {
         /// The pick that names `edge` (plan R3): both sides of its key lasting, the key forming exactly one run.
         func name(_ edge: EdgeInfo) -> Result<EdgePick, DrawingRefusal> {
             guard let key = topology.key(of: edge), AnchorNaming.isLasting(key.first), AnchorNaming.isLasting(key.second) else {
-                return .failure(refusal(noEdgeNameSentence))
+                return .failure(refusal(wording.noEdgeName))
             }
             let matches = topology.edges(matching: key)
-            guard matches.contains(where: { $0.id == edge.id }) else { return .failure(refusal(noEdgeNameSentence)) }
-            guard Topology.runCount(matches) == 1 else { return .failure(refusal(sharedEdgeSentence)) }
+            guard matches.contains(where: { $0.id == edge.id }) else { return .failure(refusal(wording.noEdgeName)) }
+            guard Topology.runCount(matches) == 1 else { return .failure(refusal(wording.sharedEdge)) }
             return .success(EdgePick(key: key, matchCount: matches.count, runCount: matches.count > 1 ? 1 : nil))
         }
 
@@ -134,6 +202,10 @@ extension DrawingPick {
             case .success(let found): geometry = found
             }
             if purpose == .leader { return .success(PickedAnchor(target: target, shape: shape(of: geometry))) }
+            if purpose.isSymbol {
+                if let refused = refuseSymbol(geometry) { return .failure(refused) }
+                return .success(PickedAnchor(target: target, shape: shape(of: geometry)))
+            }
             if let refused = refuse(geometry) { return .failure(refused) }
             if purpose == .holeCallout, case .failure(let refused) = readHole(target) { return .failure(refused) }
             return .success(PickedAnchor(target: target, shape: shape(of: geometry)))
@@ -154,6 +226,26 @@ extension DrawingPick {
                 return abs(along.dot(frame.direction)) <= 1e-9 * along.length ? nil : refusal(lineSentence)
             case (_, .circle(_, let axis, _, _)): return isFaceOn(axis) ? nil : refusal(circleSentence)
             default: return refusal(notLineOrCircleSentence)
+            }
+        }
+
+        /// R2's rules for a symbol: any straight edge not seen end on, a face-on circle for a frame, nothing free-form.
+        private func refuseSymbol(_ geometry: AnchorGeometry) -> DrawingRefusal? {
+            switch geometry {
+            case .segment(let a, let b):
+                return DrawingPick.isSeenEndOn(b - a, direction: frame.direction) ? refusal(symbolEndOnSentence) : nil
+            case .circle(_, let axis, _, _):
+                switch purpose {
+                case .datum: return refusal(datumCircleSentence)
+                case .surface: return refusal(surfaceCircleSentence)
+                default: return isFaceOn(axis) ? nil : refusal(symbolCircleSentence)
+                }
+            default:
+                switch purpose {
+                case .datum: return refusal(datumCircleSentence)
+                case .surface: return refusal(surfaceCircleSentence)
+                default: return refusal(symbolCurveSentence)
+                }
             }
         }
 

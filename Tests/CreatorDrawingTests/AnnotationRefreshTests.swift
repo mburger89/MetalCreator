@@ -70,4 +70,33 @@ struct AnnotationRefreshTests {
             AnnotationRefresh.lastGood(
                 for: note, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
     }
+
+    // MARK: Symbols (DR-4)
+
+    @Test func aSymbolOnALineRefreshes() {
+        let view = Fixtures.makeView()
+        let symbol = DrawingAnnotation(
+            view: view.id,
+            kind: .datumFeature(
+                DatumFeature(letter: "A", attachment: .feature(LeaderEnd(target: pick(102), hint: Vector2(20, 0))), distance: 8)))
+        let refreshed = AnnotationRefresh.lastGood(
+            for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso)
+        #expect(refreshed?.figure == .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
+        #expect(refreshed?.lines == ["Datum A"])
+        let picture = Fixtures.compose(view, [symbol], content: Fixtures.content())
+        #expect(picture.annotationReports[symbol.id]?.current == refreshed)
+    }
+
+    @Test func aSymbolOnADimensionIsSkipped() {
+        let view = Fixtures.makeView()
+        let host = Fixtures.dimension(view.id, .linear(.horizontal), [pick(102)])
+        let symbol = DrawingAnnotation(
+            view: view.id, kind: .datumFeature(DatumFeature(letter: "A", attachment: .dimension(host.id), distance: 8)))
+        #expect(
+            AnnotationRefresh.lastGood(
+                for: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+        #expect(
+            AnnotationRefresh.lostReason(
+                of: symbol, topology: topology, frame: StandardOrientation.top.frame, format: format(), standard: .iso) == nil)
+    }
 }

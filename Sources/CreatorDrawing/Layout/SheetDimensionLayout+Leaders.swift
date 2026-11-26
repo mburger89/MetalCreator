@@ -33,6 +33,7 @@ extension DrawingBuilder {
         if isDiameter {
             if isISO && 2 * r >= w + 2 * style.arrowLength + 2 {
                 let other = c - u * r
+                drawing.dimensionLine = [tip, other]
                 line(tip, other)
                 arrow(tip: tip, back: u * -1)
                 arrow(tip: other, back: u)
