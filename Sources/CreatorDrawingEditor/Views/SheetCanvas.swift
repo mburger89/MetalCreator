@@ -44,10 +44,16 @@ public struct SheetCanvas: Component {
         var strokes = picture.strokes.filter { $0.annotation.map(chosen.contains) ?? false }
         var fills = picture.fills.filter { $0.annotation.map(chosen.contains) ?? false }
         var texts = picture.texts.filter { $0.annotation.map(chosen.contains) ?? false }
+        // A selected derived view's cutting line, arrow or detail circle (DR-3 R13).
+        let selected = model.selection
+        strokes += picture.strokes.filter { $0.mark.map(selected.contains) ?? false }
+        fills += picture.fills.filter { $0.mark.map(selected.contains) ?? false }
+        texts += picture.texts.filter { $0.mark.map(selected.contains) ?? false }
         if let draft = model.draftPicture {
-            strokes += draft.strokes.filter { $0.annotation == model.draftID }
-            fills += draft.fills.filter { $0.annotation == model.draftID }
-            texts += draft.texts.filter { $0.annotation == model.draftID }
+            let marks = model.draftViewID
+            strokes += draft.strokes.filter { $0.annotation == model.draftID || $0.mark == marks }
+            fills += draft.fills.filter { $0.annotation == model.draftID || $0.mark == marks }
+            texts += draft.texts.filter { $0.annotation == model.draftID || $0.mark == marks }
         }
         var ring: Vector2?
         switch model.hoverCandidate {

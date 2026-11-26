@@ -1,4 +1,5 @@
 import CreatorDrawing
+import Foundation
 import MetalUI
 
 /// The inspector with one view selected (plan R22): its source, orientation (base views), scale and display flags.
@@ -16,16 +17,60 @@ struct ViewInspector: Component {
         }
     }
 
+    /// The page's heading: "Base view", "Projected view", "Section A-A", "Detail B" or "View C" (DR-3 R13).
+    static func title(of view: DrawingView) -> String {
+        let letter = view.letter ?? ""
+        switch view.kind {
+        case .base: return "Base view"
+        case .projected: return "Projected view"
+        case .section: return letter.isEmpty ? "Section" : "Section \(letter)-\(letter)"
+        case .detail: return letter.isEmpty ? "Detail" : "Detail \(letter)"
+        case .auxiliary: return letter.isEmpty ? "View" : "View \(letter)"
+        }
+    }
+
+    /// "Straight" for one cut, "Stepped (N cuts)" for more (read only).
+    static func cutText(of view: DrawingView) -> String? {
+        guard case .section(let line)? = view.derivation else { return nil }
+        let cuts = line.cutter.cutIndices.count
+        return cuts <= 1 ? "Straight" : "Stepped (\(cuts) cuts)"
+    }
+
+    private var isDerived: Bool { view.derivation != nil }
+
+    @ElementBuilder
+    private var derivedRows: some ElementGroup {
+        if let cut = Self.cutText(of: view) {
+            DrawingRow("Cut", colors: colors) { Text(cut).font(.callout).foregroundStyle(colors.primary.color) }
+        }
+        if case .detail(let circle)? = view.derivation {
+            let value = model.units.value(fromMillimetres: circle.radius)
+            let text = String(format: "%.\(model.units.fractionDigits)f", value)
+            DrawingRow("Radius", colors: colors) {
+                DrawingField(model: model, text: text, width: 80) { typed in
+                    if let radius = Double(typed.trimmingCharacters(in: .whitespaces)) {
+                        model.setDetailRadius(radius, of: view.id)
+                    } else {
+                        model.setDetailRadius(0, of: view.id)
+                    }
+                }
+            }
+        }
+    }
+
     var content: some ElementGroup {
         let standard = model.document.settings.standard
         let orientations = StandardOrientation.allCases
         VStack(alignment: .leading, spacing: Pixels(8)) {
-            Text(view.kind == .base ? "Base view" : "Projected view").font(.headline).foregroundStyle(colors.primary.color)
-            DrawingRow("Source", colors: colors) {
-                DrawingMenu(options: model.sources.map(\.name), selected: model.sources.firstIndex { $0.id == view.source }) {
-                    model.setSource(model.sources[$0].id, of: view.id)
+            Text(Self.title(of: view)).font(.headline).foregroundStyle(colors.primary.color)
+            if !isDerived {
+                DrawingRow("Source", colors: colors) {
+                    DrawingMenu(options: model.sources.map(\.name), selected: model.sources.firstIndex { $0.id == view.source }) {
+                        model.setSource(model.sources[$0].id, of: view.id)
+                    }
                 }
             }
+            derivedRows
             if view.kind == .base {
                 DrawingRow("Orientation", colors: colors) {
                     let selected: Int? = {

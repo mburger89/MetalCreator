@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorKernel
 import Foundation
 import MetalUI
 import MetalUITesting
@@ -51,6 +52,70 @@ struct DrawingInspectorTests {
         window.window.click(at: Point(x: toggle.frame.origin.x + 4, y: toggle.frame.origin.y + 4))
         #expect(h.log.commits.map(\.name) == ["Change View"])
         #expect(h.model.document.sheets[0].views.first { $0.id == views[0].id }?.showsHidden == true)
+    }
+
+    /// A parent top view and a derived view of `kind` made from it, the derived one selected.
+    private func derived(_ kind: ViewKind, cutter: SectionCutter? = nil) -> (EditorHarness, DrawingView) {
+        let parent = EditorDocuments.view(at: Vector2(100, 105), orientation: .top)
+        let line = cutter ?? SectionCutter(
+            frame: StandardOrientation.top.frame, points: [Vector2(5, 10), Vector2(20, 10), Vector2(20, 14), Vector2(35, 14)],
+            viewing: Vector2(0, 1))
+        let derivation: ViewDerivation = switch kind {
+        case .detail: .detail(DetailCircle(parent: parent.id, center: Vector2(20, 10), radius: 6))
+        case .auxiliary:
+            .auxiliary(
+                AuxiliaryArrow(
+                    parent: parent.id, parentFrame: parent.orientation.frame, at: Vector2(20, 10), viewing: Vector2(0, 1)))
+        default: .section(SectionLine(parent: parent.id, cutter: line))
+        }
+        let view = DrawingView(
+            kind: kind, source: parent.source, orientation: parent.orientation, scale: DrawingScale(numerator: 2, denominator: 1),
+            center: Vector2(220, 105), showsLabel: true, derivation: derivation, letter: "A")
+        let sheet = DrawingSheet(name: "Sheet 1", views: [parent, view])
+        let h = EditorHarness(document: EditorDocuments.document([sheet]), sheet: sheet.id)
+        h.model.selection = [view.id]
+        return (h, view)
+    }
+
+    private func texts(_ model: DrawingEditorModel) async throws -> [String] {
+        let window = try await DrawingWindow.open(size: Size(width: Pixels(400), height: Pixels(700)), scaleFactor: 1) {
+            DrawingInspector(model: model)
+        }
+        return try window.window.elements(role: .staticText).compactMap { $0.value ?? $0.label }
+    }
+
+    @Test func aSectionPageShowsItsTitleAndCut() async throws {
+        let (h, _) = derived(.section)
+        let shown = try await texts(h.model)
+        #expect(shown.contains("Section A-A"), "\(shown)")
+        #expect(shown.contains("Stepped (2 cuts)"), "\(shown)")
+        #expect(!shown.contains("Source") && !shown.contains("Orientation"), "\(shown)")
+        #expect(shown.contains("Scale"))
+        let straight = derived(.section, cutter: SectionCutter(
+            frame: StandardOrientation.top.frame, points: [Vector2(5, 10), Vector2(35, 10)], viewing: Vector2(0, 1)))
+        #expect(try await texts(straight.0.model).contains("Straight"))
+    }
+
+    @Test func aDetailPageEditsItsRadius() async throws {
+        let (h, view) = derived(.detail)
+        let shown = try await texts(h.model)
+        #expect(shown.contains("Detail A"), "\(shown)")
+        #expect(shown.contains("Radius"), "\(shown)")
+        #expect(!shown.contains("Source") && !shown.contains("Orientation"))
+        h.model.setDetailRadius(8, of: view.id)
+        #expect(h.log.commits.map(\.name) == ["Change Detail Circle"])
+        guard case .detail(let circle)? = h.model.document.sheets[0].view(view.id)?.derivation else {
+            Issue.record("not a detail")
+            return
+        }
+        #expect(circle.radius == 8)
+    }
+
+    @Test func anAuxiliaryPageShowsItsTitle() async throws {
+        let (h, _) = derived(.auxiliary)
+        let shown = try await texts(h.model)
+        #expect(shown.contains("View A"), "\(shown)")
+        #expect(shown.contains("Scale") && !shown.contains("Source") && !shown.contains("Radius"), "\(shown)")
     }
 
     @Test func theKeysMapToDrawingKeys() {
