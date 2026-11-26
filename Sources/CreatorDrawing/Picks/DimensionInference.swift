@@ -61,15 +61,20 @@ public enum DimensionInference {
         case .cylinder(let axisPoint, let direction, let radius):
             let turned = Vector2(-direction.y, direction.x)
             var sign = 1.0
-            if case .outline(_, let side) = pick.target { sign = dot(turned, side) >= 0 ? 1 : -1 }
+            if case .outline(_, let side) = pick.target.unwrapped { sign = dot(turned, side) >= 0 ? 1 : -1 }
             return .point(axisPoint + turned * (radius * sign))
         }
     }
 
     /// The anchor a feature is stored as: a circle gives its centre.
     static func target(_ pick: PickedAnchor) -> AnchorTarget {
-        if case .circle = pick.shape, case .edge(let edge) = pick.target { return .centre(edge) }
+        if case .circle = pick.shape, case .edge(let edge) = pick.target.unwrapped { return rewrapped(.centre(edge), like: pick.target) }
         return pick.target
+    }
+
+    /// `target` inside the same part as `original` (an assembly view's picks are wrapped with their part), or as it is.
+    private static func rewrapped(_ target: AnchorTarget, like original: AnchorTarget) -> AnchorTarget {
+        original.part.map { .onPart($0, target) } ?? target
     }
 
     static func points(of picks: [PickedAnchor]) -> [Vector2] {
@@ -126,8 +131,8 @@ public enum DimensionInference {
             return .success((.linear(direction), [pick.target]))
         case .circle(_, _, let isFull): return .success((isFull ? .diameter : .radius, [pick.target]))
         case .cylinder:
-            guard case .outline(let face, _) = pick.target else { return .success((.diameter, [pick.target])) }
-            return .success((.diameter, [.axis(face)]))
+            guard case .outline(let face, _) = pick.target.unwrapped else { return .success((.diameter, [pick.target])) }
+            return .success((.diameter, [rewrapped(.axis(face), like: pick.target)]))
         case .point: return .failure(DrawingRefusal(sentence: secondPickSentence))
         }
     }

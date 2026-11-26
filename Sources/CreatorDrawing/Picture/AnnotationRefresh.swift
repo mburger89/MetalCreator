@@ -39,8 +39,8 @@ public enum AnnotationRefresh {
 // swiftlint:enable function_parameter_count
 
 extension AnnotationRefresh {
-    /// A view with no true measuring plane (an isometric one) takes no dimension, hole callout, centre mark or symbol (DR-4 R17): a
-    /// held one there is never refreshed, so a symbol lost in a view turned isometric stops refreshing its foot (DR-5 R21).
+    /// A view with no true measuring plane (an isometric one) takes no dimension or symbol (DR-4 R17: a dimension, datum feature, feature control frame or surface texture): a
+    /// held one of those is never refreshed, so a symbol lost in a view turned isometric stops refreshing its foot (DR-5 R21).
     static func isPictorialExempt(_ annotation: DrawingAnnotation) -> Bool {
         switch annotation.kind {
         case .dimension, .datumFeature, .featureControl, .surfaceTexture: true

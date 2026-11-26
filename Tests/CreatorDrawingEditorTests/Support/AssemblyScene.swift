@@ -46,14 +46,14 @@ struct AssemblyScene {
         return Topology(faces: faces, edges: edges)
     }
 
-    private static func line(_ a: Vector2, _ b: Vector2, _ source: ProjectionSource?) -> ProjectedLine {
+    static func line(_ a: Vector2, _ b: Vector2, _ source: ProjectionSource?) -> ProjectedLine {
         ProjectedLine(visibility: .visible, lineClass: .sharp, curve: .line(a, b), source: source)
     }
 
     /// `missing` edge ids (of the second copy, unshifted) are left out of the topology but stay drawn: a balloon on one is lost.
     static func make(
         annotations: [(NodeID, NodeID) -> DrawingAnnotation] = [], missingInSecond: [Int] = [], curve: Bool = false,
-        orientation: StandardOrientation = .top
+        orientation: StandardOrientation = .top, lines extra: ((Int) -> [ProjectedLine])? = nil
     ) -> AssemblyScene {
         let first = NodeID(), second = NodeID()
         let one = copy(0), two = copy(1, removing: missingInSecond)
@@ -65,6 +65,10 @@ struct AssemblyScene {
         var lines: [ProjectedLine] = []
         for n in 0...1 {
             let x = 100.0 * Double(n), id = shift * n
+            if let extra {
+                lines += extra(n)
+                continue
+            }
             lines.append(line(Vector2(x, 0), Vector2(x + 40, 0), .edge(EdgeID(102 + id))))
             lines.append(line(Vector2(x + 20, 0), Vector2(x + 20, 20), .edge(EdgeID(100 + id))))
         }
