@@ -62,11 +62,11 @@ struct SymbolDraftTests {
         let near = at(s, 8, -6)
         s.h.model.pointerMoved(to: s.h.canvas(near.x, near.y))
         let first = try #require(s.h.model.draftPicture)
-        #expect(first.annotationReports[s.h.model.draftID] != nil, "the draft symbol is composed in")
+        #expect(first.annotationReports[s.h.model.draftAnnotationID] != nil, "the draft symbol is composed in")
         let far = at(s, 20, -12)
         s.h.model.pointerMoved(to: s.h.canvas(far.x, far.y))
         let second = try #require(s.h.model.draftPicture)
-        #expect(first.annotationReports[s.h.model.draftID]?.frame != second.annotationReports[s.h.model.draftID]?.frame)
+        #expect(first.annotationReports[s.h.model.draftAnnotationID]?.frame != second.annotationReports[s.h.model.draftAnnotationID]?.frame)
         #expect(s.h.log.commits.isEmpty, "a draft is never committed")
         #expect(s.h.model.document.sheets[0].annotations.isEmpty)
     }

@@ -51,9 +51,10 @@ public struct SheetCanvas: Component {
         texts += picture.texts.filter { $0.mark.map(selected.contains) ?? false }
         if let draft = model.draftPicture {
             let marks = model.draftViewID
-            strokes += draft.strokes.filter { $0.annotation == model.draftID || $0.mark == marks }
-            fills += draft.fills.filter { $0.annotation == model.draftID || $0.mark == marks }
-            texts += draft.texts.filter { $0.annotation == model.draftID || $0.mark == marks }
+            let draftID = model.draftAnnotationID
+            strokes += draft.strokes.filter { $0.annotation == draftID || $0.mark == marks }
+            fills += draft.fills.filter { $0.annotation == draftID || $0.mark == marks }
+            texts += draft.texts.filter { $0.annotation == draftID || $0.mark == marks }
         }
         var ring: Vector2?
         switch model.hoverCandidate {

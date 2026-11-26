@@ -97,8 +97,8 @@ extension DrawingEditorModel {
 
     /// Adds `kind` to the current sheet as one step and selects it.
     @discardableResult
-    func addAnnotation(_ kind: AnnotationKind, view: ViewID?, name: String) -> Bool {
-        let annotation = DrawingAnnotation(view: view, kind: kind)
+    func addAnnotation(_ kind: AnnotationKind, view: ViewID?, name: String, id: AnnotationID = AnnotationID()) -> Bool {
+        let annotation = DrawingAnnotation(id: id, view: view, kind: kind)
         guard commitSheet(name, { $0.setAnnotation(annotation) }) else { return false }
         selection = []
         selectedAnnotations = [annotation.id]

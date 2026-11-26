@@ -13,11 +13,15 @@ public struct SymbolDraft: Hashable, Sendable {
     public var tool: DrawingTool
     public var view: ViewID
     public var target: SymbolTarget
+    /// The id the symbol will have, chosen with the target: the composer stacks symbols on a dimension in id order, so the draft and
+    /// the committed symbol must share one id to land in one place.
+    public var id: AnnotationID
 
-    public init(tool: DrawingTool, view: ViewID, target: SymbolTarget) {
+    public init(tool: DrawingTool, view: ViewID, target: SymbolTarget, id: AnnotationID = AnnotationID()) {
         self.tool = tool
         self.view = view
         self.target = target
+        self.id = id
     }
 
     /// The undo step the placed symbol is.

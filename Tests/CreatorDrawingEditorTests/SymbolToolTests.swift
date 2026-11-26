@@ -1,3 +1,4 @@
+import Foundation
 import CreatorGeometry
 import CreatorKernel
 import Testing
@@ -204,6 +205,31 @@ struct SymbolToolTests {
         }
         #expect(frame.attachment == .dimension(Scene.horizontal))
         #expect(frame.offset.length < 1e-9, "\(frame.offset)")
+    }
+
+    /// The composer stacks frames on a dimension in id order, so a second frame lands where its click said whichever id it has.
+    @Test(arguments: [true, false])
+    func aSecondFrameOnADimensionLandsAtTheClick(newSortsAfter: Bool) throws {
+        let s = open([.horizontal])
+        let low = AnnotationID(rawValue: try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001")))
+        let high = AnnotationID(rawValue: try #require(UUID(uuidString: "FFFFFFFF-0000-0000-0000-000000000001")))
+        let first = newSortsAfter ? low : high
+        let second = newSortsAfter ? high : low
+        s.h.model.commitSheet("Setup") { sheet in
+            let frame = FeatureControlFrame(
+                characteristic: .flatness, rows: [ToleranceRow(zone: .width, value: 0.05)], attachment: .dimension(Scene.horizontal))
+            sheet.setAnnotation(DrawingAnnotation(id: first, view: s.view.id, kind: .featureControl(frame)))
+        }
+        s.h.log.commits.removeAll()
+        let existing = try #require(s.report[first]?.frame)
+        let gap = AnnotationStyle.of(s.h.model.document.settings.standard).textGap
+        s.h.model.press(.featureControlFrame)
+        click(s, s.label(of: Scene.horizontal))
+        s.h.model.symbolDraft?.id = second
+        let target = Vector2(existing.min.x, existing.min.y - gap - 1)
+        click(s, target)
+        let placed = try #require(s.report[second]?.frame)
+        #expect(abs(placed.min.x - target.x) < 1e-6 && abs(placed.max.y - target.y) < 1e-6, "\(placed) for \(target)")
     }
 
     // MARK: Surface

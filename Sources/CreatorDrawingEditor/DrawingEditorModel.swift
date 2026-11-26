@@ -122,6 +122,8 @@ public final class DrawingEditorModel {
     @ObservationIgnored var lastPointer: Vector2?
     /// The draft's id, one per model: a draft is composed under it and never saved.
     @ObservationIgnored let draftID = AnnotationID()
+    /// The id the draft picture's annotation is composed under: a symbol draft's own, else the model's one draft id.
+    var draftAnnotationID: AnnotationID { symbolDraft?.id ?? draftID }
     /// The id a derived view's draft marks are drawn under.
     @ObservationIgnored let draftViewID = ViewID()
 

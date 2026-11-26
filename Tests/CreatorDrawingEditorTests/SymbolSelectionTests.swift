@@ -121,6 +121,45 @@ struct SymbolSelectionTests {
         #expect(try frame(s).offset == Vector2(1, 1), "the frame follows its dimension and is not moved again")
     }
 
+    @Test func aLostFrameOnADimensionStillLetsAClickSelectTheDimension() throws {
+        let held = Scene.make([.horizontal])
+        let last = try #require(held.h.model.remembered[Scene.horizontal])
+        let s = Scene.make([.horizontal], removing: [103])
+        s.h.model.commitSheet("Setup") { sheet in
+            var placed = Self.frame(on: .dimension(Scene.horizontal), offset: Vector2(1, 1))
+            placed.view = s.view.id
+            sheet.setAnnotation(placed)
+            if var dimension = sheet.annotation(Scene.horizontal) {
+                dimension.last = last
+                sheet.setAnnotation(dimension)
+            }
+        }
+        s.h.log.commits.removeAll()
+        #expect(s.report[Self.frameID]?.isLost == true)
+        s.h.model.selectedAnnotations = [Self.frameID]
+        // A press inside the view that is on no line is a plain select, not a refusal.
+        let box = try #require(s.h.model.picture?.viewFrames[s.view.id])
+        var found: Vector2?
+        for row in 1..<20 {
+            for column in 1..<40 where found == nil {
+                let point = box.min + Vector2(Double(column), Double(row)) * 0.99
+                if s.h.model.viewUnder(point) == s.view.id, !s.h.model.reattachClick(at: point) { found = point }
+            }
+        }
+        s.h.model.refusal = nil
+        let inside = try #require(found, "a spot in the view that is on no line")
+        s.h.click(inside.x, inside.y)
+        #expect(s.h.model.refusal == nil, "\(s.h.model.refusal ?? "")")
+        #expect(s.h.model.selectedAnnotations.isEmpty, "\(s.h.model.selectedAnnotations)")
+        #expect(s.h.model.selection == [s.view.id])
+        // Selected again, the frame can be dragged by its own box.
+        s.h.model.selectedAnnotations = [Self.frameID]
+        let label = try #require(s.report[Scene.horizontal]?.textCenter)
+        s.h.click(label.x, label.y)
+        #expect(
+            s.h.model.selectedAnnotations == [Scene.horizontal], "\(s.h.model.selectedAnnotations) \(s.h.model.refusal ?? "")")
+    }
+
     @Test func aHangingDatumChangesItsDistanceByTheDownwardPart() throws {
         let s = Scene.make([.diameter])
         s.h.model.document.settings.standard = .asme

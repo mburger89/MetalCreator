@@ -93,7 +93,7 @@ extension DrawingEditorModel {
         switch symbolKind(for: draft, placing: point) {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let kind):
-            guard addAnnotation(kind, view: draft.view, name: draft.stepName) else { return }
+            guard addAnnotation(kind, view: draft.view, name: draft.stepName, id: draft.id) else { return }
             switch kind {
             case .featureControl(let frame): frameTemplate = frame
             case .surfaceTexture(let texture): surfaceTemplate = texture
@@ -153,7 +153,7 @@ extension DrawingEditorModel {
         if case .lost(let reason) = report.status { return .failure(DrawingRefusal(sentence: reason.sentence)) }
         guard let rect = report.labelRect else { return .failure(DrawingRefusal(sentence: Self.nothingDrawnSentence)) }
         let host = SymbolPlacing.Host(
-            labelRect: rect, tips: report.dimensionLine, stackBottom: stackBottom(on: id),
+            labelRect: rect, tips: report.dimensionLine, stackBottom: stackBottom(on: id, before: draft),
             gap: AnnotationStyle.of(document.settings.standard).textGap)
         switch draft.tool {
         case .datum:
@@ -171,13 +171,25 @@ extension DrawingEditorModel {
         }
     }
 
-    /// The lowest y the frames and hanging datums already on dimension `id` reach, or `nil` with none.
-    private func stackBottom(on id: AnnotationID) -> Double? {
+    /// The lowest y of the symbols the composer stacks on dimension `id` before the draft's (AnnotationPass: frames first, then
+    /// hanging datums, each group in id order), or `nil` with none. A frame sits under the frames with smaller ids; a hanging
+    /// datum under every frame and the hanging datums with smaller ids.
+    private func stackBottom(on id: AnnotationID, before draft: SymbolDraft) -> Double? {
         guard let sheet, let picture else { return nil }
+        let hangs = picture.annotationReports[id]?.dimensionLine == nil
         var bottom: Double?
-        for symbol in sheet.symbols(on: id) {
+        for symbol in sheet.symbols(on: id) where symbol.id != draft.id {
+            switch (draft.tool, symbol.kind) {
+            case (.featureControlFrame, .featureControl):
+                if symbol.id > draft.id { continue }
+            case (.datum, .featureControl):
+                break
+            case (.datum, .datumFeature):
+                if !hangs || symbol.id > draft.id { continue }
+            default:
+                continue
+            }
             guard let report = picture.annotationReports[symbol.id], report.frame.height > 0 || report.frame.width > 0 else { continue }
-            if case .datumFeature = symbol.kind, picture.annotationReports[id]?.dimensionLine != nil { continue }
             bottom = Swift.min(bottom ?? report.frame.min.y, report.frame.min.y)
         }
         return bottom
@@ -211,7 +223,7 @@ extension DrawingEditorModel {
         guard let draft = symbolDraft, let sheet, let point = lastPointer,
             case .success(let kind) = symbolKind(for: draft, placing: point) else { return nil }
         var drafted = sheet
-        drafted.setAnnotation(DrawingAnnotation(id: draftID, view: draft.view, kind: kind))
+        drafted.setAnnotation(DrawingAnnotation(id: draft.id, view: draft.view, kind: kind))
         return SheetComposer.compose(
             drafted, in: document, contents: contents, facts: facts, units: units, remembered: remembered)
     }
