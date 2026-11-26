@@ -74,22 +74,29 @@ public enum AppCommands {
             .keyboardShortcut("d", modifiers: [.primary, .shift])
     }
 
-    /// The File menu's drawing exports, disabled outside Drawing (plan R25).
+    /// The File menu's drawing exports, disabled outside Drawing (plan R25, DR-5 R15).
     static let drawingExportTitles = [
-        "Export PDF…", "Export DXF of Sheet…", "Export DXF of View at 1:1…",
-        "Export DXF of View at 1:1 with Annotations…",
+        "Export PDF of All Sheets…", "Export PDF of Sheet…", "Export DXF of Sheet…", "Export DXF of View at 1:1…",
+        "Export DXF of View at 1:1 with Annotations…", "Export SVG of Sheet…",
     ]
+
+    /// The drawing exports in menu order.
+    static let drawingExportKinds: [DrawingExportKind] = [.pdf, .pdfSheet, .dxfSheet, .dxfView, .dxfViewWithAnnotations, .svgSheet]
 
     @MainActor
     @MenuContentBuilder
     static func drawingExportItems(_ model: AppModel) -> MenuItems {
-        Button(drawingExportTitles[0]) { model.withFilePicker { await model.exportDrawing(.pdf, using: $0) } }
+        Button(drawingExportTitles[0]) { model.withFilePicker { await model.exportDrawing(drawingExportKinds[0], using: $0) } }
             .disabled(model.mode != .drawing)
-        Button(drawingExportTitles[1]) { model.withFilePicker { await model.exportDrawing(.dxfSheet, using: $0) } }
+        Button(drawingExportTitles[1]) { model.withFilePicker { await model.exportDrawing(drawingExportKinds[1], using: $0) } }
             .disabled(model.mode != .drawing)
-        Button(drawingExportTitles[2]) { model.withFilePicker { await model.exportDrawing(.dxfView, using: $0) } }
+        Button(drawingExportTitles[2]) { model.withFilePicker { await model.exportDrawing(drawingExportKinds[2], using: $0) } }
             .disabled(model.mode != .drawing)
-        Button(drawingExportTitles[3]) { model.withFilePicker { await model.exportDrawing(.dxfViewWithAnnotations, using: $0) } }
+        Button(drawingExportTitles[3]) { model.withFilePicker { await model.exportDrawing(drawingExportKinds[3], using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[4]) { model.withFilePicker { await model.exportDrawing(drawingExportKinds[4], using: $0) } }
+            .disabled(model.mode != .drawing)
+        Button(drawingExportTitles[5]) { model.withFilePicker { await model.exportDrawing(drawingExportKinds[5], using: $0) } }
             .disabled(model.mode != .drawing)
     }
 

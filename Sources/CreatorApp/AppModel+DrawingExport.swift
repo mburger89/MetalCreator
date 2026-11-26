@@ -15,40 +15,76 @@ extension AppModel {
         var view: DrawingView?
     }
 
-    /// Says what's wrong before anything is asked or projected: no sheet, no single selected view, an Output a written view shows
-    /// that failed.
-    func drawingExportPlan(_ kind: DrawingExportKind) throws(AppProblem) -> DrawingExportPlan {
+    /// Says what's wrong before anything is asked or projected: no sheet, no single selected view, an Output (or a part) a written view
+    /// shows that failed. `sheet` and `view` name what to write (an AI client's export); without them the open sheet and the selection.
+    func drawingExportPlan(
+        _ kind: DrawingExportKind, sheet requested: SheetID? = nil, view requestedView: ViewID? = nil
+    ) throws(AppProblem) -> DrawingExportPlan {
         let editor = drawing.editor
         let drawings = editor.document
         guard !drawings.sheets.isEmpty else {
             throw AppProblem("Nothing to export", "Add a sheet with a view first.")
         }
-        let open = editor.currentSheet.flatMap { drawings.sheet($0) } ?? drawings.sheets[0]
+        let open: DrawingSheet
+        if let requested {
+            guard let found = drawings.sheet(requested) else { throw AppProblem("Nothing to export", "There's no such sheet.") }
+            open = found
+        } else {
+            open = editor.currentSheet.flatMap { drawings.sheet($0) } ?? drawings.sheets[0]
+        }
         var plan = DrawingExportPlan(sheets: drawings.sheets, openSheet: open, view: nil)
         switch kind {
         case .pdf: break
-        case .dxfSheet: plan.sheets = [open]
+        case .pdfSheet, .dxfSheet, .svgSheet: plan.sheets = [open]
         case .dxfView, .dxfViewWithAnnotations:
-            let selected = open.views.filter { editor.selection.contains($0.id) }
-            guard selected.count == 1, editor.selection.count == 1 else {
-                throw AppProblem("Nothing to export", "Select one view to export it at 1:1.")
-            }
-            plan.view = selected[0]
+            plan.view = try exportedView(in: open, requested: requestedView)
             plan.sheets = [open]
         }
-        let shown = plan.view.map { [$0] } ?? plan.sheets.flatMap(\.views)
-        for view in shown {
-            let source = DrawingSession.content(of: view.source, in: document)
-            switch source.state {
-            case .failed(let message): throw AppProblem("“\(source.name)” can't be drawn", message)
-            case .removed: throw AppProblem("A view can't be drawn", DrawingProjector.removedSentence)
-            case .ready(let solids, let curves, let meshCount) where solids.isEmpty && curves.isEmpty:
-                let reason = meshCount > 0 ? DrawingProjector.onlyMeshesSentence : DrawingProjector.nothingYetSentence
-                throw AppProblem("“\(source.name)” can't be drawn", reason)
-            default: break
-            }
+        for view in plan.view.map({ [$0] }) ?? plan.sheets.flatMap(\.views) {
+            if let problem = refusal(for: view) { throw problem }
         }
         return plan
+    }
+
+    /// The one view a DXF at 1:1 writes: the named one, else the one selected view.
+    private func exportedView(in sheet: DrawingSheet, requested: ViewID?) throws(AppProblem) -> DrawingView {
+        if let requested {
+            guard let found = sheet.view(requested) else { throw AppProblem("Nothing to export", "There's no such view.") }
+            return found
+        }
+        let editor = drawing.editor
+        let selected = sheet.views.filter { editor.selection.contains($0.id) }
+        guard selected.count == 1, editor.selection.count == 1 else {
+            throw AppProblem("Nothing to export", "Select one view to export it at 1:1.")
+        }
+        return selected[0]
+    }
+
+    /// Why `view` can't be written, or `nil`: a failed Output (a failed part is named), every part removed, or nothing to draw. A part
+    /// of an assembly that was removed, is empty or holds a mesh is only left out with a warning (R2).
+    private func refusal(for view: DrawingView) -> AppProblem? {
+        let sources = drawing.sources(of: view)
+        for source in sources {
+            if case .failed(let message) = source.state { return AppProblem("“\(source.name)” can't be drawn", message) }
+        }
+        var removed = 0, meshes = 0
+        var drawable = false, evaluating = false
+        for source in sources {
+            switch source.state {
+            case .removed: removed += 1
+            case .ready(let solids, let curves, let meshCount):
+                meshes += meshCount
+                drawable = drawable || !solids.isEmpty || !curves.isEmpty
+            case .evaluating: evaluating = true
+            case .failed: break
+            }
+        }
+        if removed == sources.count { return AppProblem("A view can't be drawn", DrawingProjector.removedSentence) }
+        if !drawable, !evaluating {
+            let reason = meshes > 0 ? DrawingProjector.onlyMeshesSentence : DrawingProjector.nothingYetSentence
+            return AppProblem("“\(sources.first?.name ?? "")” can't be drawn", reason)
+        }
+        return nil
     }
 
     /// A view whose projection failed now would print its last good one: refuse it by name, as a failed Output is.
@@ -87,20 +123,32 @@ extension AppModel {
         }
     }
 
-    /// A written file's bytes, the typed texts its lettering replaced and the lost annotations it carries, as sentences.
+    /// A written file's bytes, the typed texts its lettering replaced, the sentences about what its sheets carry (lost annotations,
+    /// then checks, then an unreadable logo, sheet by sheet) and whether a logo had to be left out (a DXF holds no picture).
     struct DrawingFile {
         var data: Data
         var replaced: [String]
         var lost: [String]
+        var leftOutLogo = false
     }
+
+    /// DXF R13: said once per file.
+    static let dxfLogoSentence = "The DXF leaves out the title block's logo; DXF files can't hold a picture."
 
     /// Writes the drawing to `url` once the document has evaluated; the warnings come back instead of raising the summary alert
     /// (an AI client's export is not the person's).
     public func exportDrawingReturningWarnings(_ kind: DrawingExportKind, to url: URL) async throws(AppProblem) -> [String] {
+        try await exportDrawingReturningWarnings(kind, sheet: nil, view: nil, to: url)
+    }
+
+    /// The same for the named sheet and view (an AI client's); without them the open sheet and the selection.
+    public func exportDrawingReturningWarnings(
+        _ kind: DrawingExportKind, sheet: SheetID?, view: ViewID?, to url: URL
+    ) async throws(AppProblem) -> [String] {
         commitPendingEntries()
         await document.waitForEvaluation()
-        let plan = try drawingExportPlan(kind)
-        let snapshot = await drawing.projectAll()
+        let plan = try drawingExportPlan(kind, sheet: sheet, view: view)
+        let snapshot = await drawing.projectAll(of: plan.sheets.map(\.id))
         try refuseProblemViews(in: plan, snapshot)
         let file = try drawingFile(kind, plan, snapshot)
         do {
@@ -114,6 +162,7 @@ extension AppModel {
             for warning in snapshot.contents[view.id]?.warnings ?? [] where !warnings.contains(warning) { warnings.append(warning) }
         }
         warnings += file.lost
+        if file.leftOutLogo { warnings.append(Self.dxfLogoSentence) }
         var seen: Set<String> = []
         let replaced = file.replaced.filter { seen.insert($0).inserted }
         if !replaced.isEmpty {
@@ -135,41 +184,60 @@ extension AppModel {
                 sheet, in: drawings, contents: snapshot.contents, facts: snapshot.facts[sheet.id] ?? TitleBlockFacts(), notices: false,
                 units: units, remembered: remembered)
         }
-        switch kind {
-        case .pdf:
-            let pictures = drawings.sheets.map(picture(of:))
-            let lost = zip(drawings.sheets, pictures).flatMap {
-                Self.lostWarnings(on: $0, in: $1, view: nil) + Self.checkWarnings(on: $0, in: $1, view: nil)
+        /// What a sheet says about itself in a file, in R15's order: its lost annotations, its checks, its unreadable logo.
+        func warnings(of sheet: DrawingSheet, in page: SheetPicture, view: ViewID?) -> [String] {
+            var sentences = Self.lostWarnings(on: sheet, in: page, view: view) + Self.checkWarnings(on: sheet, in: page, view: view)
+            if view == nil, case .unreadable(let reason)? = snapshot.facts[sheet.id]?.logo {
+                sentences.append(SheetComposer.logoUnreadableSentence(reason))
             }
+            return sentences
+        }
+        switch kind {
+        case .pdf, .pdfSheet:
+            let sheets = kind == .pdf ? drawings.sheets : (plan.openSheet.map { [$0] } ?? [])
+            guard !sheets.isEmpty else { throw AppProblem("Nothing to export", "Add a sheet with a view first.") }
+            let pictures = sheets.map(picture(of:))
+            let lost = zip(sheets, pictures).flatMap { warnings(of: $0, in: $1, view: nil) }
             let output = PDFWriter.write(pictures, title: exportName)
             return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: lost)
+        case .svgSheet:
+            guard let sheet = plan.openSheet else { throw AppProblem("Nothing to export", "Add a sheet with a view first.") }
+            let page = picture(of: sheet)
+            let output = SVGWriter.write(page, title: exportName)
+            return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: warnings(of: sheet, in: page, view: nil))
         case .dxfSheet:
             guard let sheet = plan.openSheet else { throw AppProblem("Nothing to export", "Add a sheet with a view first.") }
             let page = picture(of: sheet)
             let output = DXFWriter.sheet(page, style: style)
             return DrawingFile(
-                data: output.data, replaced: output.replacedTexts,
-                lost: Self.lostWarnings(on: sheet, in: page, view: nil) + Self.checkWarnings(on: sheet, in: page, view: nil))
+                data: output.data, replaced: output.replacedTexts, lost: warnings(of: sheet, in: page, view: nil),
+                leftOutLogo: output.leftOutImages)
         case .dxfView, .dxfViewWithAnnotations:
-            guard let view = plan.view else { throw AppProblem("Select one view", "Select one view to export it at 1:1.") }
-            guard let content = snapshot.contents[view.id], let projection = content.projection else {
-                let reason = snapshot.contents[view.id]?.problem ?? DrawingProjector.nothingYetSentence
-                throw AppProblem("The view can't be drawn", reason)
-            }
-            guard kind == .dxfViewWithAnnotations, let sheet = plan.openSheet else {
-                let output = DXFWriter.view(projection, view: view, style: style)
-                return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: [])
-            }
-            let page = picture(of: sheet)
-            let scale = (view.scale ?? sheet.scale).value
-            let center = ViewPlacement.centers(in: sheet)[view.id] ?? view.center
-            let mapping = ViewMapping.of(content: content, center: center, scale: scale)
-                ?? ViewMapping(scale: scale, offset: center)
-            let output = DXFWriter.view(projection, view: view, style: style, annotations: (page, mapping))
-            return DrawingFile(
-                data: output.data, replaced: output.replacedTexts,
-                lost: Self.lostWarnings(on: sheet, in: page, view: view.id) + Self.checkWarnings(on: sheet, in: page, view: view.id))
+            return try viewFile(kind, plan, snapshot, picture: picture(of:), warnings: warnings(of:in:view:))
         }
+    }
+
+    /// A DXF of one view at 1:1, with its annotations mapped back to model millimetres for `.dxfViewWithAnnotations`.
+    private func viewFile(
+        _ kind: DrawingExportKind, _ plan: DrawingExportPlan, _ snapshot: DrawingSnapshot,
+        picture: (DrawingSheet) -> SheetPicture, warnings: (DrawingSheet, SheetPicture, ViewID?) -> [String]
+    ) throws(AppProblem) -> DrawingFile {
+        let style = DrawingStyle.of(drawing.editor.document.settings.standard)
+        guard let view = plan.view else { throw AppProblem("Select one view", "Select one view to export it at 1:1.") }
+        guard let content = snapshot.contents[view.id], let projection = content.projection else {
+            let reason = snapshot.contents[view.id]?.problem ?? DrawingProjector.nothingYetSentence
+            throw AppProblem("The view can't be drawn", reason)
+        }
+        guard kind == .dxfViewWithAnnotations, let sheet = plan.openSheet else {
+            let output = DXFWriter.view(projection, view: view, style: style)
+            return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: [])
+        }
+        let page = picture(sheet)
+        let scale = (view.scale ?? sheet.scale).value
+        let center = ViewPlacement.centers(in: sheet)[view.id] ?? view.center
+        let mapping = ViewMapping.of(content: content, center: center, scale: scale) ?? ViewMapping(scale: scale, offset: center)
+        let output = DXFWriter.view(projection, view: view, style: style, annotations: (page, mapping))
+        return DrawingFile(data: output.data, replaced: output.replacedTexts, lost: warnings(sheet, page, view.id))
     }
 
     /// At most this many lost annotations are listed one by one per sheet (plan R15).

@@ -227,6 +227,6 @@ struct DrawingDimensionTests {
     @Test func theExportKindIsNamedAndListed() {
         #expect(DrawingExportKind.dxfViewWithAnnotations.title == "DXF")
         #expect(DrawingExportKind.dxfViewWithAnnotations.fileExtension == "dxf")
-        #expect(AppCommands.drawingExportTitles.last == "Export DXF of View at 1:1 with Annotations…")
+        #expect(AppCommands.drawingExportTitles.contains("Export DXF of View at 1:1 with Annotations…"))
     }
 }
