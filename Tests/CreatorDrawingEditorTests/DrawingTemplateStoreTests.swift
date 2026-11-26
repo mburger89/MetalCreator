@@ -134,7 +134,10 @@ struct DrawingTemplateStoreTests {
     }
 
     #if !os(Windows)
-    @Test func aFailedSaveLeavesTheStore() throws {
+    /// A read-only folder only refuses a save to a user who obeys permissions: not root (a Linux container's user).
+    private nonisolated static let permissionsApply = geteuid() != 0
+
+    @Test(.enabled(if: Self.permissionsApply)) func aFailedSaveLeavesTheStore() throws {
         let folder = Self.folder()
         try FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
         defer {

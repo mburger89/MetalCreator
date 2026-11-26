@@ -2591,3 +2591,19 @@ the Output selected so the part is shown.
 - [ ] **DR4-9 Keys.** A, G and R over the sheet pick their tools. **Observed:**
 - [ ] **DR4-10 PDF and DXF.** Export both: symbols on DIMENSION, notes on TEXT, opening in Preview, Acrobat, LibreCAD and AutoCAD or TrueView with no audit prompt. **Observed:**
 - [ ] **DR4-11 Linux and Windows.** The symbols page's PDF SHA-256 equals the Mac's. **Observed:**
+
+## Group DR-5 — Drawings: assemblies, balloons, parts lists and revisions
+
+- [ ] **DR5-1 Assembly view.** An assembly of three parts in Front and isometric: parts hide each other, hidden lines on. **Observed:**
+- [ ] **DR5-2 Two copies.** Two copies of one part ballooned, then a width change: each balloon stays on its copy. **Observed:**
+- [ ] **DR5-3 Lost parts.** Untick a part, delete a part's Output, break a part: the view's words and the "?" balloons. **Observed:**
+- [ ] **DR5-4 Parts list.** The parts list on the title block and free, ISO and ASME columns, material and part number typed, Move Up and Down, a part with no balloon listed. **Observed:**
+- [ ] **DR5-5 Isometric balloons.** Balloons in an isometric view, dragged and nudged. **Observed:**
+- [ ] **DR5-6 Revision table.** New Revision A, B, … H then J, typed dates, the title block's revision following, Remove Last Revision. **Observed:**
+- [ ] **DR5-7 Templates and logo.** A template saved with a logo, a new sheet from it after relaunch, the logo in the owner field, a transparent PNG's background white. **Observed:**
+- [ ] **DR5-8 Bad logo and template.** A 3,000-pixel logo and a broken template file: the sentences. **Observed:**
+- [ ] **DR5-9 Exports.** Export PDF of All Sheets, PDF of Sheet, SVG of Sheet: open the SVG in a browser and Inkscape (layers named, lettering the PDF's width), the PDF in Preview and Acrobat, the logo grey; the DXF in LibreCAD with the logo's rectangle. **Observed:**
+- [ ] **DR5-10 Copy and paste.** Copy, cut and paste views with sections and symbols across sheets, then undo. **Observed:**
+- [ ] **DR5-11 MCP.** An AI client lists the drawings, reads a sheet with a lost dimension, exports a PDF, and is refused while a sketch is open. **Observed:**
+- [ ] **DR5-12 Keys.** The keys B and P over the sheet pick their tools. **Observed:**
+- [ ] **DR5-13 Linux and Windows.** The assembly page's PDF and SVG SHA-256 equal the Mac's. **Observed:**
