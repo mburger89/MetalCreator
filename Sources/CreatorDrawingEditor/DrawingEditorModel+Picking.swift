@@ -17,12 +17,12 @@ extension DrawingEditorModel {
         func refused(_ reason: LostReason) -> Result<PickContext, DrawingRefusal> {
             .failure(DrawingRefusal(sentence: reason.sentence))
         }
-        guard let sheet, let view = sheet.view(id), let content = contents[id], let projection = content.projection,
+        guard let sheet, let view = sheet.view(id), let content = contents[id], content.projection != nil,
               let topology = content.topology else { return refused(.noPart) }
         if let problem = content.problem, !problem.isEmpty { return refused(.viewFailed(problem)) }
         let centre = ViewPlacement.centers(in: sheet)[id] ?? view.center
         let scale = (view.scale ?? sheet.scale).value
-        let mapping = ViewMapping.of(projection: projection, center: centre, scale: scale)
+        let mapping = ViewMapping.of(content: content, center: centre, scale: scale)
             ?? ViewMapping(scale: scale, offset: centre)
         return .success(PickContext(view: view, topology: topology, mapping: mapping, frame: view.orientation.frame))
     }

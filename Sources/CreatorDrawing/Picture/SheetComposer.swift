@@ -35,10 +35,10 @@ public enum SheetComposer {
             let scale = (view.scale ?? sheet.scale).value
             let content = contents[view.id] ?? ViewContent()
             var frame: Rect2D
-            if let projection = content.projection {
+            if content.projection != nil {
                 picture.strokes += ViewLinework.strokes(
-                    for: projection, view: view, center: center, scale: scale, style: style)
-                frame = ViewLinework.frame(for: projection, center: center, scale: scale)
+                    for: content, view: view, center: center, scale: scale, style: style)
+                frame = ViewLinework.frame(for: content, center: center, scale: scale)
                     ?? Rect2D(min: center, max: center)
             } else {
                 frame = appendEmptyView(
