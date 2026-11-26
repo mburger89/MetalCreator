@@ -17,8 +17,11 @@ struct DrawingStepNameTests {
                 "Reattach Dimension", "Remove Leader", "Move Dimension", "Move Note", "Move Annotations", "Delete Dimension",
                 "Delete Note", "Delete Annotations", "Change Dimension", "Change Tolerance", "Edit Note", "Change Number Format",
                 "Move Cutting Line", "Move Detail Circle", "Change Detail Circle",
+                "Add Datum", "Add Feature Control Frame", "Add Surface Symbol", "Change Datum Letter",
+                "Change Feature Control Frame", "Change Surface Symbol", "Move Symbol", "Delete Symbol", "Reattach Symbol",
+                "Edit Notes", "Change Edge Break", "Change General Surface",
             ])
-        #expect(DrawingStepName.all.count == 34)
+        #expect(DrawingStepName.all.count == 46)
         for name in DrawingStepName.all { #expect(!name.contains { $0.isNumber }, "\(name)") }
     }
 
@@ -198,5 +201,28 @@ struct DrawingStepNameTests {
         let (h, detail) = detailFixture()
         h.model.setDetailRadius(5, of: detail.id)
         #expect(h.log.commits.isEmpty)
+    }
+
+    @Test func theSymbolStepsAreMadeByTheirTools() throws {
+        let s = SelectionScene.make([])
+        let at = { (x: Double, y: Double) in s.mapping.sheet(Vector2(x, y)) }
+        for (tool, expected) in [
+            (DrawingTool.datum, "Add Datum"), (.featureControlFrame, "Add Feature Control Frame"),
+            (.surfaceFinish, "Add Surface Symbol"),
+        ] {
+            s.h.log.commits.removeAll()
+            s.h.model.press(tool)
+            s.h.click(at(8, 0).x, at(8, 0).y)
+            s.h.click(at(8, -8).x, at(8, -8).y)
+            #expect(s.h.log.commits.map(\.name) == [expected], "\(tool) \(s.h.model.refusal ?? "")")
+            #expect(s.h.model.selectedAnnotations.count == 1)
+        }
+        s.h.log.commits.removeAll()
+        s.h.model.press(.select)
+        s.h.model.selectedAnnotations = Set(s.h.model.document.sheets[0].annotations.map(\.id))
+        s.h.model.keyPressed(.nudge(Vector2(1, 0), isRepeat: false))
+        #expect(s.h.log.commits.map(\.name) == ["Move Symbol"])
+        s.h.model.deleteSelection()
+        #expect(s.h.log.commits.map(\.name) == ["Move Symbol", "Delete Symbol"])
     }
 }

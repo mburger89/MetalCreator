@@ -19,7 +19,7 @@ struct DrawingToolbarTests {
 
     private static let everyTool = [
         "Base View", "Projected View", "Section", "Detail", "Auxiliary", "Dimension", "Baseline", "Chain", "Ordinate", "Chamfer",
-        "Hole Callout", "Centre Mark", "Centre Line", "Note",
+        "Hole Callout", "Centre Mark", "Centre Line", "Note", "Datum", "Feature Control Frame", "Surface Finish",
     ]
 
     private func model() -> DrawingEditorModel {
@@ -48,7 +48,7 @@ struct DrawingToolbarTests {
     @Test func everyToolHasAButtonOrMore() async throws {
         let model = model()
         let titles = DrawingTool.allCases.compactMap(\.title)
-        #expect(titles == Self.everyTool, "all eleven, in R17's order")
+        #expect(titles == Self.everyTool, "every tool, in R17's and R15's order")
         for width in [1000.0, 700, 400, 200, 100] {
             let shown = try await labels(width: Float(width), model: model)
             let more = shown.contains { $0.hasPrefix("More") }

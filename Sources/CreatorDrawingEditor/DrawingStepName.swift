@@ -34,12 +34,25 @@ public enum DrawingStepName {
     public static let moveCuttingLine = "Move Cutting Line"
     public static let moveDetailCircle = "Move Detail Circle"
     public static let changeDetailCircle = "Change Detail Circle"
+    public static let addDatum = "Add Datum"
+    public static let addFeatureControlFrame = "Add Feature Control Frame"
+    public static let addSurfaceSymbol = "Add Surface Symbol"
+    public static let changeDatumLetter = "Change Datum Letter"
+    public static let changeFeatureControlFrame = "Change Feature Control Frame"
+    public static let changeSurfaceSymbol = "Change Surface Symbol"
+    public static let moveSymbol = "Move Symbol"
+    public static let deleteSymbol = "Delete Symbol"
+    public static let reattachSymbol = "Reattach Symbol"
+    public static let editNotes = "Edit Notes"
+    public static let changeEdgeBreak = "Change Edge Break"
+    public static let changeGeneralSurface = "Change General Surface"
 
     public static let all: [String] = [
         addSheet, renameSheet, duplicateSheet, deleteSheet, moveSheet, changeSheetSize, editTitleBlock, changeStandard,
         addView, moveView, deleteView, changeScale, changeView, addDimension, addHoleCallout, addCentreMark, addCentreLine,
         addNote, addLeader, reattachDimension, removeLeader, moveDimension, moveNote, moveAnnotations, deleteDimension, deleteNote,
         deleteAnnotations, changeDimension, changeTolerance, editNote, changeNumberFormat, moveCuttingLine, moveDetailCircle,
-        changeDetailCircle,
+        changeDetailCircle, addDatum, addFeatureControlFrame, addSurfaceSymbol, changeDatumLetter, changeFeatureControlFrame,
+        changeSurfaceSymbol, moveSymbol, deleteSymbol, reattachSymbol, editNotes, changeEdgeBreak, changeGeneralSurface,
     ]
 }

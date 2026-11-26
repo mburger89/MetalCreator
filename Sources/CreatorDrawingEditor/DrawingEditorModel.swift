@@ -47,6 +47,11 @@ public final class DrawingEditorModel {
     public internal(set) var picks: [PickedAnchor] = []
     /// The view the picks were made in.
     public internal(set) var pickView: ViewID?
+    /// The symbol tool's target, named by its first click and waiting for the placing click (DR-4 R15); view state, never saved.
+    public internal(set) var symbolDraft: SymbolDraft?
+    /// The last feature control frame and surface texture symbol placed in this session, which the next one copies (R15); never saved.
+    public internal(set) var frameTemplate: FeatureControlFrame?
+    public internal(set) var surfaceTemplate: SurfaceTexture?
     /// The current picture with the annotation being made composed in under the pointer; `nil` without one. Never committed.
     public internal(set) var draftPicture: SheetPicture?
     /// The note whose next click is a leader end (plan R14).

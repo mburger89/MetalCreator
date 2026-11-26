@@ -30,7 +30,7 @@ extension DrawingEditorModel {
         case .detail:
             detailDown(at: point, hit: hit, modifiers: modifiers)
         case .dimension, .baselineDimension, .chainDimension, .ordinateDimension, .chamferDimension, .holeCallout, .centreMark,
-            .centreLine, .note:
+            .centreLine, .note, .datum, .featureControlFrame, .surfaceFinish:
             break
         case .select:
             selectDown(at: point, hit: hit, modifiers: modifiers, sheet: sheet)
@@ -121,7 +121,7 @@ extension DrawingEditorModel {
         let point = transform.sheetPoint(canvas)
         lastPointer = point
         updateHover(at: point)
-        if !picks.isEmpty || holdsToolDraft { updateDraft() }
+        if !picks.isEmpty || holdsToolDraft || symbolDraft != nil { updateDraft() }
         let tolerance = Self.hoverTolerancePoints / transform.zoom
         var found: Int?
         for view in sheet.views.reversed() {

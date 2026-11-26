@@ -18,10 +18,10 @@ enum SheetCanvasInput {
     /// The letters that choose an annotation tool (plan R17), each with its capital.
     private static let toolLetters: [Character: DrawingTool] = [
         "d": .dimension, "h": .holeCallout, "m": .centreMark, "l": .centreLine, "n": .note, "s": .section, "e": .detail,
-        "u": .auxiliaryView,
+        "u": .auxiliaryView, "a": .datum, "g": .featureControlFrame, "r": .surfaceFinish,
     ]
 
-    /// The drawing key a press stands for: F, the tool letters D, H, M, L, N, S, E and U, Return (finishes a cutting line), Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
+    /// The drawing key a press stands for: F, the tool letters D, H, M, L, N, S, E, U, A, G and R, Return (finishes a cutting line), Delete and ⌫, the arrows (1 mm, 10 with Shift) and Esc.
     static func key(_ key: KeyEquivalent, modifiers: EventModifiers, isRepeat: Bool = false) -> DrawingKey? {
         // A chord with ⌘ (Ctrl elsewhere) or ⌥ belongs to the menus.
         if modifiers.contains(.primary) || modifiers.contains(.control) || modifiers.contains(.option) { return nil }
