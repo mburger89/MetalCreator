@@ -105,6 +105,14 @@ struct SectionToolTests {
         #expect((cornered - o.at(40, 0)).length < 1e-6, "the preview ends on the corner: \(cornered) against \(o.at(40, 0))")
     }
 
+    @Test func leavingTheCanvasClearsAHeldShift() {
+        let o = open()
+        o.h.model.modifiersChanged(.shift)
+        #expect(o.h.model.heldModifiers == .shift)
+        o.h.model.pointerLeft()
+        #expect(o.h.model.heldModifiers.isEmpty)
+    }
+
     @Test func laterPointsAreConstrained() throws {
         let o = open()
         o.h.model.press(.section)

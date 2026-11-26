@@ -228,18 +228,30 @@ extension DrawingEditorModel {
         decimalText(text).flatMap { units.parse($0, quantity: .length) }
     }
 
-    /// `text` with a decimal comma read as a point, or `nil` when it can't be read as one number. A comma is the document's decimal
-    /// sign in an ISO drawing set to commas, so "1,234" is 1.234 there; under the point sign a comma followed by exactly three digits
-    /// could as well be a thousands separator ("1,234" for 1234), so it is refused rather than guessed, while a shorter one ("2,5")
-    /// is still read as the decimal comma it can only be.
+    /// Whether `text` is a number with one comma and exactly three digits after it, which under the point sign could be a thousands
+    /// separator ("1,234", "0,125", "-1,234", "+12,500"). Under the comma sign nothing is ambiguous.
+    func isAmbiguousComma(_ text: String) -> Bool {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.contains("."), document.settings.standard != .iso || document.settings.decimalSign != .comma else { return false }
+        let parts = typed.split(separator: ",", omittingEmptySubsequences: false)
+        return parts.count == 2 && parts[1].prefix { $0.isNumber }.count == 3
+    }
+
+    /// The sentence that refuses an ambiguous number, quoting what was typed.
+    func ambiguousCommaSentence(_ text: String) -> String {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let point = typed.replacingOccurrences(of: ",", with: ".")
+        let plain = typed.replacingOccurrences(of: ",", with: "")
+        return "“\(typed)” could mean \(point) or \(plain); type it with a point."
+    }
+
+    /// `text` with a decimal comma read as a point, or `nil` when it can't be read as one number or is ambiguous
+    /// (`isAmbiguousComma`). A comma is a decimal sign unless it could be a thousands separator.
     func decimalText(_ text: String) -> String? {
         let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !typed.contains(".") else { return typed }
         let parts = typed.split(separator: ",", omittingEmptySubsequences: false)
-        guard parts.count == 2 else { return parts.count > 2 ? nil : typed }
-        let usesComma = document.settings.standard == .iso && document.settings.decimalSign == .comma
-        let digitsAfter = parts[1].prefix { $0.isNumber }.count
-        if !usesComma, digitsAfter == 3, !parts[0].isEmpty, parts[0].allSatisfy(\.isNumber) { return nil }
+        guard parts.count <= 2, !isAmbiguousComma(typed) else { return nil }
         return typed.replacingOccurrences(of: ",", with: ".")
     }
 

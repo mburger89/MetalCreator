@@ -131,6 +131,15 @@ struct SectionCutTests {
         let solidFaces = both.topology.faces.filter { !$0.isOnOpenShell }
         let cutFaces = solidFaces.filter { $0.tags.contains { $0.node == SectionCutter.toolNode } }
         #expect(cutFaces.count == 1)
+        // Names: each remainder keeps the tags it has when cut alone, and the compound is a valid shape.
+        func tagSets(_ faces: [FaceInfo]) -> [[String]] { faces.map { $0.tags.map { "\($0)" }.sorted() }.sorted { $0.joined() < $1.joined() } }
+        let line = cutter([(-5, 10), (45, 10)])
+        let aloneSolid = try #require(try await kernel.cutAway(part, by: line, tag: tag))
+        let aloneSheet = try #require(try await kernel.cutAway(sheet, by: line, tag: tag))
+        #expect(tagSets(solidFaces) == tagSets(aloneSolid.topology.faces))
+        #expect(tagSets(both.topology.faces.filter(\.isOnOpenShell)) == tagSets(aloneSheet.topology.faces))
+        let shape = try #require((both.storage as? OCCTSolidStorage)?.shape)
+        #expect(OCCTKernel.serialized { shape.isValid })
     }
 
     @Test func aDiskSheetTheLineMissesIsKeptOrRemoved() async throws {

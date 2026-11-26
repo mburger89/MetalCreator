@@ -75,6 +75,10 @@ extension DrawingEditorModel {
     /// Sets a detail's radius from what was typed: a number in the document's unit or with a unit suffix; a comma may be the
     /// decimal sign.
     public func setDetailRadius(text: String, of id: ViewID) {
+        if isAmbiguousComma(text) {
+            refuse(ambiguousCommaSentence(text))
+            return
+        }
         guard let typed = decimalText(text), let millimetres = units.parse(typed, quantity: .length) else {
             refuse(Self.detailRadiusNumberSentence)
             return

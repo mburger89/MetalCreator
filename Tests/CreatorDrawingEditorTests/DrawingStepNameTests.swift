@@ -219,7 +219,12 @@ struct DrawingStepNameTests {
         let (point, other) = detailFixture()
         point.model.setDetailRadius(text: "1,234", of: other.id)
         #expect(point.log.commits.isEmpty, "the point sign refuses it")
-        #expect(point.model.refusal == "A detail's radius is a length such as 12, 12 mm or 0.5 in.")
+        #expect(point.model.refusal == "“1,234” could mean 1.234 or 1234; type it with a point.")
+        for typed in ["0,125", "-1,234", "+12,500"] {
+            point.model.setDetailRadius(text: typed, of: other.id)
+            #expect(point.log.commits.isEmpty, "\(typed)")
+            #expect(point.model.refusal == "“\(typed)” could mean \(typed.replacingOccurrences(of: ",", with: ".")) or \(typed.replacingOccurrences(of: ",", with: "")); type it with a point.")
+        }
         point.model.setDetailRadius(text: "1.234", of: other.id)
         #expect(radius(point, other.id).map { abs($0 - 1.234) < 1e-9 } == true)
         point.model.setDetailRadius(text: "2,5", of: other.id)

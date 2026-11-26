@@ -39,6 +39,7 @@ extension DrawingEditorModel {
 
     /// The pointer left the canvas.
     public func pointerLeft() {
+        modifiersChanged([])
         if hoveredStroke != nil { hoveredStroke = nil }
         if hoverCandidate != nil { hoverCandidate = nil }
     }
