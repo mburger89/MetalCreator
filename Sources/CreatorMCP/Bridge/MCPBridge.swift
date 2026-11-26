@@ -76,9 +76,11 @@ private final class Watcher: Sendable {
     func start() {
         started.withLock { $0 = true }
         let thread = Thread { [self] in
+            // Sleep first: before the client's first request there is nothing to retry (`poll` returns at once), and a first
+            // poll that a loaded machine delays past the client's `initialize` would connect then, ahead of the client's own request.
             while !isStopped {
-                session.poll()
                 sleepInterval()
+                if !isStopped { session.poll() }
             }
             finished.signal()
         }
