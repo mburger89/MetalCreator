@@ -27,6 +27,29 @@ struct ISO286Tests {
     @Test func holeJS7At20() throws { try check(.hole(.JS, grade: 7), 20, 0.0105, -0.0105) }
     @Test func shaftJs6At20() throws { try check(.shaft(.js, grade: 6), 20, 0.0065, -0.0065) }
 
+    // k and K change rule at the table's grade boundaries: a shaft k has its lower deviation up to IT7 and none above, a hole K
+    // its upper deviation up to IT8 and none above.
+    @Test func shaftK7At20() throws { try check(.shaft(.k, grade: 7), 20, 0.023, 0.002) }
+    @Test func shaftK8At20HasNoLowerDeviation() throws { try check(.shaft(.k, grade: 8), 20, 0.033, 0) }
+    @Test func shaftK11At20HasNoLowerDeviation() throws { try check(.shaft(.k, grade: 11), 20, 0.130, 0) }
+    @Test func holeK9At20HasNoUpperDeviation() throws { try check(.hole(.K, grade: 9), 20, 0, -0.052) }
+    @Test func holeK11At20HasNoUpperDeviation() throws { try check(.hole(.K, grade: 11), 20, 0, -0.130) }
+    @Test func holeK8At5TakesTheDelta() throws { try check(.hole(.K, grade: 8), 5, 0.005, -0.013) }
+    @Test func holeK7At3IsTheFirstRange() throws {
+        try check(.hole(.K, grade: 7), 3, 0, -0.010)
+        try check(.hole(.K, grade: 7), 3.001, 0.003, -0.009)
+    }
+
+    @Test func aFitOutsideITFiveToElevenIsRefusedWhateverItsLetter() {
+        let refusal = DrawingRefusal(sentence: "ISO 286 grades here run from IT5 to IT11.")
+        let fits: [FitDesignation] = [
+            .hole(.H, grade: 4), .hole(.K, grade: 12), .shaft(.k, grade: 4), .shaft(.h, grade: 12), .hole(.JS, grade: 3),
+        ]
+        for fit in fits {
+            #expect(throws: refusal) { try ISO286.limits(of: fit, size: 20) }
+        }
+    }
+
     @Test func smallSizesUseTheirOwnRule() throws {
         try check(.hole(.N, grade: 7), 2, -0.004, -0.014)
         try check(.hole(.K, grade: 7), 2, 0, -0.010)

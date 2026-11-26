@@ -7,6 +7,9 @@ public enum DimensionTool: Sendable {
     case smart, baseline, chain, ordinate, chamfer
 }
 
+/// What picks make: the kind and its anchors.
+private typealias Made = (kind: DrawingDimensionKind, anchors: [AnchorTarget])
+
 /// What a dimension makes of the things picked for it (plan R6) and where its placing click puts it (R7).
 public enum DimensionInference {
     public static let secondPickSentence = "Pick a second point, a line or a circle to measure to."
@@ -15,6 +18,8 @@ public enum DimensionInference {
     public static let crossSentence = "A line in a baseline, chain or ordinate dimension must cross the direction it measures."
     public static let chamferSentence = "A chamfer takes two lines: the chamfer's edge, then a reference edge."
     public static let tooManySentence = "A dimension of this kind takes one or two picks."
+    public static let depthSentence = "These points aren't at the same depth in this view, so the length would be foreshortened."
+    public static let outlineAlignedSentence = "An outline can't take an aligned dimension."
 
     /// Whether a click on empty space may place a dimension now (a line also takes a second pick).
     public static func isComplete(_ picks: [PickedAnchor], tool: DimensionTool) -> Bool {
@@ -37,11 +42,29 @@ public enum DimensionInference {
         tool: DimensionTool, picks: [PickedAnchor], placing: Vector2, aligned: Bool
     ) -> Result<(kind: DrawingDimensionKind, anchors: [AnchorTarget]), DrawingRefusal> {
         switch tool {
-        case .smart: return smart(picks, placing: placing, aligned: aligned)
+        case .smart: return smart(picks, placing: placing, aligned: aligned).flatMap(refusingAlignedMismatches(picks))
         case .baseline: return series(picks, placing: placing) { .baseline($0) }
         case .chain: return series(picks, placing: placing) { .chain($0) }
         case .ordinate: return ordinate(picks, placing: placing)
         case .chamfer: return chamfer(picks)
+        }
+    }
+
+    /// R8: an aligned dimension is refused at the pick when it could only be born lost: to an outline (which has no one point), or
+    /// between two points that lie at different depths along the view direction (the length would be foreshortened).
+    private static func refusingAlignedMismatches(
+        _ picks: [PickedAnchor]
+    ) -> (Made) -> Result<Made, DrawingRefusal> {
+        { made in
+            guard made.kind == .linear(.aligned) else { return .success(made) }
+            let outline = picks.contains { if case .outline = $0.target.unwrapped { true } else { false } }
+            if outline { return .failure(DrawingRefusal(sentence: outlineAlignedSentence)) }
+            if picks.count == 2, case .point(let a) = picks[0].shape, case .point(let b) = picks[1].shape,
+                let first = picks[0].depth, let second = picks[1].depth {
+                let apart = abs(first - second)
+                if apart > 1e-9 * (b - a).length.hypotenuse(with: apart) { return .failure(DrawingRefusal(sentence: depthSentence)) }
+            }
+            return .success(made)
         }
     }
 
@@ -190,4 +213,8 @@ public enum DimensionInference {
         guard isComplete(picks, tool: .chamfer) else { return .failure(DrawingRefusal(sentence: chamferSentence)) }
         return .success((.chamfer, picks.map(\.target)))
     }
+}
+
+private extension Double {
+    func hypotenuse(with other: Double) -> Double { (self * self + other * other).squareRoot() }
 }

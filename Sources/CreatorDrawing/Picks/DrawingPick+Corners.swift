@@ -17,7 +17,10 @@ extension DrawingPick.Picker {
         guard let second = neighbour(of: clicked, at: end, run: first) else { return .failure(refusal(DrawingPick.cornerSentence)) }
         let target = AnchorTarget.corner(first, second)
         switch held(target) {
-        case .success(let geometry): return .success(PickedAnchor(target: target, shape: shape(of: geometry)))
+        case .success(let geometry):
+            var depth: Double?
+            if case .point(let corner) = geometry { depth = corner.dot(frame.direction) }
+            return .success(PickedAnchor(target: target, shape: shape(of: geometry), depth: depth))
         case .failure: return .failure(refusal(DrawingPick.cornerSentence))
         }
     }

@@ -138,6 +138,10 @@ enum AnnotationEvaluator {
         case .lost(let reason): return lost(reason, anchors: [status(of: reason)])
         case .notAHole: return lost(.notAHole, anchors: [.held])
         case .hole(let shape, let center, _, let radius):
+            // The same refusal as a dimension's (DR-4): a size that isn't a number is lost in words, never drawn.
+            guard shape.isFinite, radius.isFinite, center.x.isFinite, center.y.isFinite, center.z.isFinite else {
+                return lost(.refused(nonFiniteSentence), anchors: [.held])
+            }
             let label = DimensionLabel.hole(shape, precision: nil, prefix: callout.prefix, suffix: callout.suffix, format: format)
             return held(
                 [.held], labels: [label], values: [shape.diameter], figure: .hole(center: frame.place(center), radius: radius),

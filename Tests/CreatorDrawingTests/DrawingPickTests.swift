@@ -86,6 +86,8 @@ struct DrawingPickTests {
         let neighbour = clickedEdge == EdgeID(0) ? Fixture.pick(topology, [1]) : Fixture.pick(topology, [0])
         #expect(result.target == .corner(Fixture.pick(topology, [clickedEdge.rawValue]), neighbour))
         #expect(result.shape == .point(Vector2(0, 0)))
+        // A corner records how deep it lies along the view direction, for R8's aligned-dimension refusal.
+        #expect(result.depth == 0)
     }
 
     @Test func theEndOfAStrokeThatStopsShortOfTheEdgeIsNoCorner() throws {

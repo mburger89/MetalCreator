@@ -138,6 +138,41 @@ struct DrawingMeasureTests {
         expectValues(measure(.angle, lines, angle: -75 * .pi / 180), [150 * .pi / 180])
     }
 
+    @Test func aBaselineOrChainNeedsThreeAnchors() {
+        let two = [point(v(0, 0, 0)), point(v(10, 0, 0))]
+        #expect(measure(.baseline(.horizontal), two) == .failure(.notLineOrCircle))
+        #expect(measure(.chain(.horizontal), two) == .failure(.notLineOrCircle))
+    }
+
+    @Test func anOutlineAnchorTakesItsSideFromTheSign() {
+        let origin = point(v(0, 0, 0))
+        func third(_ side: Double) -> Vector2? {
+            let outline = held(.cylinder(axisPoint: v(0, 0, 0), axis: v(1, 0, 0), radius: 4, side: side))
+            guard case .success(let measured) = measure(.linear(.vertical), [origin, outline]),
+                case .linear(let points, _) = measured.figure else { return nil }
+            return points[1]
+        }
+        let (above, below) = (third(1), third(-1))
+        #expect(above != nil && below != nil)
+        #expect(abs(abs(above?.y ?? 0) - 4) < 1e-9 && abs(abs(below?.y ?? 0) - 4) < 1e-9)
+        #expect(abs((above?.y ?? 0) + (below?.y ?? 0)) < 1e-9, "the two sides lie opposite each other")
+        #expect((above?.y ?? 0) != (below?.y ?? 0))
+    }
+
+    @Test func anAngleExtendsItsLinesToTheVertex() {
+        // The lines meet at the origin, beyond both segments; the sector the placement points into decides the angle.
+        let lines = [segment(v(2, 0, 0), v(10, 0, 0)), segment(v(2, 0, 2), v(6, 0, 6))]
+        let inside = measure(.angle, lines, angle: 22.5 * .pi / 180)
+        expectValues(inside, [.pi / 4])
+        #expect(
+            figure(inside)
+                == .angle(vertex: Vector2(0, 0), first: [Vector2(2, 0), Vector2(10, 0)], second: [Vector2(2, 2), Vector2(6, 6)]))
+        // Beyond the second line the supplementary sector (the other side of the vertex's four rays).
+        expectValues(measure(.angle, lines, angle: 112.5 * .pi / 180), [3 * .pi / 4])
+        expectValues(measure(.angle, lines, angle: 202.5 * .pi / 180), [.pi / 4])
+        expectValues(measure(.angle, lines, angle: -45 * .pi / 180), [3 * .pi / 4])
+    }
+
     @Test func baselineValues() {
         let points = [point(v(0, 0, 0)), point(v(10, 0, 0)), point(v(25, 0, 0))]
         let result = measure(.baseline(.horizontal), points)

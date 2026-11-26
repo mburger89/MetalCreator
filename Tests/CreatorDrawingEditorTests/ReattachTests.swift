@@ -83,6 +83,9 @@ struct ReattachTests {
         #expect(o.h.model.picture?.annotationReports[o.id]?.firstLostAnchor == 0)
         click(o, 10, 0)
         #expect(o.h.model.refusal != nil && o.h.model.refusal != DrawingEditorModel.sameKindSentence, "\(o.h.model.refusal ?? "")")
+        #expect(
+            o.h.model.refusal?.hasPrefix("That line can't hold this dimension: ") == true,
+            "its own sentence, not the lost one's: \(o.h.model.refusal ?? "")")
         #expect(o.h.log.commits.isEmpty, "nothing is stored that would stay lost")
     }
 

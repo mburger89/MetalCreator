@@ -69,10 +69,14 @@ public enum PickShape: Hashable, Sendable {
 public struct PickedAnchor: Hashable, Sendable {
     public var target: AnchorTarget
     public var shape: PickShape
+    /// How far along the view direction a point pick lies (a corner or a centre), so two points at different depths can be refused an
+    /// aligned dimension at the pick (plan R8); nil for a pick with no one place.
+    public var depth: Double?
 
-    public init(target: AnchorTarget, shape: PickShape) {
+    public init(target: AnchorTarget, shape: PickShape, depth: Double? = nil) {
         self.target = target
         self.shape = shape
+        self.depth = depth
     }
 }
 
@@ -138,7 +142,9 @@ public enum DrawingPick {
         }
         let scoped = topology.restricted(toFaces: span.faces)
         let picker = Picker(topology: scoped, frame: frame, mapping: mapping, purpose: purpose, click: click)
-        return picker.anchor(for: candidate).map { PickedAnchor(target: .onPart(span.output, $0.target), shape: $0.shape) }
+        return picker.anchor(for: candidate).map {
+            PickedAnchor(target: .onPart(span.output, $0.target), shape: $0.shape, depth: $0.depth)
+        }
     }
 
     /// The span holding the face the candidate's line lies on, or nil for a line on no part (a curve).
@@ -334,7 +340,7 @@ extension DrawingPick {
             }
             guard case .circle(let center, let axis, _, _) = circle else { return .failure(refusal(notLineOrCircleSentence)) }
             if purpose == .dimension, !isFaceOn(axis) { return .failure(refusal(circleSentence)) }
-            return .success(PickedAnchor(target: .centre(pick), shape: .point(frame.place(center))))
+            return .success(PickedAnchor(target: .centre(pick), shape: .point(frame.place(center)), depth: center.dot(frame.direction)))
         }
     }
 }

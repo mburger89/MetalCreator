@@ -203,7 +203,7 @@ private struct MeasureContext {
     // MARK: Series
 
     func series(_ kind: LinearDirection, _ geometries: [AnchorGeometry], chained: Bool) -> Outcome {
-        guard kind != .aligned, geometries.count >= 2 else { return .failure(.notLineOrCircle) }
+        guard kind != .aligned, geometries.count >= 3 else { return .failure(.notLineOrCircle) }
         let d = direction(of: kind)
         var points: [Vector2] = []
         for geometry in geometries {

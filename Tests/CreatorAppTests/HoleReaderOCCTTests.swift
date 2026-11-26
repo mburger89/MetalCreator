@@ -99,5 +99,10 @@ struct HoleReaderOCCTTests {
         let solid = try await block([(0, 21), (3, 21), (3, 10), (0, apex)])
         expect(try read(solid, radius: 3, z: 20), diameter: 6, depth: 10)
     }
+
+    @Test func occtSteppedBlindHole() async throws {
+        let solid = try await block([(0, 21), (5.5, 21), (5.5, 14), (3, 14), (3, 8), (2, 8), (2, 4), (0, 4)])
+        expect(try read(solid, radius: 5.5, z: 20), diameter: 6, depth: 10, counterbore: (11, 6))
+    }
 }
 #endif
