@@ -76,7 +76,7 @@ struct ClipboardTests {
         let section = try #require(pasted.first { $0.kind == .section })
         #expect(child.alignment?.parent == base.id)
         #expect(section.derivation?.parent == base.id)
-        #expect(section.letter != nil)
+        #expect(section.letter == "A")  // the target has no lettered view yet
         let annotations = sheet.annotations
         #expect(annotations.count == 3)
         let dimension = try #require(annotations.first { if case .dimension = $0.kind { true } else { false } })
@@ -88,6 +88,12 @@ struct ClipboardTests {
         #expect(balloon.view == base.id)
         #expect(Set(s.h.model.selection) == Set(pasted.map(\.id)))
         #expect(s.h.model.selectedAnnotations.count == 3)
+        // One undo takes the whole paste back.
+        #expect(s.h.log.commits.count == 1)
+        s.h.model.selectSheet(s.first.id)
+        #expect(s.h.model.paste())
+        let again = try #require(s.h.model.document.sheet(s.first.id))
+        #expect(again.views.filter { $0.kind == .section }.compactMap(\.letter).sorted() == ["A", "B"])
     }
 
     @Test func pastingTwiceOffsetsTwice() throws {
@@ -121,6 +127,21 @@ struct ClipboardTests {
             return
         }
         #expect(value.placement.offset == 8)
+
+        // An empty sheet of another scale: the views carry the size, the sheet keeps its scale.
+        let e = scene()
+        let empty = DrawingSheet(name: "Sheet 3", scale: DrawingScale(numerator: 1, denominator: 1))
+        var doc = e.h.model.document
+        doc.sheets.append(empty)
+        e.h.model.replaceDocument(doc)
+        e.h.model.selection = [e.base.id, e.child.id]
+        e.h.model.copySelection()
+        e.h.model.selectSheet(empty.id)
+        #expect(e.h.model.paste())
+        let filled = try #require(e.h.model.document.sheet(empty.id))
+        #expect(filled.views.count == 2)
+        #expect(filled.views.allSatisfy { $0.scale == DrawingScale(numerator: 1, denominator: 2) })
+        #expect(filled.scale == DrawingScale(numerator: 1, denominator: 1))
 
         // The same scale sets nothing.
         let t = scene(secondScale: DrawingScale(numerator: 1, denominator: 2))
@@ -193,8 +214,14 @@ struct ClipboardTests {
         let s = scene()
         s.h.model.selectedAnnotations = [s.datum.id]
         s.h.model.copySelection()
-        s.h.model.paste()
+        #expect(!s.h.model.paste())
         #expect(try #require(s.h.model.document.sheet(s.first.id)).annotations.count == 4)
+        #expect(s.h.log.commits.isEmpty)
+        s.h.model.selectSheet(s.second.id)
+        #expect(!s.h.model.paste())
+        #expect(
+            s.h.model.refusal == "Some symbols hang on a dimension that wasn't copied, so they weren't pasted.")
+        #expect(try #require(s.h.model.document.sheet(s.second.id)).annotations.isEmpty)
         #expect(s.h.log.commits.isEmpty)
     }
 

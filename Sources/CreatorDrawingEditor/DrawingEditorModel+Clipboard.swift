@@ -39,8 +39,8 @@ extension DrawingEditorModel {
     public func paste() -> Bool {
         guard let board = clipboard, let id = currentSheet, let target = sheet else { return false }
         var views = board.views
-        // A view that followed its sheet's scale keeps its size on a sheet of another scale; the first view on an empty sheet sets nothing.
-        if !target.views.isEmpty, target.scale != board.sheetScale {
+        // A view that followed its sheet's scale keeps its size on a sheet of another scale, an empty one too (DR-1 R8 doesn't run).
+        if target.scale != board.sheetScale {
             for index in views.indices where views[index].scale == nil { views[index].scale = board.sheetScale }
         }
         let step = Double(board.pastes + 1)
