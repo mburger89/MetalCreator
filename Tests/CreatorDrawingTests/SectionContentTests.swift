@@ -80,6 +80,17 @@ struct SectionContentTests {
         #expect(content.projection != nil)
     }
 
+    @Test func anOutputOfOnlyCurvesSaysSo() async throws {
+        let kernel = FakeKernel()
+        let curve = try await kernel.makeCurve([.line(Vector3(0, 0, 0), Vector3(5, 0, 0))], tag: ProjectionCacheTests.tag)
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        let content = await projector.content(
+            for: sectionView(cutter), scale: 1, source: source([], curves: [curve]), previous: nil)
+        #expect(content.problem == DrawingProjector.noSolidsToCutSentence)
+        #expect(content.problem != DrawingProjector.cutAwaySentence)
+        #expect(content.warnings.contains(DrawingProjector.curvesLeftOutSentence))
+    }
+
     @Test func aRefusedCutKeepsThePreviousContent() async throws {
         let kernel = FakeKernel()
         let solid = try await ProjectionCacheTests.box(kernel)

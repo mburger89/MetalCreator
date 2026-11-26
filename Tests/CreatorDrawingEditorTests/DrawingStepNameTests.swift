@@ -178,6 +178,22 @@ struct DrawingStepNameTests {
         #expect(DrawingStepName.all.contains("Move Detail Circle"))
     }
 
+    @Test func aDetailRadiusTakesUnitsAndACommaAndRefusesWords() throws {
+        let (h, detail) = detailFixture()
+        h.model.setDetailRadius(text: "12 mm", of: detail.id)
+        #expect(h.log.commits.count == 1)
+        #expect(h.model.refusal == nil)
+        h.model.setDetailRadius(text: "2,5", of: detail.id)
+        #expect(h.log.commits.count == 2)
+        h.model.setDetailRadius(text: "0.5 in", of: detail.id)
+        #expect(h.log.commits.count == 3)
+        h.model.setDetailRadius(text: "abc", of: detail.id)
+        #expect(h.log.commits.count == 3)
+        #expect(h.model.refusal == "A detail's radius is a length such as 12, 12 mm or 0.5 in.")
+        h.model.setDetailRadius(text: "0", of: detail.id)
+        #expect(h.model.refusal == "A detail's radius is a length greater than 0.")
+    }
+
     @Test func aDetailRadiusThatIsUnchangedCommitsNothing() throws {
         let (h, detail) = detailFixture()
         h.model.setDetailRadius(5, of: detail.id)

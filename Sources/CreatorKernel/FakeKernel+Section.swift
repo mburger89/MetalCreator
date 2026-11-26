@@ -16,6 +16,7 @@ extension FakeKernel {
     public func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
         try Task.checkCancellation()
         try cutter.validate()
+        try cutter.frame.validate()
         guard let sectionCutHook else { throw KernelError.unsupported("cutting sections") }
         return try await sectionCutHook(solid, cutter, tag)
     }

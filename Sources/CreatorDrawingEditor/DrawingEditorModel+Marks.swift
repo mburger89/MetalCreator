@@ -12,6 +12,8 @@ struct MarkMove {
 }
 
 extension DrawingEditorModel {
+    static let detailRadiusNumberSentence =
+        "A detail's radius is a length such as 12, 12 mm or 0.5 in."
     static let detailRadiusSentence = "A detail's radius is a length greater than 0."
 
     /// A press on the mark of a derived view (R13): selects the view and, for a cutting line or a detail circle, begins moving the
@@ -68,6 +70,18 @@ extension DrawingEditorModel {
         guard document != move.baseDocument else { return }
         document = move.baseDocument
         events.discarded(move.key)
+    }
+
+    /// Sets a detail's radius from what was typed: a number in the document's unit or with a unit suffix; a comma may be the
+    /// decimal sign.
+    public func setDetailRadius(text: String, of id: ViewID) {
+        var text = text.trimmingCharacters(in: .whitespaces)
+        if !text.contains("."), text.filter({ $0 == "," }).count == 1 { text = text.replacingOccurrences(of: ",", with: ".") }
+        guard let millimetres = units.parse(text, quantity: .length) else {
+            refuse(Self.detailRadiusNumberSentence)
+            return
+        }
+        setDetailRadius(units.value(fromMillimetres: millimetres), of: id)
     }
 
     /// Sets a detail's radius, typed in the document's unit and stored in millimetres on the parent's plane.

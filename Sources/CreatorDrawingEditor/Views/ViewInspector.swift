@@ -48,11 +48,7 @@ struct ViewInspector: Component {
             let text = String(format: "%.\(model.units.fractionDigits)f", value)
             DrawingRow("Radius", colors: colors) {
                 DrawingField(model: model, text: text, width: 80) { typed in
-                    if let radius = Double(typed.trimmingCharacters(in: .whitespaces)) {
-                        model.setDetailRadius(radius, of: view.id)
-                    } else {
-                        model.setDetailRadius(0, of: view.id)
-                    }
+                    model.setDetailRadius(text: typed, of: view.id)
                 }
             }
         }

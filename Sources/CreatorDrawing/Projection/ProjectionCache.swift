@@ -73,7 +73,13 @@ public actor ProjectionCache {
     private var compounds: [CompoundKey: CompoundEntry] = [:]
     private var compoundFlights: [CompoundKey: Task<Solid, any Error>] = [:]
     private var cuts: [CutKey: CutEntry] = [:]
-    private var cutFlights: [CutKey: Task<SectionCutPiece, any Error>] = [:]
+    private struct CutFlight {
+        var id: Int
+        var task: Task<SectionCutPiece, any Error>
+        var waiters: Int
+    }
+
+    private var cutFlights: [CutKey: CutFlight] = [:]
     private struct Flight {
         var id: Int
         var task: Task<Void, Never>
@@ -174,42 +180,6 @@ public actor ProjectionCache {
         bytesUsed = 0
     }
 
-    /// What one solid gives a section view (R14): its remainder past the cutting line and the regions to hatch, made once per solid
-    /// identity, index, cutter and tolerance. Regions are in `SectionFrame.frame(for: cutter)`'s plane.
-    public func sectionCut(
-        of solid: Solid, index: Int, cutter: SectionCutter, tolerance: Double, kernel: any Kernel
-    ) async throws -> SectionCutPiece {
-        let key = CutKey(solid: ObjectIdentifier(solid), index: index, cutter: cutter, tolerance: tolerance)
-        if var hit = cuts[key] {
-            clock += 1
-            hit.stamp = clock
-            cuts[key] = hit
-            return hit.piece
-        }
-        if let flight = cutFlights[key] { return try await flight.value }
-        cutCalls += 1
-        let flight = Task {
-            try await SectionMaker.cut(solid, index: index, cutter: cutter, tolerance: tolerance, kernel: kernel)
-        }
-        cutFlights[key] = flight
-        let piece: SectionCutPiece
-        do {
-            piece = try await flight.value
-        } catch {
-            cutFlights[key] = nil
-            throw error
-        }
-        cutFlights[key] = nil
-        try Task.checkCancellation()
-        clock += 1
-        let bytes = piece.estimatedBytes
-        if let old = cuts[key] { bytesUsed -= old.bytes }
-        cuts[key] = CutEntry(solid: solid, piece: piece, bytes: bytes, stamp: clock)
-        bytesUsed += bytes
-        evict()
-        return piece
-    }
-
     /// The topology of the solids a view shows (plan R26): nil for none, a single solid's own with no kernel call, else the
     /// compound's, made once per set of solid identities and tag.
     public func topology(of solids: [Solid], compoundTag: NodeTag, kernel: any Kernel) async throws -> Topology? {
@@ -289,6 +259,76 @@ public actor ProjectionCache {
             } else {
                 return
             }
+        }
+    }
+}
+
+extension ProjectionCache {
+    /// What one solid gives a section view (R14): its remainder past the cutting line and the regions to hatch, made once per solid
+    /// identity, index, cutter and tolerance. Regions are in `SectionFrame.frame(for: cutter)`'s plane.
+    public func sectionCut(
+        of solid: Solid, index: Int, cutter: SectionCutter, tolerance: Double, kernel: any Kernel
+    ) async throws -> SectionCutPiece {
+        let key = CutKey(solid: ObjectIdentifier(solid), index: index, cutter: cutter, tolerance: tolerance)
+        if var hit = cuts[key] {
+            clock += 1
+            hit.stamp = clock
+            cuts[key] = hit
+            return hit.piece
+        }
+        let flight: CutFlight
+        if var joined = cutFlights[key] {
+            joined.waiters += 1
+            cutFlights[key] = joined
+            flight = joined
+        } else {
+            cutCalls += 1
+            flightSerial += 1
+            let id = flightSerial
+            let task = Task {
+                try await self.runCut(key, flight: id, solid: solid, kernel: kernel)
+            }
+            flight = CutFlight(id: id, task: task, waiters: 1)
+            cutFlights[key] = flight
+        }
+        // A cancelled caller leaves; the last one to go cancels the shared cut, so a dragged cutting line never queues booleans.
+        let piece = try await withTaskCancellationHandler {
+            try await flight.task.value
+        } onCancel: {
+            Task { await self.leaveCut(key, flight: flight.id) }
+        }
+        try Task.checkCancellation()
+        return piece
+    }
+
+    /// Builds one cut and caches it unless it was cancelled or superseded.
+    private func runCut(_ key: CutKey, flight id: Int, solid: Solid, kernel: any Kernel) async throws -> SectionCutPiece {
+        do {
+            let piece = try await SectionMaker.cut(
+                solid, index: key.index, cutter: key.cutter, tolerance: key.tolerance, kernel: kernel)
+            try Task.checkCancellation()
+            if cutFlights[key]?.id == id { cutFlights[key] = nil }
+            clock += 1
+            let bytes = piece.estimatedBytes
+            if let old = cuts[key] { bytesUsed -= old.bytes }
+            cuts[key] = CutEntry(solid: solid, piece: piece, bytes: bytes, stamp: clock)
+            bytesUsed += bytes
+            evict()
+            return piece
+        } catch {
+            if cutFlights[key]?.id == id { cutFlights[key] = nil }
+            throw error
+        }
+    }
+
+    private func leaveCut(_ key: CutKey, flight id: Int) {
+        guard var flight = cutFlights[key], flight.id == id else { return }
+        flight.waiters -= 1
+        if flight.waiters <= 0 {
+            cutFlights[key] = nil
+            flight.task.cancel()
+        } else {
+            cutFlights[key] = flight
         }
     }
 }

@@ -69,6 +69,8 @@ public struct DrawingProjector: Sendable {
     public static let curvesLeftOutSentence =
         "This section leaves out the Output's curves; a section shows what the cut leaves of solids and sheets."
     public static let cutAwaySentence = "The cutting line leaves nothing of the part on the side it looks toward."
+    public static let noSolidsToCutSentence =
+        "A section shows what the cut leaves of solids and sheets, and this Output has none."
     public static let hatchFailedSentence = "The cut faces of a part couldn't be hatched."
 
     /// A section view (R14): each solid cut by the line, the remainders projected in the section's frame, step lines dropped, the
@@ -77,6 +79,9 @@ public struct DrawingProjector: Sendable {
         _ line: SectionLine, scale: Double, solids: [Solid], output: NodeID, warnings: [String], previous: ViewContent?
     ) async -> ViewContent {
         var warnings = warnings
+        if solids.isEmpty {
+            return ViewContent(problem: Self.noSolidsToCutSentence, warnings: warnings, lastSize: previous?.lastSize)
+        }
         do {
             let tolerance = 0.01 / scale
             var remainders: [Solid] = []

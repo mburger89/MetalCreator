@@ -59,6 +59,17 @@ struct FakeKernelSectionCutTests {
             _ = try await kernel.cutAway(solid, by: bad, tag: tag)
         }
     }
+
+    @Test func aBadFrameIsRefusedAsOCCTRefusesIt() async throws {
+        let kernel = FakeKernel()
+        let solid = try await box(kernel)
+        await kernel.setSectionCutHook { part, _, _ in part }
+        let skew = ProjectionFrame(direction: Vector3(0, 0, -1), up: Vector3(0, 0, -1))
+        let bad = SectionCutter(frame: skew, points: [Vector2(-5, 5), Vector2(45, 5)], viewing: Vector2(0, 1))
+        await #expect(throws: KernelError.invalidInput("The view direction and its up direction must be perpendicular unit vectors.")) {
+            _ = try await kernel.cutAway(solid, by: bad, tag: tag)
+        }
+    }
 }
 
 private actor Seen {
