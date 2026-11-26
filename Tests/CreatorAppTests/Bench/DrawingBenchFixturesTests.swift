@@ -65,6 +65,16 @@ struct DrawingBenchFixturesTests {
         let content = try #require(app.drawing.editor.contents[section.id])
         #expect(content.problem == nil && !content.isPending, "\(String(describing: content.problem))")
         #expect(!content.hatch.isEmpty, "the cut has hatch")
+        // The line must really run through the plate's holes, which the Top view's own topology shows: every vertical hole whose
+        // circle the line y = 8 cuts across splits the cut face, so n holes leave n + 1 pieces of hatch.
+        let top = try #require(sheet.views.first { $0.orientation == .standard(.top) })
+        let base = try #require(app.drawing.editor.contents[top.id]?.topology)
+        let crossed = base.faces.filter { face in
+            guard face.kind == .cylinder, let axis = face.axisPoint, let radius = face.radius else { return false }
+            return abs(axis.y - DrawingBenchFixtures.sectionLineHeight) < radius
+        }
+        #expect(crossed.count == 2, "the line crosses the two holes of the row: \(crossed.count)")
+        #expect(content.hatch.count == crossed.count + 1, "each crossed hole splits the cut face: \(content.hatch.count) pieces")
         let loops = content.hatch.reduce(0) { $0 + $1.edges.count }
         #expect(loops > 1, "the line runs through the holes: \(content.hatch.map { $0.edges.map(\.count) })")
         let topology = try #require(content.topology)

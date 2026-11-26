@@ -1,4 +1,5 @@
 import CreatorKernel
+import Synchronization
 
 /// A projection with the topology of the solid it shows (plan R26): one solid's own, the compound's for several, nil for none.
 public struct CachedProjection: Sendable {
@@ -295,10 +296,17 @@ extension ProjectionCache {
             flight = CutFlight(id: id, task: task, waiters: 1)
             cutFlights[key] = flight
         }
-        // A cancelled caller leaves; the last one to go cancels the shared cut, so a dragged cutting line never queues booleans.
+        // A cancelled caller leaves at once, without waiting for the kernel (awaiting the flight's task would, since a task's value
+        // ignores its waiter's cancellation); the last one to go cancels the shared cut, so a dragged cutting line never queues
+        // booleans, and a cut another caller still waits for goes on.
+        let wait = CutWait()
         let piece = try await withTaskCancellationHandler {
-            try await flight.task.value
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SectionCutPiece, any Error>) in
+                wait.install(continuation)
+                Task { wait.finish(await flight.task.result) }
+            }
         } onCancel: {
+            wait.finish(.failure(CancellationError()))
             Task { await self.leaveCut(key, flight: flight.id) }
         }
         try Task.checkCancellation()
@@ -334,5 +342,39 @@ extension ProjectionCache {
         } else {
             cutFlights[key] = flight
         }
+    }
+}
+
+/// One caller's wait for a shared cut: resumed once, by the cut's end or by the caller's cancellation, whichever comes first.
+private final class CutWait: Sendable {
+    private struct State {
+        var continuation: CheckedContinuation<SectionCutPiece, any Error>?
+        var result: Result<SectionCutPiece, any Error>?
+        var isResumed = false
+    }
+
+    private let state = Mutex(State())
+
+    func install(_ continuation: CheckedContinuation<SectionCutPiece, any Error>) {
+        let early = state.withLock { state -> Result<SectionCutPiece, any Error>? in
+            if let result = state.result, !state.isResumed {
+                state.isResumed = true
+                return result
+            }
+            state.continuation = continuation
+            return nil
+        }
+        if let early { continuation.resume(with: early) }
+    }
+
+    func finish(_ result: Result<SectionCutPiece, any Error>) {
+        let waiting = state.withLock { state -> CheckedContinuation<SectionCutPiece, any Error>? in
+            guard state.result == nil else { return nil }
+            state.result = result
+            guard let continuation = state.continuation, !state.isResumed else { return nil }
+            state.isResumed = true
+            return continuation
+        }
+        waiting?.resume(with: result)
     }
 }
