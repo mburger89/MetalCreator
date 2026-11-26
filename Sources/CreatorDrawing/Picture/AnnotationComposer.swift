@@ -65,6 +65,11 @@ struct AnnotationContext {
     var items: [NumberedItem] = []
     /// The view's `source`, the part a balloon with an unwrapped anchor is on (DR-5 R4).
     var viewSource: NodeID?
+    /// Every part's facts, for the parts list (DR-5 R7).
+    var partFacts: [NodeID: PartFacts] = [:]
+    /// The title block's top right and the frame's inside top right: where a table stands while it has no position (R7, R9).
+    var blockTopRight: Vector2 = .zero
+    var frameTopRight: Vector2 = .zero
 
     /// The spans of the view's parts (empty for a single-Output view).
     var parts: [PartSpan] {
@@ -77,12 +82,7 @@ enum AnnotationComposer {
     static func compose(
         _ annotation: DrawingAnnotation, context: AnnotationContext, format: NumberFormat, remembered: LastGood?
     ) -> (report: AnnotationReport, pieces: AnnotationPieces) {
-        if case .note(let note) = annotation.kind {
-            return composeNote(annotation, note, context: context, remembered: remembered ?? annotation.last)
-        }
-        if case .balloon(let balloon) = annotation.kind {
-            return composeBalloon(annotation, balloon, context: context, remembered: remembered ?? annotation.last)
-        }
+        if let special = composeSpecial(annotation, context: context, remembered: remembered ?? annotation.last) { return special }
         if annotation.symbolKind != nil {
             return composeSymbol(annotation, context: context, format: format, remembered: remembered ?? annotation.last)
         }
@@ -114,6 +114,19 @@ enum AnnotationComposer {
                     labelRect: made.drawing?.labelRect, dimensionLine: made.drawing?.dimensionLine)
                 return (report, made.value)
             }
+        }
+    }
+
+    /// The kinds that don't resolve and measure as a dimension does: notes, balloons and the two tables.
+    private static func composeSpecial(
+        _ annotation: DrawingAnnotation, context: AnnotationContext, remembered: LastGood?
+    ) -> (report: AnnotationReport, pieces: AnnotationPieces)? {
+        switch annotation.kind {
+        case .partsList(let list): composeTable(annotation, partsList: list, context: context)
+        case .revisionTable(let table): composeTable(annotation, revisions: table, context: context)
+        case .note(let note): composeNote(annotation, note, context: context, remembered: remembered)
+        case .balloon(let balloon): composeBalloon(annotation, balloon, context: context, remembered: remembered)
+        default: nil
         }
     }
 

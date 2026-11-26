@@ -13,6 +13,15 @@ struct AnnotationPass {
     let rules: GDTRules.Context
     /// The drawing's item numbers, made once per compose from the document and the facts' part names (DR-5 R5).
     let items: [NumberedItem]
+    /// Every part's facts, for the parts list (DR-5 R7).
+    var partFacts: [NodeID: PartFacts] = [:]
+
+    private var blockTopRight: Vector2 {
+        let origin = TitleBlockLayout.origin(for: sheet, standard: standard)
+        return Vector2(origin.x + TitleBlockLayout.width, origin.y + TitleBlockLayout.height)
+    }
+
+    private var frameTopRight: Vector2 { SheetFrame.rect(for: sheet, standard: standard).max }
 
     private var annotationStyle: AnnotationStyle { .of(standard) }
     private var height: Double { style.notesHeight(for: sheet.size) }
@@ -81,7 +90,7 @@ struct AnnotationPass {
         let context = AnnotationContext(
             view: nil, center: .zero, mapping: ViewMapping(scale: 1, offset: .zero), viewFrame: Rect2D(min: .zero, max: .zero),
             projection: nil, state: .unlisted(.noPart), standard: standard, style: annotationStyle, drawingStyle: style,
-            height: height, items: items)
+            height: height, items: items, partFacts: partFacts, blockTopRight: blockTopRight, frameTopRight: frameTopRight)
         for annotation in sheet.annotations where annotation.view == nil {
             let (report, pieces) = AnnotationComposer.compose(
                 annotation, context: context, format: format, remembered: remembered[annotation.id])

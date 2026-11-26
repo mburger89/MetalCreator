@@ -25,15 +25,18 @@ public enum SheetComposer {
         picture.append(
             TitleBlockLayout.picture(
                 sheet: sheet, settings: settings, facts: facts, sheetIndex: index, sheetCount: document.sheets.count))
+        let items = PartItems.numbered(document, names: PartItems.names(of: facts.parts))
         picture.append(
             SheetNotesLayout.picture(
-                for: sheet, settings: settings, format: NumberFormat(units: units, settings: settings)))
+                for: sheet, settings: settings, format: NumberFormat(units: units, settings: settings),
+                base: notesBase(for: sheet, standard: standard, rows: items.count)))
+        if notices { appendLogoNotice(to: &picture, sheet: sheet, facts: facts, style: style) }
 
         let centers = ViewPlacement.centers(in: sheet)
         let annotations = AnnotationPass(
             sheet: sheet, standard: standard, style: style, format: NumberFormat(units: units, settings: settings),
             remembered: remembered, rules: GDTRules.Context.make(document: document, sheet: sheet),
-            items: PartItems.numbered(document, names: PartItems.names(of: facts.parts)))
+            items: items, partFacts: facts.parts)
         for view in sheet.views {
             let center = centers[view.id] ?? view.center
             let scale = (view.scale ?? sheet.scale).value
@@ -64,6 +67,31 @@ public enum SheetComposer {
         appendMarks(to: &picture, sheet: sheet, standard: standard, centers: centers, contents: contents)
         annotations.finish(&picture)
         return picture
+    }
+
+    /// The sentence for a title block logo that couldn't be read (DR-5 R11): a notice on screen and a warning in a file.
+    public static func logoUnreadableSentence(_ reason: String) -> String {
+        "The title block's logo couldn't be read: \(reason)"
+    }
+
+    private static func appendLogoNotice(
+        to picture: inout SheetPicture, sheet: DrawingSheet, facts: TitleBlockFacts, style: DrawingStyle
+    ) {
+        guard case .unreadable(let reason)? = facts.logo else { return }
+        let height = style.notesHeight(for: sheet.size)
+        let sentence = logoUnreadableSentence(reason)
+        let frame = SheetFrame.rect(for: sheet, standard: style.standard)
+        picture.texts.append(
+            SheetText(
+                run: DrawingText.layout(sentence, height: height), original: sentence,
+                origin: Vector2(frame.min.x + 2, frame.min.y + 2), height: height, layer: .text, isNotice: true))
+    }
+
+    /// The top of a parts list standing on the title block (the notes stand above it), or `nil` when there isn't one (R7).
+    private static func notesBase(for sheet: DrawingSheet, standard: DrawingStandard, rows: Int) -> Double? {
+        guard let list = sheet.partsList, list.list.bottomRight == nil else { return nil }
+        let origin = TitleBlockLayout.origin(for: sheet, standard: standard)
+        return origin.y + TitleBlockLayout.height + PartsListLayout.height(rows: rows)
     }
 
     private static func appendLabel(

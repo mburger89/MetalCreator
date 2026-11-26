@@ -94,6 +94,19 @@ public struct SheetText: Hashable, Sendable {
     }
 }
 
+/// A grey picture placed on the sheet (DR-5 R12): the title block's logo.
+public struct SheetImage: Hashable, Sendable {
+    public var rect: Rect2D
+    public var pixels: GreyPixels
+    public var layer: DrawingLayer
+
+    public init(rect: Rect2D, pixels: GreyPixels, layer: DrawingLayer = .frame) {
+        self.rect = rect
+        self.pixels = pixels
+        self.layer = layer
+    }
+}
+
 /// Everything drawn on one sheet, in sheet millimetres with the origin at the bottom left.
 public struct SheetPicture: Hashable, Sendable {
     public var size: Vector2
@@ -113,12 +126,16 @@ public struct SheetPicture: Hashable, Sendable {
     public var checkedAnnotations: [AnnotationID]
     /// Each view's frame grown to hold its annotations and centre marks. Read by lookup only.
     public var viewExtents: [ViewID: Rect2D]
+    /// The pictures on the sheet, drawn under the ink (DR-5 R12).
+    public var images: [SheetImage]
 
     public init(
         size: Vector2, strokes: [SheetStroke] = [], texts: [SheetText] = [], viewFrames: [ViewID: Rect2D] = [:],
         fills: [SheetFill] = [], standard: DrawingStandard = .iso, annotationReports: [AnnotationID: AnnotationReport] = [:],
-        lostAnnotations: [AnnotationID] = [], viewExtents: [ViewID: Rect2D] = [:], checkedAnnotations: [AnnotationID] = []
+        lostAnnotations: [AnnotationID] = [], viewExtents: [ViewID: Rect2D] = [:], checkedAnnotations: [AnnotationID] = [],
+        images: [SheetImage] = []
     ) {
+        self.images = images
         self.checkedAnnotations = checkedAnnotations
         self.annotationReports = annotationReports
         self.lostAnnotations = lostAnnotations
@@ -136,6 +153,7 @@ public struct SheetPicture: Hashable, Sendable {
         strokes += other.strokes
         texts += other.texts
         fills += other.fills
+        images += other.images
         for (id, frame) in other.viewFrames.sorted(by: { $0.key < $1.key }) { viewFrames[id] = frame }
     }
 }
