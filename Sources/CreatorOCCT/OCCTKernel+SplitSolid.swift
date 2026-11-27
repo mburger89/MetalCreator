@@ -54,7 +54,9 @@ extension OCCTKernel {
     /// from plus a `cutSide` per tool face it borders or is made from; the pieces are ordered by `SheetPieces.ordered`.
     public func splitSolid(_ solid: Solid, by tools: [Solid], tag: NodeTag) async throws -> SolidSplit {
         try Task.checkCancellation()
-        guard !solid.hasOpenShell else {
+        if solid.hasOpenShell {
+            // R4: only a mixed value is pointed to Separate Solids; an open-only one keeps the kernel's own older sentence.
+            if solid.holdsClosedSolid, let sentence = solid.splitSolidRefusal { throw KernelError.invalidInput(sentence) }
             throw KernelError.invalidInput("Split Solid takes a closed solid; the solid is an open surface.")
         }
         let source = try shape(of: solid)

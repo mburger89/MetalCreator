@@ -190,9 +190,11 @@ two-body continuity call and the control-point code this plan builds on.
 
 - **R9 erratum (Task 8).** Match Surface raises the along degree to at least 3, which is exact for the edge it follows, and refuses a
   periodic (closed) edge: "Match Surface can't match an edge of a surface that closes on itself yet."
+  - Superseded: Match Surface handles closed edges since NS-G Task 3; see R5 of `2026-11-26-nurbs-gaps.md`.
 
 - **R10 erratum (Task 9).** Blend Surface refuses a closed edge: "Blend Surface can't blend a closed edge yet." A closed edge (a tube's
   circular rim) needs a periodic skin and a chosen start for the pairing, which the open sections don't have. Parked below.
+  - Superseded: Blend Surface handles closed edges since NS-G Task 4; see R6 of `2026-11-26-nurbs-gaps.md`.
 
 **Backlog (`nurbs-backlog-after-ns2` memory).** Pulled in: the NS-3 follow-up (R16, Tasks 1 and 2), the partial periodic Rebuild
 (Task 1), the two-body half-sample grade (R13, Task 8), `into_face_range`'s periodic remap test (Task 4). Parked: the guide

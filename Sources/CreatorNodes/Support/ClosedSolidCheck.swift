@@ -26,9 +26,6 @@ enum ClosedSolidCheck {
 
     /// Split Solid's `solid` (R13).
     static func requireForSplitSolid(_ solid: Solid) throws {
-        guard !solid.hasOpenShell else {
-            throw NodeError.invalidValue(
-                "Split Solid takes a closed solid; “solid” is an open surface. Use Split to cut a surface, or Thicken or Sew it first.")
-        }
+        if let refusal = solid.splitSolidRefusal { throw NodeError.invalidValue(refusal) }
     }
 }

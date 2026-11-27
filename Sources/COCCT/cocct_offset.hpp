@@ -31,6 +31,9 @@ inline constexpr const char *kOffsetFailed = "The offset couldn't be built.";
 /// The message an offset whose boundary edges can't be matched to the source's carries.
 inline constexpr const char *kOffsetOpenEdges = "The offset changed the surface's open edges, so it can't be offset.";
 
+/// The message a thickening whose sides don't keep the sheet's boundary edges carries (NS-G, R2).
+inline constexpr const char *kThickenOpenEdges = "The thickened sides don't keep the surface's open edges, so it can't be thickened.";
+
 /// The largest edge or vertex tolerance a result may hold: 0.01 mm, or the sheet's own largest tolerance plus 0.005 mm when that is more.
 double accepted_tolerance(const TopoDS_Shape &sheet);
 
