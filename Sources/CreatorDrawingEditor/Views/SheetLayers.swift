@@ -1,4 +1,5 @@
 import CreatorDrawing
+import Foundation
 
 /// The sheet picture cut into the buckets the canvas draws, built once per compose (drawings speed R3).
 ///
@@ -19,10 +20,16 @@ struct SheetLayers: Sendable {
         var texts: [SheetText] = []
         /// 0 for an empty bucket that never held anything; unique across the buckets of one `SheetLayers` lineage otherwise.
         var revision = 0
+        /// The `SheetLayers` lineage that numbered `revision`: revisions restart at 1 in a new lineage (a new editor model after a
+        /// file opens, or `layers = nil`), so a layer compares the lineage too, or an old (id, revision) could equal a new one.
+        var lineage = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 
         static let empty = Bucket()
 
         var isEmpty: Bool { strokes.isEmpty && fills.isEmpty && texts.isEmpty }
+
+        /// Whether `other` is the same numbered bucket: the same lineage and revision (what a layer's `==` reads).
+        func isSameVersion(as other: Bucket) -> Bool { lineage == other.lineage && revision == other.revision }
 
         func sameContent(as other: Bucket) -> Bool {
             strokes == other.strokes && fills == other.fills && texts == other.texts
@@ -47,6 +54,10 @@ struct SheetLayers: Sendable {
     private var byAnnotation: [AnnotationID: Items] = [:]
     private var byMark: [ViewID: Items] = [:]
     private var lastRevision = 0
+    /// A fresh value whenever a value is built with no `previous`; every bucket carries it.
+    private var lineage: UUID
+
+    init(lineage: UUID = UUID()) { self.lineage = lineage }
 
     /// A view's linework bucket; empty when it has none.
     func linework(of view: ViewID) -> Bucket { linework[view] ?? .empty }
@@ -54,10 +65,9 @@ struct SheetLayers: Sendable {
     func annotations(of view: ViewID) -> Bucket { annotations[view] ?? .empty }
 
     static func built(from picture: SheetPicture, previous: SheetLayers?) -> SheetLayers {
-        var layers = SheetLayers()
+        var layers = SheetLayers(lineage: previous?.lineage ?? UUID())
         var frame = Bucket()
-        var linework: [ViewID: Bucket] = [:]
-        var annotations: [ViewID: Bucket] = [:]
+        var (linework, annotations): ([ViewID: Bucket], [ViewID: Bucket]) = ([:], [:])
         // No view is the frame; a stroke with no annotation is linework; every other element of a view is the annotations layer's.
         func place(
             view: ViewID?, annotation: AnnotationID?, mark: ViewID?,
@@ -90,6 +100,7 @@ struct SheetLayers: Sendable {
         var next = previous?.lastRevision ?? 0
         func numbered(_ bucket: Bucket, after old: Bucket) -> Bucket {
             var bucket = bucket
+            bucket.lineage = layers.lineage
             if bucket.sameContent(as: old) {
                 bucket.revision = old.revision
             } else {

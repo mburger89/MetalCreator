@@ -55,7 +55,9 @@ extension DrawingAnnotation {
     /// (`RefreshKey.annotations`) holds this form. Per kind:
     ///
     /// - dimension: `placement.offset` (kept as its side, 5 or -5, because the side picks which end of a line is measured from),
-    ///   `placement.textShift`; its `placement.angle` is read by an angle dimension and stays;
+    ///   `placement.textShift`; its `placement.angle` is read only by an angle dimension (its sector) and stays there, and is set to 0
+    ///   for every other kind, so a radius, diameter or chamfer drag that writes it each step starts no refresh (an angle
+    ///   dimension's drag still refreshes each step: its sector needs the topology);
     /// - hole callout: all of `placement`;
     /// - datum: `distance`, `dimensionEnd`; feature control frame and surface texture: `offset`;
     /// - balloon: `offset`; parts list: `bottomRight`; revision table: `topRight`;
@@ -71,6 +73,7 @@ extension DrawingAnnotation {
         case .dimension(var dimension):
             dimension.placement.offset = dimension.placement.offset >= 0 ? 5 : -5
             dimension.placement.textShift = nil
+            if case .angle = dimension.kind {} else { dimension.placement.angle = 0 }
             stripped.kind = .dimension(dimension)
         case .holeCallout(var callout):
             callout.placement = DimensionPlacement(offset: 0, angle: 0)
@@ -91,8 +94,9 @@ extension DrawingAnnotation {
         case .balloon(var balloon):
             balloon.offset = .zero
             stripped.kind = .balloon(balloon)
-        case .partsList:
-            stripped.kind = .partsList(PartsList())
+        case .partsList(var list):
+            list.bottomRight = nil
+            stripped.kind = .partsList(list)
         case .revisionTable(var table):
             table.topRight = nil
             stripped.kind = .revisionTable(table)

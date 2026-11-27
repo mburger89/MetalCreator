@@ -3,10 +3,11 @@ import CreatorGeometry
 import CreatorStyle
 import MetalUI
 
-/// One view's annotations and notices over its linework (`SheetViewLayer`), the hovered line and the selection outline, in paper
-/// space. A view's annotations draw faded with its linework while it is being projected; its notices stay at full strength. `==`
-/// compares the bucket's `revision` in place of its arrays, so a pan, or a change to another view or to this view's linework,
-/// skips it; a dimension drag evaluates only this layer of its view and the selection layer.
+/// Everything of one view that draws over its linework (`SheetViewLayer`): its annotation strokes and every fill and text of the
+/// view (label, notices, lettering), then the hovered line and the selection outline, in paper space. Its non-notice content draws
+/// faded while the view is being projected; its notices stay at full strength. `==` compares the bucket's lineage and `revision`
+/// in place of its arrays, so a pan, or a change to another view or to this view's linework, skips it; a dimension drag evaluates
+/// only this layer of its view and the selection layer.
 struct SheetAnnotationLayer: Component, Equatable {
     let id: ViewID
     let bucket: SheetLayers.Bucket
@@ -21,7 +22,7 @@ struct SheetAnnotationLayer: Component, Equatable {
     let style: DrawingStyle
 
     nonisolated static func == (lhs: SheetAnnotationLayer, rhs: SheetAnnotationLayer) -> Bool {
-        lhs.id == rhs.id && lhs.bucket.revision == rhs.bucket.revision && lhs.frame == rhs.frame && lhs.zoom == rhs.zoom
+        lhs.id == rhs.id && lhs.bucket.isSameVersion(as: rhs.bucket) && lhs.frame == rhs.frame && lhs.zoom == rhs.zoom
             && lhs.paperHeight == rhs.paperHeight && lhs.isPending == rhs.isPending && lhs.isSelected == rhs.isSelected
             && lhs.hovered == rhs.hovered && lhs.colors == rhs.colors && lhs.style == rhs.style
     }

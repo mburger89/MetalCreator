@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorStyle
 import Testing
 
 @testable import CreatorDrawing
@@ -139,5 +140,50 @@ struct SheetLayersTests {
         }
         let some = layers.selection(annotations: everything, marks: [])
         #expect(!some.strokes.isEmpty && !some.texts.isEmpty, "the reference selection draws something")
+    }
+
+    // MARK: Lineage and labels
+
+    private func picture(view: ViewID, strokeLength: Double, label: String? = nil) -> SheetPicture {
+        let stroke = SheetStroke(segments: [.line(.zero, Vector2(strokeLength, 0))], width: 0.5, layer: .visible, view: view)
+        var texts: [SheetText] = []
+        if let label {
+            texts.append(
+                SheetText(run: DrawingText.layout(label, height: 3.5), original: label, origin: .zero, height: 3.5, view: view))
+        }
+        return SheetPicture(size: Vector2(297, 210), strokes: [stroke], texts: texts)
+    }
+
+    /// Revisions are unique within one lineage only: a layers value built from nothing (a new editor model, or `layers = nil`)
+    /// restarts at 1, so a layer of the new lineage must not equal a layer of the old one with the same id and revision.
+    @Test func layersBuiltFromNothingDoNotEqualEachOther() {
+        let view = ViewID()
+        let first = SheetLayers.built(from: picture(view: view, strokeLength: 10), previous: nil)
+        let second = SheetLayers.built(from: picture(view: view, strokeLength: 20), previous: nil)
+        #expect(first.linework(of: view).revision == second.linework(of: view).revision, "the revisions collide")
+        func layer(_ layers: SheetLayers) -> SheetViewLayer {
+            SheetViewLayer(
+                id: view, bucket: layers.linework(of: view), zoom: 2, paperHeight: 210, isPending: false,
+                colors: DrawingColors(nil), style: .iso)
+        }
+        #expect(layer(first) != layer(second), "a new lineage redraws")
+        let rebuilt = SheetLayers.built(from: picture(view: view, strokeLength: 10), previous: first)
+        #expect(layer(first) == layer(rebuilt), "the same lineage with the same content still skips")
+        let annotated = { (layers: SheetLayers) in
+            SheetAnnotationLayer(
+                id: view, bucket: layers.annotations(of: view), frame: .init(min: .zero, max: Vector2(1, 1)), zoom: 2,
+                paperHeight: 210, isPending: false, isSelected: false, hovered: nil, colors: DrawingColors(nil), style: .iso)
+        }
+        let one = SheetLayers.built(from: picture(view: view, strokeLength: 10, label: "A"), previous: nil)
+        let two = SheetLayers.built(from: picture(view: view, strokeLength: 10, label: "B"), previous: nil)
+        #expect(annotated(one) != annotated(two))
+    }
+
+    @Test func aViewsLabelIsInItsAnnotationsBucket() {
+        let view = ViewID()
+        let layers = SheetLayers.built(from: picture(view: view, strokeLength: 10, label: "FRONT"), previous: nil)
+        #expect(layers.annotations(of: view).texts.map(\.original) == ["FRONT"])
+        #expect(layers.linework(of: view).texts.isEmpty)
+        #expect(layers.linework(of: view).strokes.count == 1)
     }
 }

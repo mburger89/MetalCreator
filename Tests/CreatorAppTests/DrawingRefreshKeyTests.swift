@@ -212,6 +212,47 @@ struct DrawingRefreshKeyTests {
         #expect(mark.placementStripped == mark)
     }
 
+    /// Radius, diameter and chamfer never read `placement.angle` (only an angle dimension's sector does), so a drag that writes it
+    /// each step changes no key; an angle dimension's angle stays.
+    @Test func onlyAnAngleDimensionKeepsItsPlacementAngle() async throws {
+        let (app, plate, _) = try await start()
+        let topology = try #require(app.solid(of: plate.box.output.id)).topology
+        let target = try line(in: topology)
+        let view = ViewID()
+        func dimension(_ kind: DrawingDimensionKind, angle: Double) -> DrawingAnnotation {
+            DrawingAnnotation(
+                id: AnnotationID(), view: view,
+                kind: .dimension(DrawingDimension(
+                    kind: kind, anchors: [target], placement: DimensionPlacement(offset: 5, angle: angle))))
+        }
+        for (name, kind) in [("radius", DrawingDimensionKind.radius), ("diameter", .diameter), ("chamfer", .chamfer)] {
+            #expect(
+                dimension(kind, angle: 0).placementStripped.kind == dimension(kind, angle: 2).placementStripped.kind,
+                "\(name): the angle is stripped")
+        }
+        #expect(dimension(.angle, angle: 0).placementStripped.kind != dimension(.angle, angle: 2).placementStripped.kind)
+    }
+
+    @Test func aRadiusDragThatWritesTheAngleStartsNoRefresh() async throws {
+        let (app, _, view) = try await start()
+        let id = try #require(await app.dimensionBottomEdge(of: view))
+        try await edit(app, id) { annotation in
+            guard case .dimension(var value) = annotation.kind else { return }
+            value.kind = .radius
+            annotation.kind = .dimension(value)
+        }
+        let before = app.drawingRefreshStarts
+        for step in 1...10 {
+            try await edit(app, id) { annotation in
+                guard case .dimension(var value) = annotation.kind else { return }
+                value.placement.angle = Double(step) * 0.3
+                value.placement.offset = -8 - Double(step)
+                annotation.kind = .dimension(value)
+            }
+        }
+        #expect(app.drawingRefreshStarts == before)
+    }
+
     @Test func whatLastGoodReadsStaysInTheKey() async throws {
         let (app, plate, _) = try await start()
         let topology = try #require(app.solid(of: plate.box.output.id)).topology
@@ -226,7 +267,8 @@ struct DrawingRefreshKeyTests {
         // The side the offset points to picks which end of a line the dimension measures from.
         #expect(dimension(offset: 5).placementStripped.kind != dimension(offset: -5).placementStripped.kind)
         #expect(dimension(offset: 5).placementStripped.kind == dimension(offset: 50).placementStripped.kind)
-        #expect(dimension(offset: 5, angle: 0).placementStripped.kind != dimension(offset: 5, angle: 2).placementStripped.kind)
+        // Only an angle dimension's angle is read (its sector, in `onlyAnAngleDimensionKeepsItsPlacementAngle`); a linear one's is stripped.
+        #expect(dimension(offset: 5, angle: 0).placementStripped.kind == dimension(offset: 5, angle: 2).placementStripped.kind)
         // A symbol's hint finds its foot.
         func datum(hint: Vector2) -> DrawingAnnotation {
             DrawingAnnotation(

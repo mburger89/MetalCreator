@@ -15,7 +15,7 @@ struct SheetFrameLayer: Component, Equatable {
     let style: DrawingStyle
 
     nonisolated static func == (lhs: SheetFrameLayer, rhs: SheetFrameLayer) -> Bool {
-        lhs.bucket.revision == rhs.bucket.revision && lhs.images == rhs.images && lhs.bitmaps == rhs.bitmaps
+        lhs.bucket.isSameVersion(as: rhs.bucket) && lhs.images == rhs.images && lhs.bitmaps == rhs.bitmaps
             && lhs.zoom == rhs.zoom && lhs.paperHeight == rhs.paperHeight && lhs.colors == rhs.colors && lhs.style == rhs.style
     }
 

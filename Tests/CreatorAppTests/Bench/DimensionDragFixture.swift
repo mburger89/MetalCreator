@@ -1,12 +1,12 @@
 #if canImport(CreatorOCCT)
 // Test fixture file: `draggableAssemblySheet` and the dimension drag for `drawing-drag-warm`.
-import CreatorDrawing
 import CreatorDrawingEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import Testing
 @testable import CreatorApp
+@testable import CreatorDrawing
 
 extension DrawingBenchFixtures {
     /// `balloonedAssemblySheet` with one more annotation: an aligned length on a horizontal line edge of the Front view, held on
@@ -54,8 +54,8 @@ extension DrawingBenchFixtures {
     }
 }
 
-/// `SheetHitTest`'s growth of an annotation's frame (its `annotationGrowth`), in millimetres.
-private let hitSlack = 1.0
+/// `SheetHitTest`'s growth of an annotation's frame, in millimetres.
+private let hitSlack = SheetHitTest.annotationGrowth
 
 /// A drag of one dimension's label through the editor's own input path: the press, `primaryChanged` steps, the release.
 @MainActor
