@@ -1,4 +1,5 @@
 // Rebuilding a sheet's one face or a curve to a chosen degree and span count (NS-3, Task 4). Our own separable least-squares fit.
+#include "cocct_band_border.hpp"
 #include "cocct_control_net.hpp"
 #include "cocct_sheet.hpp"
 
@@ -119,36 +120,22 @@ public:
                 basis[j] = saved;
             }
         }
-        normal_.assign(static_cast<size_t>(unknowns_) * (d_ + 1), 0.0);
-        interior_border_.assign(static_cast<size_t>(unknowns_) * border_, 0.0);
-        border_border_.assign(static_cast<size_t>(border_) * border_, 0.0);
+        system_ = band_border_system(unknowns_, border_, d_);
         for (int t = 0; t < m_; ++t) {
             const double *basis = &values_[static_cast<size_t>(t) * (d_ + 1)];
             for (int p = 0; p <= d_; ++p) {
                 const int i = index_of(t, p) - lo_;
                 for (int q = 0; q <= d_; ++q) {
                     const int j = index_of(t, q) - lo_;
-                    const double product = basis[p] * basis[q];
                     if (i < 0 || j < 0 || i >= unknowns_ + border_ || j >= unknowns_ + border_) {
                         continue;
                     }
-                    if (i < unknowns_ && j < unknowns_) {
-                        if (j <= i) {
-                            normal_[static_cast<size_t>(i) * (d_ + 1) + (i - j)] += product;
-                        }
-                    } else if (i < unknowns_) {
-                        interior_border_[static_cast<size_t>(i) * border_ + (j - unknowns_)] += product;
-                    } else if (j >= unknowns_) {
-                        border_border_[static_cast<size_t>(i - unknowns_) * border_ + (j - unknowns_)] += product;
-                    }
+                    system_.add(i, j, basis[p] * basis[q]);
                 }
             }
         }
-        if (!factor(0.0) && !factor(1e-10)) {
+        if (!system_.factor()) {
             throw user_error("The fit couldn't be solved for these settings.");
-        }
-        if (periodic) {
-            prepare_border();
         }
     }
 
@@ -190,40 +177,10 @@ public:
                 }
             }
         }
-        if (border_ == 0) {
-            banded_solve(rhs.data(), 3);
-            for (int i = 0; i < unknowns_; ++i) {
-                for (int c = 0; c < 3; ++c) {
-                    out[3 * (lo_ + i) + c] = rhs[static_cast<size_t>(i) * 3 + c];
-                }
-            }
-            return;
-        }
-        // Periodic: y = A_II^-1 b_I; x_B = S^-1 (b_B - A_BI y); x_I = y - X x_B.
-        banded_solve(rhs.data(), 3);
-        std::vector<double> border(static_cast<size_t>(border_) * 3);
-        for (int q = 0; q < border_; ++q) {
+        system_.solve(rhs.data(), 3);
+        for (int i = 0; i < unknowns_ + border_; ++i) {
             for (int c = 0; c < 3; ++c) {
-                double value = rhs[static_cast<size_t>(unknowns_ + q) * 3 + c];
-                for (int i = 0; i < unknowns_; ++i) {
-                    value -= interior_border_[static_cast<size_t>(i) * border_ + q] * rhs[static_cast<size_t>(i) * 3 + c];
-                }
-                border[static_cast<size_t>(q) * 3 + c] = value;
-            }
-        }
-        dense_solve(border.data());
-        for (int i = 0; i < unknowns_; ++i) {
-            for (int c = 0; c < 3; ++c) {
-                double value = rhs[static_cast<size_t>(i) * 3 + c];
-                for (int q = 0; q < border_; ++q) {
-                    value -= schur_x_[static_cast<size_t>(i) * border_ + q] * border[static_cast<size_t>(q) * 3 + c];
-                }
-                out[3 * i + c] = value;
-            }
-        }
-        for (int q = 0; q < border_; ++q) {
-            for (int c = 0; c < 3; ++c) {
-                out[3 * (unknowns_ + q) + c] = border[static_cast<size_t>(q) * 3 + c];
+                out[3 * (lo_ + i) + c] = rhs[static_cast<size_t>(i) * 3 + c];
             }
         }
     }
@@ -233,116 +190,6 @@ private:
     int index_of(int t, int p) const {
         const int index = span_[t] - d_ + p;
         return mode_ == kPeriodic ? index % n_ : index;
-    }
-
-    /// Solves L L^T x = rhs in place for `stride` right-hand sides interleaved per unknown.
-    void banded_solve(double *rhs, int stride) const {
-        for (int i = 0; i < unknowns_; ++i) {
-            for (int k = std::max(0, i - d_); k < i; ++k) {
-                const double l = factor_[static_cast<size_t>(i) * (d_ + 1) + (i - k)];
-                for (int c = 0; c < stride; ++c) {
-                    rhs[static_cast<size_t>(i) * stride + c] -= l * rhs[static_cast<size_t>(k) * stride + c];
-                }
-            }
-            const double diagonal = factor_[static_cast<size_t>(i) * (d_ + 1)];
-            for (int c = 0; c < stride; ++c) {
-                rhs[static_cast<size_t>(i) * stride + c] /= diagonal;
-            }
-        }
-        for (int i = unknowns_ - 1; i >= 0; --i) {
-            for (int k = i + 1; k < std::min(unknowns_, i + d_ + 1); ++k) {
-                const double l = factor_[static_cast<size_t>(k) * (d_ + 1) + (k - i)];
-                for (int c = 0; c < stride; ++c) {
-                    rhs[static_cast<size_t>(i) * stride + c] -= l * rhs[static_cast<size_t>(k) * stride + c];
-                }
-            }
-            const double diagonal = factor_[static_cast<size_t>(i) * (d_ + 1)];
-            for (int c = 0; c < stride; ++c) {
-                rhs[static_cast<size_t>(i) * stride + c] /= diagonal;
-            }
-        }
-    }
-
-    /// X = A_II^-1 A_IB and the Cholesky factor of S = A_BB - A_BI X.
-    void prepare_border() {
-        schur_x_ = interior_border_;
-        banded_solve(schur_x_.data(), border_);
-        schur_.assign(static_cast<size_t>(border_) * border_, 0.0);
-        for (int p = 0; p < border_; ++p) {
-            for (int q = 0; q < border_; ++q) {
-                double value = border_border_[static_cast<size_t>(p) * border_ + q];
-                for (int i = 0; i < unknowns_; ++i) {
-                    value -= interior_border_[static_cast<size_t>(i) * border_ + p] * schur_x_[static_cast<size_t>(i) * border_ + q];
-                }
-                schur_[static_cast<size_t>(p) * border_ + q] = value;
-            }
-        }
-        for (int i = 0; i < border_; ++i) {
-            for (int j = 0; j <= i; ++j) {
-                double sum = schur_[static_cast<size_t>(i) * border_ + j];
-                for (int k = 0; k < j; ++k) {
-                    sum -= schur_[static_cast<size_t>(i) * border_ + k] * schur_[static_cast<size_t>(j) * border_ + k];
-                }
-                if (i == j) {
-                    if (!(sum > 0) || !std::isfinite(sum)) {
-                        throw user_error("The fit couldn't be solved for these settings.");
-                    }
-                    schur_[static_cast<size_t>(i) * border_ + i] = std::sqrt(sum);
-                } else {
-                    schur_[static_cast<size_t>(i) * border_ + j] = sum / schur_[static_cast<size_t>(j) * border_ + j];
-                }
-            }
-        }
-    }
-
-    void dense_solve(double *rhs) const {
-        for (int i = 0; i < border_; ++i) {
-            for (int k = 0; k < i; ++k) {
-                for (int c = 0; c < 3; ++c) {
-                    rhs[i * 3 + c] -= schur_[static_cast<size_t>(i) * border_ + k] * rhs[k * 3 + c];
-                }
-            }
-            for (int c = 0; c < 3; ++c) {
-                rhs[i * 3 + c] /= schur_[static_cast<size_t>(i) * border_ + i];
-            }
-        }
-        for (int i = border_ - 1; i >= 0; --i) {
-            for (int k = i + 1; k < border_; ++k) {
-                for (int c = 0; c < 3; ++c) {
-                    rhs[i * 3 + c] -= schur_[static_cast<size_t>(k) * border_ + i] * rhs[k * 3 + c];
-                }
-            }
-            for (int c = 0; c < 3; ++c) {
-                rhs[i * 3 + c] /= schur_[static_cast<size_t>(i) * border_ + i];
-            }
-        }
-    }
-
-    /// Banded Cholesky of the normal equations, `ridge` times each diagonal added first. False when a pivot isn't positive.
-    bool factor(double ridge) {
-        factor_ = normal_;
-        const size_t width = static_cast<size_t>(d_ + 1);
-        for (int i = 0; i < unknowns_; ++i) {
-            const double original = normal_[static_cast<size_t>(i) * width];
-            for (int j = std::max(0, i - d_); j <= i; ++j) {
-                double sum = factor_[static_cast<size_t>(i) * width + (i - j)];
-                if (i == j) {
-                    sum += ridge * original;
-                }
-                for (int k = std::max(j - d_, std::max(0, i - d_)); k < j; ++k) {
-                    sum -= factor_[static_cast<size_t>(i) * width + (i - k)] * factor_[static_cast<size_t>(j) * width + (j - k)];
-                }
-                if (i == j) {
-                    if (!(sum > 1e-14 * original) || !std::isfinite(sum)) {
-                        return false;
-                    }
-                    factor_[static_cast<size_t>(i) * width] = std::sqrt(sum);
-                } else {
-                    factor_[static_cast<size_t>(i) * width + (i - j)] = sum / factor_[static_cast<size_t>(j) * width];
-                }
-            }
-        }
-        return true;
     }
 
     int d_;
@@ -357,12 +204,7 @@ private:
     std::vector<double> flat_;
     std::vector<int> span_;
     std::vector<double> values_;
-    std::vector<double> normal_;
-    std::vector<double> factor_;
-    std::vector<double> interior_border_;
-    std::vector<double> border_border_;
-    std::vector<double> schur_x_;
-    std::vector<double> schur_;
+    band_border_system system_{0, 0, 1};
 };
 
 std::vector<double> evenly(double a, double b, int count) {

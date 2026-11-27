@@ -10,8 +10,9 @@
 //
 // A closed edge (NS-G Task 3, R5) is a closed iso of a surface periodic along it, matched to a closed target edge. The surface stays
 // periodic: the along-edge basis wraps (OCCT's periodic pole convention, see `periodic_flat`), no pole row is pinned, and the normal
-// equations are cyclic (solved dense, `solve_band` with the full band). The pairing starts at the target parameter nearest the sheet's
+// equations are cyclic (`band_border_system`: a banded interior plus a border of the last `degree` poles, as Rebuild's periodic fit). The pairing starts at the target parameter nearest the sheet's
 // seam point and runs the way the two tangents agree there.
+#include "cocct_band_border.hpp"
 #include "cocct_continuity.hpp"
 #include "cocct_control_net.hpp"
 #include "cocct_iso_sides.hpp"
@@ -21,6 +22,7 @@
 #include <BRepCheck_Analyzer.hxx>
 #include <BRep_Tool.hxx>
 #include <Geom_BSplineSurface.hxx>
+#include <Standard_Failure.hxx>
 #include <TColStd_Array1OfInteger.hxx>
 #include <TColStd_Array1OfReal.hxx>
 #include <TopExp.hxx>
@@ -273,46 +275,6 @@ struct length_table {
     }
 };
 
-// ---- banded least squares ---------------------------------------------------------------------------------------------------
-
-/// Solves the symmetric positive definite band system `A x = rhs` (half bandwidth `b`; `upper[i][d]` is A(i, i + d)) for three
-/// right-hand sides at once, by Cholesky. Returns false when a pivot is not positive.
-bool solve_band(std::vector<std::vector<double>> upper, int b, std::vector<gp_Vec> &rhs) {
-    const int n = static_cast<int>(upper.size());
-    std::vector<std::vector<double>> l(n, std::vector<double>(b + 1, 0.0)); // l[i][i - j] = L(i, j)
-    for (int i = 0; i < n; ++i) {
-        for (int j = std::max(0, i - b); j <= i; ++j) {
-            double sum = upper[j][i - j];
-            for (int k = std::max(i - b, 0); k < j; ++k) {
-                sum -= l[i][i - k] * l[j][j - k];
-            }
-            if (i == j) {
-                if (!(sum > 0.0)) {
-                    return false;
-                }
-                l[i][0] = std::sqrt(sum);
-            } else {
-                l[i][i - j] = sum / l[j][0];
-            }
-        }
-    }
-    for (int i = 0; i < n; ++i) { // L y = rhs
-        gp_Vec sum = rhs[i];
-        for (int k = std::max(0, i - b); k < i; ++k) {
-            sum -= rhs[k] * l[i][i - k];
-        }
-        rhs[i] = sum / l[i][0];
-    }
-    for (int i = n - 1; i >= 0; --i) { // L^T x = y
-        gp_Vec sum = rhs[i];
-        for (int k = i + 1; k <= std::min(n - 1, i + b); ++k) {
-            sum -= rhs[k] * l[k][k - i];
-        }
-        rhs[i] = sum / l[i][0];
-    }
-    return true;
-}
-
 // ---- the match ----------------------------------------------------------------------------------------------------------------
 
 /// What the target says at each sample along the edge.
@@ -347,6 +309,73 @@ std::string miss_sentence(int asked, int reached) {
     }
     return std::string("Match couldn't make the edge curvature continuous with the target; it reached G") + std::to_string(reached) +
            ". Choose G" + std::to_string(reached) + ", or rebuild the surface with more spans.";
+}
+
+/// Makes the surface periodic along its edge direction when it already closes there: the end pole rows coincide within
+/// `kNetCoincidence` with equal weights, OCCT accepts the change, the periodic surface reproduces the original on a grid, and the
+/// along first derivative and the cross derivative agree at the two ends (so the seam is smooth). False when any of that fails.
+bool make_along_periodic(net &sheet) {
+    const int na = sheet.along_poles(), nc = sheet.cross_poles();
+    for (int c = 1; c <= nc; ++c) {
+        if (sheet.pole(c, 1).Distance(sheet.pole(c, na)) > kNetCoincidence ||
+            std::abs(sheet.weight(c, 1) - sheet.weight(c, na)) > 1e-9) {
+            return false;
+        }
+    }
+    Handle(Geom_BSplineSurface) periodic = Handle(Geom_BSplineSurface)::DownCast(sheet.surface->Copy());
+    try {
+        if (sheet.cross_u) {
+            periodic->SetVPeriodic();
+        } else {
+            periodic->SetUPeriodic();
+        }
+    } catch (const Standard_Failure &) {
+        return false;
+    }
+    net candidate;
+    candidate.surface = periodic;
+    candidate.cross_u = sheet.cross_u;
+    if (!candidate.along_periodic()) {
+        return false;
+    }
+    const double a0 = sheet.along_start(), a1 = sheet.along_end();
+    const double r0 = sheet.cross_start();
+    double u0, u1, v0, v1;
+    sheet.surface->Bounds(u0, u1, v0, v1);
+    const double r1 = sheet.cross_u ? u1 : v1;
+    for (int ci = 0; ci <= 2; ++ci) {
+        const double r = r0 + (r1 - r0) * ci / 2.0;
+        for (int i = 0; i <= 32; ++i) {
+            const double a = a0 + (a1 - a0) * i / 32.0;
+            const gp_Pnt was = sheet.cross_u ? sheet.surface->Value(r, a) : sheet.surface->Value(a, r);
+            const gp_Pnt now = sheet.cross_u ? periodic->Value(r, a) : periodic->Value(a, r);
+            if (was.Distance(now) > kNetCoincidence) {
+                return false;
+            }
+        }
+        // The seam is smooth when both first derivatives (along and across) are the same at its two ends.
+        gp_Pnt p;
+        gp_Vec c_start, c_end, a_start, a_end;
+        gp_Vec du, dv, duu, dvv, duv;
+        for (int end = 0; end < 2; ++end) {
+            const double a = end == 0 ? a0 : a1;
+            if (sheet.cross_u) {
+                sheet.surface->D2(r, a, p, du, dv, duu, dvv, duv);
+                (end == 0 ? c_start : c_end) = du;
+                (end == 0 ? a_start : a_end) = dv;
+            } else {
+                sheet.surface->D2(a, r, p, du, dv, duu, dvv, duv);
+                (end == 0 ? c_start : c_end) = dv;
+                (end == 0 ? a_start : a_end) = du;
+            }
+        }
+        const double scale = 1.0 + std::max(a_start.Magnitude(), c_start.Magnitude());
+        if ((a_start - a_end).Magnitude() > 1e-6 * scale || (c_start - c_end).Magnitude() > 1e-6 * scale) {
+            return false;
+        }
+    }
+    sheet.surface = periodic;
+    return true;
 }
 
 occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const occt_shape *target, int target_edge_index,
@@ -387,9 +416,11 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     base.surface = Handle(Geom_BSplineSurface)::DownCast(edit.surface->Copy());
     base.cross_u = side.side == kUStart || side.side == kUEnd;
     if (base.cross_periodic()) {
+        // Unreachable in practice: an untrimmed edge that runs along a direction whose other direction is periodic is that
+        // direction's seam (or its two ends meeting), which has two faces and is refused above.
         throw user_error("Match Surface can't match an edge of a surface that closes on itself yet.");
     }
-    const bool cyclic = base.along_periodic(); // a closed iso of a surface periodic along it (R5)
+    bool cyclic = base.along_periodic(); // a closed iso of a surface periodic along it (R5)
     if (side.side == kUEnd) {
         base.surface->UReverse();
     } else if (side.side == kVEnd) {
@@ -433,6 +464,14 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     const bool closed_target = target_lo.Distance(target_hi) <= kClosedGap;
     if ((cyclic || sheet_start.Distance(sheet_end) <= kClosedGap) != closed_target) {
         throw user_error("Match Surface can't match a closed edge to an open one.");
+    }
+    if (closed_target && !cyclic) {
+        // A closed edge of a surface that is closed but not periodic along it (a clamped loft of closed sections): made periodic
+        // when it closes smoothly, else refused.
+        if (!make_along_periodic(base)) {
+            throw user_error("Match Surface can't match a closed edge of a surface that doesn't close smoothly.");
+        }
+        cyclic = true;
     }
     bool forward = sheet_start.Distance(target_lo) <= sheet_start.Distance(target_hi);
     double target_origin = 0.0; // cyclic: the arc length of the target's start (nearest the sheet's seam) from its own first point
@@ -563,12 +602,15 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
                 refined->InsertUKnots(knots, mults, 0.0, Standard_True);
             }
             level.surface = refined;
+            if (cyclic && !level.along_periodic()) {
+                throw user_error("Match couldn't keep the surface closed.");
+            }
         }
 
         const int na = level.along_poles();
         const int pa = level.along_degree();
         const int pc = level.cross_degree();
-        const int count = 4 * na + 1;
+        const int count = cyclic ? 4 * na : 4 * na + 1; // a closed edge doesn't sample its seam twice
         const std::vector<double> along_knots = level.along_flat();
         const std::vector<double> cross_knots = level.cross_flat();
         const auto cross_basis = basis_derivatives(cross_knots, pc, pc, r0, continuity);
@@ -579,7 +621,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
         int speeds = 0;
         for (int i = 0; i < count; ++i) {
             sample_data &sample = samples[i];
-            sample.s = a0 + (a1 - a0) * i / (count - 1);
+            sample.s = a0 + (a1 - a0) * i / (cyclic ? count : count - 1);
             gp_Pnt old_point;
             gp_Vec cross1, cross2, along1;
             level.evaluate(sample.s, old_point, cross1, cross2, along1);
@@ -626,7 +668,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
             double denominator = 1.0; // W(s, 0)
         };
         std::vector<along_row> rows(count);
-        const periodic_knots wrap = level.along_periodic() ? periodic_flat(level.surface, !level.cross_u) : periodic_knots();
+        const periodic_knots wrap = cyclic ? periodic_flat(level.surface, !level.cross_u) : periodic_knots();
         const int first_multiplicity = cyclic ? level.along_first_multiplicity() : 0;
         for (int i = 0; i < count; ++i) {
             int span = 0;
@@ -672,9 +714,10 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
             const bool pinned_ends = k == 0 && !cyclic;
             const int unknowns = na - (pinned_ends ? 2 : 0);
             const int offset = pinned_ends ? 1 : 0; // unknown u is pole index u + offset (0-based)
-            const int bandwidth = cyclic ? na - 1 : pa; // a closed edge's system is cyclic, so stored whole
-            std::vector<gp_Vec> rhs(std::max(unknowns, 0), gp_Vec(0, 0, 0));
-            std::vector<std::vector<double>> band(std::max(unknowns, 0), std::vector<double>(bandwidth + 1, 0.0));
+                        // A closed edge's wrapped basis touches the last `pa` poles with everything: a banded interior and a border.
+            const int border = cyclic ? std::min(pa, na) : 0;
+            band_border_system system(std::max(unknowns, 0) - border, border, pa);
+            std::vector<double> rhs(static_cast<size_t>(std::max(unknowns, 0)) * 3, 0.0);
             for (int i = 0; i < count; ++i) {
                 const sample_data &sample = samples[i];
                 gp_Pnt point;
@@ -711,13 +754,15 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
                     if (u1 < 0 || u1 >= unknowns) {
                         continue;
                     }
-                    rhs[u1] += residual * coefficient[r1];
+                    for (int c = 0; c < 3; ++c) {
+                        rhs[static_cast<size_t>(u1) * 3 + c] += (c == 0 ? residual.X() : c == 1 ? residual.Y() : residual.Z()) * coefficient[r1];
+                    }
                     for (int r2 = 0; r2 <= pa; ++r2) {
                         const int u2 = row.index[r2] - offset;
-                        if (u2 < u1 || u2 >= unknowns) { // the upper triangle: the other order of the pair adds the same below
+                        if (u2 < 0 || u2 >= unknowns) {
                             continue;
                         }
-                        band[u1][u2 - u1] += coefficient[r1] * coefficient[r2];
+                        system.add(u1, u2, coefficient[r1] * coefficient[r2]);
                     }
                 }
             }
@@ -726,18 +771,17 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
                 fit.set_pole(1, na, samples.back().point);
             }
             if (unknowns > 0) {
-                double largest = 0.0;
-                for (const auto &row : band) {
-                    largest = std::max(largest, row[0]);
+                const double ridge = 1e-12 * system.largest_diagonal() + 1e-300;
+                for (int u = 0; u < unknowns; ++u) {
+                    system.add(u, u, ridge);
                 }
-                for (auto &row : band) {
-                    row[0] += 1e-12 * largest + 1e-300;
-                }
-                if (!solve_band(band, bandwidth, rhs)) {
+                if (!system.factor()) {
                     throw user_error("Match couldn't fit the surface to the target edge.");
                 }
+                system.solve(rhs.data(), 3);
                 for (int u = 0; u < unknowns; ++u) {
-                    fit.set_pole(k + 1, u + offset + 1, gp_Pnt(rhs[u].X(), rhs[u].Y(), rhs[u].Z()));
+                    const size_t at = static_cast<size_t>(u) * 3;
+                    fit.set_pole(k + 1, u + offset + 1, gp_Pnt(rhs[at], rhs[at + 1], rhs[at + 2]));
                 }
             }
         }

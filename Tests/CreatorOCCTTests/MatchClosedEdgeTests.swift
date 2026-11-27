@@ -53,21 +53,28 @@ struct MatchClosedEdgeTests {
         let sheet = PeriodicSheet(net)
         for i in 0..<12 {
             let u = 2 * Double.pi * Double(i) / 12
-            let p = sheet.point(u: u, v: 3, seam: .start)
+            let p = sheet.point(u: u, v: 3)
             #expect(abs(hypot(p.x, p.y) - 10) < 1e-9 && abs(p.z - 3) < 1e-9, "u \(u) \(p)")
+        }
+        // The rational arcs' ends are at 120 degree steps: a whole-arc shift of the poles would show here.
+        for (i, knot) in net.knotsU.dropLast().enumerated() {
+            let p = sheet.point(u: knot, v: 0)
+            let angle = 2 * Double.pi * Double(i) / 3
+            #expect(abs(p.x - 10 * cos(angle)) < 1e-9 && abs(p.y - 10 * sin(angle)) < 1e-9, "knot \(knot) \(p)")
         }
     }
 
-    /// The result, matched to a closed rim: its rim lies on the target, it grades as asked, it is periodic along the rim, and no
-    /// ruling is twisted (each lands within 1 mm of the point nearest its own start).
+    /// The result, matched to a closed rim: its rim lies on the target, it grades as asked, it is periodic along the rim (the seam is
+    /// then OCCT's own periodic wrap), and no ruling is twisted (each lands within 1 mm of the point nearest its own start).
     func check(_ result: Solid, from source: Solid, target: Solid, targetRim: EdgeInfo, continuity: PatchContinuity) async throws {
-        let before = PeriodicSheet(try await kernel.controlNet(of: source).surface)
+        let sourceNet = try await kernel.controlNet(of: source).surface
+        let before = PeriodicSheet(sourceNet)
         let net = try await kernel.controlNet(of: result).surface
         #expect(net.isPeriodicU, "the result stays periodic along the rim")
         let sheet = PeriodicSheet(net)
         for i in 0..<64 {
             let u = 2 * Double.pi * Double(i) / 64
-            let gap = try await kernel.shortestDistance(between: .point(sheet.point(u: u, v: 0, seam: .start)),
+            let gap = try await kernel.shortestDistance(between: .point(sheet.point(u: u, v: 0)),
                                                         and: .edge(target, targetRim.id)).distance
             #expect(gap <= 1e-4, "u \(u) gap \(gap)")
         }
@@ -75,22 +82,13 @@ struct MatchClosedEdgeTests {
         let wanted: ContinuityClass = continuity == .g2 ? .g2 : continuity == .g1 ? .g1 : .g0
         #expect(found.grade >= wanted, "angle \(found.angleGap) curvature \(found.curvatureGap)")
         #expect(found.positionGap <= 1e-4)
-        // Periodic: both sides of the seam agree, in position and across the edge.
-        for v in [0.0, 0.5, 4, 19.5] {
-            let first = sheet.point(u: sheet.uFirst, v: v, seam: .start), last = sheet.point(u: sheet.uLast, v: v, seam: .end)
-            #expect((first - last).length < 1e-7, "v \(v)")
-            let h = 1e-4
-            let across1 = (sheet.point(u: sheet.uFirst, v: v + h, seam: .start) - first) * (1 / h)
-            let across2 = (sheet.point(u: sheet.uLast, v: v + h, seam: .end) - last) * (1 / h)
-            #expect((across1 - across2).length < 1e-6, "v \(v)")
-        }
         // No twist.
         for fraction in [0.0, 0.25, 0.5, 0.75] {
             let u = sheet.uFirst + fraction * (sheet.uLast - sheet.uFirst)
-            let was = before.point(u: u, v: 0, seam: .start)
+            let was = before.point(u: u, v: 0)
             let angle = atan2(was.y, was.x)
             let nearest = Vector3(12 * cos(angle), 12 * sin(angle), -5)
-            let end = sheet.point(u: u, v: 0, seam: .start)
+            let end = sheet.point(u: u, v: 0)
             #expect((end - nearest).length < 1, "u \(u) lands \(end)")
         }
     }
@@ -120,6 +118,70 @@ struct MatchClosedEdgeTests {
         try await check(result, from: source, target: target, targetRim: try rim(target, z: -5), continuity: .g2)
     }
 
+    /// A Loft Surface through two closed rings: a clamped closed surface that is not periodic. `smooth` rings are the exact rational
+    /// circle (degree 2, nine poles, a clamped seam); the others are an octagon's cubic with a corner at the seam.
+    func loftedTube(smooth: Bool, radius: Double = 10, from: Double = 0, to: Double = 20) async throws -> Solid {
+        func ring(_ radius: Double, z: Double) async throws -> Curve {
+            if smooth {
+                let w = 0.5.squareRoot()
+                let r = radius
+                let poles = [Vector3(r, 0, z), Vector3(r, r, z), Vector3(0, r, z), Vector3(-r, r, z), Vector3(-r, 0, z),
+                             Vector3(-r, -r, z), Vector3(0, -r, z), Vector3(r, -r, z), Vector3(r, 0, z),
+                ]
+                return try await kernel.makeCurve([
+                .spline(BSplineCurve3D(
+                    degree: 2, poles: poles, weights: [1, w, 1, w, 1, w, 1, w, 1], knots: [0, 0.25, 0.5, 0.75, 1],
+                    multiplicities: [3, 2, 2, 2, 3])),
+                ], tag: tag)
+            }
+            var poles = (0..<8).map { k -> Vector3 in
+                let a = 2 * Double.pi * Double(k) / 8
+                return Vector3(radius * cos(a), radius * sin(a), z)
+            }
+            poles.append(poles[0])
+            return try await kernel.makeCurve([
+                .spline(BSplineCurve3D(
+                degree: 3, poles: poles, knots: [0, 1, 2, 3, 4, 5, 6], multiplicities: [4, 1, 1, 1, 1, 1, 4])),
+            ], tag: tag)
+        }
+        let tube = try await kernel.loftSurface([ring(radius, z: from), ring(radius, z: to)], ruled: false, closed: false, tag: tag)
+        let net = try await kernel.controlNet(of: tube).surface
+        #expect(!net.isPeriodicU && !net.isPeriodicV, "the fixture is closed but not periodic")
+        return tube
+    }
+
+    @Test func aClampedClosedLoftIsMadePeriodicAndMatched() async throws {
+        let source = try await loftedTube(smooth: true)
+        let target = try await tube(radius: 12, from: -5, to: -25, reversed: true)
+        let rimEdge = try rim(source, z: 0)
+        #expect(source.topology.edges.filter { $0.faces.count == 1 }.count == 2)
+        let result = try await kernel.matched(source, edge: rimEdge.id, to: try rim(target, z: -5).id, of: target, continuity: .g2)
+        let net = try await kernel.controlNet(of: result).surface
+        #expect(net.isPeriodicU || net.isPeriodicV, "the result is periodic along the rim")
+        let found = try await kernel.continuity(of: try matchedRim(result).id, in: result, against: FaceID(0), of: target)
+        #expect(found.grade >= .g2, "angle \(found.angleGap) curvature \(found.curvatureGap)")
+        #expect(found.positionGap <= 1e-4)
+        // No twist: each rim point lands within 1 mm of the target point nearest where it started.
+        let before = PeriodicSheet(try await kernel.controlNet(of: source).surface)
+        let after = PeriodicSheet(net)
+        for fraction in [0.0, 0.25, 0.5, 0.75] {
+            let was = before.point(u: before.uFirst + fraction * (before.uLast - before.uFirst), v: 0)
+            let now = after.point(u: after.uFirst + fraction * (after.uLast - after.uFirst), v: 0)
+            let angle = atan2(was.y, was.x)
+            #expect((now - Vector3(12 * cos(angle), 12 * sin(angle), -5)).length < 1, "fraction \(fraction) lands \(now)")
+        }
+    }
+
+    @Test func aClosedLoftWithACornerRefuses() async throws {
+        let source = try await loftedTube(smooth: false)
+        let target = try await tube(radius: 12, from: -5, to: -25)
+        let text = await refusal {
+            _ = try await kernel.matched(source, edge: try rim(source, z: 0).id, to: try rim(target, z: -5).id, of: target,
+                                         continuity: .g1)
+        }
+        #expect(text == "Match Surface can't match a closed edge of a surface that doesn't close smoothly.")
+    }
+
     @Test func aClosedEdgeToAnOpenOneRefuses() async throws {
         let source = try await tube()
         let (sheet, edge) = try await openSheet()
@@ -139,10 +201,9 @@ struct MatchClosedEdgeTests {
     }
 }
 
-/// A rational B-spline surface periodic in u and clamped in v, evaluated by Cox-de Boor with OCCT's periodic pole convention (the
-/// first span uses poles 0 to p), so the seam can be read from either side.
+/// A (rational) B-spline surface periodic or clamped in u and clamped in v, evaluated by Cox-de Boor; a periodic u follows
+/// OCCT's pole convention (the first span uses poles 0 to p).
 struct PeriodicSheet {
-    enum Seam { case start, end }
     let net: BSplineSurface3D
     let sequence: [Double]
     let first: Int
@@ -151,17 +212,22 @@ struct PeriodicSheet {
 
     init(_ net: BSplineSurface3D) {
         self.net = net
-        let period = net.knotsU.last! - net.knotsU[0]
-        var seq: [Double] = []
-        for cycle in -2...2 {
-            for (i, mult) in net.multiplicitiesU.enumerated().dropLast() {
-                seq += Array(repeating: net.knotsU[i] + Double(cycle) * period, count: mult)
-            }
-        }
-        sequence = seq
-        first = 2 * net.uCount
         uFirst = net.knotsU[0]
         uLast = net.knotsU.last!
+        var seq: [Double] = []
+        if net.isPeriodicU {
+            let period = uLast - uFirst
+            for cycle in -2...2 {
+                for (i, mult) in net.multiplicitiesU.enumerated().dropLast() {
+                    seq += Array(repeating: net.knotsU[i] + Double(cycle) * period, count: mult)
+                }
+            }
+            first = 2 * net.uCount
+        } else {
+            for (i, mult) in net.multiplicitiesU.enumerated() { seq += Array(repeating: net.knotsU[i], count: mult) }
+            first = net.degreeU
+        }
+        sequence = seq
     }
 
     private func basis(_ knots: [Double], _ span: Int, _ t: Double, _ degree: Int) -> [Double] {
@@ -182,16 +248,12 @@ struct PeriodicSheet {
         return n
     }
 
-    func point(u: Double, v: Double, seam: Seam) -> Vector3 {
+    func point(u: Double, v: Double) -> Vector3 {
         let n = net.uCount, p = net.degreeU, q = net.degreeV
         let m0 = net.multiplicitiesU[0]
-        // The span of u in the extended knots; at the end of the period, the last span of the first cycle.
         var i = first
-        if seam == .end, u >= uLast - 1e-12 {
-            i = first + n - 1
-        } else {
-            while i + 1 < first + n, sequence[i + 1] <= u { i += 1 }
-        }
+        let spans = net.isPeriodicU ? n : net.uCount - p
+        while i + 1 < first + spans, sequence[i + 1] <= u { i += 1 }
         let nu = basis(sequence, i, u, p)
         var flatV: [Double] = []
         for (k, mult) in net.multiplicitiesV.enumerated() { flatV += Array(repeating: net.knotsV[k], count: mult) }
@@ -200,7 +262,7 @@ struct PeriodicSheet {
         let nv = basis(flatV, j, v, q)
         var sum = Vector3(0, 0, 0), weight = 0.0
         for r in 0...p {
-            let pole = (((i - p + r) - first - m0 + 1 + p) % n + n) % n
+            let pole = net.isPeriodicU ? (((i - p + r) - first - m0 + 1 + p) % n + n) % n : i - p + r
             for s in 0...q {
                 let index = pole * net.vCount + (j - q + s)
                 let w = (net.weights?[index] ?? 1) * nu[r] * nv[s]
