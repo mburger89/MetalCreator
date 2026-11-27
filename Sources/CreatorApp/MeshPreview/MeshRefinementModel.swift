@@ -31,6 +31,9 @@ final class MeshRefinementModel {
 
     @ObservationIgnored private let engine: ImplicitEngineChoice
     @ObservationIgnored private var tasks: [UUID: Task<Void, Never>] = [:]
+    /// Awaited before each background pass is meshed. `nil` in the app; a test sets it to hold the passes until it has looked at
+    /// the first one (set it before the first `follow`).
+    @ObservationIgnored var beforePass: (@Sendable () async -> Void)?
 
     init(engine: ImplicitEngineChoice) {
         self.engine = engine
@@ -62,8 +65,8 @@ final class MeshRefinementModel {
             guard let source = mesh.source else { continue }
             statuses[mesh.id] = Status(resolution: mesh.resolution, isRefining: true)
             changed = true
-            tasks[mesh.id] = Task { [weak self, engine] in
-                await Self.refine(mesh, source: source, engine: engine) { pass, isLast in
+            tasks[mesh.id] = Task { [weak self, engine, beforePass] in
+                await Self.refine(mesh, source: source, engine: engine, beforePass: beforePass) { pass, isLast in
                     self?.arrived(pass, for: mesh.id, isLast: isLast)
                 }
             }
@@ -100,6 +103,7 @@ final class MeshRefinementModel {
     /// Meshes `source` again, finer pass by finer pass, calling `deliver(pass, isLast)` for each; a final `deliver(nil, true)` when a
     /// pass cannot be made. Returns early, delivering nothing more, when the task is cancelled.
     private nonisolated static func refine(_ base: TriangleMesh, source: MeshSource, engine: ImplicitEngineChoice,
+                                           beforePass: (@Sendable () async -> Void)?,
                                            deliver: @MainActor @escaping (TriangleMesh?, Bool) -> Void) async {
         let schedule = PreviewSchedule(source.target)
         let selection = await ImplicitEvaluators.make(for: source.solid, choice: engine)
@@ -112,6 +116,7 @@ final class MeshRefinementModel {
         }
         while !Task.isCancelled {
             do {
+                await beforePass?()
                 let pass = try await mesher.mesh(source.solid, resolution: next, quality: .preview)
                 guard !Task.isCancelled else { return }
                 (resolution, seconds) = (next, pass.meshingSeconds)
