@@ -155,7 +155,11 @@ struct ProjectionTests {
         let blend = try #require(filleted.topology.faces.first { $0.kind == .cylinder }).id
         let tangentEdges = Set(filleted.topology.edges.filter { $0.faces.contains(blend) && !$0.isSeam && $0.kind == .line }.map(\.id))
         #expect(tangentEdges.count == 2)
-        #expect(edgeIDs(smooth) == tangentEdges)
+        // Seen face-on, the round's tangent edge on the right-hand face is the silhouette and draws as an outline
+        // (`aTangentEdgeOnTheSilhouetteIsAnOutline`); only the one on the face the viewer looks at is a tangent edge.
+        let onSilhouette = Set(filleted.topology.edges.filter { tangentEdges.contains($0.id) && abs($0.midpoint.x - 10) < 1e-6 }.map(\.id))
+        #expect(onSilhouette.count == 1)
+        #expect(edgeIDs(smooth) == tangentEdges.subtracting(onSilhouette))
     }
 
     @Test func aSheetsEdgesAreSheetBoundaries() async throws {

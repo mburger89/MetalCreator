@@ -11,6 +11,9 @@ Notes for this module, moved from the root `CLAUDE.md` (which Claude Code loads 
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
   NS-1 shim files: `cocct_curve.cpp` (curves, the degree-5 fit), `cocct_sheet.cpp`/`.hpp` (planar surface, extrude, revolve, loft and sweep sheets, boundary roles) and `readShapes` in `cocct_import.cpp`.
+- Projection (`cocct_projection.cpp`): a smooth (G1) input edge whose surface normal is square to the view direction all along it
+  (`smooth_edge_is_silhouette`, the seam rule's test) is classified an outline (class 2, still sourced from the edge), not smooth: it is
+  the part's silhouette, drawn thick and kept when "Tangent edges" is off (a round's side tangent edge in a face-on view).
 
 Also read:
 

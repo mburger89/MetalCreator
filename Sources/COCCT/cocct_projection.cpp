@@ -148,6 +148,19 @@ bool seam_is_silhouette(const TopoDS_Edge &edge, const TopoDS_Face &face, const 
     return true;
 }
 
+/// Whether a smooth (G1) `edge` lies on the silhouette: the surface normal is square to the way the viewer looks all along it, so
+/// the edge is where the surface turns away. HLR draws that line once, as the part's outline; ISO 128 gives it the thick line
+/// whether or not tangent edges are shown. Tried on each adjacent face (a G1 edge has one normal, so one face decides, but a
+/// face the edge has no pcurve on is skipped).
+bool smooth_edge_is_silhouette(const TopoDS_Edge &edge, const std::vector<TopoDS_Face> &adjacent, const gp_Vec &view) {
+    for (const TopoDS_Face &face : adjacent) {
+        if (seam_is_silhouette(edge, face, view)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// R10's five steps. Returns false when the line is dropped (a seam, an internal or iso line, a degenerate edge).
 bool resolve(const Input &input, HLRTopoBRep_Data &data, const TopoDS_Shape &shape, const HLRBRep_EdgeData &ed, const gp_Vec &view,
              Source &out) {
@@ -187,7 +200,8 @@ bool resolve(const Input &input, HLRTopoBRep_Data &data, const TopoDS_Shape &sha
         }
         out.kind = 0;
         out.index = input.edges.FindIndex(resolved) - 1;
-        out.line_class = (ed.Rg1Line() || ed.RgNLine()) ? 1 : 0;
+        const bool smooth = ed.Rg1Line() || ed.RgNLine();
+        out.line_class = smooth ? (smooth_edge_is_silhouette(edge, adjacent, view) ? 2 : 1) : 0;
         return true;
     }
     if (input.outline_face.IsBound(resolved)) {
