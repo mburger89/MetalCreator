@@ -14,16 +14,28 @@ struct SheetViewEqualityTests {
     private let stroke = SheetStroke(segments: [.line(Vector2(0, 0), Vector2(10, 0))], width: 0.5, layer: .visible)
     private let text = SheetText(run: DrawingText.layout("A", height: 2.5), original: "A", origin: Vector2(1, 1), height: 2.5)
 
+    private func bucket(_ revision: Int = 1) -> SheetLayers.Bucket {
+        SheetLayers.Bucket(strokes: [stroke], fills: [fill], texts: [text], revision: revision)
+    }
+
     private func viewLayer(
-        id: ViewID? = nil, strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, fills: [SheetFill]? = nil,
-        frame: Rect2D? = nil, zoom: Double = 2,
-        paperHeight: Double = 210, isPending: Bool = false, isSelected: Bool = false, hovered: SheetStroke? = nil,
+        id: ViewID? = nil, bucket: SheetLayers.Bucket? = nil, zoom: Double = 2, paperHeight: Double = 210, isPending: Bool = false,
         colors: DrawingColors? = nil, style: DrawingStyle = .iso
     ) -> SheetViewLayer {
         SheetViewLayer(
-            id: id ?? fixedID, strokes: strokes ?? [stroke], texts: texts ?? [text], fills: fills ?? [fill],
-            frame: frame ?? Rect2D(min: .zero, max: Vector2(10, 5)), zoom: zoom, paperHeight: paperHeight, isPending: isPending,
-            isSelected: isSelected, hovered: hovered, colors: colors ?? self.colors, style: style)
+            id: id ?? fixedID, bucket: bucket ?? self.bucket(), zoom: zoom, paperHeight: paperHeight, isPending: isPending,
+            colors: colors ?? self.colors, style: style)
+    }
+
+    private func annotationLayer(
+        id: ViewID? = nil, bucket: SheetLayers.Bucket? = nil, frame: Rect2D? = nil, zoom: Double = 2, paperHeight: Double = 210,
+        isPending: Bool = false, isSelected: Bool = false, hovered: SheetStroke? = nil, colors: DrawingColors? = nil,
+        style: DrawingStyle = .iso
+    ) -> SheetAnnotationLayer {
+        SheetAnnotationLayer(
+            id: id ?? fixedID, bucket: bucket ?? self.bucket(), frame: frame ?? Rect2D(min: .zero, max: Vector2(10, 5)), zoom: zoom,
+            paperHeight: paperHeight, isPending: isPending, isSelected: isSelected, hovered: hovered,
+            colors: colors ?? self.colors, style: style)
     }
 
     private let fixedID = ViewID()
@@ -38,34 +50,53 @@ struct SheetViewEqualityTests {
     @Test func theViewLayerReadsEveryPropertyInEquals() {
         var other = colors
         other.ink = HexColor(0x123456)
-        var thicker = stroke
-        thicker.width = 0.6
         expectEqualityCovers(
             viewLayer(), equalTo: viewLayer(),
             [
                 "id": viewLayer(id: ViewID()),
-                "strokes": viewLayer(strokes: [thicker]),
-                "texts": viewLayer(texts: []),
-                "fills": viewLayer(fills: []),
-                "frame": viewLayer(frame: Rect2D(min: .zero, max: Vector2(11, 5))),
+                "bucket": viewLayer(bucket: bucket(2)),
                 "zoom": viewLayer(zoom: 3),
                 "paperHeight": viewLayer(paperHeight: 297),
                 "isPending": viewLayer(isPending: true),
-                "isSelected": viewLayer(isSelected: true),
-                "hovered": viewLayer(hovered: stroke),
                 "colors": viewLayer(colors: other),
                 "style": viewLayer(style: .asme),
             ])
     }
 
+    @Test func theAnnotationLayerReadsEveryPropertyInEquals() {
+        var other = colors
+        other.ink = HexColor(0x123456)
+        expectEqualityCovers(
+            annotationLayer(), equalTo: annotationLayer(),
+            [
+                "id": annotationLayer(id: ViewID()),
+                "bucket": annotationLayer(bucket: bucket(2)),
+                "frame": annotationLayer(frame: Rect2D(min: .zero, max: Vector2(11, 5))),
+                "zoom": annotationLayer(zoom: 3),
+                "paperHeight": annotationLayer(paperHeight: 297),
+                "isPending": annotationLayer(isPending: true),
+                "isSelected": annotationLayer(isSelected: true),
+                "hovered": annotationLayer(hovered: stroke),
+                "colors": annotationLayer(colors: other),
+                "style": annotationLayer(style: .asme),
+            ])
+    }
+
+    @Test func aLayerComparesRevisionsNotArrays() {
+        var other = bucket(1)
+        other.strokes = []
+        #expect(viewLayer(bucket: other) == viewLayer(bucket: bucket(1)), "the revision stands for the contents")
+        #expect(annotationLayer(bucket: other) == annotationLayer(bucket: bucket(1)))
+    }
+
     @Test func theFrameLayerReadsEveryPropertyInEquals() {
         func frameLayer(
-            strokes: [SheetStroke]? = nil, texts: [SheetText]? = nil, fills: [SheetFill]? = nil, images: [SheetImage]? = nil,
+            bucket: SheetLayers.Bucket? = nil, images: [SheetImage]? = nil,
             bitmaps: SheetBitmaps? = nil, zoom: Double = 2, paperHeight: Double = 210, colors: DrawingColors? = nil,
             style: DrawingStyle = .iso
         ) -> SheetFrameLayer {
             SheetFrameLayer(
-                strokes: strokes ?? [stroke], texts: texts ?? [text], fills: fills ?? [fill], images: images ?? [image],
+                bucket: bucket ?? self.bucket(), images: images ?? [image],
                 bitmaps: bitmaps ?? sharedBitmaps, zoom: zoom, paperHeight: paperHeight, colors: colors ?? self.colors, style: style)
         }
         var other = colors
@@ -73,9 +104,7 @@ struct SheetViewEqualityTests {
         expectEqualityCovers(
             frameLayer(), equalTo: frameLayer(),
             [
-                "strokes": frameLayer(strokes: []),
-                "texts": frameLayer(texts: []),
-                "fills": frameLayer(fills: []),
+                "bucket": frameLayer(bucket: bucket(2)),
                 "images": frameLayer(images: []),
                 "bitmaps": frameLayer(bitmaps: SheetBitmaps()),
                 "zoom": frameLayer(zoom: 3),

@@ -102,6 +102,8 @@ public final class DrawingEditorModel {
     public internal(set) var hoveredStroke: Int?
     /// The current sheet composed by `SheetComposer`.
     public private(set) var picture: SheetPicture?
+    /// `picture` cut into the canvas's buckets, with revisions (drawings speed R3); built with it, `nil` with it.
+    @ObservationIgnored private(set) var layers: SheetLayers?
 
     var standardUnitsAreInches: Bool { units.length == .inches }
     let today: () -> String
@@ -171,12 +173,14 @@ public final class DrawingEditorModel {
     func rebuildPicture() {
         defer { updateDraft() }
         guard let sheet else {
+            layers = nil
             picture = nil
             return
         }
         let composed = SheetComposer.compose(
             sheet, in: document, contents: contents, facts: facts, units: units, remembered: remembered, linework: &linework)
         lineworkMapped += linework.mapped
+        layers = SheetLayers.built(from: composed, previous: layers)
         picture = composed
         // The newest held figure of each annotation is what a lost one is drawn from (plan R15).
         // A view still being projected, or one the host isn't showing, is held against the topology it had: what it reports is what
