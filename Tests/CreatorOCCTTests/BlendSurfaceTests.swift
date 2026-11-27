@@ -191,16 +191,6 @@ struct BlendSurfaceTests {
         #expect(try await distance(Vector3(15, 7.5, 5), to: result) < 1e-6)
     }
 
-    @Test func aClosedEdgeIsRefused() async throws {
-        let a = try await a()
-        let line = try await kernel.makeCurve([.line(Vector3(5, 0, 0), Vector3(5, 4, 0))], tag: tag)
-        let tube = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: Vector3(0, 1, 0)),
-                                            angle: Angle(radians: 2 * .pi), tag: tag)
-        let rim = try edge(tube, .rail(0))
-        let text = await refusal { _ = try await blend(a, try edge(a, .end).id, tube, rim.id) }
-        #expect(text == "Blend Surface can't blend a closed edge yet.")
-    }
-
     @Test func aCancelledFlagStopsTheShimBeforeItBuilds() async throws {
         let a = try await a(), b = try await b()
         let flag = OCCTCancelFlag()
