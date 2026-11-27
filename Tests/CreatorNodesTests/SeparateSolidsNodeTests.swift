@@ -63,6 +63,17 @@ struct SeparateSolidsNodeTests {
         #expect(pieces.count == 2 && pieces.allSatisfy { !$0.hasOpenShell })
     }
 
+    @Test func anEmptyListFeedsDownstreamAsEmpty() async throws {
+        var h = Harness()
+        let box = h.box(10, 10, 10), separate = h.add(SeparateSolidsNode.self), stats = h.add(TreeStatisticsNode.self)
+        h.wire(box, "solid", to: separate, "value")
+        h.wire(separate, "surfaces", to: stats, "tree")
+        let report = try await h.run([stats], kernel: kernel)
+        #expect(report.isOK(separate) && report.isOK(stats), "\(String(describing: report.state(stats)))")
+        #expect(report.value(separate, "surfaces")?.solids?.isEmpty == true)
+        #expect(report.value(stats, "items")?.outline == "0")
+    }
+
     @Test func aMixedValueSaysSeparate() async throws {
         var h = Harness()
         let sew = mixed(&h), split = h.add(SplitSolidNode.self)

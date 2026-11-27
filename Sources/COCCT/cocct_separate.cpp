@@ -87,6 +87,72 @@ occt_shape *occt_separate(const occt_shape *value, occt_separate_result *out, oc
         }
         const TopTools_IndexedMapOfShape input_faces = map_of(value->shape, TopAbs_FACE);
         const TopTools_IndexedMapOfShape input_edges = map_of(value->shape, TopAbs_EDGE);
+        // Open parts that share an edge (the same edge object, `IsSame`) are one connected piece; edges that merely coincide in space
+        // stay apart (joining those is Sew's job).
+        const size_t count = parts.size();
+        std::vector<size_t> root(count);
+        for (size_t i = 0; i < count; ++i) {
+            root[i] = i;
+        }
+        const auto find = [&root](size_t i) {
+            while (root[i] != i) {
+                root[i] = root[root[i]];
+                i = root[i];
+            }
+            return i;
+        };
+        std::vector<int> owner(static_cast<size_t>(input_edges.Extent()) + 1, -1);
+        for (size_t p = 0; p < count; ++p) {
+            if (kinds[p] != 0) {
+                continue;
+            }
+            const TopTools_IndexedMapOfShape part_edges = map_of(parts[p], TopAbs_EDGE);
+            for (int e = 1; e <= part_edges.Extent(); ++e) {
+                const int index = input_edges.FindIndex(part_edges(e));
+                if (index < 1) {
+                    continue;
+                }
+                if (owner[index] < 0) {
+                    owner[index] = static_cast<int>(p);
+                } else {
+                    root[find(p)] = find(static_cast<size_t>(owner[index]));
+                }
+            }
+        }
+        // Pieces in the order of their first part; a group of several open parts is one compound.
+        std::vector<TopoDS_Shape> pieces;
+        std::vector<int> piece_kinds;
+        std::vector<bool> placed(count, false);
+        for (size_t p = 0; p < count; ++p) {
+            if (placed[p]) {
+                continue;
+            }
+            if (kinds[p] != 0) {
+                placed[p] = true;
+                pieces.push_back(parts[p]);
+                piece_kinds.push_back(1);
+                continue;
+            }
+            std::vector<TopoDS_Shape> members;
+            for (size_t q = p; q < count; ++q) {
+                if (!placed[q] && kinds[q] == 0 && find(q) == find(p)) {
+                    placed[q] = true;
+                    members.push_back(parts[q]);
+                }
+            }
+            if (members.size() == 1) {
+                pieces.push_back(members[0]);
+            } else {
+                BRep_Builder group_builder;
+                TopoDS_Compound group;
+                group_builder.MakeCompound(group);
+                for (const TopoDS_Shape &member : members) {
+                    group_builder.Add(group, member);
+                }
+                pieces.push_back(group);
+            }
+            piece_kinds.push_back(0);
+        }
         std::vector<int> face_piece;
         std::vector<int> face_source;
         std::vector<int> edge_piece;
@@ -94,21 +160,21 @@ occt_shape *occt_separate(const occt_shape *value, occt_separate_result *out, oc
         BRep_Builder builder;
         TopoDS_Compound compound;
         builder.MakeCompound(compound);
-        for (size_t p = 0; p < parts.size(); ++p) {
-            builder.Add(compound, parts[p]);
-            const TopTools_IndexedMapOfShape faces = map_of(parts[p], TopAbs_FACE);
+        for (size_t p = 0; p < pieces.size(); ++p) {
+            builder.Add(compound, pieces[p]);
+            const TopTools_IndexedMapOfShape faces = map_of(pieces[p], TopAbs_FACE);
             for (int f = 1; f <= faces.Extent(); ++f) {
                 face_piece.push_back(static_cast<int>(p));
                 face_source.push_back(input_faces.FindIndex(faces(f)));
             }
-            const TopTools_IndexedMapOfShape edges = map_of(parts[p], TopAbs_EDGE);
+            const TopTools_IndexedMapOfShape edges = map_of(pieces[p], TopAbs_EDGE);
             for (int e = 1; e <= edges.Extent(); ++e) {
                 edge_piece.push_back(static_cast<int>(p));
                 edge_source.push_back(input_edges.FindIndex(edges(e)));
             }
         }
-        out->kinds = copy_out(kinds);
-        out->piece_count = static_cast<int>(parts.size());
+        out->kinds = copy_out(piece_kinds);
+        out->piece_count = static_cast<int>(pieces.size());
         out->face_piece = copy_out(face_piece);
         out->face_source = copy_out(face_source);
         out->face_count = static_cast<int>(face_piece.size());
