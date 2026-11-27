@@ -81,4 +81,7 @@ extension AppModel {
     func refreshDrawing() {
         drawing.update()
     }
+
+    /// How many last-good refresh tasks the drawing has started, for tests: a placement drag must not start one (drawings speed R5).
+    var drawingRefreshStarts: Int { drawing.refreshGeneration }
 }

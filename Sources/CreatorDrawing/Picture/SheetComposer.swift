@@ -16,6 +16,19 @@ public enum SheetComposer {
         _ sheet: DrawingSheet, in document: DrawingDocument, contents: [ViewID: ViewContent], facts: TitleBlockFacts,
         notices: Bool = true, units: DocumentUnits = .millimetres, remembered: [AnnotationID: LastGood] = [:]
     ) -> SheetPicture {
+        var memo = LineworkMemo()
+        return compose(
+            sheet, in: document, contents: contents, facts: facts, notices: notices, units: units, remembered: remembered,
+            linework: &memo)
+    }
+
+    /// `compose`, taking each view's linework from `linework` when nothing it was mapped from changed (speed plan R1, R2).
+    public static func compose(
+        _ sheet: DrawingSheet, in document: DrawingDocument, contents: [ViewID: ViewContent], facts: TitleBlockFacts,
+        notices: Bool = true, units: DocumentUnits = .millimetres, remembered: [AnnotationID: LastGood] = [:],
+        linework: inout LineworkMemo
+    ) -> SheetPicture {
+        linework.begin()
         let settings = document.settings
         let standard = settings.standard
         let style = DrawingStyle.of(standard)
@@ -43,12 +56,10 @@ public enum SheetComposer {
             let content = contents[view.id] ?? ViewContent()
             var frame: Rect2D
             if content.projection != nil {
-                picture.strokes += ViewLinework.strokes(
-                    for: content, view: view, center: center, scale: scale, style: style)
-                picture.strokes += hatch(
-                    for: view, content: content, center: center, scale: scale, sheet: sheet, style: style)
-                frame = ViewLinework.frame(for: content, center: center, scale: scale)
-                    ?? Rect2D(min: center, max: center)
+                let mapped = linework.linework(
+                    of: view, content: content, center: center, scale: scale, sheet: sheet, style: style)
+                picture.strokes += mapped.strokes
+                frame = mapped.frame
             } else {
                 frame = appendEmptyView(
                     to: &picture, placed: Placed(view: view, center: center, content: content), sheet: sheet, style: style,
@@ -66,6 +77,7 @@ public enum SheetComposer {
         }
         appendMarks(to: &picture, sheet: sheet, standard: standard, centers: centers, contents: contents)
         annotations.finish(&picture)
+        linework.keep(sheet.views)
         return picture
     }
 

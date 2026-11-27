@@ -7,7 +7,7 @@ import Testing
 @testable import CreatorApp
 @testable import CreatorOCCT
 
-/// Drawings spec benchmarks, release, idle Mac; prints `BENCH drawing-1`, `drawing-2-warm`, `drawing-3`, `drawing-3-warm`, `drawing-4`, `drawing-5` and `drawing-5-warm` lines. Recorded, not gated.
+/// Drawings spec benchmarks, release, idle Mac; prints `BENCH drawing-1`, `drawing-2-warm`, `drawing-3`, `drawing-3-warm`, `drawing-4`, `drawing-5`, `drawing-5-warm` and `drawing-drag-warm` lines. Recorded, not gated.
 /// drawing-1: the bracket's four projections (Front, Right, Top, Isometric) from the edit that adds them to the last landing, cache
 /// emptied each run. drawing-2: panning and zooming that sheet's canvas in a warm window.
 @MainActor
@@ -67,20 +67,7 @@ struct DrawingBench {
         let warm = try await WarmBenchWindow(model: app)
         let editor = app.drawing.editor
         let start = editor.transform
-        var cpu = BenchSamples("drawing-2-warm window-cpu (warm frame)")
-        for step in 0..<Self.steps {
-            editor.transform = SheetTransform(offset: start.offset + Vector2(-Double(step) * 8, -Double(step)), zoom: start.zoom)
-            await app.settle()
-            let milliseconds = warm.timedFrame()
-            if step >= 5 { cpu.append(milliseconds) }
-        }
-        for step in 0..<Self.steps {
-            let zoom = start.zoom * (step < Self.steps / 2 ? 1 + Double(step) * 0.03 : 1 + Double(Self.steps - step) * 0.03)
-            editor.transform = start.zoomed(to: zoom, about: Vector2(700, 450))
-            await app.settle()
-            cpu.append(warm.timedFrame())
-        }
-        print(cpu.line(budget: Bench.frameBudget))
+        await panAndZoom(app, warm, start: start, name: "drawing-2-warm", detail: "warm frame")
     }
 
     /// drawing-3: composing the bracket sheet with its 30 dimensions (frame, title block, views, annotations), views already
@@ -265,22 +252,10 @@ struct DrawingBench {
         #expect(reports.count == 10 && reports.allSatisfy { $0.status == .held }, "every balloon held")
         let warm = try await WarmBenchWindow(model: app)
         let start = editor.transform
-        var cpu = BenchSamples("drawing-5-warm window-cpu (warm frame, ten parts, ten balloons, parts list)")
-        for step in 0..<Self.steps {
-            editor.transform = SheetTransform(offset: start.offset + Vector2(-Double(step) * 8, -Double(step)), zoom: start.zoom)
-            await app.settle()
-            let milliseconds = warm.timedFrame()
-            if step >= 5 { cpu.append(milliseconds) }
-        }
-        for step in 0..<Self.steps {
-            let zoom = start.zoom * (step < Self.steps / 2 ? 1 + Double(step) * 0.03 : 1 + Double(Self.steps - step) * 0.03)
-            editor.transform = start.zoomed(to: zoom, about: Vector2(700, 450))
-            await app.settle()
-            cpu.append(warm.timedFrame())
-        }
+        let detail = "warm frame, ten parts, ten balloons, parts list"
+        await panAndZoom(app, warm, start: start, name: "drawing-5-warm", detail: detail)
         let held = balloons.compactMap { editor.picture?.annotationReports[$0.id] }.filter { $0.status == .held }.count
         #expect(held == 10, "every balloon still held after the run")
-        print(cpu.line(budget: Bench.frameBudget))
     }
 }
 #endif

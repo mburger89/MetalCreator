@@ -16,7 +16,8 @@ extension DrawingSession {
         var curves: [Curve]
     }
 
-    /// What one view's refresh was made from: its parts' solids by identity, its frame, the number format and its annotations.
+    /// What one view's refresh was made from: its parts' solids by identity, its frame, the number format and its annotations, each
+    /// with its placement fields fixed (`DrawingAnnotation.placementStripped`), so dragging one starts no refresh (drawings speed R5).
     struct RefreshKey: Hashable, Sendable {
         var outputs: [NodeID] = []
         var solidCounts: [Int] = []
@@ -106,7 +107,7 @@ extension DrawingSession {
                 let solids = parts.flatMap(\.solids)
                 let key = RefreshKey(
                     outputs: parts.map(\.output), solidCounts: parts.map(\.solids.count), solids: solids.map(ObjectIdentifier.init),
-                    frame: base.orientation.frame, format: format, annotations: annotations, cutter: cutter,
+                    frame: base.orientation.frame, format: format, annotations: annotations.map(\.placementStripped), cutter: cutter,
                     tolerance: 0.01 / (base.scale ?? sheet.scale).value, isPictorial: sheet.isPictorial(view), retained: solids)
                 if refreshed[view.id] != key {
                     pending.append(

@@ -207,7 +207,7 @@ enum DrawingBenchFixtures {
     }
 
     /// The edges of a topology a dimension may be attached to: a lasting key and exactly one run.
-    private static func namedEdges(in topology: Topology) -> [(EdgeInfo, EdgePick)] {
+    static func namedEdges(in topology: Topology) -> [(EdgeInfo, EdgePick)] {
         var picks: [(EdgeInfo, EdgePick)] = []
         for edge in topology.edges.sorted(by: { $0.id.rawValue < $1.id.rawValue }) {
             guard edge.curve != nil, let key = topology.key(of: edge),

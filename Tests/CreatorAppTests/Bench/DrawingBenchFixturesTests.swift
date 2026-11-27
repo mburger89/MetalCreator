@@ -145,5 +145,49 @@ struct DrawingBenchFixturesTests {
         #expect(reports.count == 10)
         #expect(reports.allSatisfy { $0.status == .held }, "\(reports.map(\.status))")
     }
+
+    @Test func theDraggableAssemblyHoldsTenBalloonsAndADimension() async throws {
+        let app = AppModel(kernel: OCCTKernel())
+        let ids = try DrawingBenchFixtures.addAssemblyParts(to: app.document, parts: 10)
+        app.setMode(.drawing)
+        app.drawing.editor.addSheet()
+        await app.settle()
+        let (document, dimension) = try await DrawingBenchFixtures.draggableAssemblySheet(app, outputs: ids)
+        let sheet = document.sheets[0]
+        #expect(sheet.annotations.filter { if case .balloon = $0.kind { true } else { false } }.count == 10)
+        #expect(sheet.annotations.filter { if case .dimension = $0.kind { true } else { false } }.count == 1)
+        try app.document.perform(.setDrawings(document), name: "Test")
+        app.refreshDrawing()
+        await app.settle()
+        let drawn = sheet.annotations.filter { if case .partsList = $0.kind { false } else { true } }
+        let reports = drawn.compactMap { app.drawing.editor.picture?.annotationReports[$0.id] }
+        #expect(reports.count == 11 && reports.allSatisfy { $0.status == .held }, "\(reports.map(\.status))")
+        let editor = app.drawing.editor
+        let label = try #require(editor.picture?.annotationReports[dimension]?.textCenter)
+        let order = editor.document.sheets[0].annotations.map(\.id)
+        let hit = SheetHitTest.annotation(at: label, in: try #require(editor.picture), order: order)
+        #expect(hit == dimension, "a press on the label picks the dimension, whatever the annotation IDs")
+    }
+
+    /// The press and the 60 half-millimetre steps `drawing-drag-warm` makes move the dimension 30 mm and lose no balloon.
+    @Test func aDragOfTheDimensionMovesItThirtyMillimetres() async throws {
+        let app = AppModel(kernel: OCCTKernel())
+        let ids = try DrawingBenchFixtures.addAssemblyParts(to: app.document, parts: 10)
+        app.setMode(.drawing)
+        app.drawing.editor.addSheet()
+        await app.settle()
+        let (document, dimension) = try await DrawingBenchFixtures.draggableAssemblySheet(app, outputs: ids)
+        try app.document.perform(.setDrawings(document), name: "Test")
+        app.refreshDrawing()
+        await app.settle()
+        let drag = try DimensionDragFixture.press(app, dimension)
+        for step in 1...60 {
+            drag.step(to: Double(step) * 0.5)
+            await app.settle()
+        }
+        let outcome = await drag.release(at: 30)
+        #expect(abs(abs(outcome.moved) - 30) < 1e-6, "moved \(outcome.moved)")
+        #expect(outcome.balloonsHeld == 10 && outcome.balloonsUnchanged)
+    }
 }
 #endif

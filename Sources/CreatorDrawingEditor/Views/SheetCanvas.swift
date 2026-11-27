@@ -19,36 +19,24 @@ public struct SheetCanvas: Component {
 
     public var content: some ElementGroup {
         let colors = DrawingColors(themes)
-        if let picture = model.picture, let sheet = model.sheet {
-            surface(picture, sheet: sheet, colors: colors)
+        if let picture = model.picture, let layers = model.layers, let sheet = model.sheet {
+            surface(picture, layers: layers, sheet: sheet, colors: colors)
         } else {
             EmptyDrawingView(model: model, colors: colors)
         }
     }
 
-    private func viewLayer(
-        _ view: DrawingView, in picture: SheetPicture, hovered: SheetStroke?, zoom: Double, colors: DrawingColors,
-        style: DrawingStyle
-    ) -> SheetViewLayer {
-        SheetViewLayer(
-            id: view.id, strokes: picture.strokes.filter { $0.view == view.id },
-            texts: picture.texts.filter { $0.view == view.id }, fills: picture.fills.filter { $0.view == view.id },
-            frame: picture.viewFrames[view.id] ?? Rect2D(min: .zero, max: .zero), zoom: zoom, paperHeight: picture.size.y,
-            isPending: model.contents[view.id]?.isPending ?? false, isSelected: model.selection.contains(view.id),
-            hovered: hovered?.view == view.id ? hovered : nil, colors: colors, style: style)
-    }
-
     /// What the selection layer draws: the selected annotations, the draft being placed and what the tool would pick.
-    private func highlighted(in picture: SheetPicture) -> (strokes: [SheetStroke], fills: [SheetFill], texts: [SheetText], ring: Vector2?) {
-        let chosen = model.selectedAnnotations
-        var strokes = picture.strokes.filter { $0.annotation.map(chosen.contains) ?? false }
-        var fills = picture.fills.filter { $0.annotation.map(chosen.contains) ?? false }
-        var texts = picture.texts.filter { $0.annotation.map(chosen.contains) ?? false }
-        // A selected derived view's cutting line, arrow or detail circle (DR-3 R13).
+    private func highlighted(
+        in picture: SheetPicture, layers: SheetLayers
+    ) -> (strokes: [SheetStroke], fills: [SheetFill], texts: [SheetText], ring: Vector2?) {
         let selected = model.selection
-        strokes += picture.strokes.filter { $0.mark.map(selected.contains) ?? false }
-        fills += picture.fills.filter { $0.mark.map(selected.contains) ?? false }
-        texts += picture.texts.filter { $0.mark.map(selected.contains) ?? false }
+        // The selected annotations' and marks' pieces come from the buckets (a selected derived view's cutting line, arrow or
+        // detail circle: DR-3 R13); the hover candidate's stroke stays a lookup in the flat picture, whose order its index names.
+        let chosen = layers.selection(annotations: model.selectedAnnotations, marks: selected)
+        var strokes = chosen.strokes
+        var fills = chosen.fills
+        var texts = chosen.texts
         if let draft = model.draftPicture {
             let marks = model.draftViewID
             let draftID = model.draftAnnotationID
@@ -70,20 +58,31 @@ public struct SheetCanvas: Component {
 
     /// The paper, its frame layer, the views that can show and the selection layer, in paper space.
     private func paperStack(
-        _ picture: SheetPicture, shown: [DrawingView], hovered: SheetStroke?, colors: DrawingColors, style: DrawingStyle
+        _ picture: SheetPicture, layers: SheetLayers, shown: [DrawingView], hovered: SheetStroke?, colors: DrawingColors,
+        style: DrawingStyle
     ) -> some ProposalElementGroup {
         let zoom = model.transform.zoom
         let paper = picture.size
-        let marked = highlighted(in: picture)
+        let marked = highlighted(in: picture, layers: layers)
         return ZStack(alignment: .topLeading) {
             Rectangle().fill(colors.paper.color).frame(width: (paper.x * zoom).px, height: (paper.y * zoom).px)
             SheetFrameLayer(
-                strokes: picture.strokes.filter { $0.view == nil }, texts: picture.texts.filter { $0.view == nil },
-                fills: picture.fills.filter { $0.view == nil }, images: picture.images, bitmaps: model.bitmaps, zoom: zoom,
-                paperHeight: paper.y, colors: colors, style: style)
+                bucket: layers.frame, images: picture.images, bitmaps: model.bitmaps, zoom: zoom, paperHeight: paper.y,
+                colors: colors, style: style)
                 .equatable()
             ForEach(shown, id: \.id) { view in
-                viewLayer(view, in: picture, hovered: hovered, zoom: zoom, colors: colors, style: style).equatable()
+                // Linework under annotations, view by view, as one layer used to draw them.
+                let pending = model.contents[view.id]?.isPending ?? false
+                SheetViewLayer(
+                    id: view.id, bucket: layers.linework(of: view.id), zoom: zoom, paperHeight: paper.y, isPending: pending,
+                    colors: colors, style: style)
+                    .equatable()
+                SheetAnnotationLayer(
+                    id: view.id, bucket: layers.annotations(of: view.id),
+                    frame: picture.viewFrames[view.id] ?? Rect2D(min: .zero, max: .zero), zoom: zoom, paperHeight: paper.y,
+                    isPending: pending, isSelected: model.selection.contains(view.id),
+                    hovered: hovered?.view == view.id ? hovered : nil, colors: colors, style: style)
+                    .equatable()
             }
             SheetSelectionLayer(
                 strokes: marked.strokes, fills: marked.fills, texts: marked.texts, ring: marked.ring, zoom: zoom,
@@ -94,7 +93,7 @@ public struct SheetCanvas: Component {
         .allowsHitTesting(false)
     }
 
-    private func surface(_ picture: SheetPicture, sheet: DrawingSheet, colors: DrawingColors) -> some ElementGroup {
+    private func surface(_ picture: SheetPicture, layers: SheetLayers, sheet: DrawingSheet, colors: DrawingColors) -> some ElementGroup {
         let zoom = model.transform.zoom
         let style = DrawingStyle.of(model.document.settings.standard)
         let visible = model.visibleSheetRect
@@ -105,7 +104,7 @@ public struct SheetCanvas: Component {
         let hovered = model.hoveredStroke.flatMap { picture.strokes.indices.contains($0) ? picture.strokes[$0] : nil }
         return colors.surround.color
             .overlay(alignment: .topLeading) {
-                paperStack(picture, shown: shown, hovered: hovered, colors: colors, style: style)
+                paperStack(picture, layers: layers, shown: shown, hovered: hovered, colors: colors, style: style)
             }
             .clipped()
             .gesture(SheetCanvasInput.primaryGesture(model))
