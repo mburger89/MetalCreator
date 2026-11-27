@@ -9,9 +9,13 @@ import Testing
 @testable import CreatorApp
 
 /// An app over `FakeKernel` (boxes, fake fillets, no export), showing `graph` once it has evaluated.
+/// `beforeRefinementPass` is awaited before each background mesh pass (`MeshRefinementModel.beforePass`), so a test can hold the
+/// refiner while it looks at the first pass.
 @MainActor
-func makeApp(_ graph: Graph = Graph(), kernel: any Kernel = FakeKernel()) async -> AppModel {
+func makeApp(_ graph: Graph = Graph(), kernel: any Kernel = FakeKernel(),
+             beforeRefinementPass: (@Sendable () async -> Void)? = nil) async -> AppModel {
     let app = AppModel(kernel: kernel, file: GraphFile(graph: graph))
+    app.meshRefinement.beforePass = beforeRefinementPass
     await app.settle()
     return app
 }

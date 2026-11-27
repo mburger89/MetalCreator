@@ -28,10 +28,14 @@ struct AppMeshPreviewTests {
 
     @Test func theFirstPassIsShownAtOnceAndRefinesInTheBackground() async throws {
         let fixture = graph()
-        let app = await makeApp(fixture.graph)
+        // The refiner is held before its first background pass, so the first pass is what is on screen however loaded the machine is.
+        let gate = HookGate()
+        let app = await makeApp(fixture.graph, beforeRefinementPass: { await gate.hold() })
+        #expect(await gate.waitUntilEntered(), "the refiner reached its first background pass")
         #expect(app.viewport.items.count == 1 && app.viewport.items[0].solid.displayedMesh != nil)
         let coarse = try #require(triangles(app))
         #expect(app.meshRefinement.badge == .init(text: "Preview 0.094 mm", isRefining: true))
+        gate.open()
         await app.meshRefinement.waitForRefinement()
         await app.settle()
         let fine = try #require(triangles(app))
