@@ -2607,3 +2607,4 @@ the Output selected so the part is shown.
 - [ ] **DR5-11 MCP.** An AI client lists the drawings, reads a sheet with a lost dimension, exports a PDF, and is refused while a sketch is open. **Observed:**
 - [ ] **DR5-12 Keys.** The keys B and P over the sheet pick their tools. **Observed:**
 - [ ] **DR5-13 Linux and Windows.** The assembly page's PDF and SVG SHA-256 equal the Mac's. **Observed:**
+- [ ] **DR5-14 Drag speed.** On a ten-part sheet with its balloons and parts list, drag a dimension, a balloon and a view: each follows the pointer without lag, and on release the dragged item's figure (a dimension's number, a balloon's part number) is unchanged. **Observed:**

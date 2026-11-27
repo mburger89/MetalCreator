@@ -1616,3 +1616,17 @@ BENCH load after: 7.22 8.98 8.64
 ```
 
 `drawing-5` gives the views new IDs each round and checks that `ProjectionCache.kernelCalls` grew by at least three per round; `drawing-5-warm` asserts all ten balloons held before and after the run. Re-run on an idle Mac to settle the warm row.
+
+#### Pan, zoom and drag rows (method only; numbers owed: idle Mac)
+
+Added with the drawings-speed work (`LineworkMemo`, the layered sheet canvas, the placement-blind refresh key). No numbers are recorded here: they are owed from an idle Mac (the Mac is not idle for the check that these lines print).
+
+| Row | Method | Budget | Numbers |
+|---|---|---|---|
+| `drawing-2-warm pan` | the 60 pan steps of `drawing-2-warm` alone (the first five are warm-up) | 16.67 ms | owed: idle Mac |
+| `drawing-2-warm zoom` | the 60 zoom steps of `drawing-2-warm` alone | 16.67 ms | owed: idle Mac |
+| `drawing-5-warm pan` | the 60 pan steps of `drawing-5-warm` alone (the first five are warm-up) | 16.67 ms | owed: idle Mac |
+| `drawing-5-warm zoom` | the 60 zoom steps of `drawing-5-warm` alone | 16.67 ms | owed: idle Mac |
+| `drawing-drag-warm step-cpu` | the ten-part sheet with ten balloons, the parts list and one dimension (an aligned length on a horizontal edge of the Front view); the editor presses on the dimension's label (Select tool), then makes 60 `primaryChanged` steps of 0.5 mm. A step's figure is the time of the `primaryChanged` call (the host's `storeDrawing` and refresh included) plus one warm frame; settling is outside the timer | 16.67 ms | owed: idle Mac |
+
+The combined `drawing-2-warm` and `drawing-5-warm` lines still print beside the split ones, over the same frames as before. `drawing-drag-warm` asserts, without time, that the dimension moved 30 mm and that every balloon stayed held with its record unchanged. Its fixture (`DrawingBenchFixtures.draggableAssemblySheet`) is `drawing-5-warm`'s plus the one dimension, and is checked in the default run.
