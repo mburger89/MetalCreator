@@ -6,8 +6,10 @@ import CreatorDrawing
 /// previous revision when its contents are `==` to the previous bucket's and takes the next one otherwise, so a dimension
 /// drag changes only the annotations bucket of its view. The buckets:
 /// - `frame`: everything with no view (border, title block, free notes), as `SheetFrameLayer` draws it;
-/// - `linework[view]`: the view's projected lines, hatching, marks and the like (no annotation, no notice);
-/// - `annotations[view]`: the view's annotations and its notices, which draw over the linework.
+/// - `linework[view]`: the view's strokes with no annotation (projected lines, hatching, marks);
+/// - `annotations[view]`: the view's annotation strokes, ALL its fills and ALL its texts (label, notices, annotation lettering).
+///   Before the split one `SheetStrokeGroups` drew every stroke of the view, then every fill, then the texts; the annotations layer
+///   over the linework layer reproduces that order only when the fills and texts all sit in the top layer.
 ///
 /// `SheetPicture.strokes` keeps its flat order for the hover indices; the buckets are copies, not a replacement.
 struct SheetLayers: Sendable {
@@ -56,15 +58,15 @@ struct SheetLayers: Sendable {
         var frame = Bucket()
         var linework: [ViewID: Bucket] = [:]
         var annotations: [ViewID: Bucket] = [:]
-        // The three element kinds classify alike: no view is the frame, an annotation or a notice is an annotation, the rest linework.
+        // No view is the frame; a stroke with no annotation is linework; every other element of a view is the annotations layer's.
         func place(
-            view: ViewID?, annotation: AnnotationID?, mark: ViewID?, isNotice: Bool,
-            into add: (inout Bucket) -> Void, item: (inout Items) -> Void
+            view: ViewID?, annotation: AnnotationID?, mark: ViewID?,
+            strokesOnly: Bool, into add: (inout Bucket) -> Void, item: (inout Items) -> Void
         ) {
             if let annotation { item(&layers.byAnnotation[annotation, default: Items()]) }
             if let mark { item(&layers.byMark[mark, default: Items()]) }
             guard let view else { return add(&frame) }
-            if annotation != nil || isNotice {
+            if annotation != nil || !strokesOnly {
                 add(&annotations[view, default: Bucket()])
             } else {
                 add(&linework[view, default: Bucket()])
@@ -72,17 +74,17 @@ struct SheetLayers: Sendable {
         }
         for (index, stroke) in picture.strokes.enumerated() {
             place(
-                view: stroke.view, annotation: stroke.annotation, mark: stroke.mark, isNotice: false,
+                view: stroke.view, annotation: stroke.annotation, mark: stroke.mark, strokesOnly: true,
                 into: { $0.strokes.append(stroke) }, item: { $0.strokes.append(Indexed(index: index, element: stroke)) })
         }
         for (index, fill) in picture.fills.enumerated() {
             place(
-                view: fill.view, annotation: fill.annotation, mark: fill.mark, isNotice: false,
+                view: fill.view, annotation: fill.annotation, mark: fill.mark, strokesOnly: false,
                 into: { $0.fills.append(fill) }, item: { $0.fills.append(Indexed(index: index, element: fill)) })
         }
         for (index, text) in picture.texts.enumerated() {
             place(
-                view: text.view, annotation: text.annotation, mark: text.mark, isNotice: text.isNotice,
+                view: text.view, annotation: text.annotation, mark: text.mark, strokesOnly: false,
                 into: { $0.texts.append(text) }, item: { $0.texts.append(Indexed(index: index, element: text)) })
         }
         var next = previous?.lastRevision ?? 0

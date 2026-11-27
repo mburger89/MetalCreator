@@ -3,7 +3,7 @@ import CreatorGeometry
 import CreatorStyle
 import MetalUI
 
-/// One view's projected linework on the sheet (plan R27): its strokes, hatching, marks and lettering, in paper space, under the view's
+/// One view's projected linework on the sheet (plan R27): its strokes (projected lines, hatching, marks), in paper space, under the view's
 /// annotations (`SheetAnnotationLayer`). `.equatable()` where the canvas builds it. `==` compares the bucket's `revision` in
 /// place of its arrays (drawings speed R4) and every other stored property, so a pan, or a change to another view or to this
 /// view's annotations, skips it; `SheetViewEqualityTests` fails when a property gains no variant.
@@ -26,10 +26,8 @@ struct SheetViewLayer: Component, Equatable {
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
             SheetStrokeGroups(
-                strokes: bucket.strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style, fills: bucket.fills,
+                strokes: bucket.strokes, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, style: style,
                 warning: colors.warning)
-            SheetTexts(
-                texts: bucket.texts, zoom: zoom, paperHeight: paperHeight, ink: colors.ink, warning: colors.warning)
         }
         .opacity(isPending ? 0.4 : 1)
     }
