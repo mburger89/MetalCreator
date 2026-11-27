@@ -5,6 +5,13 @@ extension OCCTKernel {
     /// Removes the material on the removed side of `cutter`'s line (DR-3 R1): the removed prism is built with `extrude`, then one
     /// serialized subtract, face count and validity check. A line that misses the part returns it; one that swallows it gives `nil`.
     public func cutAway(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws -> Solid? {
+        try await cutAwayNoting(solid, by: cutter, tag: tag).solid
+    }
+
+    public static let sheetLeftOutSentence = "The sheet beside a part couldn't be cut, so it's left out of this section."
+
+    public func cutAwayNoting(_ solid: Solid, by cutter: SectionCutter, tag: NodeTag) async throws
+        -> (solid: Solid?, warnings: [String]) {
         try Task.checkCancellation()
         try cutter.validate()
         try cutter.frame.validate()
@@ -19,20 +26,55 @@ extension OCCTKernel {
         let reach = 2 * (across.high - across.low).length + 1
         let polygon = cutter.removedPolygon(reach: reach)
         switch Self.coverage(of: placed, by: polygon) {
-        case .inside: return nil
-        case .outside: return solid
+        case .inside: return (nil, [])
+        case .outside: return (solid, [])
         case .partial: break
         }
         let depths = corners.map { $0.dot(frame.direction) }
-        guard let near = depths.min(), let far = depths.max() else { return solid }
+        guard let near = depths.min(), let far = depths.max() else { return (solid, []) }
         let plane = Plane(origin: frame.direction * bounds.center.dot(frame.direction), normal: frame.direction * -1,
                           xAxis: frame.right)
         let segments = polygon.indices.map { Segment2D.line(polygon[$0], polygon[($0 + 1) % polygon.count]) }
         let tool = try await extrude(Profile2D(plane: plane, segments: segments), distance: far - near + 2, mode: .symmetric, tag: tag)
-        if solid.hasOpenShell && !solid.holdsClosedSolid {
-            return try await cutSheet(solid, by: tool, frame: frame, removed: polygon, tag: tag)
+        if solid.hasOpenShell && solid.holdsClosedSolid {
+            return try await cutMixed(solid, by: cutter, tool: tool, tag: tag)
         }
-        return try await subtract(tool, from: solid, tag: tag)
+        if solid.hasOpenShell {
+            return (try await cutSheet(solid, by: tool, frame: frame, removed: polygon, tag: tag), [])
+        }
+        return (try await subtract(tool, from: solid, tag: tag), [])
+    }
+
+    /// R18: a closed solid beside a sheet. `occt_boolean` would lose the sheet, so the value is divided by shell kind (the sheets'
+    /// faces through `subSheet`, the solids' sewn back into solids, which keeps each face's own tags), each part is cut on its own
+    /// and the remainders are compounded. Either part may vanish; both vanishing gives `nil`.
+    private func cutMixed(_ mixed: Solid, by cutter: SectionCutter, tool: Solid, tag: NodeTag) async throws
+        -> (solid: Solid?, warnings: [String]) {
+        let sheetFaces = mixed.topology.faces.filter(\.isOnOpenShell).map(\.id)
+        let solidFaces = mixed.topology.faces.filter { !$0.isOnOpenShell }.map(\.id)
+        let sheets = try subSheet(sheetFaces, of: mixed)
+        let shell = try subSheet(solidFaces, of: mixed)
+        let body: Solid?
+        do {
+            let sewn = try await sewn([shell], tolerance: 1e-6, tag: tag)
+            body = sewn.sheets == 0 && sewn.solids > 0 ? sewn.body : nil
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            body = nil
+        }
+        guard let body else {
+            // The solid part doesn't re-sew (a stray free edge): cut the value as before, which keeps the solid and drops the sheet.
+            return (try await subtract(tool, from: mixed, tag: tag), [Self.sheetLeftOutSentence])
+        }
+        var parts: [Solid] = []
+        if let part = try await cutAway(body, by: cutter, tag: tag) { parts.append(part) }
+        if let part = try await cutAway(sheets, by: cutter, tag: tag) { parts.append(part) }
+        switch parts.count {
+        case 0: return (nil, [])
+        case 1: return (parts[0], [])
+        default: return (try compound(parts, tag: tag), [])
+        }
     }
 
     private func subtract(_ tool: Solid, from solid: Solid, tag: NodeTag) async throws -> Solid? {

@@ -1,3 +1,4 @@
+import Foundation
 import CreatorGeometry
 import CreatorKernel
 import Testing
@@ -97,7 +98,7 @@ struct SymbolComposerTests {
         #expect(fill.points[2].y > lineY)
         let report = try #require(picture.annotationReports[symbol.id])
         #expect(report.status == .held && report.label == "Datum A")
-        #expect(report.current?.figure == .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
+        expectAttachment(report.current?.figure, foot: Vector2(20, 0), along: Vector2(1, 0))
         #expect(report.current?.lines == ["Datum A"])
     }
 
@@ -152,7 +153,7 @@ struct SymbolComposerTests {
     @Test func aLostSymbolKeepsItsLastPlaceWithAQuestionMark() throws {
         let view = Fixtures.makeView()
         let symbol = datum(view)
-        let last = LastGood(values: [], lines: ["Datum A"], figure: .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
+        let last = LastGood(values: [], lines: ["Datum A"], figure: .attachment(foot: Vector2(20, 0), along: Vector2(1, 0), ends: []))
         let gone = Fixtures.topology(removing: [102])
         let picture = Fixtures.compose(view, [symbol], content: Fixtures.content(gone), remembered: [symbol.id: last])
         #expect(isLostEverywhere(picture, symbol.id))
@@ -160,6 +161,41 @@ struct SymbolComposerTests {
         #expect(picture.lostAnnotations == [symbol.id])
         #expect(picture.annotationReports[symbol.id]?.status == .lost(.missing))
         #expect(picture.annotationReports[symbol.id]?.label == "Datum A")
+    }
+
+    @Test func aLostDatumBeyondItsEdgeKeepsItsExtensionLine() throws {
+        let view = Fixtures.makeView()
+        let symbol = datum(view)
+        let foot = Vector2(60, 0), along = Vector2(1, 0)
+        let gone = Fixtures.topology(removing: [102])
+        func strokes(ends: [Vector2]) -> [SheetStroke] {
+            let last = LastGood(values: [], lines: ["Datum A"], figure: .attachment(foot: foot, along: along, ends: ends))
+            let picture = Fixtures.compose(view, [symbol], content: Fixtures.content(gone), remembered: [symbol.id: last])
+            return Fixtures.strokes(picture, of: symbol.id)
+        }
+        let without = strokes(ends: [])
+        let with = strokes(ends: [Vector2(0, 0), Vector2(40, 0)])
+        #expect(with.count == without.count + 1, "the edge's ends bring back the extension line")
+        let map = try mapping(view)
+        let nearEnd = map.sheet(Vector2(40, 0)).x
+        let extra = with.filter { stroke in !without.contains { $0.segments == stroke.segments } }
+        let line = try #require(extra.first)
+        guard case .line(let from, let to)? = line.segments.first else {
+            Issue.record("the extension is a straight line")
+            return
+        }
+        #expect(abs(from.x - (nearEnd + style.extensionGap)) < 1e-9 && to.x > from.x)
+        #expect(line.isLost)
+    }
+
+    @Test func attachmentEndsAreAnOptionalKey() throws {
+        let older = Data(#"{"type":"attachment","foot":{"x":1,"y":2},"along":{"x":1,"y":0}}"#.utf8)
+        let figure = try JSONDecoder().decode(AnnotationFigure.self, from: older)
+        #expect(figure == .attachment(foot: Vector2(1, 2), along: Vector2(1, 0), ends: []))
+        let written = try JSONEncoder().encode(figure)
+        #expect(String(bytes: written, encoding: .utf8)?.contains("ends") == false)
+        let withEnds = AnnotationFigure.attachment(foot: Vector2(1, 2), along: Vector2(1, 0), ends: [Vector2(0, 0), Vector2(4, 0)])
+        #expect(try JSONDecoder().decode(AnnotationFigure.self, from: JSONEncoder().encode(withEnds)) == withEnds)
     }
 
     @Test func aLostSymbolWithNoLastFigureIsALoneQuestionMark() {
@@ -200,7 +236,7 @@ struct SymbolComposerTests {
         let picture = Fixtures.compose(view, [symbol], content: Fixtures.content(slanted))
         let report = try #require(picture.annotationReports[symbol.id])
         #expect(report.status == .held)
-        #expect(report.current?.figure == .attachment(foot: Vector2(20, 0), along: Vector2(1, 0)))
+        expectAttachment(report.current?.figure, foot: Vector2(20, 0), along: Vector2(1, 0))
     }
 
     @Test func aSymbolOnALineIsLostInAnIsometricView() {

@@ -49,12 +49,20 @@ extension DrawingEditorModel {
         }
     }
 
-    /// Shows or hides one part of the view: a shown part is added at the end, a hidden one removed; the last part stays.
+    /// Shows or hides one part of the view: a shown part goes back at its place in the editor's order, a hidden one is removed; the last part stays.
     public func setPart(_ part: NodeID, shown: Bool, of id: ViewID) {
         guard let view = sheet?.view(id) else { return }
         var parts = view.outputs
         if shown {
-            if !parts.contains(part) { parts.append(part) }
+            if !parts.contains(part) {
+                // Back at its place in the editor's order: before the first shown part that comes after it.
+                let order = sources.map(\.id)
+                let rank = order.firstIndex(of: part)
+                let later = rank.flatMap { rank in
+                    parts.firstIndex { other in order.firstIndex(of: other).map { $0 > rank } ?? false }
+                }
+                if let later { parts.insert(part, at: later) } else { parts.append(part) }
+            }
         } else {
             parts.removeAll { $0 == part }
         }

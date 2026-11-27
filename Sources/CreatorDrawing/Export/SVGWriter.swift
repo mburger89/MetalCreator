@@ -15,7 +15,8 @@ public struct SVGOutput: Sendable {
 /// Writes one sheet picture as an SVG in millimetres (DR-5 R14). The bytes depend on nothing but the picture and the title:
 /// numbers go through `PDFNumber`, layers in `DrawingLayer.allCases` order, no clock, no locale.
 public enum SVGWriter {
-    public static func write(_ page: SheetPicture, title: String) -> SVGOutput {
+    public static func write(_ picture: SheetPicture, title: String) -> SVGOutput {
+        let page = picture.finite
         let style = DrawingStyle.of(page.standard)
         let (width, height) = (n(page.size.x), n(page.size.y))
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -114,15 +115,19 @@ public enum SVGWriter {
         return out
     }
 
-    private static func escaped(_ text: String) -> String {
+    /// XML text: the five markup characters escaped, and the control characters XML 1.0 forbids (U+0000 to U+001F except tab, line
+    /// feed and carriage return) left out, so a typed title or note never makes the file unreadable.
+    static func escaped(_ text: String) -> String {
         var out = ""
-        for character in text {
-            switch character {
+        for scalar in text.unicodeScalars {
+            switch scalar {
             case "&": out += "&amp;"
             case "<": out += "&lt;"
             case ">": out += "&gt;"
             case "\"": out += "&quot;"
-            default: out.append(character)
+            default:
+                if scalar.value < 0x20 && scalar.value != 0x09 && scalar.value != 0x0A && scalar.value != 0x0D { continue }
+                out.unicodeScalars.append(scalar)
             }
         }
         return out

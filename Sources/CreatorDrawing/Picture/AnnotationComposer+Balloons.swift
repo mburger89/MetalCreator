@@ -7,7 +7,8 @@ extension AnnotationComposer {
     static func composeBalloon(
         _ annotation: DrawingAnnotation, _ balloon: Balloon, context: AnnotationContext, remembered: LastGood?
     ) -> (report: AnnotationReport, pieces: AnnotationPieces) {
-        let part = balloon.leader.target.part ?? context.viewSource
+        // A balloon always has a view (decoding drops one without), so the view-less context has no part to number.
+        let part = context.viewSource.map { balloon.part(defaultingTo: $0) }
         let digits = part.flatMap { context.items.number(of: $0) }.map { String($0) } ?? "?"
         let label = "Balloon \(digits)"
         var anchors: [AnchorStatus] = []

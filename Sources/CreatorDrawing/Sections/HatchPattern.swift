@@ -27,12 +27,12 @@ public enum HatchPattern {
         for region in regions {
             let frame = LineFrame(direction: direction(forPart: region.part))
             let loops = region.edges.map { $0.map(mapping.sheet) }.filter { $0.count >= 3 }
-            let values = loops.flatMap { $0.map(frame.across) }
-            guard let low = values.min(), let high = values.max() else { continue }
-            let first = Int((low / spacing).rounded(.up)), last = Int((high / spacing).rounded(.down))
-            let offsets: [Double] = first <= last ? (first...last).map { Double($0) * spacing } : [(low + high) / 2]
             let limits = Limits(region: region, mapping: mapping, clips: clips)
-            for offset in offsets {
+            // The extent across the lines of the piece that remains after the band and the clips (a region's band piece), so the
+            // thin-piece fallback is decided on what is drawn, never on the whole cut face.
+            guard let extent = limits.extent(of: loops, frame: frame) else { continue }
+            let first = Int((extent.low / spacing).rounded(.up)), last = Int((extent.high / spacing).rounded(.down))
+            func appendPieces(of loops: [[Vector2]], at offset: Double) {
                 for piece in frame.pieces(of: loops, at: offset) {
                     guard let kept = limits.apply(to: piece, frame: frame, offset: offset) else { continue }
                     strokes.append(
@@ -41,6 +41,15 @@ public enum HatchPattern {
                             width: width, pattern: .solid, layer: .hatch, view: view))
                 }
             }
+            let before = strokes.count
+            if first <= last {
+                for offset in (first...last).map({ Double($0) * spacing }) {
+                    appendPieces(of: loops, at: offset)
+                }
+            }
+            // A piece no line of the grid crosses (thinner than the spacing, or an extent that only touches a line) gets one line
+            // through its middle.
+            if strokes.count == before, extent.high > extent.low { appendPieces(of: loops, at: (extent.low + extent.high) / 2) }
         }
         return strokes
     }
@@ -97,6 +106,47 @@ public enum HatchPattern {
                 band = nil
             }
             self.clips = clips.map { (mapping.sheet($0.center), $0.radius * mapping.scale) }
+        }
+
+        /// The range of `frame.across` over the loops' vertices cut to the band, and to each clip circle's reach; `nil` when nothing
+        /// of the region is left.
+        func extent(of loops: [[Vector2]], frame: LineFrame) -> (low: Double, high: Double)? {
+            var low = Double.infinity, high = -Double.infinity
+            for loop in loops {
+                var polygon = loop
+                if let band {
+                    let coordinate: (Vector2) -> Double = band.axis == .horizontal ? { $0.x } : { $0.y }
+                    if let bound = band.low { polygon = Self.clipped(polygon, coordinate: coordinate, keepsAbove: true, at: bound) }
+                    if let bound = band.high { polygon = Self.clipped(polygon, coordinate: coordinate, keepsAbove: false, at: bound) }
+                }
+                for point in polygon {
+                    let value = frame.across(point)
+                    low = min(low, value)
+                    high = max(high, value)
+                }
+            }
+            for clip in clips {
+                let middle = frame.across(clip.center)
+                low = max(low, middle - clip.radius)
+                high = min(high, middle + clip.radius)
+            }
+            return low <= high ? (low, high) : nil
+        }
+
+        /// Sutherland-Hodgman against one half plane `coordinate >= bound` (or `<=`).
+        private static func clipped(_ polygon: [Vector2], coordinate: (Vector2) -> Double, keepsAbove: Bool, at bound: Double)
+            -> [Vector2] {
+            func inside(_ p: Vector2) -> Bool { keepsAbove ? coordinate(p) >= bound : coordinate(p) <= bound }
+            var result: [Vector2] = []
+            for index in polygon.indices {
+                let a = polygon[index], b = polygon[(index + 1) % polygon.count]
+                if inside(a) { result.append(a) }
+                if inside(a) != inside(b) {
+                    let t = (bound - coordinate(a)) / (coordinate(b) - coordinate(a))
+                    result.append(a + (b - a) * t)
+                }
+            }
+            return result
         }
 
         func apply(to piece: ClosedRange<Double>, frame: LineFrame, offset: Double) -> ClosedRange<Double>? {

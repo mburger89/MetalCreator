@@ -113,6 +113,13 @@ extension DrawingEditorModel {
         }
     }
 
+    /// The held modifiers changed over a still pointer: a cutting line's preview follows Shift as a click would.
+    public func modifiersChanged(_ modifiers: SheetModifiers) {
+        guard modifiers != heldModifiers else { return }
+        heldModifiers = modifiers
+        if sectionDraft != nil || !picks.isEmpty { updateDraft() }
+    }
+
     /// Hover: the nearest stroke within 4 points at the current zoom.
     public func pointerMoved(to canvas: Vector2) {
         guard let sheet, let picture else {

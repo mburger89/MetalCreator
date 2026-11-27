@@ -127,14 +127,22 @@ extension DrawingEditorModel {
             }
             return
         }
-        let raw = snappedModelPoint(point, in: draft.parent, mapping: mapping)
-        switch Self.constrained(raw, after: draft.points, keepsSlant: modifiers.contains(.shift)) {
+        switch nextSectionPoint(at: point, for: draft, mapping: mapping, keepsSlant: modifiers.contains(.shift)) {
         case .failure(let refused): refuse(refused.sentence)
         case .success(let next):
             var updated = draft
             updated.points.append(next)
             sectionDraft = updated
         }
+    }
+
+    /// The next point of the cutting line for a pointer at `point` (sheet mm): snapped to the corner or circle centre under it, then
+    /// constrained. A click and the preview under a still pointer both read it, so what is drawn is what a click would place.
+    func nextSectionPoint(
+        at point: Vector2, for draft: SectionDraft, mapping: ViewMapping, keepsSlant: Bool
+    ) -> Result<Vector2, DrawingRefusal> {
+        Self.constrained(
+            snappedModelPoint(point, in: draft.parent, mapping: mapping), after: draft.points, keepsSlant: keepsSlant)
     }
 
     /// Return, or a click on the last point: a line of two or more points with an odd number of segments is finished (R13).
@@ -328,7 +336,8 @@ extension DrawingEditorModel {
         if let draft = sectionDraft, let found = draftParent(draft.parent) {
             var points = draft.points
             if !draft.isFinished, let pointer = lastPointer,
-                case .success(let next) = Self.constrained(found.mapping.model(pointer), after: points, keepsSlant: false) {
+                case .success(let next) = nextSectionPoint(
+                    at: pointer, for: draft, mapping: found.mapping, keepsSlant: heldModifiers.contains(.shift)) {
                 points.append(next)
             }
             guard points.count >= 2 else { return nil }

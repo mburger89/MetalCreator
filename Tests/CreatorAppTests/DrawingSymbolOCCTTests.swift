@@ -101,6 +101,11 @@ struct DrawingSymbolOCCTTests {
         let part = try await plate()
         #expect(holdsEverything(part).isEmpty, "\(holdsEverything(part))")
         #expect(part.app.report(of: part.frame)?.warnings == [])
+        // The frame draws its two datum cells, each holding its letter, and the basic dimensions are the values they measure.
+        let frameTexts = part.app.texts(of: part.frame)
+        #expect(frameTexts.contains("A") && frameTexts.contains("B"), "\(frameTexts)")
+        #expect(part.app.report(of: part.toA)?.current?.values == [20], "\(String(describing: part.app.report(of: part.toA)))")
+        #expect(part.app.report(of: part.toB)?.current?.values == [30], "\(String(describing: part.app.report(of: part.toB)))")
         let url = temporaryURL("plate.pdf")
         defer { try? FileManager.default.removeItem(at: url) }
         let warnings = try await part.app.exportDrawingReturningWarnings(.pdf, to: url)
@@ -143,7 +148,9 @@ struct DrawingSymbolOCCTTests {
         for lost in [part.datumA, part.toA] {
             let report = try #require(part.app.report(of: lost))
             #expect(report.isLost, "the edge is gone: \(report.status)")
-            #expect(part.app.texts(of: lost).contains { $0.hasSuffix("?") || $0 == "A" }, "\(part.app.texts(of: lost))")
+            // A lost symbol keeps its last place and says so: its own text and the question mark beside it.
+            let texts = part.app.texts(of: lost)
+            #expect(lost == part.datumA ? texts.contains("?") && texts.contains("A") : texts == ["20?"], "\(texts)")
         }
         #expect(part.app.report(of: part.frame)?.status == .held)
         #expect(part.app.report(of: part.frame)?.warnings == [], "A is still defined by its symbol, lost or not")

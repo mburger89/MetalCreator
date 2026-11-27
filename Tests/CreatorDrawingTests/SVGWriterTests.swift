@@ -39,9 +39,41 @@ struct SVGWriterTests {
         #expect(paths[0] == "M1 2 L3 4")
         #expect(paths[1] == "M0 0 L5 0 L5 5")
         #expect(paths[2].hasPrefix("M60 50 C") && !paths[2].contains("L"))
+        // Point by point: every path's numbers are the PDF's path operands, in order (M/L are m/l, C is c).
         let pdf = pdfText(PDFWriter.write([page], title: "T").data)
-        let numbers = paths[2].split(whereSeparator: { $0 == " " || $0 == "C" || $0 == "M" }).map(String.init)
-        for number in numbers { #expect(pdf.contains(number)) }
+        let operands = pdf.split(separator: "\n").filter { $0.hasSuffix(" m") || $0.hasSuffix(" l") || $0.hasSuffix(" c") }
+            .map { $0.split(separator: " ").dropLast().map(String.init) }
+        let written = paths.flatMap { path -> [[String]] in
+            var pieces: [[String]] = []
+            var tokens = path.replacingOccurrences(of: "M", with: "M ").replacingOccurrences(of: "L", with: "L ")
+                .replacingOccurrences(of: "C", with: "C ").split(separator: " ").map(String.init)[...]
+            while let command = tokens.popFirst() {
+                let count = command == "C" ? 6 : 2
+                pieces.append(Array(tokens.prefix(count)))
+                tokens = tokens.dropFirst(count)
+            }
+            return pieces
+        }
+        #expect(written == operands, "\(written) vs \(operands)")
+    }
+
+    @Test func rotatedTextHasItsOwnFrame() throws {
+        var page = SheetPicture(size: Vector2(210, 297))
+        var note = DrawingFixtures.text("Note", at: Vector2(30, 40), height: 3.5)
+        note.angle = .pi / 2
+        page.texts = [note]
+        let element = try #require(try read(write(page)).elements(named: "text").first)
+        #expect(element.attribute("transform") == "matrix(0 1 1 0 30 40)")
+    }
+
+    @Test func controlCharactersNeverReachTheXML() throws {
+        var page = SheetPicture(size: Vector2(210, 297))
+        page.texts = [DrawingFixtures.text("A\u{1}B\u{B}C", at: Vector2(10, 10), height: 3.5)]
+        let output = write(page, title: "Bad\u{0}\u{8}title\u{1F}\tok\n")
+        let raw = try #require(String(bytes: output.data, encoding: .utf8))
+        #expect(!raw.unicodeScalars.contains { $0.value < 0x20 && $0.value != 9 && $0.value != 10 && $0.value != 13 })
+        #expect(raw.contains("<title>Badtitle\tok\n</title>"))
+        #expect(!raw.contains("A\u{1}"))
     }
 
     @Test func dashesFollowTheStandard() throws {

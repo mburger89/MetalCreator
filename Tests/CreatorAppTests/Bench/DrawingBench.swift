@@ -146,6 +146,7 @@ struct DrawingBench {
             let milliseconds = warm.timedFrame()
             if step >= 5 { cpu.append(milliseconds) }
         }
+        #expect(try #require(app.drawing.editor.picture).annotationReports.values.allSatisfy { $0.status == .held }, "none lost")
         print(cpu.line(budget: Bench.frameBudget))
     }
 

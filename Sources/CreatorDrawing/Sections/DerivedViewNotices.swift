@@ -16,6 +16,8 @@ public enum DerivedViewNotices {
     public static let auxiliaryParentEmpty =
         "The view this auxiliary view was projected from has nothing drawn yet, so its arrow isn't shown."
 
+    public static let detailParentEmpty = "The view this detail enlarged has nothing drawn yet, so its circle isn't shown."
+
     /// `contents` is what each view shows now: a parent with no projection has no mapping to draw the mark on.
     public static func notices(for view: DrawingView, in sheet: DrawingSheet, contents: [ViewID: ViewContent]) -> [String] {
         switch view.derivation {
@@ -27,7 +29,13 @@ public enum DerivedViewNotices {
             return notice(
                 parent: arrow.parent, stored: arrow.parentFrame, in: sheet, contents: contents,
                 sentences: (auxiliaryParentDeleted, auxiliaryParentTurned, auxiliaryParentEmpty))
-        case .detail, nil:
+        case .detail(let circle):
+            // A deleted parent is the view's own problem sentence (`DetailClip.parentDeletedSentence`); one with nothing drawn has
+            // no mapping to put the circle on.
+            guard let parent = sheet.view(circle.parent), parent.id != view.id else { return [] }
+            let content = contents[parent.id] ?? ViewContent()
+            return (content.framing ?? content.projection?.bounds) == nil ? [detailParentEmpty] : []
+        case nil:
             return []
         }
     }

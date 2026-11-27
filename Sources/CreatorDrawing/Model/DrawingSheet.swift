@@ -69,6 +69,20 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         }
     }
 
+    /// Every datum symbol's stored distance made the one drawn (at least `DatumLayout.minimumDistance`), so the stored and the drawn
+    /// values agree. `standard` gives the lettering height; decoding does not know it and takes the smaller of the two.
+    public mutating func clampingDatumDistances(standard: DrawingStandard?) {
+        let heights = [DrawingStyle.iso, .asme].filter { standard == nil || $0.standard == standard }.map { $0.notesHeight(for: size) }
+        guard let h = heights.min() else { return }
+        for index in annotations.indices {
+            guard case .datumFeature(var datum) = annotations[index].kind else { continue }
+            let clamped = datum.clampedDistance(h: h, standard: standard ?? .iso)
+            guard clamped != datum.distance else { continue }
+            datum.distance = clamped
+            annotations[index].kind = .datumFeature(datum)
+        }
+    }
+
     /// Removes the annotation and the symbols hanging on it (plan R2).
     public mutating func removeAnnotation(_ id: AnnotationID) {
         annotations.removeAll { $0.id == id || $0.symbolAttachment == .dimension(id) }
@@ -95,11 +109,13 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         return nil
     }
 
-    /// What the title block's revision field shows: the table's last letter, else the typed revision (DR-5 R9).
-    public var revisionShown: String {
-        if let last = revisionTable?.table.rows.last { return last.letter }
-        return titleBlock.revision
+    /// The letter of the table's last row whose letter is a valid revision letter; nil with no table or no valid row.
+    public var lastValidRevisionLetter: String? {
+        revisionTable?.table.rows.last { RevisionLetters.isValid($0.letter) }?.letter
     }
+
+    /// What the title block's revision field shows: the table's last valid letter, else the typed revision (DR-5 R9).
+    public var revisionShown: String { lastValidRevisionLetter ?? titleBlock.revision }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, size, orientation, scale, titleBlock, views, annotations, notes
@@ -124,6 +140,7 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
             Self.repairingTables(
                 decodedAnnotations.map(Self.freeingTables).filter { $0.view.map(present.contains) ?? true }.sorted { $0.id < $1.id }))
         notes = try c.decodeIfPresent(SheetNotes.self, forKey: .notes) ?? SheetNotes()
+        clampingDatumDistances(standard: nil)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -139,23 +156,12 @@ public struct DrawingSheet: Hashable, Sendable, Codable, Identifiable {
         if !notes.isEmpty { try c.encode(notes, forKey: .notes) }
     }
 
-    /// A view whose alignment names a view that is not here, or would close a cycle, is kept and set free at its centre.
+    /// A view whose alignment names a view that is not here, or that is the highest `ViewID` of a cycle, is kept and set free at
+    /// its centre; every other view keeps its alignment, though it follows a free view (`ViewPlacement.alignmentIsBroken`).
     private static func repairingAlignments(_ sorted: [DrawingView]) -> [DrawingView] {
         var result = sorted
-        let present = Set(sorted.map(\.id))
-        for index in result.indices {
-            if let parent = result[index].alignment?.parent, !present.contains(parent) { result[index].alignment = nil }
-        }
-        for index in result.indices where result[index].alignment != nil {
-            var seen: Set<ViewID> = [result[index].id]
-            var next = result[index].alignment?.parent
-            while let current = next {
-                if !seen.insert(current).inserted {
-                    result[index].alignment = nil
-                    break
-                }
-                next = result.first { $0.id == current }?.alignment?.parent
-            }
+        for index in result.indices where ViewPlacement.alignmentIsBroken(sorted[index], in: sorted) {
+            result[index].alignment = nil
         }
         return result
     }

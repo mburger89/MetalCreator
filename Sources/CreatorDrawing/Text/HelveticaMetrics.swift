@@ -6,6 +6,16 @@ public enum HelveticaMetrics {
     /// The height of a capital letter in 1/1000 em.
     public static let capHeight = 718
 
+    /// The vertical extent of the glyph "(" and ")" about the baseline in 1/1000 em: Helvetica.afm's `parenleft` and `parenright`
+    /// bounding boxes are both `-207` to `733`.
+    public static let parenthesisExtent: ClosedRange<Int> = -207...733
+
+    /// How far above the baseline the middle of a parenthesis stands, for lettering of cap height `height`.
+    public static func parenthesisMiddle(height: Double) -> Double {
+        let size = height * 1000 / Double(capHeight)
+        return Double(parenthesisExtent.lowerBound + parenthesisExtent.upperBound) / 2 * size / 1000
+    }
+
     /// The WinAnsi byte for `character`, or `nil` when the font has no such glyph.
     public static func winAnsi(_ character: Character) -> UInt8? {
         let scalars = String(character).precomposedStringWithCanonicalMapping.unicodeScalars

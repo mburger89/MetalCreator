@@ -70,6 +70,15 @@ struct SymbolSelectionTests {
         return value
     }
 
+    @Test func draggingADatumIntoItsFootStoresTheDistanceItIsDrawnAt() throws {
+        let s = scene(adding: [Self.datum()])
+        let least = DatumLayout.minimumDistance(h: DrawingStyle.iso.notesHeight(for: .a4), standard: .iso)
+        s.drag(from: s.centre(of: Self.datumID), by: Vector2(0, 9.5))
+        let moved = try datum(s)
+        #expect(abs(moved.distance) >= least - 1e-9, "stored \(moved.distance), least \(least)")
+        #expect(moved.distance < 0, "the side is kept")
+    }
+
     @Test func draggingADatumSlidesItsFoot() throws {
         let s = scene(adding: [Self.datum()])
         let held = try #require(s.report[Self.datumID])

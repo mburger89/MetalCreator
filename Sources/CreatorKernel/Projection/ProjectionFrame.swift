@@ -18,7 +18,10 @@ public struct ProjectionFrame: Hashable, Sendable, Codable {
     /// A frame looking along `direction` with `up` made perpendicular to it; `nil` when either is zero or they are parallel.
     public static func make(direction: Vector3, up: Vector3) -> ProjectionFrame? {
         guard let unit = direction.normalized else { return nil }
-        guard let flat = (up - unit * up.dot(unit)).normalized, flat.length > 1e-9 else { return nil }
+        // Normalise `up` first, so the parallel test reads the angle and not the length of `up`.
+        guard let upUnit = up.normalized else { return nil }
+        let residual = upUnit - unit * upUnit.dot(unit)
+        guard residual.length > 1e-9, let flat = residual.normalized else { return nil }
         return ProjectionFrame(direction: unit, up: flat)
     }
 

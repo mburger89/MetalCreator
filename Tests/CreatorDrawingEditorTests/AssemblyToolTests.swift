@@ -103,4 +103,20 @@ struct AssemblyToolTests {
         #expect(h.model.refusal == "Add an Output node and wire the part into it first.")
         #expect(h.log.commits.isEmpty)
     }
+
+    @Test func pickContextCarriesTheViewsSpansOnlyForAnAssemblyView() throws {
+        let scene = AssemblyScene.make()
+        let context = try scene.h.model.pickContext(of: scene.view.id).get()
+        #expect(context.parts == scene.spans)
+        #expect(context.parts?.map(\.output) == [scene.first, scene.second])
+        #expect(context.parts?.map(\.faces) == scene.spans.map(\.faces))
+        // The same content on a single-Output view hands over no spans, so its anchors are never wrapped.
+        var single = scene.view
+        single.assembly = nil
+        let sheet = DrawingSheet(name: "Sheet 1", views: [single])
+        let content = ViewContent(projection: Projection2D(lines: []), topology: scene.topology, parts: scene.spans)
+        let h = EditorHarness(
+            document: EditorDocuments.document([sheet]), sheet: sheet.id, sources: [], contents: [single.id: content])
+        #expect(try h.model.pickContext(of: single.id).get().parts == nil)
+    }
 }

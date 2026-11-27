@@ -60,7 +60,12 @@ extension DrawingEditorModel {
         guard let id = currentSheet, let current = sheet, !selection.isEmpty || !selectedAnnotations.isEmpty, delta.length > 0
         else { return false }
         let roots = Self.roots(of: selection, in: current)
-        let seeds = seeds(for: selectedAnnotations, pressing: nil)
+        // A nudge acts as a press on the label: along a linear dimension's direction it slides the label (R9), across it moves the line.
+        let seeds = seeds(for: selectedAnnotations, pressing: nil).map { seed -> AnnotationSeed in
+            var labelled = seed
+            labelled.onLabel = true
+            return labelled
+        }
         let name = moveName(roots: roots, seeds: seeds, in: current)
         if !isRepeat || nudgeKey == nil { nudgeKey = "drawing-nudge-\(UUID().uuidString)" }
         commitSheet(id, name, key: nudgeKey) { sheet in

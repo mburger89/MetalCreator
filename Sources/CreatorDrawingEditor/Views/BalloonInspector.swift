@@ -15,14 +15,22 @@ struct BalloonInspector: Component {
         "Item \(number.map(String.init) ?? "?") · \(name ?? "?")"
     }
 
+    /// The view the balloon is on; none when it has no view, and then no item row is shown.
+    static func view(of annotation: DrawingAnnotation, in sheet: DrawingSheet) -> DrawingView? {
+        annotation.view.flatMap { sheet.view($0) }
+    }
+
     var content: some ElementGroup {
-        let part = sheet.view(annotation.view ?? ViewID()).map { balloon.part(in: $0) } ?? balloon.leader.target.part
+        let view = Self.view(of: annotation, in: sheet)
+        let part = view.map { balloon.part(in: $0) } ?? balloon.leader.target.part
         let names = model.partNames
         let number = part.flatMap { PartItems.numbered(model.document, names: names).number(of: $0) }
         VStack(alignment: .leading, spacing: Pixels(8)) {
             Text("Balloon").font(.headline).foregroundStyle(colors.primary.color)
-            Text(Self.itemText(number: number, name: part.flatMap { names[$0] })).font(.callout)
-                .foregroundStyle(colors.primary.color)
+            if view != nil {
+                Text(Self.itemText(number: number, name: part.flatMap { names[$0] })).font(.callout)
+                    .foregroundStyle(colors.primary.color)
+            }
             if case .lost(let reason)? = report?.status {
                 Text(reason.sentence).font(.caption).foregroundStyle(colors.warning.color)
                 Text(DimensionInspector.reattachSentence).font(.caption).foregroundStyle(colors.secondary.color)

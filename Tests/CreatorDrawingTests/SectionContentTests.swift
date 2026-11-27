@@ -182,6 +182,16 @@ struct SectionContentTests {
         #expect(DrawingProjector.hatchFailedSentence == "The cut faces of a part couldn't be hatched.")
     }
 
+    @Test func aSheetThatCouldNotBeCutIsReportedOnceInTheViewsWarnings() async throws {
+        let kernel = FakeKernel()
+        let solid = try await ProjectionCacheTests.box(kernel)
+        await kernel.setSectionCutHook { part, _, _ in part }
+        await kernel.setSectionCutWarnings(["The sheet beside a part couldn't be cut, so it's left out of this section."])
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        let content = await projector.content(for: sectionView(cutter), scale: 1, source: source([solid, solid]), previous: nil)
+        #expect(content.warnings.filter { $0 == "The sheet beside a part couldn't be cut, so it's left out of this section." }.count == 1)
+    }
+
     /// A box with `open` of its faces marked as a bare shell's: the value holds a closed solid and an open shell (R5).
     func mixed(_ box: Solid, openFaces open: Set<FaceID>) -> Solid {
         var topology = box.topology

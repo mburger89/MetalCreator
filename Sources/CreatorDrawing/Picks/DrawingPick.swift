@@ -69,10 +69,14 @@ public enum PickShape: Hashable, Sendable {
 public struct PickedAnchor: Hashable, Sendable {
     public var target: AnchorTarget
     public var shape: PickShape
+    /// How far along the view direction a point pick lies (a corner or a centre), so two points at different depths can be refused an
+    /// aligned dimension at the pick (plan R8); nil for a pick with no one place.
+    public var depth: Double?
 
-    public init(target: AnchorTarget, shape: PickShape) {
+    public init(target: AnchorTarget, shape: PickShape, depth: Double? = nil) {
         self.target = target
         self.shape = shape
+        self.depth = depth
     }
 }
 
@@ -138,7 +142,9 @@ public enum DrawingPick {
         }
         let scoped = topology.restricted(toFaces: span.faces)
         let picker = Picker(topology: scoped, frame: frame, mapping: mapping, purpose: purpose, click: click)
-        return picker.anchor(for: candidate).map { PickedAnchor(target: .onPart(span.output, $0.target), shape: $0.shape) }
+        return picker.anchor(for: candidate).map {
+            PickedAnchor(target: .onPart(span.output, $0.target), shape: $0.shape, depth: $0.depth)
+        }
     }
 
     /// The span holding the face the candidate's line lies on, or nil for a line on no part (a curve).
@@ -254,23 +260,26 @@ extension DrawingPick {
             }
             if let refused = refuse(geometry) { return .failure(refused) }
             if purpose == .holeCallout, case .failure(let refused) = readHole(target) { return .failure(refused) }
-            return .success(PickedAnchor(target: target, shape: shape(of: geometry)))
+            // A line square to the view lies at one depth all along (plan R8).
+            var depth: Double?
+            if case .segment(let start, _) = geometry { depth = start.dot(frame.direction) }
+            return .success(PickedAnchor(target: target, shape: shape(of: geometry), depth: depth))
         }
 
         /// R5's rules and each tool's own, for a dimensioned, called out or marked edge.
         private func refuse(_ geometry: AnchorGeometry) -> DrawingRefusal? {
             switch (purpose, geometry) {
             case (.centreLine, _): return refusal(centreLineSentence)
-            case (.holeCallout, .circle(_, let axis, _, let sweep)):
+            case (.holeCallout, .circle(_, let axis, _, _, let sweep)):
                 guard sweep >= 2 * .pi - 1e-9 else { return refusal(holeCircleSentence) }
                 return isFaceOn(axis) ? nil : refusal(circleSentence)
             case (.holeCallout, _): return refusal(holeCircleSentence)
-            case (.centreMark, .circle(_, let axis, _, _)): return isFaceOn(axis) ? nil : refusal(circleSentence)
+            case (.centreMark, .circle(_, let axis, _, _, _)): return isFaceOn(axis) ? nil : refusal(circleSentence)
             case (.centreMark, _): return refusal(centreMarkSentence)
             case (_, .segment(let a, let b)):
                 let along = b - a
                 return abs(along.dot(frame.direction)) <= 1e-9 * along.length ? nil : refusal(lineSentence)
-            case (_, .circle(_, let axis, _, _)): return isFaceOn(axis) ? nil : refusal(circleSentence)
+            case (_, .circle(_, let axis, _, _, _)): return isFaceOn(axis) ? nil : refusal(circleSentence)
             default: return refusal(notLineOrCircleSentence)
             }
         }
@@ -280,7 +289,7 @@ extension DrawingPick {
             switch geometry {
             case .segment(let a, let b):
                 return DrawingPick.isSeenEndOn(b - a, direction: frame.direction) ? refusal(symbolEndOnSentence) : nil
-            case .circle(_, let axis, _, _):
+            case .circle(_, let axis, _, _, _):
                 switch purpose {
                 case .datum: return refusal(datumCircleSentence)
                 case .surface: return refusal(surfaceCircleSentence)
@@ -308,7 +317,7 @@ extension DrawingPick {
         func shape(of geometry: AnchorGeometry) -> PickShape {
             switch geometry {
             case .segment(let a, let b): return .line(frame.place(a), frame.place(b))
-            case .circle(let center, _, let radius, let sweep):
+            case .circle(let center, _, let radius, _, let sweep):
                 return .circle(center: frame.place(center), radius: radius, isFull: sweep >= 2 * .pi - 1e-9)
             case .point(let p): return .point(frame.place(p))
             case .cylinder(let axisPoint, let axis, let radius, _):
@@ -332,9 +341,9 @@ extension DrawingPick {
             case .failure(let refused): return .failure(refused)
             case .success(let found): circle = found
             }
-            guard case .circle(let center, let axis, _, _) = circle else { return .failure(refusal(notLineOrCircleSentence)) }
+            guard case .circle(let center, let axis, _, _, _) = circle else { return .failure(refusal(notLineOrCircleSentence)) }
             if purpose == .dimension, !isFaceOn(axis) { return .failure(refusal(circleSentence)) }
-            return .success(PickedAnchor(target: .centre(pick), shape: .point(frame.place(center))))
+            return .success(PickedAnchor(target: .centre(pick), shape: .point(frame.place(center)), depth: center.dot(frame.direction)))
         }
     }
 }

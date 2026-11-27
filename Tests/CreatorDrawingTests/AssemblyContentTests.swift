@@ -174,6 +174,36 @@ struct AssemblyContentTests {
         #expect(compound.topology.restricted(toFaces: 19..<19).faces.isEmpty)
     }
 
+    @Test func restrictedDropsAnEdgeCrossingTwoSpans() async throws {
+        let kernel = await kernel()
+        let box = try await base(kernel)
+        let first = solid(6, from: box), second = solid(7, from: box)
+        var compound = Self.concatenate([first, second])
+        // Concatenated chains share no edge, so add one joining face 5 (span 0..<6) and face 6 (span 6..<13), a one-face edge
+        // and a faceless one.
+        var edges = compound.topology.edges
+        let lowIDs = edges.filter { $0.faces.allSatisfy { $0.rawValue < 6 } }.map(\.id.rawValue)
+        let highIDs = edges.filter { $0.faces.allSatisfy { $0.rawValue >= 6 } }.map(\.id.rawValue)
+        var crossing = edges[0]
+        crossing.id = EdgeID(99)
+        crossing.faces = [FaceID(5), FaceID(6)]
+        var lone = edges[0]
+        lone.id = EdgeID(100)
+        lone.faces = [FaceID(5)]
+        var faceless = edges[0]
+        faceless.id = EdgeID(101)
+        faceless.faces = []
+        edges += [crossing, lone, faceless]
+        compound = Solid(
+            topology: Topology(faces: compound.topology.faces, edges: edges), bounds: compound.bounds, storage: compound.storage)
+        let low = compound.topology.restricted(toFaces: 0..<6), high = compound.topology.restricted(toFaces: 6..<13)
+        #expect(lowIDs == [1, 2, 3, 4, 5] && highIDs == [6, 7, 8, 9, 10, 11])
+        #expect(low.edges.map(\.id.rawValue) == lowIDs + [100])
+        #expect(high.edges.map(\.id.rawValue) == highIDs)
+        #expect(!low.edges.contains { $0.id == EdgeID(99) } && !high.edges.contains { $0.id == EdgeID(99) })
+        #expect(!low.edges.contains { $0.id == EdgeID(101) } && !high.edges.contains { $0.id == EdgeID(101) })
+    }
+
     @Test func aSectionOfAnAssemblyHasSpansOverTheRemainders() async throws {
         let kernel = await kernel()
         let box = try await base(kernel)
@@ -186,6 +216,22 @@ struct AssemblyContentTests {
             previous: nil)
         #expect(content.problem == nil)
         #expect(content.parts.map(\.faces) == [0..<5, 5..<5])
+    }
+
+    @Test func aSectionHatchesALaterPartAtItsIndexInTheViewsList() async throws {
+        let kernel = await kernel()
+        let box = try await base(kernel)
+        let b = solid(7, from: box)
+        // Part A has nothing to draw (left out of the spans); B is still the second part, so its hatch is part 1.
+        await kernel.setSectionCutHook { solid, _, _ in solid }
+        let projector = DrawingProjector(cache: ProjectionCache(), kernel: kernel)
+        let content = await projector.content(
+            for: view([nodeA, nodeB], cutter: cutter), scale: 1, parts: [part(nodeA, "A", []), part(nodeB, "B", [b])],
+            previous: nil)
+        #expect(content.problem == nil)
+        #expect(content.parts.map(\.output) == [nodeB])
+        #expect(!content.hatch.isEmpty)
+        #expect(content.hatch.map(\.part) == Array(repeating: 1, count: content.hatch.count))
     }
 
     @Test func aDetailCopiesItsParentsSpans() {
@@ -205,5 +251,31 @@ struct AssemblyContentTests {
             source: part(nodeA, "A", [solid(6, from: box), solid(6, from: box)]), previous: nil)
         #expect(content.parts == [])
         #expect(content.problem == nil)
+    }
+
+    @Test func theAnnotationStateCarriesTheContentsSpans() {
+        let spans = [
+            PartSpan(output: nodeA, faces: 0..<6, curves: 0..<0), PartSpan(output: nodeB, faces: 6..<13, curves: 0..<0),
+        ]
+        let topology = Topology(faces: [], edges: [])
+        let content = ViewContent(projection: Projection2D(lines: []), topology: topology, parts: spans)
+        let frame = ProjectionCacheTests.front
+        guard case .annotated(_, let held, let carried) = AnnotationViewState.of(content, frame: frame) else {
+            Issue.record("a drawn view with a topology is annotated")
+            return
+        }
+        #expect(carried == spans)
+        #expect(held == frame)
+        let context = AnnotationContext(
+            view: nil, center: .zero, mapping: nil, viewFrame: Rect2D(min: .zero, max: .zero), projection: nil,
+            state: .annotated(topology, frame, parts: spans), standard: .iso, style: .iso, drawingStyle: .iso, height: 3.5)
+        #expect(context.parts == spans)
+        // A failed view has no spans to resolve against.
+        var failed = content
+        failed.problem = "It failed."
+        guard case .failed = AnnotationViewState.of(failed, frame: frame) else {
+            Issue.record("a view with a problem is failed")
+            return
+        }
     }
 }

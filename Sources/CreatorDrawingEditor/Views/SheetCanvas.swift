@@ -124,6 +124,9 @@ public struct SheetCanvas: Component {
                 case .ended: model.pointerLeft()
                 }
             }
+            .onModifierKeysChanged(mask: .shift) { _, held in
+                model.modifiersChanged(held.contains(.shift) ? [.shift] : [])
+            }
             .onScrollWheel { event in SheetCanvasInput.scrolled(event, model) }
             .onGeometryChange(for: Size<Pixels>.self, of: { $0.size }, action: { size in
                 let width = Double(size.width.value), height = Double(size.height.value)

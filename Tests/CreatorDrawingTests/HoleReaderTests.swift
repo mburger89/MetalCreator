@@ -8,24 +8,24 @@ import Testing
 /// Hole callouts read from hand-built topologies (plan R12): a hole runs down from z = 0 along -z, its mouth in a top plane.
 @Suite("Hole reading")
 struct HoleReaderTests {
-    private typealias Fixture = TopologyFixtures
-    private let top = StandardOrientation.top.frame
-    private let up = Vector3(0, 0, 1)
+    typealias Fixture = TopologyFixtures
+    let top = StandardOrientation.top.frame
+    let up = Vector3(0, 0, 1)
 
-    private func v(_ z: Double) -> Vector3 { Vector3(0, 0, z) }
+    func v(_ z: Double) -> Vector3 { Vector3(0, 0, z) }
 
-    private func face(_ id: Int, _ kind: SurfaceKind, normal: Vector3, z: Double, radius: Double? = nil) -> FaceInfo {
+    func face(_ id: Int, _ kind: SurfaceKind, normal: Vector3, z: Double, radius: Double? = nil) -> FaceInfo {
         FaceInfo(
             id: FaceID(id), kind: kind, normal: normal, area: 1, centroid: v(z), tags: Fixture.tags(.side(segment: id)),
             radius: radius, axisPoint: radius == nil ? nil : v(0))
     }
 
-    private func ring(_ id: Int, z: Double, radius: Double, _ a: Int, _ b: Int) -> EdgeInfo {
+    func ring(_ id: Int, z: Double, radius: Double, _ a: Int, _ b: Int) -> EdgeInfo {
         Fixture.circle(id, center: v(z), axis: up, radius: radius, between: a, b)
     }
 
     /// The part's top face (0, with a boundary line so it is no bare disc) and bottom face (1, likewise) at z = -20.
-    private func part(faces: [FaceInfo], edges: [EdgeInfo]) -> Topology {
+    func part(faces: [FaceInfo], edges: [EdgeInfo]) -> Topology {
         let outer = [
             face(0, .plane, normal: up, z: 0), face(1, .plane, normal: Vector3(0, 0, -1), z: -20),
             face(9, .plane, normal: Vector3(1, 0, 0), z: -10),
@@ -37,12 +37,12 @@ struct HoleReaderTests {
         return Topology(faces: outer + faces, edges: lines + edges)
     }
 
-    private func read(_ topology: Topology, edge id: Int, frame: ProjectionFrame? = nil) -> HoleReading {
+    func read(_ topology: Topology, edge id: Int, frame: ProjectionFrame? = nil) -> HoleReading {
         let pick = Fixture.pick(topology, [id])
         return HoleReader.read(.edge(pick), in: topology, frame: frame ?? top, parts: [])
     }
 
-    private func shape(_ reading: HoleReading) -> HoleShape? {
+    func shape(_ reading: HoleReading) -> HoleShape? {
         if case .hole(let shape, _, _, _) = reading { shape } else { nil }
     }
 

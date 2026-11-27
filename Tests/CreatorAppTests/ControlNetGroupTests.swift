@@ -31,11 +31,12 @@ struct ControlNetGroupTests {
         var poles: [Vector3] = []
         for i in 0..<300 { for j in 0..<300 { poles.append(Vector3(0, Double(i) * 0.5, Double(j) * 0.5)) } }
         let net = ControlNetGrid(poles: poles, uCount: 300, vCount: 300, normals: Array(repeating: .unitX, count: poles.count))
-        let clock = ContinuousClock()
-        var session: ControlNetSession?
-        let elapsed = clock.measure { session = helper.make(net).0 }
-        #expect(elapsed < .seconds(5))
-        #expect(session?.coincident.isEmpty == true)
+        // Work, not wall-clock time: a quadratic grouping would compare every pole with every other (n squared candidates).
+        var candidates = 0
+        let found = ControlNetSession.coincidentPoles(in: net, candidates: &candidates)
+        #expect(found.isEmpty)
+        #expect(candidates <= 4 * poles.count, "\(candidates) candidates for \(poles.count) poles")
+        #expect(helper.make(net).0.coincident.isEmpty)
     }
 
     @Test func typingOnAnApexMovesTheWholeGroup() throws {

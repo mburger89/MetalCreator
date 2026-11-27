@@ -35,7 +35,7 @@ public enum LostReason: Error, Hashable, Sendable {
         case .turnedAway: "What it stands on has turned, so this view no longer shows it the way the symbol needs."
         case .sourceRemoved: DrawingProjector.removedSentence
         case .viewFailed(let message): message
-        case .noPart: "This view has no part to measure."
+        case .noPart: "This view shows no part."
         case .partNotShown: "The part it was on isn't in this view any more."
         case .refused(let sentence): sentence
         }

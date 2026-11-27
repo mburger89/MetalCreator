@@ -12,6 +12,19 @@ extension DrawingSymbols {
         func circle(_ x: Double, _ y: Double, _ radius: Double) -> SheetSegment {
             .arc(center: point(x, y), radius: radius * h, start: 0, sweep: 2 * .pi)
         }
+        switch characteristic {
+        case .straightness, .flatness, .circularity, .cylindricity, .lineProfile, .surfaceProfile:
+            return formGlyph(characteristic, point: point, circle: circle, h: h)
+        case .parallelism, .perpendicularity, .angularity, .position, .concentricity, .symmetry, .circularRunout, .totalRunout:
+            return placedCharacteristic(characteristic, origin: origin, h: h)
+        }
+    }
+
+    /// The form symbols (straightness to the profiles); every other characteristic is `placedCharacteristic`'s.
+    private static func formGlyph(
+        _ characteristic: GeometricCharacteristic, point: (Double, Double) -> Vector2, circle: (Double, Double, Double) -> SheetSegment,
+        h: Double
+    ) -> [SheetSegment] {
         let s = sixty
         switch characteristic {
         case .straightness:
@@ -30,8 +43,8 @@ extension DrawingSymbols {
             return [.arc(center: point(0.5, 0.25), radius: 0.5 * h, start: 0, sweep: .pi)]
         case .surfaceProfile:
             return [.arc(center: point(0.5, 0.25), radius: 0.5 * h, start: 0, sweep: .pi), .line(point(0, 0.25), point(1, 0.25))]
-        default:
-            return placedCharacteristic(characteristic, origin: origin, h: h)
+        case .parallelism, .perpendicularity, .angularity, .position, .concentricity, .symmetry, .circularRunout, .totalRunout:
+            return []
         }
     }
 
@@ -66,13 +79,15 @@ extension DrawingSymbols {
                 .polyline([point(0.35, 0.7), point(0.6, 0.7), point(0.6, 0.45)]),
                 .polyline([point(0.75, 0.7), point(1, 0.7), point(1, 0.45)]),
             ]
-        default: return []
+        case .straightness, .flatness, .circularity, .cylindricity, .lineProfile, .surfaceProfile: return []
         }
     }
 
     /// A circled modifier: a full circle about `center` and the letter, centred on it (plan R3).
-    public static func circled(_ letter: String, center: Vector2, h: Double) -> (segments: [SheetSegment], text: PlacedText) {
-        let style = SymbolStyle.of(.iso)
+    public static func circled(
+        _ letter: String, center: Vector2, h: Double, standard: DrawingStandard
+    ) -> (segments: [SheetSegment], text: PlacedText) {
+        let style = SymbolStyle.of(standard)
         let height = style.circledLetter * h
         let run = DrawingText.layout(letter, height: height)
         let text = PlacedText(
@@ -81,7 +96,7 @@ extension DrawingSymbols {
     }
 
     /// The lay symbol perpendicular to the lines of a surface: the perpendicularity glyph at 0.8h.
-    public static func layPerpendicular(origin: Vector2, h: Double) -> [SheetSegment] {
-        characteristic(.perpendicularity, origin: origin, h: SymbolStyle.of(.iso).layGlyph * h)
+    public static func layPerpendicular(origin: Vector2, h: Double, standard: DrawingStandard) -> [SheetSegment] {
+        characteristic(.perpendicularity, origin: origin, h: SymbolStyle.of(standard).layGlyph * h)
     }
 }

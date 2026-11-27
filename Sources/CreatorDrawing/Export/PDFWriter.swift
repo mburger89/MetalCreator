@@ -18,7 +18,8 @@ public enum PDFWriter {
     private static let pointsPerMillimetre = 72.0 / 25.4
     private static let contentScale = "2.834645669"
 
-    public static func write(_ pages: [SheetPicture], title: String) -> PDFOutput {
+    public static func write(_ pictures: [SheetPicture], title: String) -> PDFOutput {
+        let pages = pictures.map(\.finite)
         var objects: [[UInt8]] = []
         let kids = (0..<pages.count).map { "\(5 + 2 * $0) 0 R" }.joined(separator: " ")
         objects.append(Array("<< /Type /Catalog /Pages 2 0 R >>".utf8))

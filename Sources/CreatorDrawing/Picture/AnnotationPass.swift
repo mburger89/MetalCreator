@@ -46,6 +46,15 @@ struct AnnotationPass {
             state: AnnotationViewState.of(content, frame: view.orientation.frame), standard: standard, style: annotationStyle,
             drawingStyle: style, height: height, isPictorial: sheet.isPictorial(view), items: items,
             viewSource: view.source)
+        SpanScopes.withFreshCache {
+            composeAnnotations(of: view, context: context, extents: &extents, into: &picture)
+        }
+        picture.viewExtents[view.id] = extents
+    }
+
+    private func composeAnnotations(
+        of view: DrawingView, context: AnnotationContext, extents: inout Rect2D, into picture: inout SheetPicture
+    ) {
         let annotations = sheet.annotations(of: view.id)
         // R11's order: everything not on a dimension, then frames on dimensions, then datum symbols on dimensions, so a hanging
         // datum sits below the frames on the same dimension.
@@ -64,7 +73,6 @@ struct AnnotationPass {
                 add(made.report, made.pieces, of: annotation, extents: &extents, to: &picture)
             }
         }
-        picture.viewExtents[view.id] = extents
     }
 
     private static func isOnDimension(_ annotation: DrawingAnnotation) -> Bool {
