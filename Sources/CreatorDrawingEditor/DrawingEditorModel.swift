@@ -163,6 +163,11 @@ public final class DrawingEditorModel {
 
     var sheet: DrawingSheet? { currentSheet.flatMap { document.sheet($0) } }
 
+    /// Each view's mapped linework, kept between composes so a drag that moves an annotation re-maps no view.
+    @ObservationIgnored var linework = LineworkMemo()
+    /// The views mapped since the model began, a running total for tests.
+    @ObservationIgnored public private(set) var lineworkMapped = 0
+
     func rebuildPicture() {
         defer { updateDraft() }
         guard let sheet else {
@@ -170,7 +175,8 @@ public final class DrawingEditorModel {
             return
         }
         let composed = SheetComposer.compose(
-            sheet, in: document, contents: contents, facts: facts, units: units, remembered: remembered)
+            sheet, in: document, contents: contents, facts: facts, units: units, remembered: remembered, linework: &linework)
+        lineworkMapped += linework.mapped
         picture = composed
         // The newest held figure of each annotation is what a lost one is drawn from (plan R15).
         // A view still being projected, or one the host isn't showing, is held against the topology it had: what it reports is what
