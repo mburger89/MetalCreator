@@ -48,3 +48,57 @@ extension DrawingAnnotation {
         }
     }
 }
+
+extension DrawingAnnotation {
+    /// The annotation with every placement field set to a fixed value (drawings speed R5): a field `AnnotationRefresh.lastGood`
+    /// never reads, so two annotations that differ only in where they sit give the same figure and the app's refresh key
+    /// (`RefreshKey.annotations`) holds this form. Per kind:
+    ///
+    /// - dimension: `placement.offset` (kept as its side, 5 or -5, because the side picks which end of a line is measured from),
+    ///   `placement.textShift`; its `placement.angle` is read by an angle dimension and stays;
+    /// - hole callout: all of `placement`;
+    /// - datum: `distance`, `dimensionEnd`; feature control frame and surface texture: `offset`;
+    /// - balloon: `offset`; parts list: `bottomRight`; revision table: `topRight`;
+    /// - note: `position` (a note is never refreshed, so the app's key drops it before this);
+    /// - centre mark and centre line hold none, and so are returned as they are.
+    ///
+    /// Anything else stays: a symbol's or balloon's leader (its anchor and hint find the foot or name the part), a dimension's
+    /// anchors, kind, tolerance, precision and text, and `last`. Adding a field to an annotation means deciding here whether
+    /// `lastGood` reads it; a field left out of this function counts as read, which only costs a refresh.
+    public var placementStripped: DrawingAnnotation {
+        var stripped = self
+        switch kind {
+        case .dimension(var dimension):
+            dimension.placement.offset = dimension.placement.offset >= 0 ? 5 : -5
+            dimension.placement.textShift = nil
+            stripped.kind = .dimension(dimension)
+        case .holeCallout(var callout):
+            callout.placement = DimensionPlacement(offset: 0, angle: 0)
+            stripped.kind = .holeCallout(callout)
+        case .note(var note):
+            note.position = .zero
+            stripped.kind = .note(note)
+        case .datumFeature(var datum):
+            datum.distance = 0
+            datum.dimensionEnd = 0
+            stripped.kind = .datumFeature(datum)
+        case .featureControl(var frame):
+            frame.offset = .zero
+            stripped.kind = .featureControl(frame)
+        case .surfaceTexture(var texture):
+            texture.offset = nil
+            stripped.kind = .surfaceTexture(texture)
+        case .balloon(var balloon):
+            balloon.offset = .zero
+            stripped.kind = .balloon(balloon)
+        case .partsList:
+            stripped.kind = .partsList(PartsList())
+        case .revisionTable(var table):
+            table.topRight = nil
+            stripped.kind = .revisionTable(table)
+        case .centreMark, .centreLine:
+            break
+        }
+        return stripped
+    }
+}
