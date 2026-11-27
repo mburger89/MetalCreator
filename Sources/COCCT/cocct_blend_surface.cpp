@@ -6,6 +6,12 @@
 // normal curvature as acceleration (a G1 end none). The sections are skinned along the edges (cubic first, then quintic, doubling the
 // sections from 9 to at most 129 as the G2 fillet strips do) and each end is graded against its face with `edge_continuity_against`;
 // a miss after the last attempt is refused in words, never returned.
+//
+// Two closed edges (NS-G Task 4, R6) blend into a tube: edge b starts at its point nearest edge a's start and runs the way the two
+// tangents agree there, the sections are made at the same fractions (the last is the first again and is copied, not read), and each
+// pole column across the sections is interpolated periodically (`g2_skin::interpolate_periodic`, one knot vector for every column), so
+// the surface is periodic in u. Its two rims are the boundary roles; the seam is no role.
+#include "cocct_arc_table.hpp"
 #include "cocct_continuity.hpp"
 #include "cocct_g2_section.hpp"
 #include "cocct_g2_skin.hpp"
@@ -42,7 +48,6 @@ constexpr double kPositionLimit = 1e-4;          // mm, the thresholds of Kernel
 constexpr double kAngleLimit = 0.01 * kPi / 180; // rad
 constexpr double kCurvatureRelative = 0.01;
 constexpr double kCurvatureFloor = 1e-4;         // 1/mm
-constexpr int kTableIntervals = 1024;
 constexpr int kGradeSamples = 32;
 
 struct attempt {
@@ -50,35 +55,6 @@ struct attempt {
     int degree;
 };
 constexpr std::array<attempt, 6> kAttempts{{{9, 3}, {9, 5}, {17, 5}, {33, 5}, {65, 5}, {129, 5}}};
-
-/// A polyline's arc-length table over a parameter range.
-struct length_table {
-    std::vector<double> parameter;
-    std::vector<double> length; // cumulative
-
-    template <typename Point>
-    void build(double first, double last, Point point) {
-        parameter.resize(kTableIntervals + 1);
-        length.assign(kTableIntervals + 1, 0.0);
-        gp_Pnt previous;
-        for (int i = 0; i <= kTableIntervals; ++i) {
-            parameter[i] = first + (last - first) * i / kTableIntervals;
-            const gp_Pnt p = point(parameter[i]);
-            if (i > 0) {
-                length[i] = length[i - 1] + p.Distance(previous);
-            }
-            previous = p;
-        }
-    }
-    double total() const { return length.back(); }
-    double parameter_at(double wanted) const {
-        const auto it = std::upper_bound(length.begin(), length.end(), wanted);
-        const int i = std::clamp(static_cast<int>(it - length.begin()) - 1, 0, kTableIntervals - 1);
-        const double span = length[i + 1] - length[i];
-        const double fraction = span > 1e-300 ? (wanted - length[i]) / span : 0.0;
-        return parameter[i] + (parameter[i + 1] - parameter[i]) * std::clamp(fraction, 0.0, 1.0);
-    }
-};
 
 /// What one side of the blend reads from its edge and the face it continues.
 struct blend_end {
@@ -92,6 +68,18 @@ struct blend_end {
     std::unique_ptr<continuity_detail::face_side> side;
     double sign = 1; // turns `normal x tangent` into the direction that leaves the face across the edge
     bool reversed = false;
+    bool closed = false;
+    double origin = 0; // closed: the fraction of the edge's length at which the blend's start lies
+
+    /// The fraction of this edge's own length that pairs with the blend's fraction `f`: turned when `reversed`, and for a closed edge
+    /// counted from `origin` and wrapped round.
+    double local(double f) const {
+        if (!closed) {
+            return reversed ? 1.0 - f : f;
+        }
+        const double s = origin + (reversed ? -f : f);
+        return s - std::floor(s);
+    }
 
     gp_Pnt point_at_fraction(double f) const { return curve->Value(table.parameter_at(f * table.total())); }
 };
@@ -133,13 +121,19 @@ end_reading read_end(const blend_end &end, double f) {
 
 /// The blend surface through `count` sections skinned at `degree`.
 Handle(Geom_BSplineSurface) build_surface(const blend_end &a, const blend_end &b, int count, int degree, const occt_cancel *cancel) {
+    const bool closed = a.closed;
     std::vector<std::vector<double>> rows;
     std::vector<double> fractions;
     for (int j = 0; j < count; ++j) {
         poll(cancel);
         const double f = static_cast<double>(j) / (count - 1);
-        end_reading first = read_end(a, f);
-        end_reading second = read_end(b, b.reversed ? 1.0 - f : f);
+        if (closed && j == count - 1) {
+            rows.push_back(rows.front()); // the seam is sampled once
+            fractions.push_back(f);
+            break;
+        }
+        end_reading first = read_end(a, a.local(f));
+        end_reading second = read_end(b, b.local(f));
         // The blend runs out of the second edge's face, so its direction there is the way into the face.
         for (double &c : second.condition.direction) {
             c = -c;
@@ -160,7 +154,7 @@ Handle(Geom_BSplineSurface) build_surface(const blend_end &a, const blend_end &b
     }
     g2_skin::Spline skin;
     try {
-        skin = g2_skin::interpolate_open(rows, fractions, {}, degree);
+        skin = closed ? g2_skin::interpolate_periodic(rows, fractions, degree) : g2_skin::interpolate_open(rows, fractions, {}, degree);
     } catch (const g2_skin::singular_system &) {
         throw user_error("The blend surface couldn't be made.");
     }
@@ -185,7 +179,8 @@ Handle(Geom_BSplineSurface) build_surface(const blend_end &a, const blend_end &b
     TColStd_Array1OfInteger vmults(1, 2);
     vmults.SetValue(1, 6);
     vmults.SetValue(2, 6);
-    return new Geom_BSplineSurface(poles, uknots, vknots, umults, vmults, skin.degree, 5);
+    return new Geom_BSplineSurface(poles, uknots, vknots, umults, vmults, skin.degree, 5, closed ? Standard_True : Standard_False,
+                                   Standard_False);
 }
 
 /// -1 (not even G0), 0, 1 or 2.
@@ -243,15 +238,28 @@ void open_end(blend_end &end, const occt_shape *shape, int edge_index) {
     if (end.table.total() < 1e-9) {
         throw user_error("Blend Surface needs edges that have a length.");
     }
-    if (curve.Value(lo).Distance(curve.Value(hi)) < 1e-6) {
-        throw user_error("Blend Surface can't blend a closed edge yet.");
+    end.closed = curve.Value(lo).Distance(curve.Value(hi)) <= kClosedGap;
+}
+
+/// Makes `b` start at its point nearest `a`'s start and run the way the tangents agree there (closed edges).
+void pair_closed(const blend_end &a, blend_end &b) {
+    const gp_Pnt start = a.curve->Value(a.table.parameter.front());
+    const double t_seam = nearest_parameter(*b.curve, b.table, start);
+    gp_Pnt point;
+    gp_Vec tangent_a, tangent_b;
+    a.curve->D1(a.table.parameter.front(), point, tangent_a);
+    b.curve->D1(t_seam, point, tangent_b);
+    if (tangent_a.Magnitude() < 1e-12 || tangent_b.Magnitude() < 1e-12) {
+        throw user_error("An edge has no direction along its length.");
     }
+    b.origin = b.table.length_at(t_seam) / b.table.total();
+    b.reversed = tangent_a.Dot(tangent_b) < 0.0;
 }
 
 /// Picks the face of `end` whose leaving direction at the edge's middle points most toward `other` (R10), and the sign that makes
 /// `normal x tangent` leave it.
-void choose_face(blend_end &end, const gp_Pnt &other) {
-    const double t_mid = end.table.parameter_at(0.5 * end.table.total());
+void choose_face(blend_end &end, double fraction, const gp_Pnt &other) {
+    const double t_mid = end.table.parameter_at(fraction * end.table.total());
     gp_Pnt mid_point;
     gp_Vec tangent;
     end.curve->D1(t_mid, mid_point, tangent);
@@ -322,12 +330,20 @@ occt_shape *blend(const occt_shape *first_shape, int first_edge, int first_conti
     }
     poll(cancel);
 
-    // The second edge runs the way that makes the ends' distances smaller.
-    const gp_Pnt a0 = a.point_at_fraction(0), a1 = a.point_at_fraction(1);
-    const gp_Pnt b0 = b.point_at_fraction(0), b1 = b.point_at_fraction(1);
-    b.reversed = a0.Distance(b1) + a1.Distance(b0) < a0.Distance(b0) + a1.Distance(b1) - 1e-9;
-    choose_face(a, b.point_at_fraction(0.5));
-    choose_face(b, a.point_at_fraction(0.5));
+    if (a.closed != b.closed) {
+        throw user_error("Blend Surface needs both edges closed, or both open.");
+    }
+    if (a.closed) {
+        pair_closed(a, b);
+    } else {
+        // The second edge runs the way that makes the ends' distances smaller.
+        const gp_Pnt a0 = a.point_at_fraction(0), a1 = a.point_at_fraction(1);
+        const gp_Pnt b0 = b.point_at_fraction(0), b1 = b.point_at_fraction(1);
+        b.reversed = a0.Distance(b1) + a1.Distance(b0) < a0.Distance(b0) + a1.Distance(b1) - 1e-9;
+    }
+    // Each face is read where its edge pairs with the other's middle section (a closed edge's paired middle is not its own 0.5).
+    choose_face(a, a.local(0.5), b.point_at_fraction(b.local(0.5)));
+    choose_face(b, b.local(0.5), a.point_at_fraction(a.local(0.5)));
 
     for (std::size_t k = 0; k < kAttempts.size(); ++k) {
         poll(cancel);
@@ -368,7 +384,7 @@ occt_shape *blend(const occt_shape *first_shape, int first_edge, int first_conti
             const TopTools_IndexedMapOfShape edges = map_of(face, TopAbs_EDGE);
             for (int e = 1; e <= edges.Extent(); ++e) {
                 const TopoDS_Edge edge = TopoDS::Edge(edges(e));
-                if (BRep_Tool::Degenerated(edge)) {
+                if (BRep_Tool::Degenerated(edge) || BRep_Tool::IsClosed(edge, face)) { // a tube's seam is no role
                     continue;
                 }
                 double lo = 0, hi = 0;

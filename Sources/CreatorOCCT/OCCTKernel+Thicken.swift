@@ -15,6 +15,8 @@ extension OCCTShape {
 
 extension OCCTKernel {
     static let thickenFoldedSentence = "The surface folds over itself, so it can't be thickened; move its control points apart first."
+    /// Thicken's own sentence for the same refusal as `openEdgesSentence` (NS-G R2).
+    static let thickenOpenEdgesSentence = "The thickened sides don't keep the surface's open edges, so it can't be thickened."
 
     /// How one try at a thickness ended.
     enum ThickenTry {
@@ -80,8 +82,13 @@ extension OCCTKernel {
             return .built(built.shape, built.history)
         } catch let error as OCCTError {
             if error.message == OCCTCancelFlag.message { throw CancellationError() }
-            return .failed(reason: error.message == Self.openEdgesSentence ? error.message : nil)
+            return .failed(reason: Self.thickenFailureReason(error.message))
         }
+    }
+
+    /// What a failed try says to the user: only the open-edges sentence (R2), every other failure is a distance that doesn't work.
+    static func thickenFailureReason(_ message: String) -> String? {
+        message == thickenOpenEdgesSentence ? message : nil
     }
 
     func thickenedSolid(_ shape: OCCTShape, _ history: [OCCTHistoryRecord], of sheet: Solid, tag: NodeTag) throws -> Solid {

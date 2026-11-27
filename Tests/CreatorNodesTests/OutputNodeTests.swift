@@ -10,13 +10,13 @@ struct OutputNodeTests {
     /// (Hole, Boss, Slot, Pattern Feature; 7a-2), and the variation nodes (Cull Pattern, Cull Index, Cull by Region,
     /// Random Reduce, Random Values, Jitter; 7a-3b), the Fields nodes (fields spec §3; Image Field, 7b-2), and the Implicit nodes
     /// (implicit spec §3: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit and Isosurface), the TPMS, Strut and Voronoi lattices and the Mesh node,
-    /// and the twenty Surfaces nodes (NURBS spec: five curve nodes, Edit Surface and Rebuild Surface, seven that make sheets, Trim Surface, Split Surface, Intersection Curves, Extend Surface, Match Surface and Blend Surface; NS-4), in 12 categories, 115 nodes (NS-5 added Sew, Thicken, Offset Surface, Cap Planar Holes and Split Solid).
+    /// and the twenty Surfaces nodes (NURBS spec: five curve nodes, Edit Surface and Rebuild Surface, seven that make sheets, Trim Surface, Split Surface, Intersection Curves, Extend Surface, Match Surface and Blend Surface; NS-4), in 12 categories, 116 nodes (NS-5 added Sew, Thicken, Offset Surface, Cap Planar Holes and Split Solid; NS-G added Separate Solids).
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesTheFieldNodesAndTheImplicitNodesInTwelveCategories() {
-        #expect(BuiltInNodes.all.count == 115)
+        #expect(BuiltInNodes.all.count == 116)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
         let expected: [NodeCategory: Int] = [
             .value: 10, .profile: 6, .solid: 8, .selection: 5, .feature: 2, .patterns: 17, .lists: 8, .fields: 14, .implicit: 14, .mesh: 6,
-            .surface: 24,
+            .surface: 25,
             .output: 1,
         ]
         #expect(counts == expected)

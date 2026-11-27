@@ -184,6 +184,9 @@ public protocol Kernel: Actor {
     func cappingPlanarHoles(_ sheet: Solid, tag: NodeTag) async throws -> CapResult
     /// `solid` divided by `tools` (NS-5, R13). The default refuses.
     func splitSolid(_ solid: Solid, by tools: [Solid], tag: NodeTag) async throws -> SolidSplit
+    /// `value` taken apart into its closed solids and its connected open pieces, keeping every face and edge tag (NURBS gaps, R3).
+    /// The default refuses.
+    func separated(_ value: Solid, tag: NodeTag) async throws -> SeparatedBodies
     /// The view of `solid` (optional: an Output may hold only curves) and `curves` seen through `frame`, every line visible and hidden,
     /// classified (drawings, R9). Like `section` it is `async` for the Fake's hooks; the default below stays synchronous and refuses.
     func projection(of solid: Solid?, curves: [Curve], frame: ProjectionFrame, options: ProjectionOptions) async throws -> Projection2D

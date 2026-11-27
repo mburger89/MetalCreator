@@ -11,24 +11,36 @@
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepFill.hxx>
 #include <BRepGProp.hxx>
+#include <BRepLib.hxx>
 #include <BRep_Builder.hxx>
 #include <GProp_GProps.hxx>
 #include <GeomAbs_CurveType.hxx>
+#include <Geom_ConicalSurface.hxx>
+#include <Geom_CylindricalSurface.hxx>
+#include <Geom_Plane.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <TopoDS_Shell.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <string>
 #include <vector>
 
 using namespace cocct;
@@ -53,6 +65,150 @@ void oriented_ends(const TopoDS_Edge &edge, gp_Pnt &start, gp_Pnt &end) {
     }
 }
 
+/// The angle of `p` about the axis of `frame`, from its X direction.
+double angle_about(const gp_Ax3 &frame, const gp_Pnt &p) {
+    const gp_Vec from(frame.Location(), p);
+    return std::atan2(from.Dot(gp_Vec(frame.YDirection())), from.Dot(gp_Vec(frame.XDirection())));
+}
+
+/// The angles an arc edge covers about `frame`'s axis, `first` and `last` with last >= first (a circle's parametrisation is uniform, so the
+/// middle point is half way). False for a curve that isn't a circle about that axis.
+bool arc_span(const TopoDS_Edge &edge, const gp_Ax3 &frame, double &first, double &last) {
+    BRepAdaptor_Curve curve(edge);
+    const double t0 = curve.FirstParameter();
+    const double t1 = curve.LastParameter();
+    const double start = angle_about(frame, curve.Value(t0));
+    double half = angle_about(frame, curve.Value(0.5 * (t0 + t1))) - start;
+    while (half > kPi) {
+        half -= 2 * kPi;
+    }
+    while (half <= -kPi) {
+        half += 2 * kPi;
+    }
+    const bool full = std::abs((t1 - t0) - 2 * kPi) < 1e-9;
+    if (full) {
+        first = start;
+        last = start + 2 * kPi;
+        return true;
+    }
+    const double end = start + 2 * half;
+    first = std::min(start, end);
+    last = std::max(start, end);
+    return last - first > 1e-9;
+}
+
+/// R1: the wall between two coaxial circle arcs on an analytic surface: a cylinder for equal radii in different planes, a plane (an
+/// annular sector) for arcs in one plane, otherwise a cone. Null when the pair isn't that (or won't build): the ruled wall takes it, which
+/// is deliberate (R1: every other pair keeps `BRepFill::Face`).
+TopoDS_Face analytic_wall(const TopoDS_Edge &lower, const TopoDS_Edge &upper) {
+    BRepAdaptor_Curve a(lower);
+    BRepAdaptor_Curve b(upper);
+    if (a.GetType() != GeomAbs_Circle || b.GetType() != GeomAbs_Circle) {
+        return TopoDS_Face();
+    }
+    const gp_Circ ca = a.Circle();
+    const gp_Circ cb = b.Circle();
+    const gp_Vec za(ca.Axis().Direction());
+    const gp_Vec zb(cb.Axis().Direction());
+    if (za.Crossed(zb).Magnitude() > 1e-9) {
+        return TopoDS_Face();
+    }
+    const gp_Vec offset(ca.Location(), cb.Location());
+    if (offset.Crossed(za).Magnitude() > 1e-7) {
+        return TopoDS_Face();
+    }
+    const gp_Ax3 frame(ca.Location(), ca.Axis().Direction(), ca.XAxis().Direction());
+    const double ra = ca.Radius();
+    const double rb = cb.Radius();
+    const double height = offset.Dot(za);
+    double a0, a1, b0, b1;
+    if (!arc_span(lower, frame, a0, a1) || !arc_span(upper, frame, b0, b1)) {
+        return TopoDS_Face();
+    }
+    const bool full = std::abs((a1 - a0) - 2 * kPi) < 1e-9;
+    // The two arcs must cover the same angles. The starts come from atan2, so one on the +-pi ray can differ by a whole turn: compare
+    // the spans, and the starts modulo 2 pi. A full circle too: the wall's own edges put the seam at the lower edge's start, so rims
+    // whose seams differ leave it to the ruled `BRepFill::Face` wall (the old behaviour).
+    double turn = std::fmod(a0 - b0, 2 * kPi);
+    if (turn > kPi) {
+        turn -= 2 * kPi;
+    } else if (turn < -kPi) {
+        turn += 2 * kPi;
+    }
+    if (std::abs((a1 - a0) - (b1 - b0)) > 1e-6 || std::abs(turn) > 1e-6) {
+        return TopoDS_Face();
+    }
+    const bool coplanar = std::abs(height) < 1e-7;
+    const bool equal = std::abs(ra - rb) < 1e-7;
+    constexpr double tolerance = 1e-7;
+    if (coplanar && equal) {
+        return TopoDS_Face();
+    }
+    if (!coplanar) {
+        Handle(Geom_Surface) surface;
+        double v0 = 0;
+        double v1 = height;
+        if (equal) {
+            surface = new Geom_CylindricalSurface(frame, ra);
+        } else {
+            const double angle = std::atan((rb - ra) / height);
+            if (!(std::abs(angle) > 1e-6) || !(std::abs(angle) < kPi / 2 - 1e-6)) {
+                return TopoDS_Face();
+            }
+            surface = new Geom_ConicalSurface(frame, angle, ra);
+            v1 = height / std::cos(angle);
+        }
+        BRepBuilderAPI_MakeFace face(surface, a0, a1, std::min(v0, v1), std::max(v0, v1), tolerance);
+        return face.IsDone() ? face.Face() : TopoDS_Face();
+    }
+    // One plane: the larger arc outside, the smaller inside; an arc has two radial ends.
+    const Handle(Geom_Plane) plane = new Geom_Plane(gp_Pln(frame));
+    auto arc_edge = [&](double radius) {
+        return BRepBuilderAPI_MakeEdge(gp_Circ(frame.Ax2(), radius), a0, a1).Edge();
+    };
+    const double outer = std::max(ra, rb);
+    const double inner = std::min(ra, rb);
+    auto point = [&](double radius, double angle) {
+        return gp_Pnt(frame.Location().XYZ() + radius * (std::cos(angle) * frame.XDirection().XYZ() + std::sin(angle) * frame.YDirection().XYZ()));
+    };
+    BRepBuilderAPI_MakeWire wire;
+    TopoDS_Face face;
+    if (full) {
+        wire.Add(arc_edge(outer));
+        if (!wire.IsDone()) {
+            return TopoDS_Face();
+        }
+        BRepBuilderAPI_MakeFace made(plane, wire.Wire(), Standard_True);
+        if (!made.IsDone()) {
+            return TopoDS_Face();
+        }
+        BRepBuilderAPI_MakeWire hole;
+        hole.Add(arc_edge(inner));
+        if (!hole.IsDone()) {
+            return TopoDS_Face();
+        }
+        made.Add(TopoDS::Wire(hole.Wire().Reversed()));
+        face = made.Face();
+    } else {
+        wire.Add(arc_edge(outer));
+        wire.Add(BRepBuilderAPI_MakeEdge(point(outer, a1), point(inner, a1)).Edge());
+        wire.Add(TopoDS::Edge(arc_edge(inner).Reversed()));
+        wire.Add(BRepBuilderAPI_MakeEdge(point(inner, a0), point(outer, a0)).Edge());
+        if (!wire.IsDone()) {
+            return TopoDS_Face();
+        }
+        BRepBuilderAPI_MakeFace made(plane, wire.Wire(), Standard_True);
+        if (!made.IsDone()) {
+            return TopoDS_Face();
+        }
+        face = made.Face();
+    }
+    for (TopExp_Explorer it(face, TopAbs_EDGE); it.More(); it.Next()) {
+        BRepLib::BuildPCurveForEdgeOnPlane(TopoDS::Edge(it.Current()), face);
+    }
+    return face;
+}
+
 /// The ruled wall between two edges, the second turned when it runs against the first.
 TopoDS_Face wall_between(const TopoDS_Edge &lower, const TopoDS_Edge &upper) {
     gp_Pnt a0, a1, b0, b1;
@@ -61,6 +217,10 @@ TopoDS_Face wall_between(const TopoDS_Edge &lower, const TopoDS_Edge &upper) {
     const bool same = a0.Distance(b0) + a1.Distance(b1) <= a0.Distance(b1) + a1.Distance(b0);
     if (!same) {
         std::swap(b0, b1);
+    }
+    const TopoDS_Face analytic = analytic_wall(lower, upper);
+    if (!analytic.IsNull()) {
+        return analytic;
     }
     // Two straight edges in one plane make a plane (a ruled B-spline wall would be accepted by nothing downstream, a fillet included).
     if (BRepAdaptor_Curve(lower).GetType() == GeomAbs_Line && BRepAdaptor_Curve(upper).GetType() == GeomAbs_Line &&
@@ -139,6 +299,17 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
         const TopTools_IndexedMapOfShape faces = map_of(work, TopAbs_FACE);
         const TopTools_IndexedMapOfShape edges = map_of(work, TopAbs_EDGE);
 
+        // R2: the offset's refusal to keep an edge is Thicken's own sentence here.
+        auto offset_sides = [&](double signed_distance) {
+            try {
+                return offset_shell(work, signed_distance, cancel);
+            } catch (const user_error &error) {
+                if (std::string(error.what()) == kOffsetOpenEdges) {
+                    throw user_error(kThickenOpenEdges);
+                }
+                throw;
+            }
+        };
         layer lower, upper;
         auto sheet_layer = [&](const offset_result &partner, layer &out) {
             for (int f = 1; f <= faces.Extent(); ++f) {
@@ -155,16 +326,16 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
             }
         };
         if (side == 0) {
-            const offset_result up = offset_shell(work, distance, cancel);
+            const offset_result up = offset_sides(distance);
             sheet_layer(up, lower);
             offset_layer(up, upper);
         } else if (side == 1) {
-            const offset_result down = offset_shell(work, -distance, cancel);
+            const offset_result down = offset_sides(-distance);
             offset_layer(down, lower);
             sheet_layer(down, upper);
         } else {
-            const offset_result down = offset_shell(work, -0.5 * distance, cancel);
-            const offset_result up = offset_shell(work, 0.5 * distance, cancel);
+            const offset_result down = offset_sides(-0.5 * distance);
+            const offset_result up = offset_sides(0.5 * distance);
             offset_layer(down, lower);
             offset_layer(up, upper);
         }
@@ -175,7 +346,7 @@ occt_shape *occt_thicken(const occt_shape *sheet, double distance, int side, con
         for (const auto &entry : lower.edges) {
             const auto other = upper.edges.find(entry.first);
             if (other == upper.edges.end()) {
-                throw user_error(kOffsetOpenEdges);
+                throw user_error(kThickenOpenEdges);
             }
             const TopoDS_Face wall = wall_between(entry.second, other->second);
             if (wall.IsNull()) {

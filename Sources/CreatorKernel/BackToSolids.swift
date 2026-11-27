@@ -51,10 +51,31 @@ public struct SolidSplit: Sendable {
     }
 }
 
+/// A value taken apart (NURBS gaps, R3): each closed solid of it, and each connected open piece, in the kernel's order.
+public struct SeparatedBodies: Sendable {
+    public var solids: [Solid]
+    public var sheets: [Solid]
+
+    public init(solids: [Solid], sheets: [Solid]) {
+        self.solids = solids
+        self.sheets = sheets
+    }
+}
+
 extension Solid {
     /// Whether some face is not on an open shell (R17): the value holds a closed solid, perhaps beside sheets. A closed bare shell's
     /// faces are on an open shell, so it doesn't count.
     public var holdsClosedSolid: Bool { topology.faces.contains { !$0.isOnOpenShell } }
+
+    /// R4: Split Solid's refusal of a `solid` that isn't only closed, or nil when it is. A value holding a closed solid and a surface is
+    /// pointed to Separate Solids; one that is only open keeps the older sentence.
+    public var splitSolidRefusal: String? {
+        guard hasOpenShell else { return nil }
+        if holdsClosedSolid {
+            return "Split Solid takes a closed solid; “solid” also holds a surface. Use Separate Solids to take the solid out first."
+        }
+        return "Split Solid takes a closed solid; “solid” is an open surface. Use Split to cut a surface, or Thicken or Sew it first."
+    }
 }
 
 extension Kernel {
@@ -76,5 +97,9 @@ extension Kernel {
 
     public func splitSolid(_ solid: Solid, by tools: [Solid], tag: NodeTag) async throws -> SolidSplit {
         throw KernelError.unsupported("splitting solids")
+    }
+
+    public func separated(_ value: Solid, tag: NodeTag) async throws -> SeparatedBodies {
+        throw KernelError.unsupported("separating solids")
     }
 }
