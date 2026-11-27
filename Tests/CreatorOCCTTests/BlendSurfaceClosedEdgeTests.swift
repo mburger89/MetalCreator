@@ -45,13 +45,19 @@ extension BlendSurfaceTests {
                 #expect(gap <= 1e-4, "v \(end.v) u \(u) gap \(gap)")
             }
         }
-        // The seam is closed: the same point from both sides, and no kink across it (a second difference is O(h^2) when it is smooth).
-        let h = 1e-4, span = sheet.uLast - sheet.uFirst
+        // The seam is closed and smooth: the same point and the same d/du from both sides (one-sided differences of the third order).
+        let span = sheet.uLast - sheet.uFirst, h = 1e-3 * span
+        func derivative(v: Double, atFirst: Bool) -> Vector3 {
+            let u = atFirst ? sheet.uFirst : sheet.uLast, sign = atFirst ? 1.0 : -1.0
+            let f1 = sheet.point(u: u + sign * h, v: v), f2 = sheet.point(u: u + sign * 2 * h, v: v)
+            let f3 = sheet.point(u: u + sign * 3 * h, v: v)
+            let sum = sheet.point(u: u, v: v) * -11 + f1 * 18 - f2 * 9 + f3 * 2
+            return sum * (sign / (6 * h))
+        }
         for v in [0.0, 0.5, 1.0] {
-            let at = sheet.point(u: sheet.uFirst, v: v)
-            #expect((sheet.point(u: sheet.uLast, v: v) - at).length < 1e-7, "v \(v)")
-            let kink = sheet.point(u: sheet.uFirst + h * span, v: v) - at * 2 + sheet.point(u: sheet.uLast - h * span, v: v)
-            #expect(kink.length < 1e-4, "v \(v) kink \(kink.length)")
+            #expect((sheet.point(u: sheet.uLast, v: v) - sheet.point(u: sheet.uFirst, v: v)).length < 1e-7, "v \(v)")
+            let first = derivative(v: v, atFirst: true), last = derivative(v: v, atFirst: false)
+            #expect((first - last).length <= 1e-6 * max(first.length, 1), "v \(v) d/du \(first) against \(last)")
         }
         let wanted: ContinuityClass = continuity == .g2 ? .g2 : .g1
         let atA = try await kernel.continuity(of: try edge(result, .start).id, in: result, against: FaceID(0), of: lower)
@@ -95,6 +101,11 @@ extension BlendSurfaceTests {
     @Test func aReversedRimDoesNotTwist() async throws {
         let (lower, upper, result) = try await blendedTubes(.g1, reversed: true)
         try await checkTubes(lower, upper, result, .g1)
+    }
+
+    @Test func anOffsetSeamAndAReversedRimDoNotTwist() async throws {
+        let (lower, upper, result) = try await blendedTubes(.g2, start: 90, reversed: true)
+        try await checkTubes(lower, upper, result, .g2)
     }
 
     @Test func aClosedAndAnOpenEdgeRefuse() async throws {

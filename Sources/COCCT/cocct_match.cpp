@@ -12,6 +12,7 @@
 // periodic: the along-edge basis wraps (OCCT's periodic pole convention, see `periodic_flat`), no pole row is pinned, and the normal
 // equations are cyclic (`band_border_system`: a banded interior plus a border of the last `degree` poles, as Rebuild's periodic fit). The pairing starts at the target parameter nearest the sheet's
 // seam point and runs the way the two tangents agree there.
+#include "cocct_arc_table.hpp"
 #include "cocct_band_border.hpp"
 #include "cocct_continuity.hpp"
 #include "cocct_control_net.hpp"
@@ -52,8 +53,6 @@ constexpr double kCurvatureFloor = 1e-4;          // 1/mm
 constexpr int kRefinements = 5;
 constexpr long kMaxPoles = 100000;
 constexpr int kAlongDegree = 3;                   // the along direction is raised to this at least
-constexpr int kTableIntervals = 1024;
-constexpr double kClosedGap = kPositionLimit;     // mm: an edge whose ends are this close is closed
 
 // ---- B-spline basis functions ---------------------------------------------------------------------------------------------
 
@@ -237,41 +236,6 @@ struct net {
         gp_Vec c1, c2, a1;
         evaluate(a, p, c1, c2, a1);
         return p;
-    }
-};
-
-/// A polyline's arc-length table over a parameter range, for pairing two edges by the fraction of their length.
-struct length_table {
-    std::vector<double> parameter;
-    std::vector<double> length; // cumulative
-
-    template <typename Point>
-    void build(double first, double last, Point point) {
-        parameter.resize(kTableIntervals + 1);
-        length.assign(kTableIntervals + 1, 0.0);
-        gp_Pnt previous;
-        for (int i = 0; i <= kTableIntervals; ++i) {
-            parameter[i] = first + (last - first) * i / kTableIntervals;
-            const gp_Pnt p = point(parameter[i]);
-            if (i > 0) {
-                length[i] = length[i - 1] + p.Distance(previous);
-            }
-            previous = p;
-        }
-    }
-    double total() const { return length.back(); }
-    double length_at(double t) const {
-        const double first = parameter.front(), last = parameter.back();
-        const double position = std::clamp((t - first) / (last - first), 0.0, 1.0) * kTableIntervals;
-        const int i = std::min(static_cast<int>(position), kTableIntervals - 1);
-        return length[i] + (length[i + 1] - length[i]) * (position - i);
-    }
-    double parameter_at(double wanted) const {
-        const auto it = std::upper_bound(length.begin(), length.end(), wanted);
-        const int i = std::clamp(static_cast<int>(it - length.begin()) - 1, 0, kTableIntervals - 1);
-        const double span = length[i + 1] - length[i];
-        const double fraction = span > 1e-300 ? (wanted - length[i]) / span : 0.0;
-        return parameter[i] + (parameter[i + 1] - parameter[i]) * std::clamp(fraction, 0.0, 1.0);
     }
 };
 
@@ -476,25 +440,8 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     bool forward = sheet_start.Distance(target_lo) <= sheet_start.Distance(target_hi);
     double target_origin = 0.0; // cyclic: the arc length of the target's start (nearest the sheet's seam) from its own first point
     if (cyclic) {
-        // The target parameter nearest the sheet's seam point, found on the table's samples and refined within their neighbours.
-        int nearest = 0;
-        double nearest_distance = 1e300;
-        for (int i = 0; i <= kTableIntervals; ++i) {
-            const double d = target_curve.Value(target_table.parameter[i]).Distance(sheet_start);
-            if (d < nearest_distance) {
-                nearest_distance = d, nearest = i;
-            }
-        }
-        double lo = target_table.parameter[std::max(nearest - 1, 0)], hi = target_table.parameter[std::min(nearest + 1, kTableIntervals)];
-        for (int step = 0; step < 60; ++step) {
-            const double m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
-            if (target_curve.Value(m1).Distance(sheet_start) < target_curve.Value(m2).Distance(sheet_start)) {
-                hi = m2;
-            } else {
-                lo = m1;
-            }
-        }
-        const double t_seam = 0.5 * (lo + hi);
+        // The target parameter nearest the sheet's seam point.
+        const double t_seam = nearest_parameter(target_curve, target_table, sheet_start);
         target_origin = target_table.length_at(t_seam);
         gp_Pnt seam_point;
         gp_Vec target_tangent, sheet_tangent;

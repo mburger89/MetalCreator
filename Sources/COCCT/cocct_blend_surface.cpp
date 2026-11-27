@@ -11,6 +11,7 @@
 // tangents agree there, the sections are made at the same fractions (the last is the first again and is copied, not read), and each
 // pole column across the sections is interpolated periodically (`g2_skin::interpolate_periodic`, one knot vector for every column), so
 // the surface is periodic in u. Its two rims are the boundary roles; the seam is no role.
+#include "cocct_arc_table.hpp"
 #include "cocct_continuity.hpp"
 #include "cocct_g2_section.hpp"
 #include "cocct_g2_skin.hpp"
@@ -47,7 +48,6 @@ constexpr double kPositionLimit = 1e-4;          // mm, the thresholds of Kernel
 constexpr double kAngleLimit = 0.01 * kPi / 180; // rad
 constexpr double kCurvatureRelative = 0.01;
 constexpr double kCurvatureFloor = 1e-4;         // 1/mm
-constexpr int kTableIntervals = 1024;
 constexpr int kGradeSamples = 32;
 
 struct attempt {
@@ -55,43 +55,6 @@ struct attempt {
     int degree;
 };
 constexpr std::array<attempt, 6> kAttempts{{{9, 3}, {9, 5}, {17, 5}, {33, 5}, {65, 5}, {129, 5}}};
-
-/// A polyline's arc-length table over a parameter range.
-struct length_table {
-    std::vector<double> parameter;
-    std::vector<double> length; // cumulative
-
-    template <typename Point>
-    void build(double first, double last, Point point) {
-        parameter.resize(kTableIntervals + 1);
-        length.assign(kTableIntervals + 1, 0.0);
-        gp_Pnt previous;
-        for (int i = 0; i <= kTableIntervals; ++i) {
-            parameter[i] = first + (last - first) * i / kTableIntervals;
-            const gp_Pnt p = point(parameter[i]);
-            if (i > 0) {
-                length[i] = length[i - 1] + p.Distance(previous);
-            }
-            previous = p;
-        }
-    }
-    double total() const { return length.back(); }
-    /// The arc length from the first parameter to `t` (interpolated between the table's samples).
-    double length_at(double t) const {
-        const auto it = std::upper_bound(parameter.begin(), parameter.end(), t);
-        const int i = std::clamp(static_cast<int>(it - parameter.begin()) - 1, 0, kTableIntervals - 1);
-        const double span = parameter[i + 1] - parameter[i];
-        const double fraction = span > 1e-300 ? (t - parameter[i]) / span : 0.0;
-        return length[i] + (length[i + 1] - length[i]) * std::clamp(fraction, 0.0, 1.0);
-    }
-    double parameter_at(double wanted) const {
-        const auto it = std::upper_bound(length.begin(), length.end(), wanted);
-        const int i = std::clamp(static_cast<int>(it - length.begin()) - 1, 0, kTableIntervals - 1);
-        const double span = length[i + 1] - length[i];
-        const double fraction = span > 1e-300 ? (wanted - length[i]) / span : 0.0;
-        return parameter[i] + (parameter[i + 1] - parameter[i]) * std::clamp(fraction, 0.0, 1.0);
-    }
-};
 
 /// What one side of the blend reads from its edge and the face it continues.
 struct blend_end {
@@ -275,30 +238,13 @@ void open_end(blend_end &end, const occt_shape *shape, int edge_index) {
     if (end.table.total() < 1e-9) {
         throw user_error("Blend Surface needs edges that have a length.");
     }
-    end.closed = curve.Value(lo).Distance(curve.Value(hi)) < 1e-6;
+    end.closed = curve.Value(lo).Distance(curve.Value(hi)) <= kClosedGap;
 }
 
 /// Makes `b` start at its point nearest `a`'s start and run the way the tangents agree there (closed edges).
 void pair_closed(const blend_end &a, blend_end &b) {
     const gp_Pnt start = a.curve->Value(a.table.parameter.front());
-    int nearest = 0;
-    double nearest_distance = 1e300;
-    for (int i = 0; i <= kTableIntervals; ++i) {
-        const double d = b.curve->Value(b.table.parameter[i]).Distance(start);
-        if (d < nearest_distance) {
-            nearest_distance = d, nearest = i;
-        }
-    }
-    double lo = b.table.parameter[std::max(nearest - 1, 0)], hi = b.table.parameter[std::min(nearest + 1, kTableIntervals)];
-    for (int step = 0; step < 60; ++step) {
-        const double m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
-        if (b.curve->Value(m1).Distance(start) < b.curve->Value(m2).Distance(start)) {
-            hi = m2;
-        } else {
-            lo = m1;
-        }
-    }
-    const double t_seam = 0.5 * (lo + hi);
+    const double t_seam = nearest_parameter(*b.curve, b.table, start);
     gp_Pnt point;
     gp_Vec tangent_a, tangent_b;
     a.curve->D1(a.table.parameter.front(), point, tangent_a);
@@ -312,8 +258,8 @@ void pair_closed(const blend_end &a, blend_end &b) {
 
 /// Picks the face of `end` whose leaving direction at the edge's middle points most toward `other` (R10), and the sign that makes
 /// `normal x tangent` leave it.
-void choose_face(blend_end &end, const gp_Pnt &other) {
-    const double t_mid = end.table.parameter_at(0.5 * end.table.total());
+void choose_face(blend_end &end, double fraction, const gp_Pnt &other) {
+    const double t_mid = end.table.parameter_at(fraction * end.table.total());
     gp_Pnt mid_point;
     gp_Vec tangent;
     end.curve->D1(t_mid, mid_point, tangent);
@@ -395,8 +341,9 @@ occt_shape *blend(const occt_shape *first_shape, int first_edge, int first_conti
         const gp_Pnt b0 = b.point_at_fraction(0), b1 = b.point_at_fraction(1);
         b.reversed = a0.Distance(b1) + a1.Distance(b0) < a0.Distance(b0) + a1.Distance(b1) - 1e-9;
     }
-    choose_face(a, b.point_at_fraction(b.local(0.5)));
-    choose_face(b, a.point_at_fraction(a.local(0.5)));
+    // Each face is read where its edge pairs with the other's middle section (a closed edge's paired middle is not its own 0.5).
+    choose_face(a, a.local(0.5), b.point_at_fraction(b.local(0.5)));
+    choose_face(b, b.local(0.5), a.point_at_fraction(a.local(0.5)));
 
     for (std::size_t k = 0; k < kAttempts.size(); ++k) {
         poll(cancel);

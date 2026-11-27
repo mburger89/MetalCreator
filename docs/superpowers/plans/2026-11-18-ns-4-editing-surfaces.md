@@ -192,6 +192,7 @@ two-body continuity call and the control-point code this plan builds on.
   periodic (closed) edge: "Match Surface can't match an edge of a surface that closes on itself yet."
 
 - **R10 erratum (Task 9).** Blend Surface refuses a closed edge: "Blend Surface can't blend a closed edge yet." A closed edge (a tube's
+  - Superseded: Blend Surface handles closed edges since NS-G Task 4; see R6 of `2026-11-26-nurbs-gaps.md`.
   circular rim) needs a periodic skin and a chosen start for the pairing, which the open sections don't have. Parked below.
 
 **Backlog (`nurbs-backlog-after-ns2` memory).** Pulled in: the NS-3 follow-up (R16, Tasks 1 and 2), the partial periodic Rebuild
