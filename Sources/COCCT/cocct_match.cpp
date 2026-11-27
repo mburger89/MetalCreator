@@ -7,6 +7,11 @@
 // and at r = 0 of a clamped direction the coefficient of pole (k, j) in the k-th r-derivative is w_kj N_k^(k)(0) N_j(s) / W(s, 0), so the
 // right-hand side is the target minus the same derivative of the net with row k zeroed. Each result is graded with
 // `edge_continuity_against` and, when it falls short, the spans along the edge are doubled (up to 5 times).
+//
+// A closed edge (NS-G Task 3, R5) is a closed iso of a surface periodic along it, matched to a closed target edge. The surface stays
+// periodic: the along-edge basis wraps (OCCT's periodic pole convention, see `periodic_flat`), no pole row is pinned, and the normal
+// equations are cyclic (solved dense, `solve_band` with the full band). The pairing starts at the target parameter nearest the sheet's
+// seam point and runs the way the two tangents agree there.
 #include "cocct_continuity.hpp"
 #include "cocct_control_net.hpp"
 #include "cocct_iso_sides.hpp"
@@ -46,6 +51,7 @@ constexpr int kRefinements = 5;
 constexpr long kMaxPoles = 100000;
 constexpr int kAlongDegree = 3;                   // the along direction is raised to this at least
 constexpr int kTableIntervals = 1024;
+constexpr double kClosedGap = kPositionLimit;     // mm: an edge whose ends are this close is closed
 
 // ---- B-spline basis functions ---------------------------------------------------------------------------------------------
 
@@ -140,6 +146,46 @@ std::vector<std::vector<double>> basis_derivatives(const std::vector<double> &kn
     return ders;
 }
 
+/// The knots of a periodic direction as one sequence over five periods (cycle -2 to 2), the cycle 0 starting at `origin`. OCCT keeps a
+/// periodic direction's `n` poles with distinct knots K_0..K_m (K_m = K_0 + period) of multiplicities M_i whose first m sum to `n`;
+/// the span that holds K_0 uses poles 0..p, so basis function `j` of this sequence is pole `(j - origin - M_0 + 1 + p) mod n`.
+struct periodic_knots {
+    std::vector<double> sequence;
+    int origin = 0;
+    int poles = 0;
+};
+
+periodic_knots periodic_flat(const Handle(Geom_BSplineSurface) &surface, bool u_direction) {
+    periodic_knots out;
+    const int knots = u_direction ? surface->NbUKnots() : surface->NbVKnots();
+    const double first = u_direction ? surface->UKnot(1) : surface->VKnot(1);
+    const double last = u_direction ? surface->UKnot(knots) : surface->VKnot(knots);
+    const double period = last - first;
+    for (int cycle = -2; cycle <= 2; ++cycle) {
+        if (cycle == 0) {
+            out.origin = static_cast<int>(out.sequence.size());
+        }
+        for (int k = 1; k < knots; ++k) {
+            const int mult = u_direction ? surface->UMultiplicity(k) : surface->VMultiplicity(k);
+            const double value = (u_direction ? surface->UKnot(k) : surface->VKnot(k)) + cycle * period;
+            for (int m = 0; m < mult; ++m) {
+                out.sequence.push_back(value);
+            }
+            if (cycle == 0) {
+                out.poles += mult;
+            }
+        }
+    }
+    return out;
+}
+
+/// The span (index into `knots.sequence`) of cycle 0 that holds `t` in [K_0, K_m).
+int find_periodic_span(const periodic_knots &knots, double t) {
+    const auto begin = knots.sequence.begin() + knots.origin;
+    const auto it = std::upper_bound(begin, begin + knots.poles, t);
+    return std::max(knots.origin, static_cast<int>(it - knots.sequence.begin()) - 1);
+}
+
 // ---- the sheet seen with its edge at the start of the cross direction ------------------------------------------------------
 
 /// The surface with `cross_u` naming the cross direction (r, across the edge, 0 at the edge) and the other the along direction (s).
@@ -163,8 +209,14 @@ struct net {
     double cross_start() const { double u0, u1, v0, v1; surface->Bounds(u0, u1, v0, v1); return cross_u ? u0 : v0; }
     double along_start() const { double u0, u1, v0, v1; surface->Bounds(u0, u1, v0, v1); return cross_u ? v0 : u0; }
     double along_end() const { double u0, u1, v0, v1; surface->Bounds(u0, u1, v0, v1); return cross_u ? v1 : u1; }
+    bool along_periodic() const { return cross_u ? surface->IsVPeriodic() : surface->IsUPeriodic(); }
+    bool cross_periodic() const { return cross_u ? surface->IsUPeriodic() : surface->IsVPeriodic(); }
     std::vector<double> cross_flat() const { return flat_of(surface, cross_u); }
-    std::vector<double> along_flat() const { return flat_of(surface, !cross_u); }
+    /// The along knots: for a periodic direction the extended sequence of `periodic_flat`.
+    std::vector<double> along_flat() const {
+        return along_periodic() ? periodic_flat(surface, !cross_u).sequence : flat_of(surface, !cross_u);
+    }
+    int along_first_multiplicity() const { return cross_u ? surface->VMultiplicity(1) : surface->UMultiplicity(1); }
 
     /// The point at along parameter `a` on the edge row, the first and second derivatives across, and the first along.
     void evaluate(double a, gp_Pnt &p, gp_Vec &cross1, gp_Vec &cross2, gp_Vec &along1) const {
@@ -334,9 +386,10 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     net base;
     base.surface = Handle(Geom_BSplineSurface)::DownCast(edit.surface->Copy());
     base.cross_u = side.side == kUStart || side.side == kUEnd;
-    if (base.surface->IsUPeriodic() || base.surface->IsVPeriodic()) {
+    if (base.cross_periodic()) {
         throw user_error("Match Surface can't match an edge of a surface that closes on itself yet.");
     }
+    const bool cyclic = base.along_periodic(); // a closed iso of a surface periodic along it (R5)
     if (side.side == kUEnd) {
         base.surface->UReverse();
     } else if (side.side == kVEnd) {
@@ -346,6 +399,9 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
         const int cross = std::max(base.cross_degree(), continuity + 1);
         const int along = std::max(base.along_degree(), kAlongDegree);
         base.surface->IncreaseDegree(base.cross_u ? cross : along, base.cross_u ? along : cross);
+    }
+    if (cyclic && !base.along_periodic()) {
+        throw user_error("Match couldn't keep the surface closed.");
     }
     const double r0 = base.cross_start();
     const double a0 = base.along_start(), a1 = base.along_end();
@@ -374,15 +430,64 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     }
     const gp_Pnt sheet_start = base.edge_point(a0), sheet_end = base.edge_point(a1);
     const gp_Pnt target_lo = target_curve.Value(t_lo), target_hi = target_curve.Value(t_hi);
-    const bool forward = sheet_start.Distance(target_lo) <= sheet_start.Distance(target_hi);
-    const double end_gap = std::max(sheet_start.Distance(forward ? target_lo : target_hi),
-                                    sheet_end.Distance(forward ? target_hi : target_lo));
-    if (end_gap > kEndGap) {
-        throw user_error("The edges' ends are " + number(end_gap) + " mm apart; Match needs them to meet.");
+    const bool closed_target = target_lo.Distance(target_hi) <= kClosedGap;
+    if ((cyclic || sheet_start.Distance(sheet_end) <= kClosedGap) != closed_target) {
+        throw user_error("Match Surface can't match a closed edge to an open one.");
     }
+    bool forward = sheet_start.Distance(target_lo) <= sheet_start.Distance(target_hi);
+    double target_origin = 0.0; // cyclic: the arc length of the target's start (nearest the sheet's seam) from its own first point
+    if (cyclic) {
+        // The target parameter nearest the sheet's seam point, found on the table's samples and refined within their neighbours.
+        int nearest = 0;
+        double nearest_distance = 1e300;
+        for (int i = 0; i <= kTableIntervals; ++i) {
+            const double d = target_curve.Value(target_table.parameter[i]).Distance(sheet_start);
+            if (d < nearest_distance) {
+                nearest_distance = d, nearest = i;
+            }
+        }
+        double lo = target_table.parameter[std::max(nearest - 1, 0)], hi = target_table.parameter[std::min(nearest + 1, kTableIntervals)];
+        for (int step = 0; step < 60; ++step) {
+            const double m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
+            if (target_curve.Value(m1).Distance(sheet_start) < target_curve.Value(m2).Distance(sheet_start)) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        const double t_seam = 0.5 * (lo + hi);
+        target_origin = target_table.length_at(t_seam);
+        gp_Pnt seam_point;
+        gp_Vec target_tangent, sheet_tangent;
+        target_curve.D1(t_seam, seam_point, target_tangent);
+        gp_Pnt sheet_seam;
+        gp_Vec c1, c2;
+        base.evaluate(a0, sheet_seam, c1, c2, sheet_tangent);
+        if (target_tangent.Magnitude() < 1e-12 || sheet_tangent.Magnitude() < 1e-12) {
+            throw user_error("The edges have no direction at the sheet's seam.");
+        }
+        forward = target_tangent.Dot(sheet_tangent) > 0.0;
+    } else {
+        const double end_gap = std::max(sheet_start.Distance(forward ? target_lo : target_hi),
+                                        sheet_end.Distance(forward ? target_hi : target_lo));
+        if (end_gap > kEndGap) {
+            throw user_error("The edges' ends are " + number(end_gap) + " mm apart; Match needs them to meet.");
+        }
+    }
+    // The target parameter paired with the sheet's `fraction` of its length from its start (cyclic: wrapping round the target).
+    const auto paired = [&](double fraction) {
+        if (!cyclic) {
+            return target_table.parameter_at((forward ? fraction : 1.0 - fraction) * target_table.total());
+        }
+        const double total = target_table.total();
+        double wanted = target_origin + (forward ? 1.0 : -1.0) * fraction * total;
+        wanted -= std::floor(wanted / total) * total;
+        return target_table.parameter_at(wanted);
+    };
 
     // The target face whose continuation the sheet takes, and which way is "away from it" along the face's own normal.
-    const double t_mid = 0.5 * (t_lo + t_hi);
+    const double sheet_mid_parameter = 0.5 * (a0 + a1);
+    const double t_mid = cyclic ? paired(sheet_table.length_at(sheet_mid_parameter) / sheet_table.total()) : 0.5 * (t_lo + t_hi);
     gp_Pnt mid_point;
     gp_Vec mid_tangent;
     target_curve.D1(t_mid, mid_point, mid_tangent);
@@ -392,7 +497,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
     mid_tangent.Normalize();
     gp_Pnt sheet_mid;
     gp_Vec sheet_cross1, sheet_cross2, sheet_along1;
-    base.evaluate(0.5 * (a0 + a1), sheet_mid, sheet_cross1, sheet_cross2, sheet_along1);
+    base.evaluate(sheet_mid_parameter, sheet_mid, sheet_cross1, sheet_cross2, sheet_along1);
     if (sheet_cross1.Magnitude() < 1e-12) {
         throw user_error("Match Surface can't match an edge the surface doesn't leave.");
     }
@@ -436,8 +541,9 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
             const std::vector<double> flat = level.along_flat();
             std::vector<double> mids;
             for (std::size_t i = 0; i + 1 < flat.size(); ++i) {
-                if (flat[i + 1] > flat[i] + 1e-12) {
-                    mids.push_back(0.5 * (flat[i] + flat[i + 1]));
+                const double mid = 0.5 * (flat[i] + flat[i + 1]);
+                if (flat[i + 1] > flat[i] + 1e-12 && mid > a0 && mid < a1) {
+                    mids.push_back(mid);
                 }
             }
             if (mids.empty() ||
@@ -484,8 +590,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
                 ++speeds;
             }
             const double fraction = sheet_table.length_at(sample.s) / sheet_table.total();
-            const double wanted = (forward ? fraction : 1.0 - fraction) * target_table.total();
-            const double t = target_table.parameter_at(wanted);
+            const double t = paired(fraction);
             gp_Vec tangent;
             target_curve.D1(t, sample.point, tangent);
             if (tangent.Magnitude() < 1e-12) {
@@ -516,21 +621,41 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
 
         // The along basis at every sample, once.
         struct along_row {
-            int first = 0;
+            std::vector<int> index;   // the 0-based pole of each non-zero basis function (wrapped round a periodic edge)
             std::vector<double> values;
             double denominator = 1.0; // W(s, 0)
         };
         std::vector<along_row> rows(count);
+        const periodic_knots wrap = level.along_periodic() ? periodic_flat(level.surface, !level.cross_u) : periodic_knots();
+        const int first_multiplicity = cyclic ? level.along_first_multiplicity() : 0;
         for (int i = 0; i < count; ++i) {
-            const int span = find_span(along_knots, pa, na, samples[i].s);
-            const auto ders = basis_derivatives(along_knots, pa, span, samples[i].s, 0);
-            rows[i].first = span - pa;
+            int span = 0;
+            double t = samples[i].s;
+            if (cyclic) {
+                t = t >= a1 - 1e-12 ? a0 : t; // the end of the period is its start
+                span = find_periodic_span(wrap, t);
+            } else {
+                span = find_span(along_knots, pa, na, t);
+            }
+            const auto ders = basis_derivatives(along_knots, pa, span, t, 0);
             rows[i].values = ders[0];
             double w = 0.0;
+            gp_XYZ edge_point(0, 0, 0);
             for (int r = 0; r <= pa; ++r) {
-                w += level.weight(1, rows[i].first + r + 1) * ders[0][r];
+                const int j = span - pa + r;
+                rows[i].index.push_back(cyclic ? ((j - wrap.origin - first_multiplicity + 1 + pa) % na + na) % na : j);
+                const double weighted = level.weight(1, rows[i].index[r] + 1) * ders[0][r];
+                w += weighted;
+                edge_point += level.pole(1, rows[i].index[r] + 1).XYZ() * weighted;
             }
             rows[i].denominator = w;
+            if (cyclic && i % (count / 4 + 1) == 0) {
+                // The wrapped basis must be OCCT's own: read the edge row back through it.
+                const gp_Pnt expected = level.edge_point(samples[i].s);
+                if (gp_Pnt(edge_point / w).Distance(expected) > 1e-6 * (1.0 + expected.XYZ().Modulus())) {
+                    throw user_error("Match couldn't read the closed surface.");
+                }
+            }
         }
 
         net fit;
@@ -544,11 +669,12 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
             for (int j = 1; j <= na; ++j) {
                 zeroed.set_pole(k + 1, j, gp_Pnt(0, 0, 0));
             }
-            const bool pinned_ends = k == 0;
+            const bool pinned_ends = k == 0 && !cyclic;
             const int unknowns = na - (pinned_ends ? 2 : 0);
             const int offset = pinned_ends ? 1 : 0; // unknown u is pole index u + offset (0-based)
+            const int bandwidth = cyclic ? na - 1 : pa; // a closed edge's system is cyclic, so stored whole
             std::vector<gp_Vec> rhs(std::max(unknowns, 0), gp_Vec(0, 0, 0));
-            std::vector<std::vector<double>> band(std::max(unknowns, 0), std::vector<double>(pa + 1, 0.0));
+            std::vector<std::vector<double>> band(std::max(unknowns, 0), std::vector<double>(bandwidth + 1, 0.0));
             for (int i = 0; i < count; ++i) {
                 const sample_data &sample = samples[i];
                 gp_Pnt point;
@@ -569,26 +695,26 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
                 // The coefficient of pole (k, j).
                 std::vector<double> coefficient(pa + 1, 0.0);
                 for (int r = 0; r <= pa; ++r) {
-                    const int j0 = row.first + r; // 0-based pole index
+                    const int j0 = row.index[r]; // 0-based pole index
                     coefficient[r] = level.weight(k + 1, j0 + 1) * cross_basis[k][k] * row.values[r] / row.denominator;
                 }
                 // Pinned ends of row 0 move to the right-hand side.
                 for (int r = 0; r <= pa; ++r) {
-                    const int j0 = row.first + r;
+                    const int j0 = row.index[r];
                     if (pinned_ends && (j0 == 0 || j0 == na - 1)) {
                         const gp_Pnt end = j0 == 0 ? samples.front().point : samples.back().point;
                         residual -= gp_Vec(gp_Pnt(0, 0, 0), end) * coefficient[r];
                     }
                 }
                 for (int r1 = 0; r1 <= pa; ++r1) {
-                    const int u1 = row.first + r1 - offset;
+                    const int u1 = row.index[r1] - offset;
                     if (u1 < 0 || u1 >= unknowns) {
                         continue;
                     }
                     rhs[u1] += residual * coefficient[r1];
-                    for (int r2 = r1; r2 <= pa; ++r2) {
-                        const int u2 = row.first + r2 - offset;
-                        if (u2 < 0 || u2 >= unknowns) {
+                    for (int r2 = 0; r2 <= pa; ++r2) {
+                        const int u2 = row.index[r2] - offset;
+                        if (u2 < u1 || u2 >= unknowns) { // the upper triangle: the other order of the pair adds the same below
                             continue;
                         }
                         band[u1][u2 - u1] += coefficient[r1] * coefficient[r2];
@@ -607,7 +733,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
                 for (auto &row : band) {
                     row[0] += 1e-12 * largest + 1e-300;
                 }
-                if (!solve_band(band, pa, rhs)) {
+                if (!solve_band(band, bandwidth, rhs)) {
                     throw user_error("Match couldn't fit the surface to the target edge.");
                 }
                 for (int u = 0; u < unknowns; ++u) {

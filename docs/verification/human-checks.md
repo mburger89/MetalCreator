@@ -2535,6 +2535,7 @@ the Output selected so the part is shown.
 
 - [ ] **NSG-1 Measure a thickened hole.** Make a Planar Surface plate with a round hole, wire it to Thicken (2 mm, try Front, Back and Both), then Measure the hole's wall: it shows the hole's diameter, as a cylinder does. **Observed:**
 - [ ] **NSG-2 Separate Solids and Split Solid.** Sew a box's surfaces (or Thicken a plate) together with a loose Planar Surface so one value holds a solid and a sheet. Wire it to Split Solid: it refuses, "Split Solid takes a closed solid; “solid” also holds a surface. Use Separate Solids to take the solid out first." Wire it to Separate Solids instead (library: Surfaces ▸ Solids): the `solids` output lists the solid and `surfaces` the sheet, with their picks intact. Wire `solids` item 0 into Split Solid with a plane as its tool: it splits. **Observed:**
+- [ ] **NSG-3 Match a tube's rim to another tube's rim.** Revolve a line 10 mm from the Z axis, 20 mm tall, 360 degrees into a tube, and a second tube of radius 12 mm that starts 5 mm below it and runs down. Wire both to Match Surface, picking the first tube's lower rim and the second tube's top rim, at G2. The first tube's rim grows to the second's with no twist in the surface and no crease at the seam; turn zebra stripes on and the stripes run unbroken across the seam and across the join. Wire the same tube to one open sheet's edge instead: Match Surface says "Match Surface can't match a closed edge to an open one." Pinned by `MatchClosedEdgeTests`. **Observed:**
 
 ## Group DR-1 — Drawings: sheets, views and PDF
 

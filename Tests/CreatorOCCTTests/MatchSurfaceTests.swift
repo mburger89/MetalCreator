@@ -149,17 +149,6 @@ struct MatchSurfaceTests {
         #expect(text == "Match Surface changes a sheet with one face; this one has 3.")
     }
 
-    @Test func aSurfaceThatClosesOnItselfRefuses() async throws {
-        let line = try await kernel.makeCurve([.line(Vector3(10, 0, 0), Vector3(10, 0, 20))], tag: tag)
-        let tube = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: .unitZ), angle: .degrees(360), tag: tag)
-        let rim = try #require(tube.topology.edges.first { $0.kind == .circle && abs($0.midpoint.z) < 1e-6 })
-        let ring = try await kernel.makeCurve([.line(Vector3(10, 0, 0), Vector3(10, 10, 0))], tag: tag)
-        let b = try await kernel.revolve(ring, axis: Axis(origin: Vector3(0, 0, 17.3205), direction: Vector3(0, -1, 0)),
-                                         angle: .degrees(60), tag: tag)
-        let text = await refusal { _ = try await kernel.matched(tube, edge: rim.id, to: try lineAtX10(b).id, of: b, continuity: .g1) }
-        #expect(text == "Match Surface can't match an edge of a surface that closes on itself yet.")
-    }
-
     @Test func aTwoFaceEdgeRefuses() async throws {
         let line = try await kernel.makeCurve([.line(Vector3(10, 0, 0), Vector3(10, 0, 20))], tag: tag)
         let cylinder = try await kernel.revolve(line, axis: Axis(origin: .zero, direction: .unitZ), angle: .degrees(360), tag: tag)
