@@ -35,7 +35,7 @@ public:
         }
     }
 
-    /// The largest interior diagonal (and, with no interior, the border's), for a caller's own regularisation.
+    /// The largest diagonal of the interior and of the border, for a caller's own regularisation.
     double largest_diagonal() const {
         double largest = 0.0;
         for (int i = 0; i < m_; ++i) {

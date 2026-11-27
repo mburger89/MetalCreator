@@ -875,6 +875,7 @@ typedef struct {
 } occt_separate_result;
 void occt_separate_result_free(occt_separate_result *result);
 /// `value` taken apart into a compound of its closed solids and open pieces (compounds opened), each the same shapes as in `value`.
+/// Loose wires, edges and vertices are left out.
 /// Refuses "This value has no solids or surfaces to separate." for a value with neither.
 occt_shape *occt_separate(const occt_shape *value, occt_separate_result *out, occt_status *status);
 

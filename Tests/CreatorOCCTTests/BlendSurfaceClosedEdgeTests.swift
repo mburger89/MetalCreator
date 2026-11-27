@@ -30,14 +30,15 @@ extension BlendSurfaceTests {
     }
 
     /// The result is one periodic face whose rims lie on the two rims and are its only roles, graded as asked at both, with no twist.
-    func checkTubes(_ lower: Solid, _ upper: Solid, _ result: Solid, _ continuity: PatchContinuity) async throws {
+    func checkTubes(_ lower: Solid, _ upper: Solid, _ result: Solid, _ continuity: PatchContinuity,
+                    lowerFace: FaceID = FaceID(0), lowerRim: EdgeInfo? = nil) async throws {
         #expect(result.topology.faces.count == 1)
         let net = try await kernel.controlNet(of: result).surface
         #expect(net.isPeriodicU && !net.isPeriodicV)
         let sheet = PeriodicSheet(net)
         let rims = [(v: 0.0, solid: lower, z: 20.0, radius: 10.0), (v: 1.0, solid: upper, z: 30.0, radius: 14.0)]
         for end in rims {
-            let target = try rim(end.solid, z: end.z)
+            let target = try end.v == 0 ? lowerRim ?? rim(end.solid, z: end.z) : rim(end.solid, z: end.z)
             for i in 0..<64 {
                 let u = sheet.uFirst + (sheet.uLast - sheet.uFirst) * Double(i) / 64
                 let gap = try await kernel.shortestDistance(between: .point(sheet.point(u: u, v: end.v)),
@@ -60,7 +61,7 @@ extension BlendSurfaceTests {
             #expect((first - last).length <= 1e-6 * max(first.length, 1), "v \(v) d/du \(first) against \(last)")
         }
         let wanted: ContinuityClass = continuity == .g2 ? .g2 : .g1
-        let atA = try await kernel.continuity(of: try edge(result, .start).id, in: result, against: FaceID(0), of: lower)
+        let atA = try await kernel.continuity(of: try edge(result, .start).id, in: result, against: lowerFace, of: lower)
         let atB = try await kernel.continuity(of: try edge(result, .end).id, in: result, against: FaceID(0), of: upper)
         #expect(atA.grade >= wanted && atB.grade >= wanted,
                 "A \(atA.angleGap) \(atA.curvatureGap) B \(atB.angleGap) \(atB.curvatureGap)")
@@ -74,7 +75,11 @@ extension BlendSurfaceTests {
             let end = sheet.point(u: u, v: 1)
             #expect((end - nearest).length < 1, "u \(u) lands \(end), nearest \(nearest)")
         }
-        // The roles are the two rims; the seam is none.
+        checkRoles(result)
+    }
+
+    /// The roles are the two rims (z 20 the start, z 30 the end); the seam is none.
+    func checkRoles(_ result: Solid) {
         func roles(_ role: BoundaryRole) -> [EdgeInfo] {
             result.topology.edges.filter { $0.tags.contains(TopoTag(tag, .boundary(role))) }
         }
@@ -85,6 +90,11 @@ extension BlendSurfaceTests {
             edge.tags.contains { if case .boundary = $0.role { true } else { false } }
         }
         #expect(tagged.count == 2, "only the rims carry a role, not the seam")
+    }
+
+    @Test func theRimsAreTheRoles() async throws {
+        let (_, _, result) = try await blendedTubes(.g1)
+        checkRoles(result)
     }
 
     @Test(arguments: [PatchContinuity.g1, .g2])
@@ -106,6 +116,17 @@ extension BlendSurfaceTests {
     @Test func anOffsetSeamAndAReversedRimDoNotTwist() async throws {
         let (lower, upper, result) = try await blendedTubes(.g2, start: 90, reversed: true)
         try await checkTubes(lower, upper, result, .g2)
+    }
+
+    /// A cylinder solid's top rim is a closed edge between two faces: the blend continues the side face, toward the second tube.
+    @Test func aCylinderSolidsTopRimBlends() async throws {
+        let lower = try await kernel.extrude(Profile2D.circle(radius: 10, center: .zero, plane: .xy), distance: 20, mode: .oneSided,
+                                             tag: tag)
+        let upper = try await tube(radius: 14, from: 30, to: 50)
+        let topRim = try #require(lower.topology.edges.first { $0.faces.count == 2 && abs($0.midpoint.z - 20) < 1e-6 && $0.kind != .line })
+        let side = try #require(lower.topology.faces.first { $0.kind == .cylinder })
+        let result = try await blend(lower, topRim.id, upper, try rim(upper, z: 30).id, .g1)
+        try await checkTubes(lower, upper, result, .g1, lowerFace: side.id, lowerRim: topRim)
     }
 
     @Test func aClosedAndAnOpenEdgeRefuse() async throws {

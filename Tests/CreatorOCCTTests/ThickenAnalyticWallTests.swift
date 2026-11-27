@@ -133,6 +133,20 @@ struct ThickenAnalyticWallTests {
         #expect(abs(inward - shrink) / shrink < 1e-4)
     }
 
+    /// Two circular rims whose seams differ (one starts at 0 degrees, the other at 90): the analytic wall's own circles would put both seams
+    /// at the lower start, so the guard leaves this pair to the ruled wall. The result is still a closed solid. (The loft's rims are splines, so this may not reach the guard; no fixture with circular rims of differing seams is reachable through the kernel.)
+    @Test func rimsWithDifferentSeamsStayValid() async throws {
+        func ring(_ z: Double, start: Double) async throws -> Curve {
+            let piece = CurvePiece.arc(center: Vector3(0, 0, z), normal: Vector3(0, 0, 1), radius: 10,
+                                       start: Vector3(10 * cos(start), 10 * sin(start), z), sweep: 2 * .pi)
+            return try await kernel.makeCurve([piece], tag: newTag())
+        }
+        let tube = try await kernel.loftSurface([ring(0, start: 0), ring(20, start: .pi / 2)], ruled: false, closed: false, tag: newTag())
+        let thick = try await kernel.thickened(tube, distance: 1, side: .both, tag: tag)
+        #expect(!thick.hasOpenShell)
+        #expect(try await volume(thick) > 0) // the loft twists between the seams, so no closed-form volume
+    }
+
     @Test func theWallKeepsItsName() async throws {
         let plate = try await kernel.thickened(holePlate(), distance: 2, side: .front, tag: tag)
         let cylinder = try #require(plate.topology.faces.first { $0.kind == .cylinder })

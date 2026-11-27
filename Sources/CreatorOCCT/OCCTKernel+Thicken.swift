@@ -15,6 +15,8 @@ extension OCCTShape {
 
 extension OCCTKernel {
     static let thickenFoldedSentence = "The surface folds over itself, so it can't be thickened; move its control points apart first."
+    /// Thicken's own sentence for the same refusal as `openEdgesSentence` (NS-G R2).
+    static let thickenOpenEdgesSentence = "The thickened sides don't keep the surface's open edges, so it can't be thickened."
 
     /// How one try at a thickness ended.
     enum ThickenTry {

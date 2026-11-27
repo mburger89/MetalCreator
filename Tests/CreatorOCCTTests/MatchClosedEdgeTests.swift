@@ -118,6 +118,14 @@ struct MatchClosedEdgeTests {
         try await check(result, from: source, target: target, targetRim: try rim(target, z: -5), continuity: .g2)
     }
 
+    @Test func aFarSeamAndAReversedTargetDoNotTwist() async throws {
+        let source = try await tube()
+        let target = try await tube(radius: 12, from: -5, to: -25, start: 137, reversed: true)
+        let result = try await kernel.matched(source, edge: try rim(source, z: 0).id, to: try rim(target, z: -5).id, of: target,
+                                              continuity: .g2)
+        try await check(result, from: source, target: target, targetRim: try rim(target, z: -5), continuity: .g2)
+    }
+
     /// A Loft Surface through two closed rings: a clamped closed surface that is not periodic. `smooth` rings are the exact rational
     /// circle (degree 2, nine poles, a clamped seam); the others are an octagon's cubic with a corner at the seam.
     func loftedTube(smooth: Bool, radius: Double = 10, from: Double = 0, to: Double = 20) async throws -> Solid {
@@ -157,7 +165,7 @@ struct MatchClosedEdgeTests {
         #expect(source.topology.edges.filter { $0.faces.count == 1 }.count == 2)
         let result = try await kernel.matched(source, edge: rimEdge.id, to: try rim(target, z: -5).id, of: target, continuity: .g2)
         let net = try await kernel.controlNet(of: result).surface
-        #expect(net.isPeriodicU || net.isPeriodicV, "the result is periodic along the rim")
+        #expect(net.isPeriodicU, "the result is periodic along the rim")
         let found = try await kernel.continuity(of: try matchedRim(result).id, in: result, against: FaceID(0), of: target)
         #expect(found.grade >= .g2, "angle \(found.angleGap) curvature \(found.curvatureGap)")
         #expect(found.positionGap <= 1e-4)

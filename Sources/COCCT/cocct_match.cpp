@@ -661,7 +661,7 @@ occt_shape *match(const occt_shape *shape, int face_index, int edge_index, const
             const bool pinned_ends = k == 0 && !cyclic;
             const int unknowns = na - (pinned_ends ? 2 : 0);
             const int offset = pinned_ends ? 1 : 0; // unknown u is pole index u + offset (0-based)
-                        // A closed edge's wrapped basis touches the last `pa` poles with everything: a banded interior and a border.
+            // A closed edge's wrapped basis touches the last `pa` poles with everything: a banded interior and a border.
             const int border = cyclic ? std::min(pa, na) : 0;
             band_border_system system(std::max(unknowns, 0) - border, border, pa);
             std::vector<double> rhs(static_cast<size_t>(std::max(unknowns, 0)) * 3, 0.0);

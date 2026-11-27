@@ -127,14 +127,15 @@ TopoDS_Face analytic_wall(const TopoDS_Edge &lower, const TopoDS_Edge &upper) {
     }
     const bool full = std::abs((a1 - a0) - 2 * kPi) < 1e-9;
     // The two arcs must cover the same angles. The starts come from atan2, so one on the +-pi ray can differ by a whole turn: compare
-    // the spans, and the starts modulo 2 pi (a full circle's seam may sit anywhere, so its start doesn't matter).
+    // the spans, and the starts modulo 2 pi. A full circle too: the wall's own edges put the seam at the lower edge's start, so rims
+    // whose seams differ leave it to the ruled `BRepFill::Face` wall (the old behaviour).
     double turn = std::fmod(a0 - b0, 2 * kPi);
     if (turn > kPi) {
         turn -= 2 * kPi;
     } else if (turn < -kPi) {
         turn += 2 * kPi;
     }
-    if (std::abs((a1 - a0) - (b1 - b0)) > 1e-6 || (!full && std::abs(turn) > 1e-6)) {
+    if (std::abs((a1 - a0) - (b1 - b0)) > 1e-6 || std::abs(turn) > 1e-6) {
         return TopoDS_Face();
     }
     const bool coplanar = std::abs(height) < 1e-7;

@@ -56,8 +56,8 @@ extension OCCTKernel {
         try Task.checkCancellation()
         if solid.hasOpenShell {
             // R4: only a mixed value is pointed to Separate Solids; an open-only one keeps the kernel's own older sentence.
-            throw KernelError.invalidInput(solid.holdsClosedSolid ? solid.splitSolidRefusal ?? ""
-                                           : "Split Solid takes a closed solid; the solid is an open surface.")
+            if solid.holdsClosedSolid, let sentence = solid.splitSolidRefusal { throw KernelError.invalidInput(sentence) }
+            throw KernelError.invalidInput("Split Solid takes a closed solid; the solid is an open surface.")
         }
         let source = try shape(of: solid)
         guard !tools.isEmpty else { return SolidSplit(pieces: [solid], warnings: []) }
