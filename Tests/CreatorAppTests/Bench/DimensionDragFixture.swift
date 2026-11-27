@@ -36,29 +36,26 @@ extension DrawingBenchFixtures {
         app.refreshDrawing()
         await app.settle()
         let reports = try #require(app.drawing.editor.picture?.annotationReports)
-        // A dimension the editor can really drag: the press on its label must pick it, not a balloon or a neighbour, and a nudge
-        // must move it. Each held candidate is tried alone on the ballooned sheet.
-        var chosen: AnnotationID?
-        var document = ballooned
-        for id in ids where reports[id]?.status == .held {
-            var trial = ballooned
-            trial.sheets[0].setAnnotation(try #require(candidates.sheets[0].annotation(id)))
-            try app.document.perform(.setDrawings(trial), name: "Test")
-            app.refreshDrawing()
-            await app.settle()
-            if await DimensionDragFixture.canDrag(app, id) {
-                chosen = id
-                document = trial
-                break
-            }
+        // The choice is by geometry, not by run: the first held candidate, in edge order, whose label centre (where the press
+        // lands) lies in no other annotation's frame, grown by the hit test's slack. A sheet keeps its annotations sorted by their random IDs (plan R2), and a
+        // press takes the topmost annotation whose frame holds it, so a label under a balloon is picked or missed by chance.
+        let others = ballooned.sheets[0].annotations.compactMap { reports[$0.id]?.frame.insetBy(-hitSlack) }
+        let free = ids.first { id in
+            guard let report = reports[id], report.status == .held, let label = report.textCenter else { return false }
+            return !others.contains { $0.contains(label) }
         }
-        let dimension = try #require(chosen, "a held length on a horizontal edge that the editor can drag")
+        let dimension = try #require(free, "a held length on a horizontal edge whose label no balloon or the parts list covers")
+        var document = ballooned
+        document.sheets[0].setAnnotation(try #require(candidates.sheets[0].annotation(dimension)))
         try app.document.perform(.setDrawings(empty), name: "Test")
         app.refreshDrawing()
         await app.settle()
         return (document, dimension)
     }
 }
+
+/// `SheetHitTest`'s growth of an annotation's frame (its `annotationGrowth`), in millimetres.
+private let hitSlack = 1.0
 
 /// A drag of one dimension's label through the editor's own input path: the press, `primaryChanged` steps, the release.
 @MainActor
@@ -89,25 +86,6 @@ struct DimensionDragFixture {
         editor.primaryChanged(to: editor.transform.screenPoint(origin + Vector2(0, distance)), modifiers: [])
     }
 
-    /// Whether pressing on the label and nudging it moves the dimension; the gesture is cancelled, leaving the sheet as it was.
-    static func canDrag(_ app: AppModel, _ id: AnnotationID) async -> Bool {
-        let editor = app.drawing.editor
-        guard let drag = try? press(app, id) else { return false }
-        drag.step(to: 1)
-        var moved = false
-        if case .dimension(let dimension)? = editor.document.sheets[0].annotation(id)?.kind {
-            moved = abs(dimension.placement.offset - drag.offsetBefore) > 0.5
-        }
-        editor.primaryCancelled()
-        await app.settle()
-        return moved
-    }
-
-    /// The part a balloon's leader is attached to, nil for anything else.
-    private static func target(of annotation: DrawingAnnotation?) -> AnchorTarget? {
-        if case .balloon(let balloon)? = annotation?.kind { balloon.leader.target } else { nil }
-    }
-
     /// The release at `distance`, then the settled result.
     func release(at distance: Double) async -> DimensionDragOutcome {
         let editor = app.drawing.editor
@@ -117,7 +95,7 @@ struct DimensionDragFixture {
         var offset = offsetBefore
         if case .dimension(let dimension)? = sheet.annotation(id)?.kind { offset = dimension.placement.offset }
         let held = balloonsBefore.filter { editor.picture?.annotationReports[$0.id]?.status == .held }.count
-        let unchanged = balloonsBefore.allSatisfy { Self.target(of: sheet.annotation($0.id)) == Self.target(of: $0) }
+        let unchanged = balloonsBefore.allSatisfy { sheet.annotation($0.id) == $0 }
         return DimensionDragOutcome(moved: offset - offsetBefore, balloonsHeld: held, balloonsUnchanged: unchanged)
     }
 }
@@ -126,7 +104,7 @@ struct DimensionDragOutcome {
     /// How far the dimension's offset changed, in millimetres.
     let moved: Double
     let balloonsHeld: Int
-    /// Every balloon is still attached to the same part (the target its leader had before the press).
+    /// Every balloon's whole record (part, hint, offset) is as it was before the press.
     let balloonsUnchanged: Bool
 }
 

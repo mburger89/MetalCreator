@@ -162,7 +162,11 @@ struct DrawingBenchFixturesTests {
         let drawn = sheet.annotations.filter { if case .partsList = $0.kind { false } else { true } }
         let reports = drawn.compactMap { app.drawing.editor.picture?.annotationReports[$0.id] }
         #expect(reports.count == 11 && reports.allSatisfy { $0.status == .held }, "\(reports.map(\.status))")
-        #expect(app.drawing.editor.picture?.annotationReports[dimension]?.textCenter != nil)
+        let editor = app.drawing.editor
+        let label = try #require(editor.picture?.annotationReports[dimension]?.textCenter)
+        let order = editor.document.sheets[0].annotations.map(\.id)
+        let hit = SheetHitTest.annotation(at: label, in: try #require(editor.picture), order: order)
+        #expect(hit == dimension, "a press on the label picks the dimension, whatever the annotation IDs")
     }
 
     /// The press and the 60 half-millimetre steps `drawing-drag-warm` makes move the dimension 30 mm and lose no balloon.
