@@ -93,11 +93,22 @@ struct SheetTexts: Component {
     let warning: HexColor
 
     var content: some ElementGroup {
-        ZStack(alignment: .topLeading) {
-            ForEach(texts.indices, id: \.self) { index in
+        let reference = SheetTextZoom.reference(for: zoom)
+        let upright = texts.filter(SheetTextZoom.isUpright)
+        let rotated = texts.filter { !SheetTextZoom.isUpright($0) }
+        return ZStack(alignment: .topLeading) {
+            if !upright.isEmpty {
+                // Laid out at the band's reference zoom and scaled from the paper's top left (zoom-text plan R1, R3).
+                ZStack(alignment: .topLeading) {
+                    SheetUprightTexts(texts: upright, reference: reference, paperHeight: paperHeight, ink: ink, warning: warning)
+                        .equatable()
+                }
+                .scaleEffect(zoom / reference, anchor: .topLeading)
+            }
+            ForEach(rotated.indices, id: \.self) { index in
                 SheetTextView(
-                    text: texts[index], zoom: zoom, paperHeight: paperHeight,
-                    color: texts[index].isNotice || texts[index].isLost ? warning : ink)
+                    text: rotated[index], zoom: zoom, paperHeight: paperHeight,
+                    color: rotated[index].isNotice || rotated[index].isLost ? warning : ink)
             }
         }
     }

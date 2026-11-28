@@ -1525,3 +1525,10 @@ while the app runs, pipelines cached by source.
   Meanwhile: the top bar's Undo, Redo and Export, the graph panel header (`GraphPanelHeader`) and the view cube's Home button and View menu stay text. We do not draw icons by hand.
   Status: fixed. MetalUI #277 (`0b5b6a87`, record 279, ruling SYM-Q) bundled the glyphs but not `plus` and `minus`; MetalUI #290 (`ad09c33a`, record 288, ruling SYM-R) bundles them. Adopted on the
   `toolbar-icons` branch with the CI pin bump (`ad09c33a`): the graph header's Add is `Image(systemName: "plus")`. The bundled glyphs carry no accessibility label, so each icon button passes its own.
+
+## Sheet text under a zoom (drawings zoom-text), 2026-11-27
+
+- **DZ-a. Text under a uniform `scaleEffect` that encloses a `rotationEffect` keeps its device-scale raster and is resampled (divergence 106 (1)). Found by the drawings zoom investigation, 2026-11-27; to be fixed in MetalUI.**
+  A similarity (uniform scale with rotation) should re-key on the 2^(1/8) ladder like a bare scale. Meanwhile `SheetTexts` lays rotated text (a vertical dimension) out at the true zoom, so it is rebuilt on every zoom step: this keeps it sharp but costs the per-glyph rebuild that upright text no longer pays (upright text on drawing-5-warm: zoom 18.8 ms to 13.7 ms, about 5 ms, in the prototype).
+- **DZ-b. A CPU path raster is redone in full on every scale change; paths have no rung ladder like text.** Sheet strokes are paths whose widths and dashes are screen units, so each zoom step rebuilds and re-rasters them (drawings speed R6). Not measured alone: drawing-5-warm zoom with every text removed was 11.0 ms, which holds this and DZ-c.
+- **DZ-c. The idle-frame build and layout floor: about 6.2 ms for 1166 unchanged elements on drawing-5-warm.** A frame in which nothing changed still builds and lays out every element; a zoom or pan step pays it on top of its own work.

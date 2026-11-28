@@ -90,21 +90,38 @@ struct SheetCanvasSkipTests {
             model.primaryChanged(to: s.h.canvas(point.x, point.y), modifiers: [])
             window.window.resetFrameWork()
             window.redraw()
-            #expect(total(window) == 2, "step \(step): the view's annotation layer and the selection layer")
+            // Each layer's upright-text group evaluates too: the dimension's text moved (zoom-text plan R1).
+            #expect(total(window) == 4, "step \(step): the annotation and selection layers, and the text group in each")
         }
         model.primaryEnded(at: s.h.canvas(start.x, start.y - 2), modifiers: [])
     }
 
-    @Test func aZoomEvaluatesEveryLayer() async throws {
-        let f = try await open([Vector2(100, 100), Vector2(300, 100)])
-        f.harness.model.transform = SheetTransform(offset: Vector2(10, 400), zoom: 1.5)
-        f.window.redraw()
+    /// One zoom step's evaluations: the layers (the frame layer, a linework and an annotations layer per view, and the selection
+    /// layer, whose widths and dashes are in screen units: drawings speed R6) plus the upright-text groups, one per layer that
+    /// has upright text, which are skipped within an octave band of the reference zoom (zoom-text plan R1).
+    private func zoomStep(_ f: Fixture, to zoom: Double) -> Int {
+        f.harness.model.transform = SheetTransform(offset: Vector2(10, 400), zoom: zoom)
         f.window.window.resetFrameWork()
-        f.harness.model.transform = SheetTransform(offset: Vector2(10, 400), zoom: 2)
         f.window.redraw()
-        // The frame layer, a linework and an annotations layer per view, and the selection layer: widths and dashes are in
-        // screen units, so a zoom step rebuilds all of them (drawings speed R6).
-        #expect(total(f.window) == 1 + 2 * f.views.count + 1)
+        return total(f.window)
+    }
+
+    @Test func aZoomWithinABandEvaluatesNoText() async throws {
+        let f = try await open([Vector2(100, 100), Vector2(300, 100)])
+        let layers = 1 + 2 * f.views.count + 1
+        _ = zoomStep(f, to: 1.1)
+        for zoom in [1.2, 1.3] {
+            #expect(zoomStep(f, to: zoom) == layers, "zoom \(zoom): every layer, no upright-text group")
+        }
+    }
+
+    @Test func aZoomAcrossABandRebuildsTextOnce() async throws {
+        let f = try await open([Vector2(100, 100), Vector2(300, 100)])
+        let layers = 1 + 2 * f.views.count + 1
+        _ = zoomStep(f, to: 1.3)
+        let across = zoomStep(f, to: 1.45)
+        #expect(across > layers, "the upright texts rebuilt: \(across) against \(layers) layers")
+        #expect(zoomStep(f, to: 1.5) == layers, "the next step in the band rebuilds none")
     }
 
     @Test func aPickAfterADragHitsTheRightStroke() throws {
