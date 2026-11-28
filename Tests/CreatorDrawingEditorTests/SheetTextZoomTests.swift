@@ -48,7 +48,7 @@ struct SheetTextZoomTests {
         return (Double(try #require(left)) / scaleFactor, Double(try #require(bottom) + 1) / scaleFactor)
     }
 
-    @Test(arguments: [0.3, 1.7, 12.0])
+    @Test(arguments: [0.3, 1.7, 12.0, 22.0])
     func uprightTextLandsWhereItDidBefore(zoom: Double) async throws {
         let text = SheetText(
             run: DrawingText.layout("H1", height: 3.5), original: "H1", origin: Vector2(20, 30), height: 3.5)
@@ -60,12 +60,52 @@ struct SheetTextZoomTests {
         let direct = try await inkEdges(of: Color.white.overlay(alignment: .topLeading) {
             SheetTextView(text: text, zoom: zoom, paperHeight: 40, color: ink)
         })
-        // MetalUI rasterises text on a 2^(1/8) ladder, so a scaled glyph is up to half a rung (2.2 %) off the exact size; its
-        // edges are within that of the cap height, and within a point otherwise.
-        let slack = Swift.max(1, 0.03 * 3.5 * zoom)
-        #expect(abs(scaled.left - direct.left) <= slack, "left edge \(scaled.left) against \(direct.left) at zoom \(zoom)")
-        #expect(abs(scaled.baseline - direct.baseline) <= slack, "baseline \(scaled.baseline) against \(direct.baseline) at zoom \(zoom)")
-        #expect(abs(direct.baseline - 10 * zoom) <= 1, "and the baseline is where the sheet puts it")
+        // The sheet's baseline is 10 mm down. Text sits within a point of it on both paths: MetalUI aligns `firstTextBaseline` on
+        // `round(ascent)` in points but draws glyphs at the device-pixel ascent, so each text is up to ~0.5 pt off its line, and
+        // the scaled path pays that error of its reference zoom times the scale (the 2^(1/8) ladder draws ink at the exact scale).
+        #expect(abs(scaled.baseline - 10 * zoom) <= 1, "scaled baseline \(scaled.baseline) against \(10 * zoom) at zoom \(zoom)")
+        #expect(abs(direct.baseline - 10 * zoom) <= 1, "direct baseline \(direct.baseline) against \(10 * zoom) at zoom \(zoom)")
+        #expect(abs(scaled.left - direct.left) <= 0.5, "left edge \(scaled.left) against \(direct.left) at zoom \(zoom)")
+    }
+
+    private func text(height: Double, angle: Double = 0) -> SheetText {
+        SheetText(run: DrawingText.layout("H1", height: height), original: "H1", origin: Vector2(5, 30), height: height, angle: angle)
+    }
+
+    @Test func aTextIsScaledOnlyWhileItsEmFitsMetalUIsRekeyCap() {
+        #expect(SheetTextZoom.isScaled(text(height: 3.5), zoom: 20))
+        #expect(!SheetTextZoom.isScaled(text(height: 3.5), zoom: 40), "em 390 px at 2x")
+        #expect(!SheetTextZoom.isScaled(text(height: 7), zoom: 20), "em 390 px at 2x")
+        #expect(SheetTextZoom.isScaled(text(height: 7), zoom: 10))
+        #expect(!SheetTextZoom.isScaled(text(height: 3.5, angle: .pi / 2), zoom: 1), "rotated text is never scaled")
+        #expect(SheetTextZoom.isScaled(text(height: 3.5, angle: 2 * .pi), zoom: 1))
+    }
+
+    /// A text past the cap is drawn on the true-zoom path, so it renders exactly as `SheetTextView` does (sharp).
+    @Test(arguments: [(3.5, 40.0), (7.0, 20.0)])
+    func textPastTheCapRendersAtTheTrueZoom(height: Double, zoom: Double) async throws {
+        let sheetText = text(height: height)
+        let ink = ColorTheme.dracula.colors.drawingInk
+        func render(_ content: some ElementGroup) async throws -> PixelImage {
+            let window = try await DrawingWindow.open(size: Size(width: Pixels(900), height: Pixels(500)), scaleFactor: 2) { content }
+            return try PixelImage(window: window.window)
+        }
+        let viaSheet = try await render(Color.white.overlay(alignment: .topLeading) {
+            SheetTexts(texts: [sheetText], zoom: zoom, paperHeight: 40, ink: ink, warning: ink)
+        })
+        let direct = try await render(Color.white.overlay(alignment: .topLeading) {
+            SheetTextView(text: sheetText, zoom: zoom, paperHeight: 40, color: ink)
+        })
+        #expect(viaSheet.width == direct.width && viaSheet.height == direct.height)
+        var differing = 0, inked = 0
+        for y in 0..<direct.height {
+            for x in 0..<direct.width {
+                if direct.luminance(x, y) < 200 { inked += 1 }
+                if viaSheet.luminance(x, y) != direct.luminance(x, y) { differing += 1 }
+            }
+        }
+        #expect(inked > 0)
+        #expect(differing == 0, "\(differing) pixels differ at zoom \(zoom), height \(height)")
     }
 
     @Test func warningTextKeepsItsColourInBothGroups() async throws {

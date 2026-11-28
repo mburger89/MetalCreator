@@ -119,8 +119,12 @@ struct SheetCanvasSkipTests {
         let f = try await open([Vector2(100, 100), Vector2(300, 100)])
         let layers = 1 + 2 * f.views.count + 1
         _ = zoomStep(f, to: 1.3)
+        // One group per layer that has scaled upright text: the frame layer for texts with no view, and each view's annotations.
+        let texts = try #require(f.harness.model.picture?.texts).filter { SheetTextZoom.isScaled($0, zoom: 1.45) }
+        let textLayers = Set(texts.map(\.view)).count
+        #expect(textLayers > 0, "the fixture has upright text")
         let across = zoomStep(f, to: 1.45)
-        #expect(across > layers, "the upright texts rebuilt: \(across) against \(layers) layers")
+        #expect(across == layers + textLayers, "upright text rebuilt once per layer: \(across), \(layers) layers, \(textLayers) groups")
         #expect(zoomStep(f, to: 1.5) == layers, "the next step in the band rebuilds none")
     }
 

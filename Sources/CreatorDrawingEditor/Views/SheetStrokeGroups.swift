@@ -94,8 +94,13 @@ struct SheetTexts: Component {
 
     var content: some ElementGroup {
         let reference = SheetTextZoom.reference(for: zoom)
-        let upright = texts.filter(SheetTextZoom.isUpright)
-        let rotated = texts.filter { !SheetTextZoom.isUpright($0) }
+        // Angle 0, so a text of 2π gives MetalUI no rotation to resample under (R8).
+        let upright = texts.filter { SheetTextZoom.isScaled($0, zoom: zoom) }.map { text -> SheetText in
+            var copy = text
+            copy.angle = 0
+            return copy
+        }
+        let rotated = texts.filter { !SheetTextZoom.isScaled($0, zoom: zoom) }
         return ZStack(alignment: .topLeading) {
             if !upright.isEmpty {
                 // Laid out at the band's reference zoom and scaled from the paper's top left (zoom-text plan R1, R3).

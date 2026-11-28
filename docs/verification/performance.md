@@ -1605,7 +1605,7 @@ Plan R20: ten parts (each a 40 x 30 x 10 mm box less a 10 mm hole, 50 mm apart a
 | Row | Time | Budget |
 |---|---|---|
 | `drawing-5` three views of ten parts, from the edit that adds them to the last projection landing (projection cache emptied, 10 runs) | median 10.77 ms, p95 12.24 ms, max 12.24 ms | under 1 s: met |
-| `drawing-5-warm` 60 pan and 60 zoom steps, ten balloons and the parts list, warm window CPU per frame | median 17.89 ms, p95 28.99 ms, max 51.50 ms (saturated) | 16.67 ms: missed on a loaded Mac (idle-Mac pan and zoom rows are in the next subsection) |
+| `drawing-5-warm` 60 pan and 60 zoom steps, ten balloons and the parts list, warm window CPU per frame | median 17.89 ms, p95 28.99 ms, max 51.50 ms (saturated) | 16.67 ms: missed on a loaded Mac; on an idle Mac the combined row also missed before the zoom-text change (run A, 16.88 ms) and met after it (run B, 12.31 ms): see the next subsection |
 
 ```text
 BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
@@ -1615,7 +1615,7 @@ BENCH drawing-5-warm window-cpu (warm frame, ten parts, ten balloons, parts list
 BENCH load after: 7.22 8.98 8.64
 ```
 
-`drawing-5` gives the views new IDs each round and checks that `ProjectionCache.kernelCalls` grew by at least three per round; `drawing-5-warm` asserts all ten balloons held before and after the run. Re-run on an idle Mac to settle the warm row.
+`drawing-5` gives the views new IDs each round and checks that `ProjectionCache.kernelCalls` grew by at least three per round; `drawing-5-warm` asserts all ten balloons held before and after the run. The idle-Mac rows below settled the warm row.
 
 #### Pan, zoom and drag rows
 
@@ -1629,7 +1629,7 @@ Added with the drawings-speed work (`LineworkMemo`, the layered sheet canvas, th
 | `drawing-5-warm zoom` | the 60 zoom steps of `drawing-5-warm` alone | 16.67 ms | median 17.97 ms, p95 18.87 ms, max 19.30 ms: missed | median 13.38 ms, p95 14.45 ms, max 19.31 ms: met |
 | `drawing-drag-warm step-cpu` | the ten-part sheet with ten balloons, the parts list and one dimension (an aligned length on a horizontal edge of the Front view); the editor presses on the dimension's label (Select tool), then makes 60 `primaryChanged` steps of 0.5 mm. A step's figure is the time of the `primaryChanged` call (the host's `storeDrawing` and refresh included) plus one warm frame; settling is outside the timer | 16.67 ms | median 13.39 ms, p95 24.22 ms, max 76.07 ms: met (median) | median 14.04 ms, p95 25.00 ms, max 75.30 ms: met (median) |
 
-Run A's 5-minute load average of 2.36 and run B's of 2.48 count as idle. `drawing-drag-warm` met its budget on the median in both runs, but its p95 (24 to 25 ms) and max (about 75 ms) are over it: recorded, not a gate, and the linework compare stays parked (`Sources/CreatorDrawingEditor/CLAUDE.md`). Run B's zoom max of 19.31 ms is the step that crosses an octave and rebuilds the upright text: one frame per octave by design (plan R1).
+Run A's 5-minute load average of 2.36 and run B's of 2.48 count as idle. `drawing-drag-warm` met its budget on the median in both runs, but its p95 (24 to 25 ms) and max (about 75 ms) are over it: recorded, not a gate, and the linework compare stays parked (`Sources/CreatorDrawingEditor/CLAUDE.md`). Run B's zoom max of 19.31 ms is most likely the step that crosses an octave and rebuilds the upright text (one frame per octave by design, plan R1); this is inferred, not measured: the bench's zoom ramps by up to 1.9x, so it crosses one or two boundaries each way, and run A's max was 19.30 ms.
 
 Run A:
 

@@ -18,6 +18,18 @@ enum SheetTextZoom {
     static func isUpright(_ text: SheetText) -> Bool {
         text.angle.remainder(dividingBy: 2 * .pi) == 0
     }
+
+    /// MetalUI's `TextZoom.maximumEmPixels` (Sources/MetalUI/TextZoom.swift:20, internal): re-keying never rasterises a glyph
+    /// beyond this em in device pixels, so a larger text is upscaled from its reference raster (gap DZ-d).
+    static let maximumEmPixels = 256.0
+    /// The largest backing scale factor a window has (R7).
+    static let largestBackingScale = 2.0
+
+    /// Whether the text goes into the scaled group (R2, R7): upright, and its em at the true zoom, in device pixels at the largest
+    /// backing scale, within MetalUI's re-key cap. Any other text is drawn at the true zoom, which keeps it sharp.
+    @MainActor static func isScaled(_ text: SheetText, zoom: Double) -> Bool {
+        isUpright(text) && SheetTextView.em(height: text.height, zoom: zoom) * largestBackingScale <= maximumEmPixels
+    }
 }
 
 /// The upright texts of one layer, laid out at a reference zoom. `==` never reads the true zoom, so a zoom step within a band
