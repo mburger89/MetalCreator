@@ -1605,7 +1605,7 @@ Plan R20: ten parts (each a 40 x 30 x 10 mm box less a 10 mm hole, 50 mm apart a
 | Row | Time | Budget |
 |---|---|---|
 | `drawing-5` three views of ten parts, from the edit that adds them to the last projection landing (projection cache emptied, 10 runs) | median 10.77 ms, p95 12.24 ms, max 12.24 ms | under 1 s: met |
-| `drawing-5-warm` 60 pan and 60 zoom steps, ten balloons and the parts list, warm window CPU per frame | median 17.89 ms, p95 28.99 ms, max 51.50 ms (saturated) | 16.67 ms: missed on a loaded Mac |
+| `drawing-5-warm` 60 pan and 60 zoom steps, ten balloons and the parts list, warm window CPU per frame | median 17.89 ms, p95 28.99 ms, max 51.50 ms (saturated) | 16.67 ms: missed on a loaded Mac; on an idle Mac the combined row also missed before the zoom-text change (run A, 16.88 ms) and met after it (run B, 12.31 ms): see the next subsection |
 
 ```text
 BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
@@ -1615,18 +1615,60 @@ BENCH drawing-5-warm window-cpu (warm frame, ten parts, ten balloons, parts list
 BENCH load after: 7.22 8.98 8.64
 ```
 
-`drawing-5` gives the views new IDs each round and checks that `ProjectionCache.kernelCalls` grew by at least three per round; `drawing-5-warm` asserts all ten balloons held before and after the run. Re-run on an idle Mac to settle the warm row.
+`drawing-5` gives the views new IDs each round and checks that `ProjectionCache.kernelCalls` grew by at least three per round; `drawing-5-warm` asserts all ten balloons held before and after the run. The idle-Mac rows below settled the warm row.
 
-#### Pan, zoom and drag rows (method only; numbers owed: idle Mac)
+#### Pan, zoom and drag rows
 
-Added with the drawings-speed work (`LineworkMemo`, the layered sheet canvas, the placement-blind refresh key). No numbers are recorded here: they are owed from an idle Mac (the Mac is not idle for the check that these lines print).
+Added with the drawings-speed work (`LineworkMemo`, the layered sheet canvas, the placement-blind refresh key). Two idle-Mac release runs of `scripts/bench.sh DrawingBench` (Mac18,5, 12 cores, macOS 27.2.1, 2026-11-27): run A on main 6921446a, before the zoom-text change, and run B on dr-zoom b99cfde1, where upright sheet text is laid out at an octave-band reference zoom and scaled (plan `docs/superpowers/plans/2026-11-27-drawings-zoom-text.md`). Recorded against 16.67 ms per row; the headline is `drawing-5-warm zoom`, 17.97 ms (missed) before and 13.38 ms (met) after.
 
-| Row | Method | Budget | Numbers |
-|---|---|---|---|
-| `drawing-2-warm pan` | the 60 pan steps of `drawing-2-warm` alone (the first five are warm-up) | 16.67 ms | owed: idle Mac |
-| `drawing-2-warm zoom` | the 60 zoom steps of `drawing-2-warm` alone | 16.67 ms | owed: idle Mac |
-| `drawing-5-warm pan` | the 60 pan steps of `drawing-5-warm` alone (the first five are warm-up) | 16.67 ms | owed: idle Mac |
-| `drawing-5-warm zoom` | the 60 zoom steps of `drawing-5-warm` alone | 16.67 ms | owed: idle Mac |
-| `drawing-drag-warm step-cpu` | the ten-part sheet with ten balloons, the parts list and one dimension (an aligned length on a horizontal edge of the Front view); the editor presses on the dimension's label (Select tool), then makes 60 `primaryChanged` steps of 0.5 mm. A step's figure is the time of the `primaryChanged` call (the host's `storeDrawing` and refresh included) plus one warm frame; settling is outside the timer | 16.67 ms | owed: idle Mac |
+| Row | Method | Budget | Run A (main 6921446a) | Run B (dr-zoom b99cfde1) |
+|---|---|---|---|---|
+| `drawing-2-warm pan` | the 60 pan steps of `drawing-2-warm` alone (the first five are warm-up) | 16.67 ms | median 8.90 ms, p95 9.97 ms, max 10.34 ms: met | median 9.26 ms, p95 10.39 ms, max 10.82 ms: met |
+| `drawing-2-warm zoom` | the 60 zoom steps of `drawing-2-warm` alone | 16.67 ms | median 14.84 ms, p95 15.93 ms, max 16.29 ms: met | median 12.35 ms, p95 13.70 ms, max 15.33 ms: met |
+| `drawing-5-warm pan` | the 60 pan steps of `drawing-5-warm` alone (the first five are warm-up) | 16.67 ms | median 10.16 ms, p95 11.05 ms, max 11.41 ms: met | median 10.47 ms, p95 11.40 ms, max 11.54 ms: met |
+| `drawing-5-warm zoom` | the 60 zoom steps of `drawing-5-warm` alone | 16.67 ms | median 17.97 ms, p95 18.87 ms, max 19.30 ms: missed | median 13.38 ms, p95 14.45 ms, max 19.31 ms: met |
+| `drawing-drag-warm step-cpu` | the ten-part sheet with ten balloons, the parts list and one dimension (an aligned length on a horizontal edge of the Front view); the editor presses on the dimension's label (Select tool), then makes 60 `primaryChanged` steps of 0.5 mm. A step's figure is the time of the `primaryChanged` call (the host's `storeDrawing` and refresh included) plus one warm frame; settling is outside the timer | 16.67 ms | median 13.39 ms, p95 24.22 ms, max 76.07 ms: met (median) | median 14.04 ms, p95 25.00 ms, max 75.30 ms: met (median) |
+
+Run A's 5-minute load average of 2.36 and run B's of 2.48 count as idle. `drawing-drag-warm` met its budget on the median in both runs, but its p95 (24 to 25 ms) and max (about 75 ms) are over it: recorded, not a gate, and the linework compare stays parked (`Sources/CreatorDrawingEditor/CLAUDE.md`). Run B's zoom max of 19.31 ms is most likely the step that crosses an octave and rebuilds the upright text (one frame per octave by design, plan R1); this is inferred, not measured: the bench's zoom ramps by up to 1.9x, so it crosses one or two boundaries each way, and run A's max was 19.30 ms.
+
+Run A:
+
+```text
+BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
+BENCH load before: 1.64 2.36 4.54
+BENCH drawing-drag-warm step-cpu (primaryChanged + warm frame, ten parts, ten balloons, parts list): median 13.39 ms, p95 24.22 ms, max 76.07 ms (n 60); budget 16.67 ms: met
+BENCH drawing-1 bracket, four views projected (cache emptied): median 7.67 ms, p95 7.79 ms, max 7.79 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-2-warm pan window-cpu (warm frame): median 8.90 ms, p95 9.97 ms, max 10.34 ms (n 55); budget 16.67 ms: met
+BENCH drawing-2-warm zoom window-cpu (warm frame): median 14.84 ms, p95 15.93 ms, max 16.29 ms (n 60); budget 16.67 ms: met
+BENCH drawing-2-warm window-cpu (warm frame): median 13.65 ms, p95 15.80 ms, max 16.29 ms (n 115); budget 16.67 ms: met
+BENCH drawing-3 bracket sheet with 30 dimensions, composed: median 0.90 ms, p95 0.91 ms, max 0.92 ms (n 50); budget 4.00 ms: met
+BENCH drawing-3-warm window-cpu (warm frame, dimension dragged): median 14.30 ms, p95 14.65 ms, max 14.76 ms (n 55); budget 16.67 ms: met
+BENCH drawing-4 bracket, a straight section through the holes (cache emptied): median 12.19 ms, p95 12.65 ms, max 12.65 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-5 ten-part assembly, three views projected (cache emptied): median 8.90 ms, p95 9.05 ms, max 9.05 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-5-warm pan window-cpu (warm frame, ten parts, ten balloons, parts list): median 10.16 ms, p95 11.05 ms, max 11.41 ms (n 55); budget 16.67 ms: met
+BENCH drawing-5-warm zoom window-cpu (warm frame, ten parts, ten balloons, parts list): median 17.97 ms, p95 18.87 ms, max 19.30 ms (n 60); budget 16.67 ms: missed
+BENCH drawing-5-warm window-cpu (warm frame, ten parts, ten balloons, parts list): median 16.88 ms, p95 18.76 ms, max 19.30 ms (n 115); budget 16.67 ms: missed
+BENCH load after: 6.07 5.55 5.49
+```
+
+Run B:
+
+```text
+BENCH machine: Mac18,5, 12 cores, macOS 27.2.1
+BENCH load before: 2.08 2.48 3.93
+BENCH drawing-drag-warm step-cpu (primaryChanged + warm frame, ten parts, ten balloons, parts list): median 14.04 ms, p95 25.00 ms, max 75.30 ms (n 60); budget 16.67 ms: met
+BENCH drawing-1 bracket, four views projected (cache emptied): median 7.70 ms, p95 7.93 ms, max 7.93 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-2-warm pan window-cpu (warm frame): median 9.26 ms, p95 10.39 ms, max 10.82 ms (n 55); budget 16.67 ms: met
+BENCH drawing-2-warm zoom window-cpu (warm frame): median 12.35 ms, p95 13.70 ms, max 15.33 ms (n 60); budget 16.67 ms: met
+BENCH drawing-2-warm window-cpu (warm frame): median 11.43 ms, p95 13.41 ms, max 15.33 ms (n 115); budget 16.67 ms: met
+BENCH drawing-3 bracket sheet with 30 dimensions, composed: median 0.74 ms, p95 0.74 ms, max 0.75 ms (n 50); budget 4.00 ms: met
+BENCH drawing-3-warm window-cpu (warm frame, dimension dragged): median 14.76 ms, p95 15.05 ms, max 15.12 ms (n 55); budget 16.67 ms: met
+BENCH drawing-4 bracket, a straight section through the holes (cache emptied): median 12.12 ms, p95 12.44 ms, max 12.44 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-5 ten-part assembly, three views projected (cache emptied): median 8.89 ms, p95 9.36 ms, max 9.36 ms (n 10); budget 1000.00 ms: met
+BENCH drawing-5-warm pan window-cpu (warm frame, ten parts, ten balloons, parts list): median 10.47 ms, p95 11.40 ms, max 11.54 ms (n 55); budget 16.67 ms: met
+BENCH drawing-5-warm zoom window-cpu (warm frame, ten parts, ten balloons, parts list): median 13.38 ms, p95 14.45 ms, max 19.31 ms (n 60); budget 16.67 ms: met
+BENCH drawing-5-warm window-cpu (warm frame, ten parts, ten balloons, parts list): median 12.31 ms, p95 14.39 ms, max 19.31 ms (n 115); budget 16.67 ms: met
+BENCH load after: 5.98 4.20 4.36
+```
 
 The combined `drawing-2-warm` and `drawing-5-warm` lines still print beside the split ones, over the same frames as before. `drawing-drag-warm` asserts, without time, that the dimension moved 30 mm and that every balloon stayed held and its whole record (part, hint, offset) equals what it was before the press. Its fixture (`DrawingBenchFixtures.draggableAssemblySheet`) is `drawing-5-warm`'s plus one dimension: the first held aligned length, in edge order, on a horizontal Front-view edge whose label centre lies in no balloon's or the parts list's frame (a sheet orders its annotations by random ID, so a label under another frame would be picked by chance). It is checked in the default run, which also checks that a press on the label picks the dimension.

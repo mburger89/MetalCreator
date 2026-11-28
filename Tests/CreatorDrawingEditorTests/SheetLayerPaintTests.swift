@@ -90,7 +90,7 @@ struct SheetLayerPaintTests {
         #expect(dark(after, around: oldText, model: model) == 0, "nothing is left at the old place")
         #expect(dark(after, around: newText, model: model) > 0, "the note is drawn at its new place")
         let evaluations = window.window.frameWork.reduce(0) { $0 + $1.contentEvaluations }
-        #expect(evaluations == 1, "only the note's own view's annotation layer evaluated, not the other view's layers")
+        #expect(evaluations == 2, "only the note's own view's annotation layer and its upright-text group, not the other view's layers")
     }
 }
 #endif
